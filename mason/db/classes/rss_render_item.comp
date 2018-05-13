@@ -1,0 +1,127 @@
+<%DOC>
+   vim: set syntax=mason: 
+   Component: render_item.comp
+        Date: 2003.07.18
+      Author: allan
+     Changed: 2003.07.18 by allan
+
+enforce_type ensures that it and the type of the item are the same -- used to prevent
+  access to restricted areas, such as TA Discussion, by those who shouldn't (without
+  duplicating the access checks between here and render_class).
+
+Similar with enforce_classid, but archive protection...
+</%DOC>
+
+<%ARGS>
+  $entryid
+  $uri_base=>''
+  $expand=>0
+  $quiet=>0
+  $enforce_type=>''
+  $enforce_classid=>0
+  $rssitem=>undef
+</%ARGS>
+
+<%INIT>
+  my ($classid, $post_date, $modified_date, $start_date, $kill_date, $headline, $author, $text, $text_type, $flags, $priority, $item_type);
+
+  my ($parentid, $childid, $entry_type);
+  my ($restricted, $studentonly, $expandable);
+  my $row_ref;
+  my $uri = $r->uri;
+
+#
+# first get the classid so we can decide authorization
+#
+  my $sth = $dbh->prepare('SELECT classid FROM classdata WHERE entryid=?');
+  my $success = $sth->execute($entryid)
+    or die 'Cannot find classid from entryid: ' . $entryid;
+  if (my $row_ref = $sth->fetchrow_arrayref()) {
+    ($classid) = @$row_ref;
+  }
+
+#
+# now get the rest of the item data...
+#
+  $sth = $dbh->prepare('SELECT parentid, UNIX_TIMESTAMP(post_date), UNIX_TIMESTAMP(modified_date), start_date,
+                        kill_date, headline, author, text, text_type, flags, priority, item_type
+                        FROM classdata WHERE entryid=? AND start_date <= now() AND kill_date >= now() AND published = 1');
+  $success = $sth->execute($entryid)
+    or die 'Unable to get class data: ' . $sth->errstr;
+
+  $row_ref = $sth->fetchrow_arrayref;
+  if (defined($row_ref)) {
+    ($parentid, $post_date, $modified_date, $start_date, $kill_date, $headline, $author, $text, $text_type, $flags, $priority, $item_type) = @$row_ref;
+
+#
+# Do enforce_type and enforce_classid if set
+#
+
+    if ($enforce_type && ($enforce_type ne $item_type)) {
+      print '<i>An error has occurred: The given item (' . $entryid . ') is from ' . $item_type . ' rather than ' . $enforce_type . '</i>';
+      return;
+    }
+
+    if ($enforce_classid && ($enforce_classid != $classid)) {
+      print '<i>An error has occurred: The given item (' . $entryid . ') is from class #' . $classid . ' rather than class #' . $enforce_classid . '</i>';
+      return;
+    }
+
+    $restricted = ($flags =~ /restricted/);
+    $studentonly = ($flags =~ /studentonly/);
+
+    if ($rssitem) {
+      my @post_date = gmtime($post_date);
+      my @modified_date = gmtime($modified_date);
+      $rssitem->{'published'} = strftime '%Y-%m-%dT%H:%M:%SZ', @post_date;
+      $rssitem->{'updated'} = strftime '%Y-%m-%dT%H:%M:%SZ', @modified_date;
+      if ($author) {
+        $rssitem->{'author'} = $m->comp('/mason/db/directory/uid_to_name.comp',uid=>$author);
+      }
+      if ($headline) {
+        $rssitem->{'title'} = $headline;
+      }
+    }
+
+      if ($parentid) {
+        #mark this as an attachment by indentation or whatever
+        print '<li>';
+      }
+
+
+      if ($restricted || $studentonly) {
+        print '<i>This item is restricted: please visit the website to view it.</i>';
+      } else { # non-restricted...
+        if ($text_type eq "html") {
+          print $text;
+        } elsif($text_type eq "preformatted") {
+          print "<PRE>\n$text\n</PRE>";
+        } elsif($text_type eq "wiki") {
+           print $m->comp("/mason/format_wikitext.comp", nodiv=>1, text=>$text);
+        } else { # $text_type eq "text" (old fancy)
+           print $m->comp("/mason/format_text.comp", text=>$text);
+        }
+
+        # now search the database for any attachments to render...
+        $sth = $dbh->prepare('SELECT entryid, entry_type FROM classdata WHERE parentid=? ORDER BY post_date DESC, priority DESC LIMIT 15');
+        $sth->execute($entryid)
+          or die 'Unable to get attachments: ' . $sth->errstr;
+        while (my $row_ref = $sth->fetchrow_arrayref()) {
+          print '<ul>';
+          ($childid, $entry_type) = @$row_ref;
+
+          if ($entry_type eq "item") {
+              $m->comp('/mason/db/classes/render_item.comp',entryid=>$childid,nocontrols=>1,noauth=>1, norestricted=>1);
+          } elsif ($entry_type eq "image") {
+              $m->comp('/mason/db/classes/insert_image.comp',entryid=>$childid);
+          } elsif ($entry_type eq "file") {
+              $m->comp('/mason/db/classes/insert_file.comp',entryid=>$childid, uri_base=>$uri_base);
+          } elsif ($entry_type eq "url") {
+              $m->comp('/mason/db/classes/insert_link.comp',entryid=>$childid);
+          }
+
+          print '</ul>';
+        } #while
+    } # end of expandable test...
+ } # end of item-defined test
+</%INIT>

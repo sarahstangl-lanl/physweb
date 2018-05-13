@@ -1,0 +1,24 @@
+<%shared>
+    my $comp = $m->comp('/mason/pathquery/init.comp');
+    $r->content_type('text/html');
+    
+    my $path = $m->current_comp->dir_path . '/' . $comp;
+    my @paths = $m->interp->resolver->glob_path($path, $m->interp->comp_root);
+    if (!scalar(@paths)) {
+        $comp = undef;
+    }
+</%shared>
+
+<%method initshared></%method>
+%#<%method title>
+%#% $m->comp($comp . ':title') if ($comp);
+%#</%method>
+
+<%init>
+    if ($comp) {
+        # I use this return... keep it please
+        return $m->comp($comp, %ARGS);
+    } else {
+        $m->comp('/mason/404.comp');
+    }
+</%init>

@@ -1,0 +1,35 @@
+<%doc>
+   Compontent: dhandler
+         Date: 7/3/2007
+    Author: Alex
+    Description: pull up article by id.
+</%doc>
+
+<%args>
+$view=>''
+</%args>
+
+<%shared>
+  my $arg = $m->dhandler_arg;
+  $arg =~ /^([0-9]+)\/([-a-zA-Z0-9_.]+)/go;
+  my $wantedid = $1; 
+  my $wanttitle = $2;
+  $wanttitle =~ s/.html//;
+  my $story = $wantedid;
+  my $auth = $m->comp('/mason/auth/auth_check_events.comp');
+  my $uri = $r->uri;
+</%shared>
+
+
+<%init>
+
+$r->content_type("text/html");
+if ($view =~ /normal/) { $auth=0; }
+</%init>
+
+<%method title>Class Notes</%method>
+<& /mason/db/stories/story.comp, story=>$story, class=>'news', auth=>$auth, type=>'alumni' &>
+<div class="readmore">[<a href="/about/positions/">Back to Open Positions</a>]</div>
+
+%# vim: set syntax=mason: 
+

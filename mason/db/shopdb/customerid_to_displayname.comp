@@ -1,0 +1,16 @@
+<%args>
+    $customer_id => undef
+</%args>
+
+<%init>
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $customer = $schema->resultset('Customers')->find($customer_id);
+    if ($customer) {
+        if ($customer->directory_uid()) {
+            return $m->comp('/mason/db/directory/uid_to_displayname.comp', uid => $customer->directory_uid());
+        } else {
+            return 'TODO: External customer';
+        }
+    }
+    return '';
+</%init>

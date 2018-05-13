@@ -1,0 +1,52 @@
+<%doc>
+Display list of all undergrad students, allow annie/office to load and look at each students reports.
+</%doc>
+<%args>
+$debug => 0
+</%args>
+<%init>
+my $auth_office = $m->comp('/mason/auth/auth_check.comp', auth_type => ['undergradoffice', 'sysadm']);
+
+</%init>
+<%perl>
+    $m->comp('/mason/db/tablesearch.comp',
+              debug => $debug?1:0,
+              table => 'directory',
+              joins => [
+                           'uga_student' => 'directory.uid = uga_student.uid',
+                           'uga_program' => 'uga_student.program_id=uga_program.id',
+                           'directory advisor' => 'uga_student.advisor_uid=advisor.uid',
+                       ],
+              field_list => [
+                             'directory.uid',
+                             'concat(directory.last_name, \', \', directory.first_name) as fullname',
+                             'status',
+                             'uga_program.name as program',
+                             'directory.x500',
+                             'directory.email',
+                             'concat(advisor.last_name, \', \', advisor.first_name) as advisor',
+                             'uga_student.comment',
+                            ],
+             where => [' ( advisor.uid=? OR ? OR directory.uid=? )  ', 
+                        $session{'uid'}, $auth_office, $session{uid}],
+             filter_field => 'uga_student.status',
+             filter_join => 'JOIN uga_student ON uga_student.uid=directory.uid',
+             field_params => {
+                uid => {
+                    hidden => 1,
+                },
+                fullname => {
+                    url => 'report_form.html?uid=$row{uid}',
+                },
+             },
+             default_sort_field => 'fullname',
+             header_format => 'ucfirst_all',
+    );
+
+if($auth_office) {
+    </%perl><p style="font-size: 0.7em;">Full directory list shown above. Use search to narrow it down.</p><%perl>
+}
+else {
+    </%perl><p style="font-size: 0.7em;">Showing only students advisor, since you are not in the undergradoffice group.</p><%perl>
+}
+</%perl>

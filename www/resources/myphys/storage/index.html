@@ -1,0 +1,54 @@
+<%doc>
+Display quota usage info from userquotas table
+Storage values in this table are stored in 1Kbyte blocks
+</%doc>
+
+<%init>
+use Number::Bytes::Human qw(format_bytes);
+</%init>
+
+<%method subtitle>storage and quotas</%method>
+
+<h3>Storage quotas</h3>
+<p>
+This page shows your disk usage on the physics servers for your unix home directory and email account (updated once daily).
+</p>
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+            field_list => [ 'path', 'used as used', 'quota as quota', 'ceil(used/quota*100) AS percent', 'timestamp' ],
+            field_params => {
+                'used' => {
+                    name => 'Space Used',
+                    #data_format => sub { return format_bytes(1024*shift);},
+                    data_format => sub { return format_bytes(shift);},
+                },
+                'quota' => {
+                    name => 'Limit',
+                    data_format => sub { return format_bytes(shift);},
+                },
+                'percent' => {
+                    data_format => sub {
+                        my $pc = shift;
+                        if ($pc>99) {
+                            return "<font color=\"red\">$pc\%</font>";
+                        }
+                        # can be undef from divide-by-zero...
+                        elsif (defined($pc)) {
+                            return "$pc\%";
+                        }
+                    },
+                },
+                'timestamp' => {
+                    name => 'Last updated',
+                },
+            },
+            table => 'userquotas',
+            default_sort_field => 'path',
+            default_sort_dir   => 'asc',
+            header_format      => 'ucfirst',
+            where => "WHERE uid='" . $session{'uid'} . "'",
+            hide_search => 1,
+            hide_header => 1,
+            );
+
+</%perl>

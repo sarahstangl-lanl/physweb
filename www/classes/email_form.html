@@ -1,0 +1,253 @@
+<%doc>
+email_form.html
+Simple email sending for classes
+
+</%doc>
+<%args>
+$classid=>undef
+</%args>
+<%init>
+    $m->redirect('index.html') if(!defined($classid));
+    return if $m->comp('/mason/db/dbcheck.comp');
+    my $auth = $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, always_include_tas=>1, distinguish_child_ta=>1);
+    # because distinguish_child_ta is set to 1 above, $auth can be instructor, ta, or child_ta
+    if(!$auth) {
+        print "Access denied";
+        return;
+    }
+
+    my $subtitle = "Student List";
+
+    my $tauid = undef;
+    $tauid = $session{'uid'} if($auth eq 'child_ta');
+
+    my $a = $m->request_args();
+    $subtitle = "Your Section's Students" if($tauid);
+    my $ts_students = $m->comp("/mason/db/classes/studentlist.comp:students", classid=>$classid, tauid=>$tauid);
+    $ts_students->{excel_link} = 0;
+    $ts_students->{debug} = 0;
+    $ts_students->{hide_search} = 1;
+    $ts_students->{ajax_url} = "email.html";
+    $ts_students->{ajax_parameters} = { ajax=>2 };
+    $ts_students->{field_list} = [
+                'grades.users.dispname as student_name',
+                'concat(grades.users.x500, \'@umn.edu\') as email',
+                'group_concat(distinct(child_class.section)) as lab_section',
+                ];
+
+    $m->comp("/mason/ajax/js.comp");
+
+    my $ts_tas;
+    if(!$tauid) {
+        $ts_tas = $m->comp("/mason/db/classes/studentlist.comp:tas", classid=>$classid);
+        $ts_tas->{excel_link} = 0;
+        $ts_tas->{debug} = 0;
+        $ts_tas->{hide_search} = 1;
+        $ts_tas->{ajax_url} = "email.html";
+        $ts_tas->{ajax_parameters} = { ajax=>1 };
+    }
+
+    #
+    # Send email to student(s)
+    #
+    if($a->{'send_email'}) {
+        my %sections_to_email;
+        my %students_to_email;
+        my $subject = $ARGS{'subject'};
+        my $body = $ARGS{'body'};
+
+        if (!$subject) {
+            #This Andyism carefully preserved from an earlier rewrite of this feature
+            my $use = int(rand()*2);
+            my $mail_error;
+            if ($use == 1) {
+                $mail_error = 'It is impolite to send mail without a subject.';
+            }
+            else {
+                $mail_error = 'RFC2822 suggests that the canonical message contains a subject.' . "\n" . '(Please type a subject)';
+            }
+            print "<h2>Unable to send mail:</h2>";
+            print "<h3>$mail_error</h3>";
+            print "Please go back";
+            return;
+        }
+
+        foreach my $k (keys %ARGS) {
+            if($k =~ /^section_(\d+)/) {
+                my $section = $1;
+                $sections_to_email{$section} = 1;
+            }
+        }
+        $ts_students->{field_list} = [ 'distinct grades.users.dispname as student_name', 'concat(grades.users.x500, \'@umn.edu\') as email', 'child_class.section as lab_section' ];
+
+        #For each student (either in the class, or in the TA's sections) look if thye fit the filter boxes
+        my $student_handle = physdb::query($ts_students->sql());
+        while (my $row = $student_handle->fetchrow_hashref()) {
+            #If they included the main section, or this section
+            if($ARGS{mainsection} || $sections_to_email{$row->{lab_section}}) {
+                $students_to_email{$row->{email}} = $row->{student_name}. " <". $row->{student_email}.">";
+            }
+        }
+
+        if(!$tauid) {
+            #For each TA, check if they fit
+            my $ta_handle = physdb::query($ts_tas->sql());
+            while (my $row = $ta_handle->fetchrow_hashref()) {
+                # If they included all TAs, or this section
+                if($ARGS{alltas} || $sections_to_email{$row->{lab_section}}) {
+                    $students_to_email{$row->{email}} = $row->{fullname}. " <". $row->{fullname}.">";
+                }
+            }
+        }
+
+        # get instructors
+        my @instructors = physdb::queryall("SELECT * FROM members WHERE type = 'instructor' AND memberof = ?", $classid);
+        foreach my $instructor (@instructors) {
+            #If the instructor id is not myself, add it to the list (self is the to: anyway and we don't want duplicates)
+            if ($instructor->{uid} != $session{uid}) {
+                my $escaped_name = $m->comp('/mason/db/directory/user_to_linkedname.comp', uid => $instructor->{uid});
+                my $email = $m->comp('/mason/db/directory/user_to_item.comp', uid => $instructor->{uid}, item => 'email');
+                $students_to_email{$email} = $escaped_name . " <". $email. ">";
+            }
+        }
+
+        #Catch empty list and provide feedback
+        if(scalar(keys(%students_to_email)) == 0) {
+            print "<h2>No students were selected to email. Nothing sent.</h2>";
+            return;
+        }
+
+        # Make the target list
+        my $bcc = join(',', keys(%students_to_email));
+        #$bcc .= ',sysadm@physics.umn.edu'; #Snoop for a while to see that its working... XXX
+
+        #Send the actual email
+        my $from = $m->comp('/mason/db/directory/uid_to_name.comp'). " <". $m->comp('/mason/db/directory/uid_to_email.comp'). ">";
+        my $email_result;
+        eval {
+            $email_result = $m->comp('/mason/send_mail.comp', from=>$from, to=>$from, subject=>$subject, text=>$body, bcc=>$bcc, debug=>0);
+            physdb::query("INSERT INTO classemail (classid, userid, sent, subject, body) VALUES(?,?,NOW(),?,?)", $classid, $session{uid}, $subject, $body);
+        };
+        if(defined $email_result) {
+            print "<h2>Email Sent</h2>";
+            print "<br />BCC: "._h($bcc)."<BR />\n";
+            print "Subject: "._h($subject). "<br />\n";
+            print "<br /><pre> "._h($body). "</pre><br />\n";
+        }
+        else {
+            print "We encountered a problem sending the message. Please try again, or email support\n";
+        }
+        return;
+    } #send email
+
+    my $subject = physdb::queryone("SELECT concat(name, '.', section) FROM classlist WHERE classid=?", $classid). ":";
+</%init>
+
+<h2>Send E-Mail</h2>
+
+<form style="display:inline;" method="POST" action="email.html">
+    <div style="border: 0px dashed green; padding: 0 1em; width:55em;">
+        <table border=0>
+        <%perl> if($auth && $auth ne 'child_ta') { </%perl>
+            <tr><td nowrap>By Status</td><td>
+                <input type="checkbox" name="alltas" <% (!exists $ARGS{alltas} || $ARGS{alltas}) ? 'checked' : '' %> />All TA's,
+                <input type="checkbox" name="mainsection" <% (!exists $ARGS{mainsection} || $ARGS{mainsection}) ? 'checked' : '' %> />All Students</td></tr>
+        <%perl> }
+
+        my $sections = physdb::queryarray($m->comp("/mason/db/classes/studentlist.comp:sections", classid=>$classid, tauid=>$tauid)->sql());
+        </%perl>
+        <tr><td>By Lab section(s):</td><td>
+        <%perl>
+        my $count = @$sections;
+        foreach my $section (@$sections) {
+            next unless($section);
+            </%perl><span class="sectioncheckbox" style="white-space:nowrap;"><input id="section_checkbox_<% $section|h %>" type="checkbox" name="section_<% $section|h%>"  /><% $section|h%></span><% ($count-->1)?", ":""%> <%perl>
+        }
+        </%perl>
+        </td></tr>
+        <tr><td>CC Other Instructors:</td><td><input type="checkbox" disabled checked /></td></tr>
+        <tr><td valign="top">Subject:</td><td width="100%"> <input type="text" name="subject" value="<% $subject|h%>" style="width: 40em;" /></td></tr>
+        <tr><td valign="top">Body:</td><td>
+            <textarea name="body" style="width: 43em; height: 15em;"></textarea>
+        </td></tr>
+        <tr><td><input type="submit" name="send_email" value="Send Email" /></td></tr>
+        </table>
+    </div>
+</form>
+<%perl>
+if(!$tauid) {  #show TA list for instructors
+    </%perl>
+    <h2>TA List</h2>
+    <span>
+    <%perl>
+    #TODO: in a form event above, add some hidden fields to the tablesearch form and cause a submit, so that the checked sections above filter the list automatically
+    $ts_tas->{field_params}->{email} = {
+        data_format => sub {
+            my ($field_value, $coderef, $row) = @_;
+            return $field_value if ($m->request_args->{'studentsexcel'} == 1);
+            return "<a href=\"mailto:". _u($field_value). "\">". _h($field_value). "</a>";
+        },
+    };
+
+    if($a->{ajax} == 1) {
+        $m->clear_buffer();
+        $ts_tas->display();
+        $m->abort();
+        return;
+    }
+    else  {
+        $ts_tas->display();
+    }
+    </%perl>
+    </span>
+    <%perl>
+}
+</%perl>
+<h2><% $subtitle %></h2>
+<span>
+<%perl>
+#TODO: in a form event above, add some hidden fields to the tablesearch form and cause a submit, so that the checked sections above filter the list automatically
+$ts_students->{field_params}->{email} = {
+    data_format => sub {
+        my ($field_value, $coderef, $row) = @_;
+        return $field_value if ($m->request_args->{'studentsexcel'} == 1);
+        return "<a href=\"mailto:". _u($field_value). "\">". _h($field_value). "</a>";
+    },
+};
+
+if($a->{ajax} == 2) {
+    $m->clear_buffer();
+    $ts_students->display();
+    $m->abort();
+    return;
+}
+else  {
+    $ts_students->display();
+}
+</%perl>
+</span>
+
+<span>
+<h2>Mail Log</h2>
+<%perl>
+my $maillog = Tablesearch->new(
+    field_list =>[
+        'sent',
+        'concat(directory.first_name, \' \', directory.last_name) as Sender',
+        'subject',
+        'body',
+    ],
+    table=> 'classemail',
+    joins=> [
+        'directory'=> 'classemail.userid=directory.uid',
+    ],
+    where => [ 'classid=?', $classid ],
+    prefix => "maillog",
+    data_format => 'ucfirst_all',
+    default_sort_field => 'sent',
+
+);
+$maillog->display();
+</%perl>
+
+</span>

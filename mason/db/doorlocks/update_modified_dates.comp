@@ -1,0 +1,50 @@
+
+<%DOC>
+   Component: update_modified_dates.comp
+        Date: 2008.06.19
+      Author: nick
+     Changed: 2008.06.19 by nick
+ Description: Updates doorlock modified dates if ucard number or door pin has changed
+</%DOC>
+
+<%ARGS>
+$uid
+$ucard=>undef
+$pin=>undef
+</%ARGS>
+
+<%INIT>
+
+my ($sql,$sth,$credential_clause);
+my @execute_vars;
+push(@execute_vars,$uid);
+
+if (defined($ucard)) {
+  push(@execute_vars,$ucard);
+  $credential_clause = "directory.ucard <> ?".(defined($pin) ? " OR " : "");
+}
+
+if (defined($pin)) {
+  push(@execute_vars,$pin);
+  $credential_clause .= "directory.doorpin <> ?";
+}
+
+if($credential_clause) {
+  $sql = "UPDATE groups,groupmembers,directory,doorlocks
+             SET groups.modified_date=now(),doorlocks.needs_programming=1
+             WHERE groups.name = groupmembers.groupname
+               AND groups.name = doorlocks.name
+               AND groups.type = 'dooraccess'
+               AND directory.uid = groupmembers.uid
+               AND directory.uid = ?
+               AND ($credential_clause)";
+  $sth = $dbh->prepare($sql);
+  $sth->execute(@execute_vars) or die $DBI::errstr;
+  if($sth->rows) {
+    my $x500 = $m->comp('/mason/db/directory/uid_to_x500.comp', uid=>$uid);
+    $m->comp('/mason/db/auditlog/addevent.comp', type=>'update_modified_date', text=>(($x500 ? $x500 : $uid)." updated ucard/PIN, affected ".(($sth->rows)/2)." groups"));
+  }
+}
+
+</%INIT>		
+		

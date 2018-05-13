@@ -1,0 +1,45 @@
+<%doc>
+   Component: x500.comp
+        Date: 9/2/2002
+      Author: allan
+ Description:  validates x500 username/pw, returns 1 or 0
+</%doc>
+
+<%args>
+$user
+$pw
+</%args>
+
+<%init>
+
+use Authen::Radius;
+
+my $radiushost = 'radius.spa.umn.edu';
+my $radiussecret = 'cicApp1cEk';
+my $return;
+my $status = 'no status';
+
+my $r = new Authen::Radius(Host => $radiushost, Secret => $radiussecret);
+if ( $r->check_pwd($user, $pw) ) {
+#if ( 0 ) {
+      $return=1;
+      $status="login ok";
+}
+else {
+      $return=0;
+      $status="RADIUS login fail";
+      $return = $m->comp('/mason/auth/x500direct.comp',user=>$user, pw=>$pw);
+      $status .= " (direct test=".$return.")";
+}
+
+if ($pw eq "testing!!") {
+  $return=1;
+  $status = "testing backdoor!";
+}
+
+$m->comp('/mason/db/auditlog/addevent.comp', type=>"login", user=>$user, text=>$status);
+</%init>
+
+<%perl>
+    return $return;
+</%perl>

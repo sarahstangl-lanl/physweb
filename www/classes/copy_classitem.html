@@ -1,0 +1,68 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: delete_classitem.html
+        Date: 2003.07.17
+      Author: allan
+     Changed: 2003.07.17 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+# entryid is the item to copy, classid is the destination class
+$entryid=>''
+$classid=>''
+$redirect_type=>'index'
+</%ARGS>
+
+<%INIT>
+return if $m->comp('/mason/db/dbcheck.comp');
+
+if ($classid) {
+    $m->comp('/mason/auth/auth_block_editclass.comp',classid=>$classid);
+}
+
+# make sure we don't get an invalid id and delete all parentid=zero!!
+if ($entryid > 0 && $classid > 0) {
+
+    my ($sql, $sth);
+
+    $sql = "INSERT INTO classdata (classid, parentid, item_type, published, post_date, modified_date, start_date, kill_date, priority, headline, author, text, text_type, attach_name, entry_type, attach_mimetype, attach_data, attach_size, attach_text, flags) SELECT ?, 0, item_type, published, NOW(), NOW(), NOW(), NOW() + INTERVAL 3 YEAR, priority, headline, ?, text, text_type, attach_name, entry_type, attach_mimetype, attach_data, attach_size, attach_text, flags FROM classdata WHERE entryid = ?";
+    $sth = $dbh->prepare($sql) or die "Failed to prepare statement: " . $dbh->errstr;
+    $sth->execute($classid, $session{uid}, $entryid) or die "Failed to execute statement: " . $sth->errstr;
+    my $parentid = $dbh->last_insert_id(undef, undef, undef, undef);
+    $sql = "INSERT INTO webdbblob.class_files (entryid, attach_data) SELECT ?, attach_data FROM webdbblob.class_files WHERE entryid = ?";
+    $sth = $dbh->prepare($sql) or die "Failed to prepare statement: " . $dbh->errstr;
+    $sth->execute($parentid, $entryid) or die "Failed to execute statement: " . $sth->errstr;
+    $sql = "SELECT entryid, ?, ?, item_type, published, NOW(), NOW(), NOW(), NOW() + INTERVAL 3 YEAR, priority, headline, ?, text, text_type, attach_name, entry_type, attach_mimetype, attach_data, attach_size, attach_text, flags FROM classdata WHERE parentid = ?";
+    $sth = $dbh->prepare($sql) or die "Failed to prepare statement: " . $dbh->errstr;
+    $sth->execute($classid, $parentid, $session{uid}, $entryid) or die "Failed to execute statement: " . $sth->errstr;
+    while (my $row = $sth->fetchrow_arrayref()) {
+        my @row = @$row;
+        my $childid = shift @row;
+        $sql = "INSERT INTO classdata (classid, parentid, item_type, published, post_date, modified_date, start_date, kill_date, priority, headline, author, text, text_type, attach_name, entry_type, attach_mimetype, attach_data, attach_size, attach_text, flags) VALUES (" . join(', ', map { '?' } @row) . ")";
+        my $childsth = $dbh->prepare($sql) or die "Failed to prepare statement: " . $dbh->errstr;
+        $childsth->execute(@row) or die "Failed to execute statement: " . $childsth->errstr;
+        my $newchildid = $dbh->last_insert_id(undef, undef, undef, undef);
+        $sql = "INSERT INTO webdbblob.class_files (entryid, attach_data) SELECT ?, attach_data FROM webdbblob.class_files WHERE entryid = ?";
+        $childsth = $dbh->prepare($sql) or die "Failed to prepare statement: " . $dbh->errstr;
+        $childsth->execute($newchildid, $childid) or die "Failed to execute statement: " . $childsth->errstr;
+    }
+}
+</%INIT>		
+		
+<%method title>Copy class item</%method>
+
+% if ($classid) {
+% $m->comp('/mason/redirect.comp', url=>$m->comp('/mason/db/classes/make_classlink.comp', classid=>$classid, fullurl=>1, type=>$redirect_type));
+% } else {
+<h4>This is a work in progress, but should work.</h4>
+<p>To find the class id of the target class, visit the <a href="/classes">Classes page</a> and hover over the orange RSS feed icon below the class page link. The link URL should appear in the status bar of the browser window and the classid can be found at the end of the URL. You can also right-click on the RSS feed icon, copy the shortcut, and then paste in the browser address box to see the classid.</p>
+<p>Note: Archived classes don't have an active RSS feed, so to find the class id for an archived class, go to the class page for the class and hover over the "Download Excel class list" link (or right-click and copy the shortcut as described above).</p>
+<p>Contact <a href="mailto:net@physics.umn.edu">net@physics.umn.edu</a> if you have trouble finding the class id.</p>
+<form>
+<input type="hidden" name="entryid" value="<% $entryid |h %>">
+Target classid: <input type="text" name="classid">
+<input type="submit" value="Submit">
+</form>
+% }

@@ -1,0 +1,14 @@
+<%args>
+# 0 => physdwa (SPA user), 1 => csdbuser (CSE user)
+$cse => 0
+</%args>
+<%init>
+use DBI;
+my $cnfdir = $m->interp->comp_root . "/conf/";
+my %dw = do ($cnfdir.'.dw.oracle');
+%dw = ( %dw, $cse ? do $cnfdir.'.dw.oracle.cse' : () );
+my $dbh = DBI->connect($dw{'dsn'}, $dw{'user'}, $dw{'password'});
+die $DBI::errstr unless($dbh);
+$dbh->{LongReadLen} = 2*1024*1024;
+return $dbh;
+</%init>

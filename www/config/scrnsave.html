@@ -1,0 +1,15 @@
+<%flags>
+inherit=>undef
+</%flags>
+<%perl>
+if(!defined($dbh)) { return; } # Check database connection
+my $sth = $dbh->prepare("SELECT computer_name FROM net_hosts WHERE flag_idlelogoff = 1");
+$sth->execute;
+my $results = $sth->fetchall_hashref('computer_name');
+</%perl>
+<?xml version="1.0" encoding="utf-8"?>
+<computers>
+% foreach my $computer (keys %$results) {
+<computer><% $computer %></computer>
+% }
+</computers>

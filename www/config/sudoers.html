@@ -1,0 +1,42 @@
+<%flags>
+inherit=>undef
+</%flags>
+<%init>
+my $remote_host = $r->connection->get_remote_host();
+if(!$dbh) { return 0; } #db is down, can't check network group
+my $sth = $dbh->prepare("
+SELECT DISTINCT net_sudoers.physid FROM net_sudoers
+JOIN net_hosts ON
+     (net_sudoers.type = 'host_id' AND net_sudoers.name = net_hosts.id)
+  OR (net_sudoers.type = 'cluster' AND net_sudoers.name = net_hosts.cluster)
+JOIN net_interfaces ON net_hosts.id = net_interfaces.host_id
+JOIN net_dns ON net_interfaces.id = net_dns.interface_id
+WHERE INET_NTOA(net_dns.ip) = ?
+");
+$sth->execute($remote_host);
+my $results = $sth->fetchall_hashref('physid');
+$r->content_type("application/xml");
+</%init>
+<?xml version="1.0" encoding="utf-8"?>
+<sudoers	xmlns="http://sudowin.sourceforge.net/schemas/XmlAuthorizationPlugin/"
+			privilegesGroup="Administrators" 
+			invalidLogons="3"
+			timesExceededInvalidLogons="3"
+			invalidLogonTimeout="180"
+			lockoutTimeout="180" 
+			logonTimeout="180" 
+			startTime="00:00:00.00000" 
+			endTime="23:59:59.99999" 
+			loggingLevel="Both" 
+			allowAllCommands="false">
+	<users>
+		<userGroup name="Users">
+			<users>
+% foreach my $user (keys %$results) {
+				<user name="SPA\<% $user %>" allowAllCommands="true">
+				</user>
+% }
+			</users>
+		</userGroup>
+	</users>
+</sudoers>

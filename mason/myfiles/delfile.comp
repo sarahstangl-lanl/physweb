@@ -1,0 +1,34 @@
+
+<%ARGS>
+$id
+$ref
+</%ARGS>
+
+<%init>
+return if $m->comp('/mason/db/dbcheck.comp');
+my $uid = $session{'uid'};
+my $adminuser = $m->comp('/mason/auth/check_groups.comp', allow => ['deptoffice','sysadm']);
+my $sql = "SELECT uid, mimetype, filename, message, data FROM myphysfiles WHERE id = ?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($id);
+my $rowref = $sth->fetchrow_arrayref;
+my ($owner, $mimetype, $filename, $message, $data);
+if (defined($rowref)) {
+  ($owner, $mimetype, $filename, $message, $data) = @$rowref;
+  if ($adminuser || ($owner == $uid)) {
+    #access ok
+    $m->comp('/mason/db/auditlog/addevent.comp', type=>'myfiles_delete', text=>"deleted $filename");
+    $sql = "DELETE FROM myphysfiles WHERE id = ?";
+    my $sth = $dbh->prepare($sql);
+    $sth->execute($id)
+        or die "sql delete failed";
+    $m->redirect($ref);
+  }
+  else {
+    die "No access to this file!";
+  }
+}
+</%init>
+
+deleted <% $id %>
+referer <% $ref %>

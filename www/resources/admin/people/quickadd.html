@@ -1,0 +1,205 @@
+<%doc>
+   vim:set syntax=mason:
+   Component: quickadd.html
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$ajax=>0
+</%args>
+
+<%init>
+use Lingua::EN::MatchNames qw( name_eq fname_eq lname_eq );
+use PhysAjax;
+use tablesearch;
+use physdb;
+use physdb::directory;
+
+my @messages;
+
+my @qa_flags = $m->comp('quickadd_form.html:quickadd_flags');
+my @flags = map { $_->{name} } @qa_flags;
+my @groups = map { $_->{name} } grep { $_->{type} eq 'group' } @qa_flags;
+
+unless ($m->comp('/mason/auth/auth_check_directory.comp')) {
+    push(@messages, "You do not have permission to add directory entries");
+}
+
+unless ($ARGS{'last_name'} && $ARGS{'first_name'}) {
+    push(@messages, "Both a first and a last name are required");
+}
+
+my $sponsor_uid;
+if ($ARGS{'sponsor'}) {
+    $sponsor_uid = $m->comp('/mason/ajax/peoplefinder_to_uid.comp', name => $ARGS{'sponsor'});
+    push(@messages, "Invalid sponsor") unless (defined $sponsor_uid);
+}
+
+if  (defined($ARGS{'physacct'}) && $ARGS{'physacct'} eq 'on'
+    && !($ARGS{'x500'} || $ARGS{'emplid'} || $ARGS{'email'}) ) {
+        push(@messages, "Please specify at least one of: X500 or ID Number or E-mail, So that the directory has contact information for every new physics account, E-mail accounts are not automatically created for all users");
+}
+
+if ($ARGS{'physacct_name'} =~ /@/) {
+    push(@messages, "Account names must have no \@ component");
+}
+
+if ($ARGS{'x500'}) {
+    if (my $row = physdb::query("SELECT uid FROM directory WHERE x500=? LIMIT 1", $ARGS{'x500'})->fetchrow_hashref) {
+        push(@messages, "The x.500 ID $ARGS{'x500'} is already associated with an existing entry");
+        $ARGS{'uid'} = $row->{'uid'};
+    }
+}
+
+if(@messages) {
+    my $args = {
+        flags => join(",", map { $ARGS{$_} ? $_ : undef } @flags),
+        error => join(",", @messages),
+    };
+    for my $arg (qw/last_name first_name emplid x500 email uid physacct_name/) {
+        next unless ($ARGS{$arg});
+        $args->{$arg} = $ARGS{$arg};
+    }
+    my $query = join('&', map { "$_=" . _u($args->{$_}) } keys %$args);
+    print_ajax({ err => $args->{'error'}, query => $query }) if ($ajax);
+    $m->redirect("quickadd_form.html?$query");
+}
+
+</%init>
+
+<%method title>Directory update</%method>
+
+<%perl>
+
+my @matches;
+
+unless ($ARGS{'confirm'}) {
+    # Check for existing entries
+    my @columns = (qw/uid last_name first_name physid x500 email inactive/);
+    my $sth = physdb::query("SELECT " . join(', ', @columns) . " FROM directory ORDER BY last_name, first_name");
+    while (my $row = $sth->fetchrow_hashref) {
+        next unless ((name_eq($row->{'first_name'} || '', $row->{'last_name'} || '', $ARGS{'first_name'}, $ARGS{'last_name'}) || 0) >= 40);
+        unless (@matches) {
+            print_ajax({ err => "Found an existing entry. Bailing!" }) if ($ajax);
+            print "<p><h4>We found an existing entry!</h4><br/>The following existing directory entries are close to the one you're trying to create.<br/>Click the person's name to edit his or her directory entry or click the \"Create new entry\" button to continue creating a new entry.</p><br/>\n";
+            push (@matches, \@columns);
+        }
+        push (@matches, [ map { $row->{$_} } @columns ]);
+    }
+#            print "<tr class=\"$even\"><td width=\"175\"><a href=\"/resources/admin/people/edit_entry_form.html?uid=".$row->{'uid'}.($row->{'x500'} ? "" : "&dw_x500=$ARGS{'x500'}")."&entered_emplid=$ARGS{'emplid'}\" title=\"Edit this entry\">".($row->{'last_name'} ? $row->{'last_name'}.($row->{'first_name'} ? ", " : "") : "").$row->{'first_name'}."</a></td><td width=\"200\">".$row->{'position'}."</td><td width=\"75\">".$row->{'physid'}."</td><td width=\"75\">".$row->{'x500'}."</td><td width=\"200\">".$row->{'email'}."</td><td width=\"150\">".($row->{'inactive'}? "inactive" : "active")."</td></tr>\n";
+    if (@matches) {
+        my $ts = Tablesearch->new(
+                data => \@matches,
+                field_params => {
+                    uid => { hidden => 1 },
+                    first_name => { hidden => 1 },
+                    last_name => {
+                        name => 'Name',
+                        data_format => sub {
+                            my ($value, $disp, $row, $ts) = @_;
+                            return '<a href="edit_entry_form.html?uid=' . $row->{'uid'} . ($row->{'x500'} ? "" : "&dw_x500=$ARGS{'x500'}") . "&entered_emplid=$ARGS{'emplid'}\" title=\"Edit this entry\">" . ($row->{'last_name'} ? $row->{'last_name'} . ($row->{'first_name'} ? ", " : "") : "") . $row->{'first_name'} . "</a>";
+                        },
+                    },
+                    inactive => {
+                        name => 'Status',
+                        data_format => sub { shift @_ ? 'Inactive' : 'Active' },
+                    },
+                },
+                header_format => 'ucfirst_all',
+                hide_header => 1,
+                hide_search => 1,
+                no_limit => 1,
+                no_sort => 1,
+                default_sort_field => 'last_name',
+        );
+        $ts->display;
+</%perl>
+</table>
+<form action="quickadd.html" method="post">
+% for my $arg (keys %ARGS) {
+<input type="hidden" name="<% $arg |h %>" value="<% $ARGS{$arg} || '' |h %>">
+% }
+<input type="hidden" name="confirm" value="1">
+<div style="padding:30px 30px 50px 0px;clear:both;text-align:right;">
+<div style="display:inline;float:left;line-height:20px;padding-right:10px;">Click this button if none match:</div>
+<div style="float:left;"><input type="submit" value="Create new entry"></div></div>
+</form>
+<%perl>
+    }
+}
+
+unless (@matches) {
+
+    # bulk add doesn't add the room argument, which is 'not null' in the spec. Passing undef here
+    # causes us to explicitly set it to null, thus an OOPS. So just set it empty if needed.
+    if(!defined $ARGS{'room'}) {
+        $ARGS{'room'} = ''; 
+    }
+    my $directory = new Directory(defaults => {
+        #For each column listed, add it to the argument hash
+        (map { $_ => $ARGS{$_} } (qw/last_name first_name emplid x500 email/)),
+        sponsor => $sponsor_uid,
+        acctreq => $ARGS{'physacct'} ? 'create' : undef,
+        acctreq_physid => $ARGS{'physacct_name'},
+        acctreq_uid => $session{'uid'},
+    });
+
+    # Override position string for visitor and set some defaults if no position found by quickadd lookup
+    # NO this should be done instead by physdb generate_position...
+    #$directory->set(position => "Visitor") if ($ARGS{'visitor'});
+    #unless ($directory->get('position')) {
+    #    $directory->set(position => "SPS Member") if ($ARGS{'sps'});
+    #    $directory->set(position => "Teaching Assistant") if ($ARGS{'physta'});
+    #}
+
+    if ($directory->save) {
+        # Log changes
+        $directory->log_changes(prefix => 'Add entry ' . $directory->get('uid') . ': ');
+
+        # Add groups as requested
+        foreach my $group (@groups) {
+            if ($ARGS{$group}) {
+                $directory->add_group_membership($group);
+            }
+        }
+        # Add auto groups
+        $directory->update_auto_groups;
+    }
+    else {
+        my $message = "Update failed - error saving directory object: " . $directory->dumperrors;
+        print_ajax({ err => $message }) if ($ajax);
+        print _h($message);
+        return;
+    }
+
+    # Send account request email if necessary
+    if ($directory->get('acctreq')) {
+        $m->comp('/mason/db/directory/send_acctreq_email.comp', directory => $directory);
+    }
+
+    if ($ARGS{'fulledit'}) {
+        print_ajax({ message => "Success - would redirect to full edit form" }) if ($ajax);
+        $m->redirect("edit_entry_form.html?uid=" . $directory->get('uid'));
+    }
+    else {
+        my $message = "Added new entry for $ARGS{'first_name'} $ARGS{'last_name'}.";
+        unless ($directory->get('x500') || !$directory->get('emplid')) {
+            $message .= "<br/>WARNING - you didn't supply an X.500 ID or an Employee ID! If this is a fulltime department member or student (rather than visitor), it is essential to go back and provide this information as soon as it's known.";
+        }
+        print_ajax({ message => $message, uid => $directory->get('uid') }) if ($ajax);
+        $m->redirect("quickadd_form.html?" . _args(message => $message, uid => $directory->get('uid')));
+    }
+}
+</%perl>
+
+<p>
+<a href="quickadd_form.html">Back to quick add page<a>
+</p>
+<%method meta>
+<style type="text/css">
+existing_entries { border:1px solid black; }
+existing_entries th { padding:2px 2px 2px 4px; text-align:left; }
+existing_entries td { padding:2px 2px 2px 4px; vertical-align:top; border-top:1px solid black; }
+</style>
+</%method>

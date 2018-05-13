@@ -1,0 +1,25 @@
+<%doc>
+   Component: arrow.comp
+        Date: 8/2002
+      Author: allan
+ Description:
+</%doc>
+
+<div class="linkto">[<a class="linkto" href="<% $link %>"><% $text %></a>]</div>
+
+%#<table cols=2 cellspacing=0 cellpadding=0 border=0>
+%#<tr valign="center">
+%#<td width=70>
+%#<a href="<% $link %>">
+%#<img src="/newimages/webarrow.jpg" alt="Link to ->" width=65 height=17 border=0>
+%#</a>
+%#</td>
+%#<td><b><% $text %></b></td>
+%#</tr>
+%#</table>
+%#
+<%args>
+$text
+$link
+</%args>
+

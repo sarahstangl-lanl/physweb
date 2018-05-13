@@ -1,0 +1,34 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: download_cv.html
+      Author: allan
+  ~~NOSITEMAP~~
+</%doc>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%args>
+$uid=>undef
+</%args>
+
+<%init>
+if(!$uid) { $m->redirect("/people/"); }
+my $sql = "SELECT filename, filedata, mime_type FROM profiles p JOIN directory d ON d.uid = p.uid WHERE p.uid = ? AND d.inactive = 0";
+my $sth = $dbh->prepare($sql);
+$sth->execute($uid);
+my $row = $sth->fetchrow_arrayref;
+my ($filename, $filedata, $mime_type);
+if (defined($row)) {
+  ($filename, $filedata, $mime_type) = @$row;
+  $r->content_type($mime_type);
+  $r->headers_out->unset('Content-Length');
+  $r->headers_out->set('Content-Disposition' => "file; filename=\"$filename\"");
+  $m->out($filedata);
+}
+else {
+  $m->out("That person has no CV");
+  $m->comp('/mason/404.comp');
+}
+</%init>

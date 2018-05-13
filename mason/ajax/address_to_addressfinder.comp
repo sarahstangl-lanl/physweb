@@ -1,0 +1,19 @@
+<%ARGS>
+  $address_id
+  $escape_newlines => 0
+</%ARGS>
+
+<%INIT>
+  my $query = $m->comp('address_finder.comp', address_id => $address_id);
+  if(!$query) {
+    return undef;
+  }
+  if (my $row = $query->fetchrow_hashref) {
+    return join(($escape_newlines ? "\\n" : "\n"), grep { /./ } map { split /[\r\n]+/, $row->{$_} } (qw/company lines/));
+  }
+  return undef;
+</%INIT>
+
+<%filter>
+s/.//gos
+</%filter>

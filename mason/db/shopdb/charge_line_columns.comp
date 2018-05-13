@@ -1,0 +1,7 @@
+<%init>
+return {
+    labor => [ qw/edit job_id project_name customer efs_account description machinist charge_date charge_hours labor_rate extended_cost/ ],
+    material => [ qw/edit job_id project_name customer efs_account description machinist charge_date quantity unit unit_cost extended_cost/ ],
+    combined => [ qw/edit customer customer_id efs_account account_key type description machinist machinist_id line_id charge_date charge_hours_quantity labor_rate_unit_cost extended_cost finalized/ ],
+};
+</%init>

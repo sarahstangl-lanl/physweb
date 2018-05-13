@@ -1,0 +1,100 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: edit_backup_form.html
+~~NOSITEMAP~~
+</%DOC>
+
+<%ARGS>
+$hostid => undef
+$format=>'brief'
+$referer=>$r->headers_in->{'Referer'};
+</%ARGS>
+
+<%INIT>
+use physdb;
+if(!$hostid) {
+  print "No hostid";
+  return
+}
+my ($name, $nickname, $type, $os, $rpass, $backupinfo, $ping_date, $switch, $ip1, $ip2, $ip3, $ip4);
+my ($row_ref, $success);
+my $uri = $r->uri;
+my $x500 = $session{'x500'};
+
+my $admin = $m->comp('/mason/auth/auth_check_sysadm.comp');
+
+# check if user is allowed to edit this entry
+#TODO my $auth = $m->comp('/mason/db/netdb/check_dhcpowner.comp', hostid=>$hostid);
+
+my $sql = "SELECT computer_name, type, os, backuppass, admin_uid FROM net_hosts WHERE id=?";
+my $row = physdb::queryfirstrow($sql, $hostid) or die("Query failure");
+
+
+if($row->{'admin_uid'} ne $session{'uid'}) {
+# TODO: group managers should be able to do this too.
+  #This should never be able to happen...
+  $m->redirect("$referer"); 
+  #$m->out("You are not the admin of me. $row->{admin_uid} ne $session{uid}");
+  #use Data::Dumper;
+  #$m->out("<PRE>");
+  #$m->out(Dumper(\%session));
+  #$m->out(Dumper(\$row));
+  return;
+}
+
+</%INIT>		
+		
+<%method title>Request Backup Service</%method>
+
+% if (($row->{'os'} ne 'windows') && ($row->{'os'} ne 'mac')) {
+  <b>This computer is registered as <% $row->{'os'} %>, but we can only back up Windows
+  and Mac computers.</b>
+  <br>If it is a Windows or Mac computer, please correct
+  the operating system in the <a href="edit_myhost_form.html?id=<% $hostid %>">registration 
+  page</a>.
+% return;
+% }
+
+<form method="post" action="edit_backup.html">
+<input type=hidden name="hostid" value="<% $hostid %>">
+<input type=hidden name="referer" value="<% $referer |h %>">
+
+<table border=0 width=100%>
+<tr><th colspan=2 bgcolor="#eeeeee" align="left">Computer Information</th></tr>
+
+<tr valign="top"><td>Computer&nbsp;Name:</td>
+<td><input type=text name="computer_name" size=20 value="<% $row->{'computer_name'} %>">
+<br><small><b>Check that this name matches how we see the computer on the network</b>. On Windows, it should be the "Computer Name" from the System control panel; On Mac OS X it should be the name from the Sharing preferences window.</small></td>
+</tr>
+
+<tr valign="top"><td>Retrospect&nbsp;Password:</td>
+<td><input type=text name="rpass" size=20 value="<% $rpass %>"><br>
+<small>This password is used by us to connect the backup server to your computer. As we will see the password, and it will be sent to us by email, please don't choose a password you use elsewhere.</small></td>
+</tr>
+<tr valign="top"><td>Special&nbsp;Instructions:</td>
+<td><textarea name="backupinfo" rows=2 cols=50><% $backupinfo %></textarea>
+<br><small>By default we will only back up your primary (startup) drive. Let us know here the names of any other drives which must be backed up</small></td>
+</tr>
+
+
+</table>
+<p><hr><p>
+<input type="submit" value="Submit Request">
+</form>
+<p>
+
+% if ($rpass) {
+<form method="POST" action="delete_backup.html">
+<input type=hidden name="hostid" value="<% $hostid %>">
+<input type=hidden name="referer" value="<% $referer %>">
+
+<table border=0 width=100%>
+<tr><th colspan=2 bgcolor="#eeeeee" align="left">Cancel Backups</th></tr>
+
+<tr><td>First <input type="checkbox" name="confirm">&nbsp;check this box to confirm, then click <input type=submit value="Cancel Backups">
+</td></tr>
+</table>
+
+</form>
+
+% }

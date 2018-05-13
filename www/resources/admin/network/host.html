@@ -1,0 +1,202 @@
+<%doc>
+   vim: set syntax=mason:
+   Author: Rubin
+</%doc>
+
+<%args>
+$id => undef
+$copy => 0
+</%args>
+
+<%method title>View Host</%method>
+<%init>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+
+use physdb;
+use physdb::host;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+if(!$auth) {
+    print "Must be admin\n";
+    return;
+}
+
+if(!defined $id) {
+    print "No ID passed\n";
+    return;
+}
+
+my $host = new Host(id => $id) or die("Host instantiation failed");
+if(!$host->{'loaded'}) {
+    print "Host id $id didn't seem to exist.\n";
+    return;
+}
+
+my @hwa_list;
+my @ip_list;
+</%init>
+<h2>Host Details for <% $host->get('computer_name') %>:
+<a href="edit_host_form.html?id=<% $host->get('id') %>"><img src="/images/imgsel_edit.png" title="edit <% $host->get('id') %>" alt="edit <% $host->get('id') %>" border="0"> </a>
+<a href="edit_host_form.html?copy=<% $host->get('id') %>"><img src="/images/imgsel_copy.png" title="copy <% $host->get('id') %>" alt="copy <% $host->get('id') %>" border="0"> </a>
+<a href="delete_form.html?host_id=<% $host->get('id') %>"><img src="/images/delete.png" title="delete <% $host->get('id') %>" alt="delete <% $host->get('id') %>" border="0"> </a>
+</h2>
+<table border=0 style="width: 100%;">
+<tr><td valign="top">
+    <h3>Registration</h3>
+    <table border=0 style="width: 100%;" class="net-registration">
+    <tr><td nowrap style="min-width: 7em">Name (ID):</td>          <td width="100%"><% $host->get('computer_name') |h%> <span style="font-size: 0.7em;">(<% $host->get('id')|h%>)</span></td></tr>
+    <tr><td nowrap>Location:</td>      <td><% $host->get('building') |h%> <% $host->get('room') |h%></td></tr>
+    <tr><td nowrap>Admin:</td>         <td><a href="/resources/admin/people/user.html?uid=<%$host->get('admin_uid')|u%>"><% $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid=>$host->get('admin_uid')) |h%></a></td></tr>
+    <tr><td nowrap>AdminGroup:</td>         <td><% $host->get('groupname') |h%></td></tr>
+    <tr><td nowrap>OwnerGroup:</td>         <td><% $host->get('groupname') |h%></td></tr>
+    <tr><td nowrap>Cluster:</td>         <td><% $host->get('cluster') |h%></td></tr>
+    <tr><td nowrap>Condor template:</td>    <td><% $host->get('condor_template') |h%></td></tr>
+    <!--
+    <tr><td nowrap>Security Status:</td><td><% $host->get('security_status') |h%></td></tr>
+% if($host->get('noncompliant_date')) {
+    <tr style="color: red;"><td nowrap style="color: red;">Noncompliance Date:</td><td><% $host->get('noncompliant_date') |h%> (Disconnection will occur 14 days after)</td></tr>
+% }
+-->
+    <tr><td nowrap>Registered:</td>          <td><% $host->get('registered') |h%></td></tr>
+    <tr><td nowrap>Modified:</td>          <td><% $host->get('modified') |h%></td></tr>
+    <tr><td nowrap>Last Seen:</td>          <td><% $host->get('last_seen')?$host->get('last_seen'):'Never' |h%>
+    <!--tr><td nowrap>Bigfix Seen:</td>          <td><% $host->get('last_seen_bigfix')?$host->get('last_seen_bigfix'):'Never' |h%>
+    </td></tr-->
+    </table>
+    <h3>Interfaces</h3>
+    <table style="width: 100%;" cellpadding=0 cellspacing=0 class="net-interfaces">
+    <%perl>
+       foreach my $interface ($host->interfaces()) {
+           # HWA list for switches:
+           unshift @hwa_list, $interface->get('hwa') if ($interface->get('hwa'));
+
+           if ($interface->get('blockrt')) {
+                my $rt = $interface->get('blockrt');
+                print "<tr><td>
+                   <a target=\"_blank\" href=\"https://support.physics.umn.edu/rt3/Search/Simple.html?q=$rt\" style=\"color: red\">
+                   interface is blocked!</a>
+                       </td></tr>";
+           }
+
+           </%perl>
+           <tr><td>HWA:</td>   <td><a href="traffic.html?magic=<% $interface->get('hwa') || '' |u%>" title="Look at Traffic"><span style="font-family: monospace;"><% $interface->get('hwa') || '' %></span></a></td><td>VLAN:</td> <td><% $interface->get('vlan') %></td></tr>
+           <%perl>
+           foreach my $dns ($interface->dnses()) {
+                unshift @ip_list, $dns->get('ip');
+                my $nagios_str = '';
+                if($dns->get('nagios_template') eq 'default') {
+                  $nagios_str = $host->get('os') . '-'. $host->get('type');
+                } else {
+                  $nagios_str = $dns->get('nagios_template');
+                }
+                </%perl>
+                   <tr><td>Host:</td><td><a href="http://<% $dns->get('hostname') %>.<% $dns->get('domain') %>"><% $dns->get('hostname') %>.<% $dns->get('domain') %></a></td>
+                       <td>IP:</td><td><a href="traffic.html?magic=<% $dns->get('ip') |u%>" title="Look at Traffic"><% $dns->get('ip') %></a> <% $dns->get('dhcp_type') %> <a target="_blank" href="https://go4service.umn.edu/ipamdns.pl?fixed=<% $dns->get('ip')|u %>"><img src="/images/imgsel_nts.png" alt="Open this record in NTS' Infoblox" title="Open this record in NTS' Infoblox" border="0"></a></td></tr>
+                   <tr><td>Nagios:</td><td><% $nagios_str |h %> </td>
+                       <td>Aliases:</td><td><% $dns->get('aliases')|h%></td></tr>
+                   <!--
+                   <tr><td style="border: 0;" valign="top"></td>
+                       <td valign="top" style="padding-right:5px;text-align:right;border:0;">Recent traffic:</td>
+                       <td colspan=2 style="border: 0;">
+                           #< & "/mason/network/traffic.comp", hwa=>$interface->get('hwa'), ip=>$dns->get('ip') &>
+                       </td></tr>
+                    -->
+                <%perl>
+           }
+           </%perl>
+           <!--<tr><td style="border: 0;">&nbsp;</td></tr>-->
+           <%perl>
+       }
+    </%perl>
+    </table>
+%   if ($host->get('text')) {
+        <h3>Comment:</h3>
+        <pre style="width: 100%;">
+        <% $host->get('text')|h%>
+        </pre>
+%   }
+    <& "/mason/network/auditlog.comp:recent", host_id=>$host->get('id') &>
+
+    <h3>Drive Log</h3>
+    <%perl>
+        foreach my $interface ($host->interfaces()) {
+            next if ($interface->get('vlan') eq 'rac');
+            foreach my $dns ($interface->dnses()) {
+                $m->comp("/mason/network/diskreport.comp", host=>$dns->get('hostname'));
+            };
+        };
+    </%perl>
+
+</td><td valign="top" width="45%">
+    <h3 style="width: 14em;">Inventory Details</h3>
+    <table border=0 style="width: 100%;">
+    <tr class="odd"><td valign="top">Type</td>           <td width="100%"><% $host->get('os') %> <% $host->get('type') %></td></tr>
+    <tr class="odd"><td nowrap valign="top">Location</td>        <td><% $host->get('building') %> <% $host->get('room') %></td></tr>
+    <tr><td valign="top">Purpose:</td>          <td><% $host->get('purpose') |h%></td></tr>
+% if($host->get('model')) {
+    <tr><td valign="top" style="padding-right: 10px">Model</td>        <td><% $host->get('model') %></td></tr>
+% }
+% if($host->get('type') eq 'printer') {
+    <tr><td valign="top" style="padding-right: 10px;">Service&nbsp;Tag</td><td><% $host->get("service_tag") %></td></tr>
+    <tr><td valign="top" style="padding-right: 10px;">Parts Account</td><td><% $host->get("service_account") %></td></tr>
+% }
+    </table>
+
+%   $m->comp("/mason/network/runlog.comp", host_id=>$host->get('id'));
+
+    <h3>Flags</h3>
+      <%perl>
+         sub drawbox {
+             my $checked = '';
+             $checked = "checked" if shift;
+             return "<input style=\"margin-left:0; margin-right: 0.6em;\" disabled type=\"checkbox\" $checked>";
+         }
+      </%perl>
+       Notifications:<% drawbox($host->get('flag_notifications')) %>
+       OITCritical:<% drawbox($host->get('flag_oitcritical')) %>
+       <br />
+       Expired:<% drawbox($host->get('flag_expired'))%>
+       Disabled:<% drawbox($host->get('flag_disabled'))%>
+       <br />
+% my $compliant_color= $host->get('flag_noncompliant')?'red':'black';
+       <span style="color: <% $compliant_color%>;">Disabled for non compliance:</span>
+       <% drawbox($host->get('flag_noncompliant')) %>
+
+    <%perl>
+    if($host->get('groupname') eq 'sysadm') {
+        my $output;
+        my $updated = $m->comp( { store => \$output }, '/mason/network/disks.comp', host_id=>$host->get('id'));
+        print '<h3>Storage' . ($updated ? "<span style=\"padding-left: 10px; vertical-align: middle; font-weight: normal; font-size: 12px;\">Last updated $updated</span>" : '') . '</h3>';
+        print $output;
+    }
+
+    if(@hwa_list) {
+          my @dashed_hwa_list;
+          foreach (@hwa_list) {
+             my $h = "".$_;
+             $h =~ s/(.{2})/$1-/g; #add a - after every 2 chars
+             $h =~ s/-$//; #remove trailing -
+             unshift(@dashed_hwa_list, uc($h));
+          }
+          </%perl>
+          <h3>Switch Authentications&nbsp;<div style="display:inline;vertical-align:top;font-size:10pt;font-weight:normal;">[<a href="/resources/admin/network/radius.html?magic=WHERE radacct.CallingStationID='<% join("' OR radacct.CallingStationID = '",@dashed_hwa_list) %>'">more</a>]</div></h3>
+          <%perl>
+          foreach my $hwa (@hwa_list) {
+            $m->comp("/mason/network/switch.comp", hwa=>$hwa);
+          }
+          </%perl>
+          <h3>DHCP Leases&nbsp;<div style="display:inline;vertical-align:top;font-size:10pt;font-weight:normal;">[<a href="/resources/admin/audits/dhcpaudits.html?search=<% $host->get('id') %>">more</a>]</div></h3>
+          <%perl>
+          foreach my $hwa (@hwa_list) {
+            $m->comp("/mason/network/dhcp.comp", hwa=>$hwa);
+          }
+    }
+
+    $m->comp("/mason/network/logins.comp", host_id=>$host->get('id'));
+    $m->comp("/mason/network/rttickets.comp", host_id=>$host->get('id'));
+    </%perl>
+</td></tr>
+</table>
+<a href="hosts.html?last_search=true">Cancel</a>

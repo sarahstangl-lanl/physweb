@@ -1,0 +1,152 @@
+
+<%DOC>
+   Component: roomschedule.html
+        Date: 2009.01.13
+      Author: nick
+     Changed: 2009.01.13 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$term=>undef
+</%ARGS>
+
+<%INIT>
+use Sort::Naturally;
+
+$m->comp('/mason/auth/auth_block.comp', internal=>1);
+
+$ENV{ORACLE_HOME} = '/usr/local/oracle7';
+
+my $dw_dbh = $m->comp('/mason/dw_dbh.comp');
+
+my $quarter = $m->comp('/mason/this_quarter.comp');
+my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = CORE::localtime(time);
+$year = sprintf("%02d", $year % 100);
+my $cur_term = "1$year".($quarter eq 'spring' ? '3' : $quarter eq 'summer' ? '5' : '9');
+
+if(!defined($term)) { 
+  $term = $cur_term;
+}
+
+my $sth_dw = $dw_dbh->prepare("SELECT DISTINCT a.CATALOG_NBR, a.SUBJECT, a.TIME_START, a.TIME_END, 
+                                        CASE
+                                          WHEN substr(a.TIME_START,-2,2) = 'PM' AND substr(a.TIME_START,0,2) != '12'
+                                            THEN (substr(a.TIME_START,0,2)+12)*60+to_number(substr(a.TIME_START,4,2))
+                                          WHEN substr(a.TIME_START,-2,2) = 'AM' AND substr(a.TIME_START,0,2) = '12'
+                                            THEN to_number(substr(a.TIME_START,4,2))
+                                          ELSE to_number(substr(a.TIME_START,0,2))*60+substr(a.TIME_START,4,2)
+                                        END AS TIME_START_MIN,
+                                        CASE
+                                          WHEN substr(a.TIME_END,-2,2) = 'PM' AND substr(a.TIME_END,0,2) != '12'
+                                            THEN (substr(a.TIME_END,0,2)+12)*60+to_number(substr(a.TIME_END,4,2))
+                                          WHEN substr(a.TIME_END,-2,2) = 'AM' AND substr(a.TIME_END,0,2) = '12'
+                                            THEN to_number(substr(a.TIME_END,4,2))
+                                          ELSE to_number(substr(a.TIME_END,0,2))*60+substr(a.TIME_END,4,2)
+                                        END AS TIME_END_MIN,
+                                        a.START_DT, a.END_DT, a.MON, a.TUES, a.WED, a.THURS, a.FRI, a.SAT, a.SUN,
+                                        a.FACILITY_DESCRSH, a.CLASS_SECTION
+                                FROM  PS_DWSR_CLASS a
+                                WHERE a.TERM = ? AND
+                                a.CAMPUS = 'UMNTC' AND
+                                SUBSTR(a.FACILITY_DESCRSH,0,4) = 'Phys'
+                                ORDER BY a.FACILITY_DESCRSH, TIME_START_MIN") or die $dw_dbh->errstr;
+
+$sth_dw->execute($term) or die $sth_dw->errstr;
+my @field_list = ();
+my @days = ('MON', 'TUES', 'WED', 'THURS', 'FRI', 'SAT', 'SUN');
+my $rooms = {};
+my @classes = ();
+my $class_num = 0;
+my $title;
+my $time_max = 264;
+my $time_min = 83;
+
+for (my $i = 0; $i < $sth_dw->{NUM_OF_FIELDS}; $i++ ) {
+  push(@field_list, $sth_dw->{NAME}[$i]);
+}
+while ( my $row = $sth_dw->fetchrow_hashref() ) {
+  push(@classes, $row);
+  foreach my $day (@days) {
+    if(!defined($rooms->{$row->{'FACILITY_DESCRSH'}}->{$day})) {
+      $rooms->{$row->{'FACILITY_DESCRSH'}}->{$day} = ();
+      for(my $i = 0; $i < $time_max; $i++) { push(@{$rooms->{$row->{'FACILITY_DESCRSH'}}->{$day}},[]); }
+    }
+    if($row->{$day} eq 'Y') {
+      for(my $i = $row->{'TIME_START_MIN'}; $i < $row->{'TIME_END_MIN'}; $i+=5) {
+        push(@{$rooms->{$row->{'FACILITY_DESCRSH'}}->{$day}[$i/5]},$class_num);
+      }
+    }
+  }
+  $class_num++;
+}
+</%INIT>
+
+<style type="text/css">
+.schedtd { padding: 1px 0 1px 0; white-space:nowrap; overflow:hidden; line-height:10px; height:10px; text-align: center; width: 59px; border: 1px solid black; }
+.schedfree { margin: 0; border-width: 0; line-height:10px; height:10px; background-color: #F0F0F0; }
+.schedbusy { margin: 0; border-width: 0; line-height:10px; height:10px; background-color: #C0C0C0; }
+.schedconflict { margin: 0; border-width: 0; line-height:10px; height:10px; background-color: #F03030; }
+.schedtable { border-collapse: collapse; table-layout: fixed; margin-bottom:10px; font-size:8pt; }
+.scheddaytable { border-collapse: collapse; table-layout: fixed; }
+</style>
+
+<%perl>
+my $quarter_num = substr $term,3,1;
+$year = sprintf("%02d", substr $term,1,2);
+my @terms = ();
+my @term_names = ();
+if($quarter_num eq '3') { 
+  push(@terms,$term-4); push(@term_names,'Fall 20'.sprintf("%02d",$year-1));
+  push(@terms,$term+0); push(@term_names,'Spring 20'.$year);
+  push(@terms,$term+2); push(@term_names,'Summer 20'.$year);
+} elsif($quarter_num eq '5') {
+  push(@terms,$term-2); push(@term_names,'Spring 20'.$year);
+  push(@terms,$term+0); push(@term_names,'Summer 20'.$year);
+  push(@terms,$term+4); push(@term_names,'Fall 20'.$year);
+} elsif($quarter_num eq '9') {
+  push(@terms,$term-4); push(@term_names,'Summer 20'.$year);
+  push(@terms,$term+0); push(@term_names,'Fall 20'.$year);
+  push(@terms,$term+4); push(@term_names,'Spring 20'.sprintf("%02d",$year+1));
+}
+print "<h5>";
+for(my $i = 0; $i<3; $i++) {
+  if($term ne $terms[$i]) { print "<a href=\"?term=$terms[$i]\">$term_names[$i]</a>"; }
+  else { print $term_names[$i]; }
+  if($i != 2) { print " | "; }
+}
+print "</h5>";
+my $count = 0;
+my ($start_time,$class_list,$type);
+foreach my $room (nsort (keys %$rooms)) {
+  print "<p><table cellspacing=\"0\" cellpadding=\"0\" class=\"schedtable\">\n<tr><td class=\"schedtd\">$room</td>";
+  for(my $i=7;$i<22;$i++) {
+    print "<td class=\"schedtd\">".($i > 12 ? ($i - 12).":00PM" : $i.":00AM")."</td>";
+  }
+  print "</tr>\n";
+  foreach my $day (@days) {
+    $start_time = $time_min;
+    print "<tr><td class=\"schedtd\">$day</td><td colspan=\"15\" class=\"schedtd\"><table cellspacing=\"0\" cellpadding=\"0\" class=\"scheddaytable\"><tr>";
+    for (my $i = $time_min; $i < $time_max; $i++) {
+      $class_list = join( '' , @{$rooms->{$room}->{$day}[$i]} );
+      while($i < $time_max && join( '' , @{$rooms->{$room}->{$day}[$i]} ) eq $class_list) {
+        $i++;
+      }
+      $i--;
+      if(scalar(@{$rooms->{$room}->{$day}[$i]}) > 1) { $type = 'conflict'; }
+      elsif(scalar(@{$rooms->{$room}->{$day}[$i]})) { $type = 'busy'; }
+      else { $type = 'free'; }
+      $title = join(' / ', map { my $test = $classes[$_]->{'SUBJECT'}." ".$classes[$_]->{'CATALOG_NBR'}.".".$classes[$_]->{'CLASS_SECTION'}; } @{$rooms->{$room}->{$day}[$i]} );
+      print "<td class=\"sched$type\" title=\"$title\" style=\"width:".(($i-$start_time)*5)."px\"></td>";
+      $start_time = $i;
+    }
+    print "</tr></table></td></tr>\n";
+  }
+  print "</table>\n";
+}
+</%perl>
+
+<%method title>
+Tate Classroom Schedule
+</%method>

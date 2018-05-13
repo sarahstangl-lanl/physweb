@@ -1,0 +1,182 @@
+<%args>
+$unfinalized => 0
+$machinist_id => undef
+$schema
+$helper_methods
+</%args>
+<%init>
+print <<EOF;
+
+<script type="text/javascript">
+function hl_detail(id) {
+    new Effect.Highlight(\$(id).up('tr'));
+}
+</script>
+EOF
+
+my $dates = $m->comp('/mason/db/shopdb/date_range.comp', hide_form => 1);
+</%init>
+<table cellpadding="3" cellspacing="0"><tr><td>
+<h5>Filter by finalized</h5>
+<form>
+% while (my ($key, $value) = each %{ $dates->{url_args} }) {
+<input type="hidden" name="<% $key |h %>" value="<% $value |h %>"/>
+% }
+<label for="unfinalized">Include unfinalized charge lines</label><input type="checkbox" name="unfinalized"<% $unfinalized ? ' CHECKED' : '' %>/>
+<input type="submit" name="Update" value="Update"/>
+</form>
+</td></tr></table>
+<h2>Charge Hour Summary</h2><br/>
+<%perl>
+my $ll_ts;
+my ($data, @types) = $m->comp({ store => \$ll_ts }, 'SELF:summary', %ARGS, dates => $dates, unfinalized => $unfinalized);
+my $summary_ts = Tablesearch->new(
+    data => $data,
+    prefix => 'summary_',
+    header_format => 'ucfirst_all',
+    hide_header => 1,
+    no_sort => 1,
+    field_params => {
+        machinist_id => { hidden => 1 },
+        map {
+            my $type = $_;
+            lc $type->{key} => {
+                name => $type->{name},
+                data_format => sub {
+                    my ($value, $self, $row, $ts) = @_;
+                    return $value unless ($value && $type->{key} ne 'external_total');
+                    return '<a href="#' . $row->{machinist_id} . '_' . $type->{key} . '" onclick="return hl_detail(\'' . $row->{machinist_id} . '_' . $type->{key} . '\');">' . $value . '</a>';
+                },
+            }
+        } @types,
+    },
+    data_wrapper => sub {
+        my ($html, $ts) = @_;
+        my $num_columns = scalar $ts->column_names;
+        $html = '<tr class="tablehead"><th></th><th colspan="6">Known Types</th><th colspan="' . ($num_columns - 7) . '">Unknown Types</th></tr>' . $html
+            if ($num_columns > 7);
+        return $html;
+    },
+);
+$summary_ts->display;
+print "<h2>Charge Hour Details</h2><br/>";
+print $ll_ts;
+</%perl>
+<%method summary>
+<%args>
+$schema
+$machinist_id => undef
+$helper_methods
+$dates
+$unfinalized
+</%args>
+<%perl>
+use tablesearch;
+use Data::Dumper;
+use DateTime;
+my $ll_rs = $schema->resultset('LaborLines')->search(
+{
+    'me.active' => 1,
+    $unfinalized ? ( ) : ( 'me.finalized' => 1 ),
+    'me.charge_date' => { -between => [ $dates->{start_date}->ymd, $dates->{end_date}->ymd ] },
+},
+{
+    'select' => [ 'me.machinist_id', \'CONCAT_WS(", ", directory.last_name, directory.first_name) AS display_name', \'GROUP_CONCAT(DISTINCT job.job_id) AS job_ids', \'account_type.label AS account_type', \'customer_type.label AS customer_type', \"SUM(`me`.`charge_hours`) AS total" ],
+    'as' => [ qw/machinist_id display_name job_ids account_type customer_type total/ ],
+    join => [ { machinist => 'directory' }, { job => [ { customer => 'customer_type' }, { account => 'account_type' } ] } ],
+    group_by => [ 'me.machinist_id', 'account.account_type_id', 'customer.customer_type_id' ],
+    order_by => [ { -desc => 'machinist.fulltime' }, { -asc => [ 'directory.last_name', 'directory.first_name' ] } ],
+});
+
+my $info;
+
+my $summary = sub {
+    my ($ts, $row) = @_;
+    my $info = $ts->{tmp}->{summary};
+    my $html = '<tr style="background-color: #CCC;"><td align="right" colspan="' . scalar($ts->column_names) . '"><table cellpadding="0" cellspacing="0"><tr>';
+    $html .= join '<td>&nbsp;|&nbsp;</td>', map { "<td style=\"padding: 0 3px 0 3px;\">$_</td><td style=\"padding: 0 3px 0 3px;\">" . $info->{$_} . "</td>" } sort keys %$info;
+#    for my $type (sort keys %$info) {
+#        $html .= "<td>$type</td><td>" . $info->{$type} . "</td>";
+#    }
+    $html .= "</tr></table></td></tr>";
+    delete $ts->{tmp}->{summary};
+    return $html;
+};
+
+my @types = (
+    { key => 'CSE_Shop_Work/Internal', name => 'Shop Time' },
+    { key => 'Internal/Internal', name => 'Internal Hours' },
+    { key => 'External_CSE_Shop/External_-_Fairview', name => 'Fairview' },
+    { key => 'External_CSE_Shop/External_-_Industry', name => 'Industry' },
+    { key => 'External_CSE_Shop/External_-_Other_Universities', name => 'Other-Related' },
+    { key => 'external_total', name => 'Ext Hrs Total' },
+);
+
+my $ll_ts = Tablesearch->new(
+    resultset => $ll_rs,
+    header_format => 'ucfirst_all',
+    no_limit => 1,
+    no_sort => 1,
+    hide_header => 1,
+    field_params => {
+        display_name => { 'hidden' => 1, },
+        account_type => {
+            data_format => sub { my $value = shift; return $value || '<font color="red">NO ACCOUNT</font>'; },
+        },
+        job_ids => {
+            name => "Job IDs",
+            data_format => sub {
+                my ($value, $self, $row, $ts) = @_;
+                my @job_ids = split /,/, $row->{job_ids};
+                return join ', ', map { '<a href="job.html?job_id=' . $_ . '">' . $_ . '</a>' } @job_ids;
+            },
+        },
+        machinist_id => {
+            %{ $helper_methods->machinist_id },
+            data_format => sub {
+                my ($value, $self, $row, $ts) = @_;
+                return '<a id="' . $value . '_' . $ts->{tmp}->{type} . '"/><a href="machinist.html?machinist_id=' . $value . '">' . $row->{display_name} . '</a>';
+            },
+        },
+    },
+    prerow => sub {
+        my ($row, $ts) = @_;
+        $ts->{tmp}->{machinist_id} ||= $row->{machinist_id};
+        ($ts->{tmp}->{type} = ($row->{account_type} || 'NO ACCOUNT') . '/' . $row->{customer_type}) =~ s/ /_/g;
+        my $html = '';
+        if ($ts->{tmp}->{machinist_id} != $row->{machinist_id}) {
+#            $html = $summary->($ts);
+            $html = '<tr style="background-color: #CCC;"><td colspan="' . scalar($ts->column_names) . '"></td></tr>';
+        }
+        $ts->{tmp}->{machinist_id} = $row->{machinist_id};
+#        $ts->{tmp}->{summary}->{$ts->{tmp}->{type}} = $row->{total};
+        return $html;
+    },
+    postrow => sub {
+        my ($row, $ts) = @_;
+        $info->{$row->{machinist_id}}->{$ts->{tmp}->{type}} = $row->{total};
+        $info->{types}->{$ts->{tmp}->{type}} = 1;
+        $info->{$row->{machinist_id}}->{external_total} += $row->{total} if ($ts->{tmp}->{type} =~ /External/);
+        push @{ $info->{machinists} }, { name => $row->{display_name}, machinist_id => $row->{machinist_id} } unless (grep { $_->{machinist_id} eq $row->{machinist_id} } @{ $info->{machinists} });
+        return '';
+    },
+    postdata => sub {
+        my ($ts) = @_;
+        return '';
+#        return $summary->($ts);
+    },
+);
+$ll_ts->display;
+for my $type (sort keys %{ $info->{types} }) {
+    (my $name = $type) =~ s/_/ /g;
+    push @types, { key => $type, name => $name } unless (grep { $_->{key} eq $type } @types);
+}
+#my @types = ( (sort keys %{ $info->{types} }), 'external_total' );
+my @data = [ 'machinist', 'machinist_id', map { $_->{key} } @types ];
+for my $machinist (@{ $info->{machinists} }) {
+    push @data, [ $machinist->{name}, $machinist->{machinist_id}, map { $info->{$machinist->{machinist_id}}->{$_->{key}} || 0 } @types ];
+}
+return \@data, @types;
+</%perl>
+</%method>
+

@@ -1,0 +1,56 @@
+<%doc>
+   Component: upload_image.html
+        Date: 9/4/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$name
+$image
+$alt=>''
+$max_x=>'0'
+$max_y=>'0'
+</%args>
+
+<%init>
+my $req = Apache2::Request->new($r);
+my $upload = $req->upload('image');
+my $filename = $upload->filename;
+my $successful_insert;
+my $result;
+if ($filename) {
+  my $mime_type = $upload->type;
+  if ( $mime_type =~ /^image/ ) {
+    my $fh = $upload->fh;
+    my $data = do { local $/; <$fh> };
+
+    my ($size_x,$size_y,$type) = imgsize (\$data);
+
+    if ((($max_x > 0) && ($size_x > $max_x)) || (($max_y > 0) && ($size_y > $max_y))) {
+
+      $result = "Image ($size_x x $size_y) is larger than the limit for this page ($max_x x $max_y)";
+      } else {
+#     my $thumbnail = $m->comp('/mason/db/images/thumbnail.comp',image=>$data);
+      my $sql = "REPLACE INTO images ";
+      $sql .= "(name, category, image, mime_type, alt) ";
+      $sql .= "VALUES(?,?,?,?,?) ";
+      my $sth = $dbh->prepare($sql);
+      $successful_insert = $sth->execute($name,"profiles",$data,$mime_type,$alt);
+      if ($successful_insert) {
+        $result = "Upload successful";
+        } else {
+        $result = "Error: ".$DBI::errstr;
+      }
+    }
+  } else {
+  $ result = "Unusual error";
+  }
+}
+</%init>
+
+<%method title>Upload</%method>
+<p>
+<% $result %>
+<p>
+% $m->comp('/mason/db/images/insert_image.comp', name=>$name);

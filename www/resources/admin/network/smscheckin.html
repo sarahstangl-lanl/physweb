@@ -1,0 +1,69 @@
+<%DOC>
+ Component: monthlytest.html
+ Date: 12/13/10
+ Author: Eric
+ vim: set syntax=mason:
+</%DOC>
+
+<%method title>SMS periodic notification Checkin</%method>
+
+<%args>
+$checkin=>''
+</%args>
+
+<%init>
+use physdb;
+use physdb::directory;
+use Data::Dumper;
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+
+</%init>
+<p>
+This page displays status of who has checked in from receiving the periodic SMS tests sent by nagios.
+</p>
+<p>
+<%perl>
+
+if ($checkin) {
+    # checkin current user
+    physdb::query("UPDATE smscheckin SET state=1 WHERE MONTH(date)=MONTH(NOW()) AND YEAR(date)=YEAR(NOW()) AND physid=?", $session{physid});
+    #my $q = physdb::query('SELECT `physid` FROM `smscheckin` WHERE physid=?',$session{'physid'});
+    print "<b>Thank you for checking in</b>";
+}
+else {
+    # check status and print it
+    my $query = physdb::query('SELECT `state` FROM `smscheckin` WHERE MONTH(date)=MONTH(NOW()) AND YEAR(date)=YEAR(NOW()) AND physid=?',$session{'physid'} );
+    my $network = $query->fetchrow_hashref();
+    if ($network->{'state'} == 1){
+        print "<b>You are currently checked in</b>";
+    }
+    else {
+</%perl>
+        <b>You are not checked in.</b></br>
+        <form name='input' action="smscheckin.html" type='post'>
+        <input type='submit' name='checkin' value='Check In'>
+        </form>
+%   }
+%}
+</p>
+
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+	table => 'webdb.smscheckin',
+        joins => ['webdb.directory' => 'webdb.smscheckin.physid = webdb.directory.physid'],
+	field_params => {
+            'name' => { 'name' => 'User' },
+            "state" => {'name' => 'Checked in?'},
+        },
+        header_format => 'ucfirst',
+        field_list => [
+            'CONCAT(webdb.directory.first_name," ",webdb.directory.last_name) AS name',
+            "if(webdb.smscheckin.state, 'Yes', 'No') as state",
+            ],
+        where => 'MONTH(date)=month(now()) AND YEAR(date)=YEAR(now())',
+        no_limit => 1,
+        hide_search => 1,
+        default_sort_field => 'state',
+        default_sort_dir => 'desc',
+);
+</%perl>

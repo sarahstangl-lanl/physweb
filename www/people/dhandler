@@ -1,0 +1,353 @@
+<%doc>
+   Component: dhandler
+        Date: 9/4/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%method js></%method>
+<%shared>
+use physdb::directory;
+use Data::Dumper;
+
+# we run this in "shared" so we can pass a name into the title method
+my $arg = "". $m->dhandler_arg;
+$arg =~ /[^-a-zA-Z0-9_\/.]/go;
+$arg =~ s/.html//;
+
+# little hack so searching for people on the 'main' tab searches the 'all' tab, because thats almost always
+# what the user would intend at that point.
+my $ARGS = $m->request_args;
+$arg = 'all/index' if(exists $ARGS->{'search'} && $ARGS->{'search'} ne '' && $arg eq 'index');
+
+my @path = split('/', $arg);
+my @matches;
+my $template;
+my $directory;
+my $title;
+my $wantedid;
+my $page;
+
+my $category = '';
+my $task = "";
+
+$m->comp('/mason/db/dbcheck.comp');
+
+my %list = (   'index'=> "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='spafac' or groupname='staff' or groupname='research' or groupname='postdoc')", 
+                'staff' => "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='staff')", 
+                'research' => "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname IN('research','postdoc'))", 
+                'research_associates' => "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='postdoc')",
+                'faculty/index' => "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='physfac' or groupname='astfac')", 
+                'faculty/emeriti' => "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='emeritus')", 
+                'faculty/physgradfac'=>  "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='physgrfac')", 
+                'faculty/astgradfac'=>  "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='astrogrfac')", 
+                'students/index'=>  "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='spagrad')", 
+                'students/grad'=>  "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='spagrad')", 
+                'students/physmajors'=>  "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='physmajor')",
+                'students/astmajors'=>  "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='astmajor')",
+                'visitors/index' => "directory.uid in (SELECT groupmembers.uid from groupmembers where groupname='visitor')",
+                'all/index' => '1=1',
+            );
+
+if($list{$arg})  {
+  $category = $arg;
+  $task = "list";
+  $title = $path[0];
+  # split title on underscore and capitalize each word
+  $title =~ s/_/ /g;
+  $title =~ s/([\w']+)/\u\L$1/g;
+  $title =~ s/Index/People/;
+  $title = "$title in Physics & Astronomy";
+}
+else { # Must be looking for a person
+    my $wantedid = $path[-1];
+    $task = "showuser";
+    $template = new Directory();
+    @matches = $template->search("(physid=? OR x500=?) AND inactive=0", $wantedid, $wantedid);
+    $directory = $matches[0];
+
+    $title = 'Directory entry not found';
+    if ($directory) {
+      $title = $directory->get("first_name") . ' ' . $directory->get("last_name");
+    }
+}
+
+</%shared>
+
+<%method titlemenu_below>
+<%init>
+ my $category = $path[0];
+</%init>
+   <& /mason/titlemenu.comp:begin, type=>"below"&>
+% if($category eq "faculty") {
+   <&| /mason/titlemenu.comp:item, link=>'/people/faculty/index.html'&>All</&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/faculty/emeriti.html'&>Emeriti</&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/faculty/physgradfac.html'&>Physics Graduate Faculty</&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/faculty/astgradfac.html'&>Astrophysics Graduate Faculty</&>
+% }
+% elsif($category eq "students") {
+   <&| /mason/titlemenu.comp:item, link=>'/people/students/grad.html'&>Graduate Students</&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/students/physmajors.html'&>Physics Majors</&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/students/astmajors.html'&>Astrophysics Majors</&>
+% }
+   <& /mason/titlemenu.comp:end &>
+</%method>
+
+<%method title><% $title  %></%method>
+
+<%perl>
+$r->content_type("text/html");
+if($task eq "showuser") {
+    if(@matches > 1) {
+        </%perl>
+        ERROR: Too many results matching <% $wantedid |h%>!
+        <%perl>
+    } elsif(@matches < 1) {
+        print "Cannot find $task for $wantedid. \"$arg\" \n<br>";
+        $m->comp("/mason/404.comp");
+    } else {
+        $m->comp("/mason/db/directory/show_profile.comp", uid => $directory->get("uid"), showedit=>0);
+    }
+}
+elsif($list{$arg}) {
+#  print "<br><br>Task is $task, path is $arg. Query is ". $list{$arg}. "\n<BR>";
+  </%perl>
+    <p>
+        All phone numbers are in area code 612 unless otherwise noted.
+    </p> 
+  <%perl>
+
+  if($arg !~ /^zfaculty\//) {
+    $m->comp('/mason/db/tablesearch.comp',
+        table => 'directory',
+        field_list => [ 'first_name', 'last_name as name',
+            'IF(position>\'\',position,dw_position) AS position',
+            'room', 'room_type',
+            'dwsp_building.BLDG_ABBR AS room_building',
+            'room_phone', 'room2', 'room2_type',
+            'dwsp_building2.BLDG_ABBR AS room2_building',
+            'room2_phone', 'email', 'physid', 'x500', 'directory.uid', 'profiles.summary' ],
+        field_params => {
+            position => {   
+                hidden => 1,
+            },
+            physid => {
+                hidden => 1,
+            },
+            x500 => {
+                hidden => 1,
+            },
+            uid => {
+                hidden => 1,
+            },
+            email => {
+                hidden => 1,
+            },
+            room_phone => {
+                hidden => 1,
+            },
+            room => {
+                hidden => 1,
+            },
+            room_type => {
+                hidden => 1,
+            },
+            room_building => {
+                hidden => 1,
+            },
+            room2_phone => {
+                hidden => 1,
+            },
+            room2 => {
+                hidden => 1,
+            },
+            room2_type => {
+                hidden => 1,
+            },
+            room2_building => {
+                hidden => 1,
+            },
+            first_name => {
+                hidden => 0,
+            },
+            email => {
+                header_format => sub { return "Contact Info"},
+                data_format => sub { 
+                    my ($field_value, $coderef, $row_hashref) = @_;
+                    my $str = '';
+
+                    #office and phone
+                    foreach my $loop ('room', 'room2') {
+                        my $phone = $row_hashref->{$loop.'_phone'};
+                        my $r = $row_hashref->{$loop};
+                        my $b = $row_hashref->{$loop.'_building'};
+                        my $t = $row_hashref->{$loop.'_type'};
+                        if ($r) {
+                            if ($b) {$str .= _h($b.' '); }
+                            $str .= _h($r." (".$t.")");
+                            if ($phone) {$str .= ", ";}
+                        }
+                        if ($phone) {$str .= _h($phone);}
+                        if ($r||$phone) { $str .= "<BR/>";}
+                    }
+
+                    #Email
+                    $str .= $m->comp('/mason/encode_mailto.comp', email=>$field_value);
+                    return $str;
+                },
+                no_sort => 1,
+            },
+            name     => { 
+                header_format => sub { return "Name" },
+                data_format => sub {
+                    my ($field_value, $coderef, $row_hashref) = @_;
+                    my $username;
+                    if($row_hashref->{'physid'}) {
+                        $username = $row_hashref->{'physid'};
+                    }
+                    elsif($row_hashref->{'x500'}) {
+                        $username = $row_hashref->{'x500'};
+                    }
+                    my $namestr = _h($row_hashref->{'first_name'}) . "&nbsp;". _h($row_hashref->{'name'});
+                    $namestr =~ s/ /&nbsp;/g;
+                    if($username) {
+                        $namestr = "<a href=\"/people/". _h($username). ".html\">$namestr</a>";
+                    }
+
+                    return($namestr."<br/>".$row_hashref->{'position'});
+                },
+            },
+            first_name  => {
+                header_format => sub { return "" },
+                data_format => sub {
+                    my ($field_value, $coderef, $row_hashref) = @_;
+                    return $m->scomp('/mason/db/images/insert_thumb.comp', mischtml=>'align="left" style="padding:0; padding-right:5px;"', category=>'profiles', parentid=>$row_hashref->{'uid'}, width=>64);
+                },
+            },
+            summary => {
+                header_format => sub { return "Areas of Interest" },
+                data_format => sub {
+                    my ($field_value, $coderef, $row_hashref) = @_;
+                    if(!$field_value) {
+                        my @groups = $m->comp("/mason/auth/get_groups.comp", uid=>$row_hashref->{'uid'}, type=>'rgroup');
+                        my $grouplist = '';
+                        foreach my $group (@groups) {
+                          $grouplist .= ", ". $group->{'description'};
+                        }
+                        $field_value = substr($grouplist, 1);
+                    }
+                    return _h($field_value);
+                },
+                no_sort => 1,
+            },
+        },
+        joins => [
+            'profiles' => 'directory.uid = profiles.uid',
+            'dwsp_building' => 'dwsp_building.BLDG_NO = directory.room_building',
+            'dwsp_building AS dwsp_building2' => 'dwsp_building2.BLDG_NO = directory.room2_building',
+        ],
+        where => "inactive = 0 and directory.uid in (select groupmembers.uid from groups join groupmembers on groups.name=groupmembers.groupname where groups.publish=1) AND ". $list{$arg},
+        header_format => 'ucfirst',
+        default_sort_field => 'name',
+        hide_pagenator => 1,
+        no_limit => 1,
+        debug => 0,
+    );
+  }
+  else {
+
+    $m->comp('/mason/db/tablesearch.comp',
+        table => 'directory',
+        field_list => [ 'concat(last_name, \', \', first_name) as name', 'position', 'room as office', 'work_phone as phone', 'email', 'physid', 'x500', 'uid' ],
+        field_params => {
+            position => {
+                hidden => 1,
+            },
+            physid => {
+                hidden => 1,
+            },
+            x500 => {
+                hidden => 1,
+            },
+            uid => {
+                hidden => 1,
+            },
+            phone => {
+                data_format => sub {
+                    my ($field_value, $coderef, $row_hashref) = @_;
+                    $field_value = _h($field_value);
+                    $field_value =~ s/-?\/-?/\<br\>/;    #/
+                    return $field_value;
+                }
+            },
+            name     => {
+                data_format => sub {
+                    my ($field_value, $coderef, $row_hashref) = @_;
+                    my $username;
+                    if($row_hashref->{'physid'}) {
+                        $username = _h($row_hashref->{'physid'});
+                    }
+                    elsif($row_hashref->{'x500'}) {
+                        $username = _h($row_hashref->{'x500'});
+                    }
+                    my $namestr = _h($field_value);
+                    if($username) {
+                        $namestr = "<a href=\"/people/$username.html\">$namestr</a>";
+                    }
+                    my $img = '';
+
+                    #Insert images on all but the main page
+                    if($arg ne 'index') {
+                        $img = $m->scomp('/mason/db/images/insert_thumb.comp', mischtml=>'align="left" style="padding-right:15px;"', category=>'profiles', parentid=>$row_hashref->{'uid'}, width=>64);
+                    }
+
+                    return("$img $namestr<br>"._h($row_hashref->{'position'})."");
+                },
+            },
+            email => {
+                data_format => sub {
+                    my ($field_value, $coderef, $row_hashref) = @_;
+                    my $str = '';
+                    if($row_hashref->{'office'} eq "S43") {
+                        $str = "For&nbsp;support:&nbsp;". $m->comp('/mason/encode_mailto.comp', email=>'net@physics.umn.edu'). "<br />Direct:";
+                    }
+                    $str .= $m->comp('/mason/encode_mailto.comp', email=>$field_value);
+                    return $str;
+                }
+            },
+        },
+        #joins => [
+        #    ...
+        #    ],
+        where => "inactive = 0 and uid in (select uid from groups join groupmembers on groups.name=groupmembers.groupname where groups.publish=1) AND ". $list{$arg},
+        header_format => 'ucfirst',
+        default_sort_field => 'name',
+        hide_pagenator => 1,
+        no_limit => 1,
+        debug => 0,
+        prerow => sub {  # This prints the abcd letter headers
+            my ($row, $ts) = @_;
+            return "" if($ts->{'sort'} and $ts->{'sort'} ne 'name');
+            my $letter = substr $row->{'name'}, 0, 1;
+            if($letter ne $ts->{tmp}->{'alpha_last_letter'}) {
+                # Print the letter jump row
+                $ts->{tmp}->{'alpha_last_letter'} = $letter;
+
+                my $abcd = '<tr class="tablehead2"><td><b><a name='. uc $letter . '>'. uc $letter. '</a></b></td>';
+                $abcd .=  '<td class="tablehead2" colspan="'. (scalar($ts->column_names) - 1) . '" align="right"><small>';
+                $abcd .= $m->scomp('/mason/db/directory/abcd.comp', highlight=>$letter, sort_reverse=>$ts->{'sort_reverse'});
+                $abcd .= '</small></td></tr>';
+                return($abcd);
+            }
+        },
+        tmp => {oddeven => "odd"}, #HAXXOR
+    );
+  }
+}
+else {
+    print "Unknown list: $arg\n<BR>";
+}
+
+</%perl>
+
+

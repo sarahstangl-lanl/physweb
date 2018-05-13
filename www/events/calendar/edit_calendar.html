@@ -1,0 +1,139 @@
+<%doc>
+   Component: edit_calendar.html
+        Date: 9/9/2002
+      Author: allan
+ Description: update calendar database
+</%doc>
+%# ~~NOSITEMAP~~
+<%args>
+$eventid=>undef
+$year=>''
+$month=>''
+$day=>''
+$hour=>''
+$minute=>''
+$title=>''
+$speaker=>''
+$subject=>''
+$status=>''
+$location=>''
+$info=>''
+$abstract=>''
+$class=>''
+$sortcode=>''
+$frontpage=>''
+$facultyhost=>''
+$referer=>$session{'calendaruri'}
+$areatag=>'spa'
+</%args>
+
+<%init>
+use GoogleCal;
+use DateTime;
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+if(!$day) {
+    print "Invalid date. There may be a problem with your browser, or the link you followed.";
+    return;
+}
+
+# Ensure areatag is correct if eventid is not new
+my $sql;
+my $sth;
+my $curclass;
+
+if ($eventid ne "new") {
+  $sql = "SELECT calendar_areas.tag, calendar.class FROM calendar JOIN calendar_areas ON (calendar.areaid=calendar_areas.areaid) WHERE eventid = ? LIMIT 1";
+  $sth = $dbh->prepare($sql);
+  if ($sth->execute($eventid)) {
+    my $row_ref = $sth->fetchrow_arrayref;
+    if (defined($row_ref)) {
+      ($areatag, $curclass) = @$row_ref;
+    }
+  }
+}
+
+# Get areaid
+my $areaid;
+
+  $sql = "SELECT areaid FROM calendar_areas WHERE tag = ? LIMIT 1";
+  $sth = $dbh->prepare($sql);
+  if ($sth->execute($areatag)) {
+    my $row_ref = $sth->fetchrow_arrayref;
+    if (defined($row_ref)) {
+      ($areaid) = @$row_ref;
+    }
+  }
+
+my $access = ($m->comp('/mason/auth/auth_check_calendar.comp', areatag=>$areatag) || $m->comp('/mason/auth/auth_check_sysadm.comp'));
+my $tpl_access = ($m->comp('/mason/auth/auth_check_calendar_full.comp', areatag=>$areatag) || $m->comp('/mason/auth/auth_check_sysadm.comp'));
+
+
+my $date;
+my $success;
+if (!Compress($year, $month+1, $day)) {
+    print "<font color=\"red\">Invalid Date! Please click the back button and check your input.</font>";
+    return;
+}
+my $dow = Day_of_Week($year,$month+1,$day);
+</%init>
+
+<%method title>Calendar Update</%method>
+
+<%perl>
+
+# Boot if no access or trying to edit/create template w/o full access
+if ((!$access) || (!$tpl_access && ($class eq 'template')) || (!$tpl_access && ($curclass eq 'template'))) {$m->comp('/mason/redirect.comp',url=>"index.html");}
+
+$month += 1;
+
+$date = $year."-".$month."-".$day." ".$hour.":".$minute.":00";
+my $datetime = DateTime->new(
+                        year => $year,
+                        month => $month,
+                        day => $day,
+                        hour => $hour,
+                        minute => $minute,
+                        time_zone => 'America/Chicago',
+                        );
+#$yymmdd = $year."-".$month."-".$day;
+
+if ($facultyhost) {
+	$facultyhost = $m->comp('/mason/ajax/peoplefinder_to_uid.comp', 'name'=>$facultyhost, 'limit'=>1);
+} else {
+	#facultyhost null
+	$facultyhost = 0;
+}
+
+if ($eventid) {
+  if ($eventid eq "new") {
+    $sql = "INSERT INTO calendar (sortcode, dow, frontpage, date, title, speaker, subject, location, abstract, status, info, class, uid, mod_date, facultyhost, areaid, eventid) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,now(),?,?,?)";
+   # GoogleCal::add_entry($eventid, $title, $speaker, $subject, $location, $date);
+  } else {
+    $sql = "UPDATE calendar SET sortcode=?, dow=?, frontpage=?, date=?, title=?, speaker=?, subject=?, location=?, abstract=?, status=?, info=?, class=?, uid=?, mod_date=now(), facultyhost=?, areaid=? WHERE eventid=?";
+    # COMMENTING OUT BECAUSE IT OOPSES. SOMEBODY FIX
+    #GoogleCal::update_entry(
+    #                eventid => $eventid,
+    #                title => $title,
+    #                speaker => $speaker,
+    #                subject => $subject,
+    #                location => $location,
+    #                datetime => $datetime
+    #                );
+  }
+  $sth = $dbh->prepare($sql);
+  $success = $sth->execute($sortcode, $dow, $frontpage, $date, $title, ,$speaker, $subject, $location, $abstract, $status, $info, $class, $session{'uid'}, $facultyhost, $areaid, $eventid);
+}
+
+if ($success) {
+  if ($eventid =~ /new/) {
+    # get the event-id
+    $sql = "SELECT eventid FROM calendar ORDER BY eventid DESC LIMIT 1";
+    $eventid = $m->comp('/mason/db/getresults.comp',conn=>$dbh,query=>$sql,type=>'scalar');
+  }
+  $m->comp('/mason/redirect.comp',url=>$referer);
+} else {
+  $m->out("Update failed: ".$DBI::errstr);
+}
+
+</%perl>

@@ -1,0 +1,5 @@
+<%flags>
+inherit => undef
+</%flags>
+<% $m->call_next %>
+%#<!-- vim:set ts=4 sts=2 syntax=mason: -->

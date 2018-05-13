@@ -1,0 +1,369 @@
+<%doc>
+   vim: set syntax=mason:
+   author: Alex
+   purpose: update db with new host/interface/dns values
+</%doc>
+<%method js></%method>
+<%init>
+    use physdb;
+    use physdb::host;
+    use Data::Dumper;
+
+    my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+    if(!$auth) {
+        print "Must be admin\n";
+        return;
+    }
+
+# For new hosts, we set these as we partally add things.
+# Later if there is an error, we remove them again.
+my @host_partials;
+my @interface_partials;
+my @dns_partials;
+
+sub redir_error 
+{
+    my ($err_key, $err_str) = @_;
+    my $args = $m->request_args();
+    my @arglist = map {"in_$_=". $m->interp->apply_escapes($args->{$_}, 'u')} (keys %$args);
+    my $argstr = join '&amp;', @arglist;
+
+    $m->redirect("edit_host_form.html?id=$args->{id}&amp;copy=$args->{copy}&amp;$argstr&amp;err_key=$err_key&amp;err_str=$err_str");
+    return 1;
+}
+
+</%init>
+<&"/mason/ajax/js.comp"&>
+<%perl>
+
+
+# set flags to 0 if they are missing (unchecked checkboxes send NOTHING! :(
+foreach my $flag (('flag_oitcritical', 'flag_disabled', 'flag_guest', 'flag_notifications', 'flag_expired', 'flag_noncompliant')) {
+   if(!defined $ARGS{$flag}) {
+      $ARGS{$flag} = 0;
+   }
+}
+#Sanitize noncompliant date to null if its 0 or empty
+$ARGS{'noncompliant_date'} = undef if($ARGS{'noncompliant_date'} eq '' or $ARGS{'noncompliant_date'} eq '0000-00-00');
+
+# set admin_uid to uid of people_finder person
+if($ARGS{"people_finder"}) {
+   my $admin_query = $m->comp("/mason/ajax/people_finder.comp", name=>$ARGS{'people_finder'});
+   my $admin = $admin_query->fetchrow_hashref();
+   if($admin) {
+      $ARGS{'admin_uid'} = $admin->{'uid'};
+   }
+   else {
+       redir_error('people_finder', "Admin uid not found");
+       $ARGS{'admin_uid'} = 0;
+   }
+}
+else {
+   $ARGS{'admin_uid'} = 0;
+}
+
+$ARGS{'modified'} = "NOW()";
+
+my %infoblox_clear;
+my %infoblox_add;
+my %radius_update;
+
+my $host = new Host( id => $ARGS{'id'} );
+my %hostvalues = map {$_ => $ARGS{$_}} (grep { exists($ARGS{$_}) } $host->columns());
+$host->set(%hostvalues);
+
+# Re-assemble the post vars into something sane.
+my %sub_iflist;
+foreach my $var (keys %ARGS) {
+  #print "$var = ". $ARGS{$var}."\n";
+  if( $var =~ /^i\_(\d+)\_(.*)/) {  #i_ifnum_column
+     $sub_iflist{$1}{"$2"} = $ARGS{$var};
+  }
+  elsif( $var =~ /^d\_(\d+)\_(\d+)\_(.*)/) {  #i_ifnum_dnsnum_column
+     $sub_iflist{$1}{'dns'}->{$2}{"$3"} = $ARGS{$var};
+  }
+}
+
+# Add/update each interface we got...
+foreach my $ifnum (keys %sub_iflist) {
+    my $sub_if = $sub_iflist{$ifnum};
+    my $sub_dnslist = $sub_if->{'dns'};
+
+    #ignore any submitted dnses from this interface that are empty
+    foreach my $dnsnum (keys %$sub_dnslist) {
+        my $sub_dns = $sub_dnslist->{$dnsnum};
+        if($sub_dns->{'hostname'} eq ''
+               && !$sub_dns->{'ip'}
+               && $sub_dns->{'id'} eq "new") {
+           delete $sub_dnslist->{$dnsnum};
+        }
+    }
+
+    # ignore this interface if its empty
+    if( $sub_if->{'hwa'} eq ''
+        && $sub_if->{'id'} eq 'new'
+        && !%$sub_dnslist ) {
+        next;
+    }
+
+    # load existing interface (if any)
+    my $interface = $host->interface($sub_if->{'id'});
+    $interface->{'formid'} = "i_$ifnum";
+
+    # figure out submitted values, and clean them up a bit
+    my %interfacevalues;
+    foreach my $c ($interface->columns()) {
+        if (!exists($sub_if->{$c})) { next; }
+        $interfacevalues{$c} = $sub_if->{$c};
+    }
+
+    #$interfacevalues{"hwa"} = lc( $interfacevalues{"hwa"} );
+    #$interfacevalues{"hwa"} =~ s/[^0-9a-f]//g;
+    #$m->out("Saving interface:". $interfacevalues{"hwa"} . "<BR>\n");
+
+    # save new interface values
+    $interface->set(%interfacevalues);
+
+    foreach my $dnsnum (keys %$sub_dnslist) {
+        my $sub_dns = $sub_dnslist->{$dnsnum};
+        my $dns = $interface->dns($sub_dns->{'id'});
+
+        confess("dns didn't instantiate! dns id '".$sub_dns->{'id'}."'") unless $dns;
+        $dns->{'formid'} = "d_". $ifnum. "_". $dnsnum;
+        # grab all the values we need
+        my %dnsvalues;
+        foreach my $c ($dns->columns()) {
+            $dnsvalues{$c} = $sub_dns->{$c} if(defined $sub_dns->{$c}); #dont set undef values to undef, thus overwriting the default
+        }
+        # do any cleanup here
+        #print "Saving dns values: <PRE>". Dumper(\%dnsvalues). "<BR></PRE>\n";
+        $dns->set(%dnsvalues);
+    }
+}
+
+
+# Save the changes!
+if(!$host->save()) {
+    #print "There was an error preventing saving:\n";
+    #print $host->dumperrors();
+    # Find the (first) error
+    my $saveerror = $host->firsterror();
+
+    #print Dumper($host->errors());
+    my ($error_key, $error_message) = $saveerror->first_column();
+    my $error_object = $saveerror->object();
+    my $formname = $error_object->{'formid'} . "_". $error_key;
+    #print "DEBUG: error key is: $formname ";
+    #print "error message is: $error_message<BR>\n";
+    redir_error($formname, $error_message);
+    #print Dumper($saveerror);
+    # TODO: send back to form for fixing
+}
+else { #Save was a success
+    # first loop through all interfaces
+    foreach my $i ($host->interfaces()) {
+        my %ifchanges = $i->changes();
+        # if vlan, HWA, or BlockRT changed, do a switch countdown/twizzle
+        if( $ifchanges{'vlan'} ) {
+            $radius_update{$i->get("hwa")} = $i;
+        }
+        if( $ifchanges{'hwa'} ) {
+            $radius_update{$ifchanges{'hwa'}{'old'}} = $i;
+        }
+	    if( $ifchanges{'blockrt'} ) {
+	        $radius_update{$i->get("hwa")} = $i;
+	    }
+        # now loop through DNS entries for each interface
+        # Find any IP addresses which have changed, and mark to update in SG later
+        foreach my $d ($i->dnses()) {
+            my %dnschanges = $d->changes();
+            if( $dnschanges{'hostname'} || $dnschanges{'domain'} || $dnschanges{'aliases'} || $ifchanges{'hwa'} ) {
+            $infoblox_add{$d->get("ip")} = $d;
+
+            }
+            if($dnschanges{'ip'}) {
+                if($dnschanges{'ip'}{'new'} ) {
+                $infoblox_add{$dnschanges{'ip'}{'new'}} = $d;
+                }
+                if($dnschanges{'ip'}{'old'}) {
+                    $infoblox_clear{$dnschanges{'ip'}{'old'}} = $dnschanges{'ip'}{'old'}
+                }
+            }
+        }; # end of dns loop
+    }; # end of interface loop
+
+    #Build change string by combining all the interfaces and dnses
+    # should this be in the (physdb) lib?
+    my $logstr = "";
+    $logstr = $host->changes_as_str();
+    foreach my $i ($host->interfaces()) {
+        my $ichanges = $i->changes_as_str();
+        if($ichanges) {
+           $logstr .= ", " if $logstr;
+           $logstr .= $ichanges;
+        }
+        foreach my $d ($i->dnses()) {
+            my $dchanges = $d->changes_as_str();
+            if($dchanges) {
+               $logstr .= ", " if $logstr;
+               $logstr .= $dchanges 
+            }
+        }
+    }
+
+    my $msg;
+    if($logstr ne "") {
+        $m->comp('/mason/network/auditlog.comp:log', host_id=>$ARGS{'id'}, text=>"Changed: $logstr on $ARGS{computer_name} ($ARGS{id})");
+        $msg = "$ARGS{computer_name} changes saved.";
+    }
+    else {
+        $msg = "$ARGS{computer_name} had no changes to save (saved anyway, though.)";
+    }
+
+    </%perl>
+    <h2><% $msg|h %></h2>
+
+    <%perl>
+    sub add_dashes {
+        my $h = shift;
+        $h =~ s/(.{2})/$1-/g;
+        $h =~ s/-$//;
+        return uc($h);
+    }
+    if(%radius_update) {
+        # Work in progress:
+        # figure out which switch port the MAC was last seen on from RADIUS accounting
+        my $twizzle_args = '';
+        foreach my $interface (values %radius_update) {
+            my $port = physdb::queryfirstrow("SELECT AcctStartTime as timestamp, AcctStopTime, NASPortId as port,
+                            net_dns.hostname, INET_NTOA(net_dns.ip) as ip, radacct.CallingStationId as hwa
+                            FROM accounting.radacct
+                            JOIN net_dns ON net_dns.ip = INET_ATON(radacct.NASIPAddress)
+                            JOIN net_interfaces ON net_dns.interface_id=net_interfaces.id
+                            JOIN net_hosts ON net_interfaces.host_id=net_hosts.id
+                            WHERE radacct.CallingStationId=?
+                            ORDER BY AcctStartTime DESC LIMIT 1", add_dashes($interface->get("hwa")));
+            </%perl>
+%#              Switch: <% $port->{'hostname'} %> (<% $port->{'ip'} %>) port <% $port->{'port'} %><BR>
+            <%perl>
+            if($port && $port->{'hostname'}) {
+                $twizzle_args .= "," if($twizzle_args);
+                $twizzle_args .= $port->{'hostname'}. ":". $port->{'port'};
+            }
+
+        }
+        # this counts down a bit to wait for our data to update in RADIUS
+        # really not needed anymore since RADIUS does a live SQL query...
+        # after that twizzleport.html sends SNMP command to switch to force port-reauth.
+        my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = CORE::localtime(time);
+        my $seconds = 60 - $sec;
+        $seconds += 2; #fudge factor for cron laziness
+        </%perl>
+        <div id="countdown">Radius update in: <% $seconds %> seconds...</div>
+        <script language="javascript">
+            var display = document.getElementById("countdown")
+            function ajaxtwizzleports() {
+                new Ajax.Request('twizzleport.html',
+                           {
+                               method: 'get' ,
+                               parameters: {twizzle: '<% $twizzle_args %>'},
+                               onSuccess: function(transport) {
+                                   display.innerHTML = transport.responseText;
+                               },
+                               onFailure: function(){
+                                   display.innerHTML = "Radius update: Something went wrong with twizzle."
+                               }
+                           });
+            }
+            function updateradiuscounter(seconds) {
+                if(seconds > 0) {
+                   seconds -= 1;
+                   display.innerHTML = "Radius update in: "+seconds+" seconds...";
+                   setTimeout("updateradiuscounter("+seconds+")", 1000);
+                }
+                else {
+                   display.innerHTML = "Radius update done. " + ajaxtwizzleports();
+                }
+            }
+            updateradiuscounter(<% $seconds %>)
+        </script>
+        <%perl>
+    }
+    </%perl>
+
+    <%method title>Save Host</%method>
+
+    <br>
+    <div>
+        <a href="hosts.html?last_search=true">
+        <button>
+        <img src="/images/search.png" border="0" alt="Back to Search Results" label="Back to search results" title="Back to search results">
+        Return to search
+        </button>
+        </a>
+        <a href="host.html?id=<% $host->get("id") |u %>">
+        <button>
+        <img src="/images/imgsel_view.png" border="0" alt="View" label="View" title="View this host">
+        View Host
+        </button>
+        </a>
+
+        <a href="edit_host_form.html?id=<% $host->get("id") |u %>">
+        <button>
+        <img src="/images/imgsel_edit.png" border="0" alt="Edit again" label="Edit again" title="Edit this host again">
+        Edit Again
+        </button>
+        </a>
+
+        <button onclick="$('infoblox').style.display = 'block'"><img src="/images/imgsel_nts.png" border="0" alt="NTS Service Gateway" label="NTS Service Gateway">IPAM resubmission menu</button>
+    </div>
+
+    <%perl>
+    if(%infoblox_clear or %infoblox_add) {
+        </%perl>
+        <h3>Update Service Gateway IPAM</h3>
+        <p>
+        <%perl>
+
+        foreach my $ip (values %infoblox_clear) {
+          my $hostname = $ip;
+          $hostname =~ s/\./-/go;
+          $hostname = "z-$hostname";
+          $m->comp("/mason/network/infoblox_form.comp", ip=>$ip, hostname=>$hostname, domain=>"spa.umn.edu", target=>'iblock', action=>"del");
+        }
+
+        foreach my $dns (values %infoblox_add) {
+            my $if = $host->interface( $dns->get('interface_id') );
+            my $hwa = $if->get_formatted_hwa;
+            my $ip_addr = $dns->get('ip');
+            my $hostname = $dns->get('hostname');
+            my $aliases = $dns->get('aliases');
+            $aliases =~ s/[ ,]/\n/; #replace spaces with CR for infoblox
+            my $domain = $dns->get('domain');
+
+            $m->comp("/mason/network/infoblox_form.comp", ip=>$ip_addr, hostname=>$hostname, domain=>$domain, aliases=>$aliases, hwa=>$hwa, target=>'iblock', action=>'add');
+        }
+    }
+</%perl>
+
+<div id="infoblox" style="display:none;">
+  <h3>Re-submit <%$host->get('computer_name')|h%> DNS to Service Gateway:</h3>
+    <%perl>
+    foreach my $d ($host->all_dnses()) {
+        my $if = $host->interface( $d->get('interface_id') );
+        my $hwa = $if->get_formatted_hwa;
+        my $ip_addr = $d->get('ip');
+        my $hostname = $d->get('hostname');
+        my $aliases = $d->get('aliases');
+        $aliases =~ s/[ ,]/\n/; #replace spaces with CR for infoblox
+        my $domain = $d->get('domain');
+
+        $m->comp("/mason/network/infoblox_form.comp", ip=>$ip_addr, hostname=>$hostname, domain=>$domain, aliases=>$aliases, hwa=>$hwa, target=>'iblock', action=>'add');
+     }
+    </%perl>
+</div>
+
+<iframe name="iblock" src="about:blank" style="width:100%; height:1500px; border: 0;">You dont support iframes</iframe>
+<%perl>
+}
+</%perl>

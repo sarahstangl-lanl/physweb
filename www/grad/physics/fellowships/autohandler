@@ -1,0 +1,13 @@
+%# vim:set syntax=mason:
+<% $m->call_next %>
+<%method whereamifilter>
+<%args>
+$partsref
+</%args>
+<%perl>
+
+pop @$partsref;
+pop @$partsref;
+return @$partsref;
+</%perl>
+</%method>

@@ -1,0 +1,13 @@
+<%doc>
+   Component: auth_check_internal.comp
+        Date: 9/2/2002
+      Author: allan
+ Description: checks if the user is logged in and an internal physics user
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+  return $session{'uid'};
+</%init>

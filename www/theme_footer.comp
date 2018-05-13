@@ -1,0 +1,22 @@
+<%doc>
+ vim: set syntax=mason:
+</%doc>
+
+<%args>
+$mod_time
+</%args>
+<div id="footer">
+    <div id="footeraddress">
+        School of Physics &amp; Astronomy - 116 Church Street S.E., Minneapolis, MN 55455<br />
+        Phone: 612-624-7375 Fax: 612-624-4578
+    </div>
+    <div id="physfooter">
+          <% $mod_time %>
+          <br />
+          <a href="/about/contact">Contact Physics</a>
+    </div>
+     <& include/cse_umn_template/UMNfooter.comp &>
+<br clear="all" />
+</div> <!-- footer -->
+
+<!-- fhdsfjdsf -->

@@ -1,0 +1,126 @@
+<%DOC>
+   Component: download_gradebook_template.html
+        Date: 2008.11.04
+      Author: clayton
+     Changed: 2008.11.04 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $classid=>undef
+  $empty=>''
+</%ARGS>
+
+<%flags>
+  inherit=>undef
+</%flags>
+
+<%INIT>
+  use Spreadsheet::WriteExcel;
+  use File::Temp qw| tempfile tempdir |;
+
+  my $auth = $m->comp('/mason/auth/auth_check_classes.comp');
+  if (!$auth || !$classid) { return; }
+
+  my ($fh, $filename) = tempfile("gradebooktplXXXX", SUFFIX => '.xls', DIR => '/var/tmp' );
+  
+</%INIT>
+
+<%perl>
+
+  my $workbook = Spreadsheet::WriteExcel->new($filename);
+  my $worksheet = $workbook->add_worksheet();
+  my $row = 3;
+
+  #my $lookup_students = $dbh->prepare('SELECT c.userid, c.section, u.dispname, c.studentid, u.x500 FROM grades.classlist AS c JOIN grades.users AS u ON (c.userid = u.id) WHERE classid=? ORDER BY dispname ASC');
+  # Note: this query is from the class list tablesearch (debug=1 and cut and paste, add student id, remove ta)
+  my $lookup_students_query = "
+      SELECT   grades.users.dispname as student_name,
+               grades.classlist.studentid as student_id,
+               concat(grades.users.x500, '\@umn.edu') as email,
+               group_concat(distinct(child_class.section)) as lab_section,
+               group_concat(concat(ta_directory.first_name, ' ', ta_directory.last_name)) as lab_TA,
+               group_concat(ta_directory.email) as ta_email 
+
+        FROM grades.users 
+   LEFT JOIN grades.classlist 
+          ON (grades.classlist.userid=grades.users.id) 
+   LEFT JOIN grades.classlist child_classlist 
+          ON (child_classlist.userid=grades.users.id 
+         AND child_classlist.classid IN (SELECT classid FROM classlist WHERE parent=? AND component='LAB') ) 
+   LEFT JOIN webdb.classlist child_class 
+          ON (child_class.classid=child_classlist.classid ) 
+   LEFT JOIN webdb.members as ta 
+          ON (ta.type='TA' AND ta.memberof=child_classlist.classid) 
+   LEFT JOIN webdb.directory as ta_directory 
+          ON (ta_directory.uid=ta.uid) 
+
+       WHERE grades.classlist.classid=? 
+    GROUP BY grades.users.dispname, grades.users.x500, grades.users.id
+";
+
+  my $lookup_class = physdb::prepare('SELECT name, section FROM webdb.classlist WHERE classid=? LIMIT 1');
+  $lookup_class->execute($classid)
+    or die 'Unable to lookup class: ' . $lookup_class->errstr;
+  my ($name, $section);
+  if (my $row = $lookup_class->fetchrow_arrayref()) {
+    ($name, $section) = @$row;
+  }
+
+  my $lookup_students = physdb::query($lookup_students_query, $classid, $classid);
+
+  while (my $user = $lookup_students->fetchrow_hashref())
+  {
+    # Write identification information for this user
+    $worksheet->write($row, 0, $$user{'student_name'});
+    $worksheet->write($row, 1, $$user{'student_id'});
+    $worksheet->write($row, 2, $$user{'lab_section'});
+    $worksheet->write($row, 3, $$user{'email'});
+
+    
+    # Write out actual schedules on top of white and grey area (with black busy blocks)
+    #while (my $day = $query2->fetchrow_hashref())
+    #{
+    #  $worksheet->write($row, 3 + $start_sched_col + $$day{'day'} * $config{'periods'} + $$day{'slot'}, $$day{'class'}, $black_bg);
+    #}
+
+    $row++;
+  }
+
+  # ---------------------
+  # Now we do the headers
+  # ---------------------
+
+  my $col = 0;
+
+  $worksheet->write(0, $col++, 'Name');
+  $worksheet->write(0, $col++, 'ID');
+  $worksheet->write(0, $col++, 'Lab Sec #');
+  $worksheet->write(0, $col++, 'Email');
+  
+  $worksheet->set_column(0, 0, 24);
+  $worksheet->set_column(3, 3, 25);
+
+  # Pretty header scrolling love (keeps it on the screen)
+  $worksheet->freeze_panes(1, 2);
+
+  # Pretty header printing love (keeps it on the page)
+  $worksheet->repeat_rows(0);
+
+  $workbook->close();
+
+
+  # now send file for download
+  $r->content_type('application/ms-excel');
+  $r->headers_out->unset('Content-Length');
+  $r->headers_out->set('Content-Disposition' => 'file; filename="' . $name . '.' . $section . '.xls"');
+  $r->headers_out->set('Content-Length' => -s $filename );
+
+  $m->autoflush(1);
+  $r->sendfile($filename);
+  $m->autoflush(0);
+  return Apache2::Const::OK;
+
+</%perl>
+

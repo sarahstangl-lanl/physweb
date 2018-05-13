@@ -1,0 +1,57 @@
+
+<%DOC>
+   Component: missingcards.html
+        Date: 2008.09.04
+      Author: nick
+     Changed: 2008.09.04 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp');
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $doormgr = $m->comp('/mason/auth/auth_check_door_mgr.comp');
+my $current_uid = $m->comp('/mason/auth/current_uid.comp');
+if(!$admin_auth && !$doormgr) {
+	print "<H2>You do not have permission to view this page</H2>";
+	return;
+}
+my @emplids;
+my $query = $dbh->prepare("
+SELECT directory.last_name, directory.first_name, GROUP_CONCAT( groups.name
+ORDER BY groups.name ASC ) as groups, emplid, x500, physid
+FROM directory
+JOIN groupmembers ON directory.uid = groupmembers.uid
+JOIN groups ON groupmembers.groupname = groups.name
+WHERE directory.ucard = ''
+AND groups.type = 'dooraccess'
+AND groups.name LIKE 'lab%'
+GROUP BY directory.last_name
+ORDER BY directory.last_name
+");
+$query->execute() || die "Unable to execute: ".$query->errstr;
+if($query->rows) {
+	print "<table cellspacing='3' cellpadding='3'><tr><th>Last Name</th><th>First Name</th><th>Groups</th><th>emplid</th><th>x500</th><th>physid</th></tr>";
+	while(my (@rowdata) = $query->fetchrow_array()) {
+		print "<tr>";
+		push(@emplids, $rowdata[3]);
+		foreach my $columndata (@rowdata) {
+		    print "<td>$columndata</td>";
+		}
+		print "</tr>";
+	}
+	print "</table>";
+} else {
+	print "<h4>No missing UCards</h4>";
+}
+
+if(scalar(@emplids)) {
+	print "<p>List of employee IDs:<br/>".join('<br/>',@emplids);
+}
+
+</%INIT>		
+<%method title>Missing UCards</%method>

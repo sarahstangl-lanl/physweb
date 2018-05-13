@@ -1,0 +1,88 @@
+<%doc>
+   vim: set syntax=mason:
+   Author: Rubin
+</%doc>
+
+<%args>
+$host_id => ''
+$interface_id => ''
+$dns_id => ''
+</%args>
+<%shared>
+</%shared>
+
+<%method js></%method>
+
+<%init>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+
+use physdb::host;
+use physdb::interface;
+use physdb::dns;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+if(!$auth) {
+    print "Must be admin\n";
+    return;
+}
+
+my $ref_host;
+</%init>
+<%perl>
+my $host;
+my $interface;
+my $dns;
+if($dns_id) {
+   $dns = new Dns( id => $dns_id) or die("dns failed to instanciate");
+   $interface = $dns->getinterface();
+   $host = $dns->gethost();
+}
+elsif($interface_id) {
+   $interface = new Interface( id => $interface_id );
+   $host = $interface->gethost();
+}
+elsif($host_id) {
+   $host = new Host( id=> $host_id );
+}
+else {
+    $m->out("Nothing to delete?");
+    return;
+}
+$ref_host = $host->get('id');
+</%perl>
+
+<form action="delete.html">
+<h2>Are you SURE ?</h2>
+<div>
+<%perl> if($dns) { </%perl>
+you want to delete IP/DNS: <% $dns->get('ip') %>/<% $dns->get('hostname') .".". $dns->get('domain') %>
+<br>from device <% $host->get('computer_name') %>'s <% $interface->get('hwa') %> interface?
+<%perl> } elsif($interface) { </%perl>
+you want to delete interface: <% $interface->get('hwa') %>?
+<br>from the device named <% $host->get("computer_name") %>?
+<p>This will also delete:
+ ip/dns entries attached to this interface
+<%perl> } else { </%perl>
+you want to delete device: <% $host->get('computer_name') %>?
+<p>This will also delete:
+ all interfaces and ip/dns entries attached to this host
+<%perl> } </%perl>
+
+</div>
+<input type="hidden" name="host_id" value="<% $host_id | h %>">
+<input type="hidden" name="interface_id" value="<% $interface_id | h %>">
+<input type="hidden" name="dns_id" value="<% $dns_id | h %>">
+<input type="hidden" name="ref_host" value="<% $ref_host |h%>">
+<input type="submit" value="DELETE">
+</form>
+<a href="edit_host_form.html?id=<% $host->get('id') %>"><button>Cancel</button></a>
+<a href="hosts.html?last_search=true">
+<button>
+<img src="/images/search.png" border="0" alt="Back to Search Results" label="Back to search results" title="Back to search results">
+Return to search
+</button>
+</a>
+
+

@@ -1,0 +1,29 @@
+<%DOC>
+   Component: sanitize.comp
+        Date: 2008.02.25
+      Author: clayton
+     Changed: 2008.02.25 by clayton
+
+Remove all but simple formatting html
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+use HTML::Scrubber;
+
+my $scrubber = HTML::Scrubber->new( allow => [ qw[ p b i u br ] ] );
+
+my ($in) = @_;
+</%INIT>
+
+<%perl>
+return $scrubber->scrub($in);
+</%perl>
+
+<%filter>
+s/.//go
+</%filter>
+
+

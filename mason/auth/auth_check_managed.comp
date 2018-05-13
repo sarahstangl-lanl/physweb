@@ -1,0 +1,22 @@
+
+<%DOC>
+   Component: auth_check_managed.comp
+        Date: 2008.11.10
+      Author: nick
+     Changed: 2008.11.10 by nick
+
+ Description: Returns 1 if $remote_host is "owned" (managed by) sysadm group, else returns 0
+</%DOC>
+
+<%ARGS>
+$remote_host
+</%ARGS>
+
+<%INIT>
+my $is_managed = 0;
+if(!$dbh) { return 0; } #db is down, can't check network group
+my $sth = $dbh->prepare("SELECT net_hosts.computer_name FROM net_hosts JOIN net_interfaces ON net_hosts.id = net_interfaces.host_id JOIN net_dns ON net_interfaces.id = net_dns.interface_id WHERE INET_NTOA(net_dns.ip) = ? AND net_hosts.groupname = 'sysadm'");
+$sth->execute($remote_host);
+$is_managed = 1 if $sth->rows;
+return $is_managed;
+</%INIT>

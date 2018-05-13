@@ -1,0 +1,199 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: started out as edit_classitem.html
+        Date: 2003.07.15
+      Author: allan
+     Changed: 2003.07.15 by allan
+
+This adds or inserts a new classitem
+Returns string if there's an error
+</%DOC>
+
+<%ARGS>
+$entryid=>'new'
+$parentid=>0
+$item_type=>undef
+$headline=>''
+$text=>''
+$text_type=>'wiki'
+$priority=>0
+$start_year=>undef
+$start_month=>undef
+$start_day=>undef
+$kill_year=>undef
+$kill_month=>undef
+$kill_day=>undef
+$restricted=>''
+$studentonly=>''
+$oclassid=>''
+$placement=>'top'
+$placement_relative=>''
+$classid=>undef
+$redirect_type=>undef
+$draft=>0
+$no_redirect=>0
+</%ARGS>
+
+<%INIT>
+return "No database!" if $m->comp('/mason/db/dbcheck.comp');
+return "Not logged in" if !($m->comp('/mason/auth/auth_check.comp'));
+
+# Override classid and item_type if we are given a parent item and we're creating new
+($classid, $item_type) = $m->comp('/mason/db/classes/get_parent_item.comp', entryid=>$entryid, parentid=>$parentid, classid=>$classid, item_type=>$item_type); 
+
+return "no class specified" unless($classid);
+return "no item type specified" unless ($item_type);
+
+if (!$redirect_type) { $redirect_type = $item_type; }
+# don't see the point of oclassid - used by edit_classitem.html and newask.html
+if ($oclassid) { $classid = $oclassid; }
+
+my $askallow = 1;
+my $feedbackallow = 1;
+my $tadiscallow = 1;
+my $who = $session{'uid'};
+my $x500 = $session{'x500'};
+
+my $sql;
+my $sth;
+my $success;
+my $cflags;
+my ($start_date, $kill_date);
+# sensible default start/kill dates if unspecified
+my ($dday, $dmonth, $dyear) = (CORE::localtime)[3..5];
+$dyear += 1900;
+$start_date = $dyear."-".($dmonth+1)."-".$dday;
+my $kyear = $dyear+10;
+$kill_date = $kyear.'-01-01';
+# override defaults with provided dates if present
+$start_date = $start_year."-".($start_month+1)."-".$start_day if $start_year;
+$kill_date  = $kill_year."-".($kill_month+1)."-".$kill_day if $kill_year;
+
+# handle question/
+if ((($item_type eq 'ask') || ($item_type eq 'feedback') || ($item_type eq 'ta')) && ($entryid eq 'new')) {
+    # Allow if it's a question/feedback and they are logged in
+    # but check access for TA section...
+    if ($item_type eq 'ta') {
+        return "Access not authorized" unless $m->comp('/mason/auth/auth_check_editclass.comp', classid => $classid, always_include_tas => 1);
+    }
+    ## Check if ask or feedback are enabled...
+    
+    # Get class information
+    $sql = "SELECT flags FROM classlist WHERE classid = ? LIMIT 1";
+    $sth = $dbh->prepare($sql);
+    $sth->execute($classid)
+        or die 'Unable to grab class flags: ' . $dbh->errstr;
+    
+    my $row_ref = $sth->fetchrow_arrayref;
+    ($cflags) = @$row_ref;
+    
+    $askallow = ($cflags =~ /\bask\b/);
+    $feedbackallow = ($cflags =~ /\bfeedback\b/);
+    $tadiscallow = ($cflags =~ /\btadisc\b/);
+    
+    # Remove poster uid/x500 if anonymous feedback
+    if ($item_type eq 'feedback') {
+        $who = undef;
+        $x500 = undef;
+    }
+
+    # Force killdate to the past for anonymous feedback (so only instructor can see)
+        $kill_date = 0 if ($item_type eq 'feedback');
+    
+    # Force sort to 100
+    $priority = '0';
+    $placement = 'top';
+    
+    # Force type to wikitext
+    $text_type = 'wiki';
+}
+else {
+    return "Access not allowed" unless $m->comp('/mason/auth/auth_check_editclass.comp', classid => $classid);
+}
+
+$restricted =~ s/on/restricted/;
+$studentonly =~ s/on/studentonly/;
+
+my $flags = join(",", $restricted, $studentonly);
+
+if ((($item_type eq 'ask') && !$askallow)
+    || (($item_type eq 'feedback') && !$feedbackallow)
+    || (($item_type eq 'ta') && !$tadiscallow)
+    ) {
+    return $item_type . ' is not enabled for this class';
+}
+
+if  (!$headline && !$text) {
+    return 'Can\'t enter an item with no headline or text';
+}
+
+if ($text_type eq 'plain' && $text =~ /<html>|<head>|<body>/i ) {
+    # check for signs of illegal HTML and clean it...
+    $text = $m->comp('/mason/clean_html.comp', html=>$text);
+}
+
+# figure out priority from placement request
+$priority = $m->comp('/mason/db/classes/postplacement_do.comp', classid=>$classid, parentid=>$parentid, entryid=>$entryid, item_type=>$item_type);
+
+# Sanitizing done - now insert or update data
+#
+if ($entryid eq "new") {
+    $sql = "INSERT INTO classdata (classid, parentid, item_type, published, headline, text, text_type, priority, start_date, kill_date, flags, author, post_date, modified_date, entry_type, x500, entryid) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,now(),now(),?,?,?)";
+}
+else {
+    $sql = "UPDATE classdata SET classid=?, parentid=?, item_type=?, published=?, headline=?, text=?, text_type=?, priority=?, start_date=?, kill_date=?, flags=?, author=?, modified_date=now(), entry_type=?, x500=? WHERE entryid=?";
+}
+        
+$sth = $dbh->prepare($sql);
+$sth->execute($classid, $parentid, $item_type, !$draft, $headline, $text, $text_type, $priority, $start_date, $kill_date, $flags, $who, 'item', $x500, $entryid)
+    or die 'Unable to update class item: ' . $dbh->errstr;
+
+my $insertid = $sth->{mysql_insertid};
+
+#
+# Bump modified dates on parent items (used for RSS, more?)
+#
+
+$m->comp('/mason/db/classes/bump_modified.comp', parentid=>$parentid);
+$m->comp('/mason/db/auditlog/addevent.comp', type=>"class", text=>"Edit: ".$classid."/".$entryid);
+
+# Send emails if requested
+my $tas = physdb::queryarray("SELECT email FROM directory d JOIN members m ON m.uid = d.uid AND m.memberof = ? AND m.type = 'TA'", $classid);
+my $instructors = physdb::queryarray("SELECT email FROM directory d JOIN members m ON m.uid = d.uid AND m.memberof = ? AND m.type = 'instructor'", $classid);
+my ($type, @to);
+if ($item_type eq 'ask') {
+    $type = 'Question';
+    push @to, @$instructors if ($cflags =~ /\baskinstmail\b/);
+    push @to, @$tas if ($cflags =~ /\basktamail\b/);
+}
+elsif ($item_type eq 'feedback') {
+    $type = 'Anonymous Feedback';
+    push @to, @$instructors if ($cflags =~ /\bfbmail\b/);
+}
+elsif ($item_type eq 'ta') {
+    $type = 'TA Discussion';
+    push @to, @$instructors if ($cflags =~ /\btainstmail\b/);
+    push @to, @$tas if ($cflags =~ /\btatamail\b/);
+}
+if (scalar @to) {
+    if (my $classinfo = physdb::queryfirstrow('SELECT year, quarter, name, section FROM webdb.classlist WHERE classid=? LIMIT 1', $classid)) {
+        my $class = $classinfo->{'name'} . ($classinfo->{'section'} ? '.' : '') . $classinfo->{'section'};
+        my $url = $m->comp('/mason/fullurl.comp',
+            url => $m->comp('/mason/db/classes/make_classlink.comp',
+                classid => $classid,
+                type => $item_type,
+                entryid => $insertid,
+                fullurl => 1,
+            ),
+        );
+        $m->comp('/mason/send_mail.comp',
+            to => join(', ', @to),
+            bcc => 'nick@physics.umn.edu',
+            subject => "New $type posted for $class",
+            text => "Post:\n\n$headline\n$text\n\nURL: $url",
+        );
+    }
+}
+return;
+
+</%init>

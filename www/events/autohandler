@@ -1,0 +1,23 @@
+<% $m->call_next %>
+<%method titlemenu_above>
+   <& /mason/titlemenu.comp:begin, type=>"above" &>
+   <&| /mason/titlemenu.comp:item, link=>'/events/index.html'    &>Events Overview</&>
+   <&| /mason/titlemenu.comp:item, link=>'/events/calendar/'     &>Calendar</&>
+%#   <&| /mason/titlemenu.comp:item, link=>'/events/workshops/'    &>Workshops</&>
+   <&| /mason/titlemenu.comp:item, link=>'/events/vanvleck/'     &>Van Vleck Lectures</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+
+<%method whereamifilter>
+<%args>
+    $partsref
+</%args>
+<%perl>
+    # Force custom handling of whereami breadcrumb bar; just truncate it at home>about>news for all pages and let the menu bar do the rest
+    #print Dumper(\$partsref);
+    $partsref->[0]{'display'} = "Events";
+    pop(@$partsref);
+    return @$partsref;
+</%perl>
+</%method>
+

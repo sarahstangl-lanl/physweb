@@ -1,0 +1,63 @@
+
+<%DOC>
+   Component: send_demoreq.html
+        Date: 2003.10.22
+      Author: allan
+     Changed: 2003.10.22 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$name=>$session{'x500'}
+#$email=>$session{'help_email'}
+$date=>undef
+$room=>undef
+$time=>undef
+$demos=>undef
+$comments=>undef
+</%ARGS>
+
+<%INIT>
+if(!$name) {
+    $m->comp("/mason/auth/auth_block.comp");
+    return;
+}
+my $email = "demo-req\@physics.umn.edu";
+
+if(!$session{'x500'}) {
+    $m->out("This form requires you to login with your x500");
+    return;
+}
+
+if (!defined($date) || !defined($room) || !defined($time) || !defined($demos) || !defined($comments)) {
+  print 'Required data not given -- are you sure you used the form?';
+  return;
+}
+
+my $user = $session{'x500'}."\@umn.edu";
+
+my $text = "Demo Request from ".$user." ".$name."\n\n";
+my $subject = "Demo Request from ".$user." ".$name;
+
+if ($date) {$text .= "Date ".$date."\n";}
+if ($time) {$text .= "At ".$time."\n";}
+if ($room) {$text .= "In room ".$room."\n\n";}
+
+if ($demos) {$text .= "Requested Demonstrations:\n".$demos."\n\n";}
+
+if ($comments) {$text .= "Comments:\n".$comments."\n";}
+
+$m->comp('/mason/send_mail.comp', from=>$user, to=>$email, subject=>$subject, text=>$text);
+
+</%INIT>		
+		
+<%method title>Request Sent</%method>
+
+Your request has been sent to <% $email %>
+<p>
+Any response will be sent to your email address, <% $user %>
+<p>
+<pre>
+<% $text %>
+</pre>

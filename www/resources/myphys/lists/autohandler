@@ -1,0 +1,15 @@
+<%init>
+$m->comp('/mason/auth/auth_block.comp', internal => 1);
+$m->call_next;
+</%init>
+<%method titlemenu_below>
+    <& /mason/titlemenu.comp:begin, type=>"below" &>
+    <&| /mason/titlemenu.comp:item, link=>'index.html'  &>List Memberships</&>
+    <&| /mason/titlemenu.comp:item, link=>'lists.html'  &>All lists</&>
+%   if ($m->comp('/mason/auth/auth_check.comp', auth_type => [ 'sysadm', 'directory' ])) {
+    <&| /mason/titlemenu.comp:item, link=>'members.html'  &>List Members</&>
+%   }
+    <& /mason/titlemenu.comp:end &>
+</%method>
+
+

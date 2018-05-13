@@ -1,0 +1,13 @@
+<%INIT>
+  my $first;
+  #if ($r->dir_config('SiteName') eq "staging") {
+    $first = $m->comp('jsload.comp', file=>'js/jquery.flexbox.js');
+  #} else {
+  #  $first = $m->comp('jsload.comp', file=>'js/jquery.flexbox.min.js');
+  #}
+  $m->comp('jsload.comp', file=>'js/jquery.autocomplete.js');
+</%INIT>		
+
+<%filter>
+s/\n//go
+</%filter>	

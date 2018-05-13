@@ -1,0 +1,45 @@
+<%doc>
+   Component: edit_link.html
+        Date: 8/27/2003
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$entryid=>undef
+$parentid=>undef
+$classid=>undef
+$url=>undef
+$caption=>''
+$redirect_type=>'index'
+</%args>
+
+<%init>
+  return if $m->comp('/mason/db/dbcheck.comp');
+
+  if (!$entryid) {$m->redirect('classerror.html');}
+  $m->comp('/mason/auth/auth_block_editclass.comp',classid=>$classid, itemid=>($parentid ? $parentid : $entryid));
+  my $successful_insert;
+  my $result;
+  my ($sql,$sth);
+
+  my $priority = $m->comp('/mason/db/classes/postplacement_do.comp', classid=>$classid, parentid=>$parentid, entryid=>$entryid, item_type=>undef);
+
+  if (!$caption) {$caption = $url;}
+
+  $sql = "REPLACE INTO classdata ";
+  $sql .= "(entryid, parentid, classid, entry_type, attach_data, attach_text, priority, post_date, modified_date) ";
+  $sql .= "VALUES(?,?,?,?,?,?,?,now(),now()) ";
+  $sth = $dbh->prepare($sql);
+  $successful_insert = $sth->execute($entryid, $parentid, $classid, 'url', $url, $caption, $priority);
+  if ($successful_insert) {
+    $m->comp('/mason/db/classes/bump_modified.comp', parentid=>$parentid);
+    $m->comp('/mason/redirect.comp', url=>$m->comp('/mason/db/classes/make_classlink.comp', classid=>$classid, fullurl=>1, type=>$redirect_type));
+  } else {
+    $result = "Error: ".$DBI::errstr;
+  }
+</%init>
+
+<%method title>Add Link Result</%method>
+<p>
+<% $result %>

@@ -1,0 +1,21 @@
+%# vim: set syntax=mason:
+<div id="phys">
+    <div id="linkbox">
+        <div id="linkbox_links">
+        <a href="/" title="School of Physics &amp; Astronomy Home">Physics Home</a> |
+        <a href="/people" title="School of Physics &amp; Astronomy Directory">Physics Directory</a> |
+        <a href="/alumni/makeagift/" title="">Give to Physics</a> |
+        <a href="/resources/myphys" title="My Physics information">MyPhys</a>
+        </div>
+%       if ($r->uri !~ m|^/grad|) {
+            <div id="gradapp_announcement" style="text-align:center;">
+                <a href="/grad/index.html" style="color:black;">Now Accepting Graduate Applications</a>
+            </div>
+%   }
+    </div>
+    <a id="phys_logo_text" href="/">School of Physics &amp; Astronomy</a>
+
+%# Grad app "Apply Now" button
+%# Disabled for now
+
+</div> <!-- phys -->

@@ -1,0 +1,25 @@
+
+<%ARGS>
+$id
+$name=>''
+$ref=>undef
+$confirm=>undef
+</%ARGS>
+
+<%INIT>
+    use strict;
+    $m->comp('/mason/auth/auth_block.comp');
+    if ($confirm) {
+        $m->comp('/mason/myfiles/delfile.comp', id => $id, ref => $ref);
+    }
+    else {
+        $ref = $r->headers_in->{'Referer'};
+    }
+</%INIT>
+
+<%method title>
+MyPhysFiles Delete File
+</%method>
+
+<p>
+<b>To confirm deletion of file <% $name %></b> - <a href="delfile.html?id=<% $id %>&confirm=1&ref=<% $ref %>">click here</a>

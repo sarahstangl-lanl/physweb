@@ -1,0 +1,200 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: password.html
+        Date: 2008.04.18
+      Author: clayton
+     Changed: 2014.03.24 by adam
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+ $update=>'',
+ $oldpass=>'',
+ $newpass=>'',
+ $newpassagain=>'',
+ $forward=>undef,
+ $request=>0
+</%ARGS>
+
+<%INIT>
+use Data::Password qw(:all);
+use Email::Valid;
+
+use smbldap_tools;
+
+%config = smbldap_tools::read_conf();
+
+my $suffix = $config{'suffix'};
+my $userdn = "ou=People,${suffix}";
+
+use Crypt::SmbHash;
+use Digest::MD5 qw(md5);
+use Digest::SHA1 qw(sha1);
+use MIME::Base64 qw(encode_base64);
+use physdb::directory;
+use Data::Dumper;
+
+
+sub make_hash;
+sub make_salt;
+
+
+#Check for a valid user, get info
+$m->comp('/mason/auth/auth_block.comp');
+
+if (!$session{'physid'}) {
+ print '<p>Unable to find your Physics ID.</p><p>This implies you don\'t have a Physics account or our directory entry is incomplete - if you believe this is in error, please contact directory@physics.umn.edu.</p>';
+ return;
+}
+my $directory;
+if($session{'uid'}) {
+    $directory = new Directory( uid => $session{'uid'} );
+}
+else {
+    print "<h1>Error:</h1> You do not have a physics directory entry. Please have your advisor or collaborator request an account first.\n";
+    return;
+}
+my $redirect = 0;
+my $message;
+my $error;
+
+#If its a submitted update...
+if ($update) {
+    if (!$oldpass) {
+        $error='ERROR: You must enter your current password in order to make changes.';
+    } 
+    else {
+        $config{'masterDN'} = 'uid=' . $session{'physid'} . ',' . $userdn;
+        $config{'masterPw'} = $oldpass;
+
+        my $ldap_master = connect_ldap_master();
+        my $dn = $config{'masterDN'};
+        
+        if (!is_user_valid($session{'physid'}, $dn, $oldpass)) {
+            $error='Authentication Failure: Your password is incorrect. Please enter your physics account password.';
+        } 
+        else {
+            my @mods;
+            my $testing;
+       
+            # if they don;t have mailForwardingAddress then we don't give them
+            # a field for this, and so we'll never try to update it.
+            if (defined($forward)) {
+                if ($forward && !(Email::Valid->address($forward))) {
+                    $error .= "Email address failed $Email::Valid::Details check";
+                }
+                else {
+                    push(@mods, 'mailForwardingAddress' => $forward);
+                    $message .= "Email forwarding updated. ";
+                    $redirect = 1;
+                }
+            }
+
+            # Let's send changes
+            my $modify = $ldap_master->modify ( "$dn",
+                                                'replace' => { @mods }
+                                              );
+            if ($modify->code) {
+                $error='Failed while sending changes: ' . $modify->error . '. If this problem persists, please contact us at net@physics.umn.edu';
+                $message = "";
+            }
+            # Handle create a mailbox request
+            if($request) {
+                #print "You made a request!\n";
+                $directory->set('mailreq', 'create');
+                $directory->save();
+                $message .= " Mailbox creation request submitted. ";
+            }
+        
+#            return;
+        }
+        $ldap_master->unbind;
+    }
+}
+else {
+    my $ldap_master = connect_ldap_master();
+    my $user = read_user_entry($session{'physid'});
+
+    $forward = $user->get_value('mailForwardingAddress');
+  
+    $ldap_master->unbind;
+}
+my $has_mailbox = physdb::queryone("SELECT count(uid) FROM userquotas WHERE uid=? AND path LIKE 'e-mail%'", $session{'uid'});
+
+###
+# DEBUG
+##
+#$has_mailbox = 0;
+
+
+</%INIT>		
+
+<%method subtitle>Physics Email Settings</%method>
+
+% my $pwage = $m->comp("/mason/db/ldap/passwordage.comp", uid=>$session{'physid'});
+
+% if ($error) {
+    <p style="color:red">
+    <b><% $error |h %></b>
+    </p>
+% }
+% if ($message) {
+    <p><b><% $message |h %></b></p>
+% }
+% if ($redirect && !$error) {
+    <p><a href="index.html">Return to MyPhys</a></p>
+% return;
+% }
+
+% if(! $directory->get('physid')) {
+    <h2>No Physics Account</h2>
+    <p>You must have a Physics Account before you can request an Email account. Please <a href="http://zzz.physics.umn.edu/computing/contact">contact us</a> to request an account.
+%   return;
+% }
+<form method="POST" action="?">
+<table>
+
+<img src="/images/email.png" style="float:right; padding: 1em 2em 1em 0;" width="250" height="168" />
+<tr><th align="left" colspan=2 bgcolor="#eeeeee">Verify Identity</th></tr>
+<tr><td>Physics Username:</td><td><% $session{'physid'} |h %></td></tr>
+<tr><td>Current Physics Password: (required)</td><td><input type="password" name="oldpass"></td></tr>
+
+<tr><th align="left" colspan=2 bgcolor="#eeeeee">Physics Mailbox</th></tr>
+
+<tr><td colspan=99>Where should we send mail directed to <% $session{'physid'} |h %>@physics.umn.edu? <br>
+% if($has_mailbox) {
+    Leave blank to deliver to your local physics Email account, below
+% }
+</td></tr>
+<tr><td><b>E-mail Forwarding Address:</b></td><td><input type="text" name="forward" value="<% $forward || '' |h %>"></td></tr>
+<tr><td><b>OR</b> (clear the forwarding above, and...)</td></tr>
+% if($has_mailbox) {
+    <tr><td><b>Use your physics mail account:</b></td><td><% $session{'physid'}|h%>@physics.umn.edu</td></tr>
+% } 
+% elsif(defined $directory->get('mailreq')) {
+    <tr><td><b>Use your physics mail account:</b></td><td>Your physics mail account has been requested. It will be created automatically within the hour.</td></tr>
+% }
+% else {
+    <tr><td colspan="99"><p>If you prefer to use a departmentaly hosted email account (instead of your UMN gmail account) you can request to have an account created here:</p></td></tr>
+    <tr><td><b>Request a physics email account:</b></td><td><input type="checkbox" name="request" value=1></td></tr>
+% }
+<tr><td><input type="submit" name="update" value="Update Account"></td></tr>
+% if($has_mailbox) {
+    <tr><td colspan="99" style="background: #ccc; padding: 0.3em;">
+    <h3>Some Useful Information</h3>
+    <p>The best way to access your Physics Email account is to use a mail program such as Thunderbird. Instructions for setting this up can be found at
+    <a href="http://zzz.physics.umn.edu/computing/accounts/email">http://zzz.physics.umn.edu/computing/accounts/email</a>.</p>
+    <p>
+    Mail (Inbound): IMAP, mail.physics.umn.edu port 993 using SSL<br>
+    Mail (outbound): SMTP, mail.physics.umn.edu port 587 using TLS<br>
+    </p>
+    
+    <p>On the Unix or Linux systems, you can also use <b>mutt</b> or <b>alpine</b>.</p>
+    <p>You can also access your mailbox from any browser at <a href="http://mail.physics.umn.edu">http://mail.physics.umn.edu</a>.</p>
+    <p>If you wish to forward @umn.edu email to your physics mailbox, make sure <i>E-mail Forwarding Address</i> above is empty, then follow <a href="http://zzz.physics.umn.edu/computing/accounts/email/ugmail">our gmail forwarding instructions</a>. </p>
+    </td></tr>
+% }
+</table>
+</form>
+

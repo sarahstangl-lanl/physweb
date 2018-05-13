@@ -1,0 +1,181 @@
+
+<%DOC>
+   Component: uploaded_scores.html
+        Date: 2008.08.13
+      Author: clayton
+     Changed: 2008.08.13 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$classid=>undef
+$upload=>undef
+$file=>undef
+$sendupdatemail=>undef
+$receiptto=>undef
+$message=>''
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp');
+
+my $auth = $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, always_include_tas=>1, distinguish_child_ta=>1);
+my $authwr = $m->comp('/mason/auth/auth_check_classes.comp');
+
+my $authta_subquery = '';
+my @authta_subqueryargs = ();
+my $baseurl = "/classes";
+
+if (!$auth || !$classid) {
+    $m->redirect($baseurl);
+    return;
+}
+else {
+    if ($auth eq 'child_ta') {
+      # TAs only view their own sections
+      # XXX If the 'taedit' flag is set, $auth = 'instructor' not 'ta' so they get full grades list. Is this what we want?
+      $authta_subquery = ' AND c.section IN (SELECT secondary FROM members WHERE type = ? AND uid = ? and memberof = ?) ';
+      @authta_subqueryargs = ('TA', $m->comp('/mason/auth/current_uid.comp'), $classid);
+    }
+}
+
+</%INIT>
+
+% if ($authwr) {
+%   # file upload form
+    <h4>Upload Scores</h4>
+    <form enctype="multipart/form-data" method="POST" action="/classes/upload_scores.html?classid=<% $classid |u %>">
+    <input type="hidden" name="upload" value="true">
+
+    <table style="min-width: 15em;" border=0 cellspacing=0 cellpadding=5>
+    <tr>
+      <th bgcolor="#eeeeee" align="left">Excel Upload</th>
+      <th bgcolor="#eeeeee" align="right"><a href="/classes/download_gradebook_template.html?classid=<% $classid |h %>">Download Template</a></th>
+    </tr>
+    <tr>
+      <td>File:</td>
+      <td><input type="file" name="file" size="30"></td>
+    </tr>
+    <tr>
+      <td>Send receipt to:</td>
+      <td><input type="text" name="receiptto" value="<% $m->comp('/mason/db/directory/uid_to_email.comp') |h %>"  size="30"> (and instructor as specified in file)</td>
+    </tr>
+    <tr>
+      <td>Update message:</td>
+      <td><input type="text" name="message" value="New quiz scores were uploaded"  size="30"> (added to class RSS feed)</td>
+    </tr>
+    <tr>
+      <td></td>
+      <td><input type="checkbox" id="sendupdatemail" name="sendupdatemail" CHECKED="checked" value="1"><label for="sendupdatemail"> also email students when their grades are updated</label></td>
+    </tr>
+    <tr>
+      <td colspan="2" align="right">After choosing your grades file, click <input type="submit" value="Upload"></td>
+    </tr>
+    </table>
+    </form>
+% }
+
+<h4>Review Scores</h4>
+<table style="min-width: 15em;" border=0 cellspacing=0 cellpadding=5>
+<%perl>
+$m->flush_buffer;
+
+# Get students/grades
+my $lookup_students = $dbh->prepare('
+    SELECT c.userid, c.section, u.dispname, u.x500, a.name AS assnname, a.id AS assignmentid, GROUP_CONCAT(g.textvalue ORDER BY g.created DESC) AS textvalue
+    FROM grades.classlist AS c
+    JOIN grades.users AS u ON c.userid = u.id
+    JOIN grades.assignments AS a ON c.classid = a.classid AND a.legacy_email_flag = 1
+    LEFT JOIN grades.grades AS g ON c.userid = g.userid AND a.id = g.assignmentid
+    WHERE c.classid = ? 
+    GROUP BY c.userid, a.id
+    ORDER BY c.section ASC, u.dispname ASC, a.id ASC
+');
+    #. $authta_subquery . '
+
+#$lookup_students->execute($classid, @authta_subqueryargs)
+$lookup_students->execute($classid)
+    or die 'Unable to lookup students: ' . $lookup_students->errstr;
+
+my @assignmentids;
+my @assnnames;
+my @students;
+my $section = '';
+my $last_userid = '';
+my $even = 0;
+my $student;
+my $count = 0;
+
+# Collapse student grades (each student has a row for each assignment)
+while (my $row = $lookup_students->fetchrow_hashref()) {
+    #print "<PRE>";
+    #print Dumper($row);
+    #print "</PRE>";
+    # Check if new student
+    if ($row->{'userid'} ne $last_userid) {
+        push(@students, $student) if (defined($student));
+        $student = $row;
+        $last_userid = $row->{'userid'};
+    }
+
+    # Shift newest grade off split GROUP_CONCAT field and add to student grades
+    my @grades = split(/,/, $row->{'textvalue'});
+    $student->{'grades'}->{$row->{'assignmentid'}} = shift @grades;
+
+    # Fill assignmentids/assnnames arrays if first student
+    unless (@students) {
+        push(@assignmentids, $row->{'assignmentid'});
+        push(@assnnames, $row->{'assnname'});
+    }
+}
+push(@students, $student) if ($student);
+
+print "<tr><th>Student</th>";
+foreach my $assn (@assnnames) {
+    print "<th>$assn</th>";
+}
+print "</tr>";
+
+# Loop through students
+for my $row (@students) {
+    my $userid = $row->{'userid'};
+
+    if ($section ne $row->{'section'}) {
+        print '<tr class="tablehead2"><th>Section ' . $m->interp->apply_escapes($row->{'section'}, 'h') . '</th>';
+        my $index = 0;
+        for my $assnname (@assnnames) {
+            print '<th>' . $m->interp->apply_escapes($assnname, 'h');
+            if ($authwr) {
+                # only class managers can delete columns
+                print '<a href="/classes/delete_grades_assignment.html?classid=' .$m->interp->apply_escapes($classid, 'u');
+                print '&assnid='.$m->interp->apply_escapes($assignmentids[$index],'u').'">';
+                print '<img src="/images/delete.png" border=0 alt="(del)" title="Delete this column"></a>';
+            }
+            print '</th>';
+            $index++;
+        }
+        print '</tr>';
+        $m->flush_buffer;
+        $even = 0;
+        $section = $row->{'section'};
+    }
+
+    $count++;
+    print '<tr class="' . ($even ? 'even' : 'odd') . '"><td>';
+    print '<a href="/classes/view_scores.html?x500='.$m->interp->apply_escapes($row->{'x500'}, 'h').'&classid='.$classid.'">';
+    print $m->interp->apply_escapes($row->{'dispname'}, 'h') . '</a></td>';
+    $even = !$even;
+
+    for my $assnid (@assignmentids) {
+        print '<td>' . $m->interp->apply_escapes($row->{'grades'}->{$assnid}, 'h') . '</td>';
+    }
+    print '</tr>';
+}
+</%perl>
+</table>
+<%perl>
+if($count < 1) {
+    print "(No scores entered yet)";
+}
+</%perl>

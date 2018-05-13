@@ -1,0 +1,49 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: edit_backup.html
+~~NOSITEMAP~~
+</%DOC>
+
+<%ARGS>
+$hostid => undef
+$referer => undef
+$computer_name => undef
+#$nickname
+#$type
+#$os
+$rpass => undef
+$backupinfo => undef
+</%ARGS>
+
+<%INIT>
+use physdb;
+my $problem;
+
+my $user = $session{'uid'};
+my $fulluser = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$user);
+my $fromaddress = $m->comp('/mason/db/directory/uid_to_email.comp', uid=>$user);
+my $text;
+
+if (!$computer_name) {$problem = "You must provide a computer name!";}
+if (!$rpass) {$problem = "You must provide a password!";}
+
+#my $auth = $m->comp('/mason/db/netdb/check_dhcpowner.comp', hostid=>$hostid);
+my $row = physdb::queryfirstrow("SELECT admin_uid, os, type FROM net_hosts WHERE id=?", $hostid);
+if (!$row->{'admin_uid'} eq $session{'uid'}) {$problem = "You don't own that host!";}
+
+if (!$problem) {
+    physdb::query("UPDATE net_hosts SET computer_name=?, backuppass=? WHERE id=?", $computer_name, $rpass, $hostid);
+
+    $text = "$fulluser has requested Retrospect backup for a $row->{os} $row->{type}.\n\nComputer Name: \"$computer_name\"\nRetrospect Password: $rpass";
+    if ($backupinfo) {
+      $text .= "\n\nSpecial instructions:\n\n$backupinfo\n";
+    }
+    $m->comp('/mason/send_mail.comp', to=>"net\@physics.umn.edu", from=>$fromaddress, subject=>"Backup Request - ".$computer_name, text=>$text);
+    $m->redirect("confirm_backup.html");
+} # end of problem check
+
+</%init>
+
+<%method title>Backup Request Problem</%method>
+
+<% $problem %>

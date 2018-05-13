@@ -1,0 +1,70 @@
+<%shared>
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+my $job_id = $m->request_args->{job_id};
+my $job = $schema->resultset('Jobs')->find($job_id);
+</%shared>
+
+<%method titlemenu_below>
+<& '/mason/db/shopdb/job_menu.comp', job_item => $job &>
+</%method>
+
+<%init>
+unless ($job) {
+    print "Invalid job_id " . _h($job_id);
+    return;
+}
+my $labor_lines = $job->search_related('labor_lines', {
+        bill_date => { '!=' => undef },
+    },
+    {
+        group_by => 'bill_date',
+    }
+)->with_extended_cost->search({ },
+    {
+        '+select' => [ \'SUM(machinist.labor_rate * me.charge_hours) AS total' ],
+        '+as' => [ 'total' ],
+    }
+);
+my $material_lines = $job->search_related('material_lines', {
+        bill_date => { '!=' => undef }
+    },
+    {
+        group_by => 'bill_date'
+    }
+)->with_extended_cost->search({ },
+    {
+        '+select' => [ \'SUM(me.quantity * me.unit_cost) AS total' ],
+        '+as' => [ 'total' ],
+    }
+);
+
+use tablesearch;
+my $ll_ts = Tablesearch->new(
+    resultset => $labor_lines,
+    hide_header => 1,
+    header_format => 'ucfirst_all',
+    columns => [ qw/bill_date total/ ],
+    field_params => {
+        extended_cost => { name => 'Amount', data_format => 'currency' },
+        total => { name => 'Amount', data_format => 'currency' },
+    },
+);
+my $ml_ts = Tablesearch->new(
+    resultset => $material_lines,
+    hide_header => 1,
+    header_format => 'ucfirst_all',
+    columns => [ qw/bill_date extended_cost/ ],
+    field_params => {
+        extended_cost => { name => 'Amount', data_format => 'currency' },
+    },
+);
+</%init>
+
+<h2>Labor Charges</h2>
+<div style="width: 500px;">
+% $ll_ts->display;
+</div>
+<h2>Material Charges</h2>
+<div style="width: 500px;">
+% $ml_ts->display;
+</div>

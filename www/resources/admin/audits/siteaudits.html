@@ -1,0 +1,55 @@
+
+<%DOC>
+   Component: audits.html
+        Date: 2008.07.30
+      Author: nick
+     Changed: 2008.07.30 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp');
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+
+if (!$admin_auth) { print "<H2>You must be an
+administrator to view this page.</H2>"; return; }
+
+</%INIT>		
+
+<%method title>Site Audits</%method>
+
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+             table               => 'auditlog',
+             field_list          => ['eventid','timestamp','type','user','address','text'],
+             field_params        => {
+                                      'timestamp'  => {
+                                                        'nowrap' => 1
+                                                      },
+                                      'user'       => {
+                                                        'url'    => '/resources/admin/people/user.html?x500=$row{user}'
+                                                      },
+                                      'text'       => {
+                                                        'data_format' => sub { my ($text) = @_; $text = $m->interp->apply_escapes($text); $text =~ s/\n/<br>/g; return $text; }
+                                                      },
+                                    },
+             header_format       => 'ucfirst',
+             default_sort_field  => 'timestamp',
+             default_sort_dir    => 'desc',
+             filter_field        => 'type',
+             filter_groups       => {
+                                     'group' => {
+                                                   'display_name' => 'Group Membership',
+                                                   'matches'      => ['add_member','remove_member','promote_member','demote_member']
+                                                 },
+                                     'assoc' => {
+                                                   'display_name' => 'Group Associations',
+                                                   'matches'      => ['add_assoc','remove_assoc']
+                                                 }
+                                    }
+        );
+</%perl>

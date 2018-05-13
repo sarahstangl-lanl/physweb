@@ -1,0 +1,12 @@
+<% $m->call_next %>
+<%method titlemenu_above>
+   <& /mason/titlemenu.comp:begin, type=>"above" &>
+    <&| /mason/titlemenu.comp:item, link=>'/alumni/index.html' &>Welcome</&> 
+    <&| /mason/titlemenu.comp:item, link=>'/alumni/newsletter.html' &>Newsletter</&> 
+    <&| /mason/titlemenu.comp:item, link=>'/alumni/news/'  &>Class Notes</&>   
+    <&| /mason/titlemenu.comp:item, link=>'/alumni/makeagift/'  &>Make a Gift</&> 
+   <&| /mason/titlemenu.comp:item, link=>'/alumni/goldman.html'  &>Goldman Celebration</&> 
+   <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+

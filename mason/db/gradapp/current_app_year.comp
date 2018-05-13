@@ -1,0 +1,7 @@
+<%init>
+    # Year should be from the end of the application period
+    # (So it the year rolls over at the start of registration)
+    my @time = CORE::localtime(time);
+    my $year = 1900 + $time[5];
+    return ($time[4] >= 7 ? $year+1 : $year);
+</%init>

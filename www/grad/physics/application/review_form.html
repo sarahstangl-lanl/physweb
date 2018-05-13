@@ -1,0 +1,64 @@
+
+<%DOC>
+   Component: review_form.html
+        Date: 2005.12.05
+      Author: allan
+     Changed: 2005.12.05 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $id => undef
+  $reviewid => undef
+</%ARGS>
+
+<%INIT>
+my $referer = $r->headers_in->{'Referer'};
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) { $m->redirect('index.html'); }
+if (!defined($reviewid) || !defined($reviewid)) {
+    print "<h3>Form called with invalid parameters</h3>";
+    return;
+}
+my ($appid, $fname, $mname, $lname, $email, $score, $comments);
+
+my $sth = $dbh->prepare("SELECT gradapp.fname, gradapp.mname, gradapp.lname, gradapp.email, review.score, review.comments FROM grad.gradapp, grad.review WHERE review.appid=gradapp.id and reviewid=?");
+$sth->execute($reviewid)
+    or die 'Unable to fetch review: ' . $dbh->errstr;
+
+
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+    ($fname, $mname, $lname, $email, $score, $comments) = @$row_ref;
+} else {
+    print 'The requested review (' . $m->interp->apply_escapes($reviewid, 'h') . ') does not exist!';
+    return;
+}
+</%INIT>		
+		
+<%method title>Application Review</%method>
+
+For <% $fname |h %> <% $mname |h %> <% $lname |h %> (<% $email |h %>)
+
+<form method="POST" name="edit" action="review_update.html">
+<input type=hidden name="id" value="<% $id |h %>">
+<input type=hidden name="reviewid" value="<% $reviewid |h %>">
+<input type=hidden name="email" value="<% $email |h %>">
+
+<table border=0>
+<tr valign="top"><td>Score:</td><td><input type=text name="score" value="<% $score |h %>" size=6></td></tr>
+<tr valign="top"><td>Comments:</td><td>
+<textarea name="comments" cols=50 rows=15><% $comments |h %></textarea>
+</td></tr>
+</table>
+<input type="submit" value="Save review">
+or <a href="<% $referer %>">Return to previous page...</a>
+</form>
+
+<form method="POST" name="edit" action="review_delete.html">
+<input type=hidden name="id" value="<% $id |h %>">
+<input type=hidden name="reviewid" value="<% $reviewid |h %>">
+<input type=hidden name="email" value="<% $email |h %>">
+
+<input type="submit" value="Delete this review">
+</form>

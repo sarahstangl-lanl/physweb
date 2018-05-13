@@ -1,0 +1,44 @@
+<%doc>
+   Component: auth_check_directory.comp
+        Date: 9/2/2002
+      Author: allan
+ Description: checks if the user has access to edit calendar, returns 0 or 1
+</%doc>
+
+<%method .name>Calendar Edit</%method>
+<%method .description></%method>
+
+<%args>
+$areatag=>'spa'
+$eventid=>0
+$uid => $session{'uid'}
+</%args>
+
+<%init>
+    if(!$dbh) {
+        return 0;
+    }
+    my ($sql, $sth);
+    my $auth = 0;
+
+    if ($eventid) {
+      $sql = 'SELECT auth_group FROM calendar_areas JOIN calendar ON (calendar.eventid=? AND calendar.areaid=calendar_areas.areaid) LIMIT 1';
+      $sth = $dbh->prepare($sql) or die("query failed to prepare: $sql");
+      $sth->execute($eventid) or die("SQL error: $sql");
+    } else {
+      $sql = 'SELECT auth_group FROM calendar_areas WHERE tag=? LIMIT 1';
+      $sth = $dbh->prepare($sql) or die("query failed to prepare: $sql");
+      $sth->execute($areatag) or die("SQL error: $sql");
+    }
+
+    
+    my (@calendars, $row_ref);
+    if ($row_ref = $sth->fetchrow_arrayref) {
+      my ($type) = @$row_ref;
+      $auth = $m->comp('/mason/auth/auth_check.comp', auth_type=>$type, uid => $uid);
+    }
+</%init>
+
+<%perl>
+return $auth;
+</%perl>

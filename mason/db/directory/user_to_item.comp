@@ -1,0 +1,31 @@
+<%doc>
+   Component: x500_to_item.comp
+        Date: 9/11/2002
+      Author: allan
+ Description: returns directory item for an x500 user
+</%doc>
+
+<%args>
+  $uid
+  $item=>''
+</%args>
+
+<%init>
+my $key = $uid.$item;
+my $return = $m->cache->get($key);
+if (!defined($return) && defined($dbh)) {
+  my $sth = $dbh->prepare('SELECT ' . $item . ' FROM directory WHERE uid = ? LIMIT 1');
+  $sth->execute($uid)
+    or die 'Unable to fetch item: ' . $sth->errstr;
+  if (my $row_ref = $sth->fetchrow_arrayref()) {
+    ($return) = @$row_ref;
+  }
+  $m->cache->set($key,$return,'5 min');
+}
+
+return $return;
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

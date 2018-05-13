@@ -1,0 +1,17 @@
+<%doc>
+   Component: auth_check_directory.comp
+        Date: 9/2/2002
+      Author: allan
+ Description: checks if the user has access to edit directory, returns 0 or 1
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+return $m->comp('/mason/auth/auth_check.comp',auth_type=>'directory');
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

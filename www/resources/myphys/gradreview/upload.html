@@ -1,0 +1,402 @@
+<%doc>
+Grad review - interface to upload AY data into our website, and for faculty to review it and mark scores
+</%doc>
+
+<%args>
+$send=>''
+$dump_table=>undef
+$import=>undef
+$import_save=>undef
+</%args>
+
+<%init>
+
+my $manager = $m->comp("/mason/auth/auth_check_gradapp_mgr.comp");
+unless ($manager) {
+    print "You do not have access to this page. You must be a manager of the gradapp group.";
+    return;
+}
+my $column_info = [ 
+          { ay_label=>'Applicant Client ID',                  name=>'client_id', data_type=>"BIGINT", primary_key=>1 },
+          { ay_label=>'Creation Date',                        name=>'created'},
+          { ay_label=>'Last Updated Date',                    name=>'modified'},
+          { ay_label=>'Complete Date',                        name=>'complete'},
+          { ay_label=>'Applicant Last Name',                  name=>'last_name', 'index'=>1 },
+          { ay_label=>'Applicant First Name',                 name=>'first_name', 'index'=>1 },
+          { ay_label=>'Applicant Middle Name',                name=>'middle_name'},
+          { ay_label=>'Date of Birth',                        name=>'dob', data_type=>'date'},
+          { ay_label=>'American Indian or Alaska Na',         name=>'race_indian', data_type=>"BOOLEAN", not_null=>1, default=>"0"},
+          { ay_label=>'Asian',                                name=>'race_asian', data_type=>"BOOLEAN", not_null=>1, default=>"0"},
+          { ay_label=>'Black or African American',            name=>'race_black', data_type=>"BOOLEAN", not_null=>1, default=>"0"},
+          { ay_label=>'Native Hawaiian or Other Pacif',       name=>'race_hawaiian', data_type=>"BOOLEAN", not_null=>1, default=>"0"},
+          { ay_label=>'White',                                name=>'race_white', data_type=>"BOOLEAN", not_null=>1, default=>"0"},
+          { ay_label=>'Internal Hispanic',                    name=>'race_hispanic', data_type=>"BOOLEAN", not_null=>1, default=>"0"},
+          { ay_label=>'Gender',                               name=>'gender'},
+          { ay_label=>'Phone (complete)',                     name=>'phone'},
+          { ay_label=>'Mailing Street Address 1',             name=>'mailing_address_line_1'},
+          { ay_label=>'Mailing Street Address 2',             name=>'mailing_address_line_2'},
+          { ay_label=>'Mailing Street Address 3',             name=>'mailing_address_line_3'},
+          { ay_label=>'Mailing City',                         name=>'mailing_address_city'},
+          { ay_label=>'Mailing State/Province',               name=>'mailing_address_state'},
+          { ay_label=>'Mailing Zip/Postal code',              name=>'mailing_address_postcode'},
+          { ay_label=>'Mailing Country',                      name=>'mailing_address_country'},
+          { ay_label=>'Permanent Street Address 1',           name=>'permanent_address_line_1'},
+          { ay_label=>'Permanent Street Address 2',           name=>'permanent_address_line_2'},
+          { ay_label=>'Permanent Street Address 3',           name=>'permanent_address_line_3'},
+          { ay_label=>'Permanent City',                       name=>'permanent_address_city'},
+          { ay_label=>'Permanent State/Province',             name=>'permanent_address_state'},
+          { ay_label=>'Permanent Zip/Postal code',            name=>'permanent_address_postcode'},
+          { ay_label=>'Permanent Country',                    name=>'permanent_address_country'},
+          { ay_label=>'International Student',                name=>'international', data_type=>"BOOLEAN", not_null=>1, default=>"0"},
+          { ay_label=>'Country of Citizenship',               name=>'citizenship_country'},
+          { ay_label=>'Country of Perm. Residency',           name=>'residency_country'},
+          { ay_label=>'Profile Email',                        name=>'email'},
+          { ay_label=>'Major',                                name=>'major'},
+          { ay_label=>'Proposed Term of Entry',               name=>'proposed_term_of_entry'},
+          { ay_label=>'Specialization',                       name=>'specialization'},
+          { ay_label=>'Previous College 1 Name',              name=>'previous_college_1_name'},
+          { ay_label=>'Previous College  1 City',             name=>'previous_college_1_city'},
+          { ay_label=>'Previous College 1 State',             name=>'previous_college_1_state'},
+          { ay_label=>'Previous College1 Country',            name=>'previous_college_1_country'},
+          { ay_label=>'Previous College 1 From',              name=>'previous_college_1_from'},
+          { ay_label=>'Previous College 1 To',                name=>'previous_college_1_to'},
+          { ay_label=>'Previous College 1 Degree',            name=>'previous_college_1_degree'},
+          { ay_label=>'Previous College 1 Major',             name=>'previous_college_1_major'},
+          { ay_label=>'Previous College  1 Date',             name=>'previous_college_1_date'},
+          { ay_label=>'Previous College 2 Name',              name=>'previous_college_2_name'},
+          { ay_label=>'Previous College 2 City',              name=>'previous_college_2_city'},
+          { ay_label=>'Previous College 2 State',             name=>'previous_college_2_state'},
+          { ay_label=>'Previous College2 Country',            name=>'previous_college_2_country'},
+          { ay_label=>'Previous College 2 From',              name=>'previous_college_2_from'},
+          { ay_label=>'Previous College 2 To',                name=>'previous_college_2_to'},
+          { ay_label=>'Previous College 2 Degree',            name=>'previous_college_2_degree'},
+          { ay_label=>'Previous College 2 Major',             name=>'previous_college_2_major'},
+          { ay_label=>'Previous College 2 Date',              name=>'previous_college_2_date'},
+          { ay_label=>'Previous College 3 Name',              name=>'previous_college_3_name'},
+          { ay_label=>'Previous College 3 City',              name=>'previous_college_3_city'},
+          { ay_label=>'Previous College 3 State',             name=>'previous_college_3_state'},
+          { ay_label=>'Previous College3 Country',            name=>'previous_college_3_country'},
+          { ay_label=>'Previous College 3 From',              name=>'previous_college_3_from'},
+          { ay_label=>'Previous College 3 To',                name=>'previous_college_3_to'},
+          { ay_label=>'Previous College 3 Degree',            name=>'previous_college_3_degree'},
+          { ay_label=>'Previous College 3 Major',             name=>'previous_college_3_major'},
+          { ay_label=>'Previous College 3 Date',              name=>'previous_college_3_date'},
+          { ay_label=>'Previous College 4 Name',              name=>'previous_college_4_name'},
+          { ay_label=>'Previous College 4 City',              name=>'previous_college_4_city'},
+          { ay_label=>'Previous College 4 State',             name=>'previous_college_4_state'},
+          { ay_label=>'Previous College4 Country',            name=>'previous_college_4_country'},
+          { ay_label=>'Previous College 4 From',              name=>'previous_college_4_from'},
+          { ay_label=>'Previous College 4 To',                name=>'previous_college_4_to'},
+          { ay_label=>'Previous College 4 Degree',            name=>'previous_college_4_degree'},
+          { ay_label=>'Previous College 4 Major',             name=>'previous_college_4_major'},
+          { ay_label=>'Previous College 4 Date',              name=>'previous_college_4_date'},
+          { ay_label=>'Name 5',                               name=>'previous_college_5_name'},
+          { ay_label=>'City 5',                               name=>'previous_college_5_city'},
+          { ay_label=>'State 5',                              name=>'previous_college_5_state'},
+          { ay_label=>'Country 5',                            name=>'previous_college_5_country'},
+          { ay_label=>'From 5',                               name=>'previous_college_5_from'},
+          { ay_label=>'To 5',                                 name=>'previous_college_5_to'},
+          { ay_label=>'Degree 5',                             name=>'previous_college_5_degree'},
+          { ay_label=>'Major 5',                              name=>'previous_college_5_major'},
+          { ay_label=>'Degree Date 5',                        name=>'previous_college_5_date'},
+          { ay_label=>'Name 6',                               name=>'previous_college_6_name'},
+          { ay_label=>'City 6',                               name=>'previous_college_6_city'},
+          { ay_label=>'State 6',                              name=>'previous_college_6_state'},
+          { ay_label=>'Country 6',                            name=>'previous_college_6_country'},
+          { ay_label=>'From 6',                               name=>'previous_college_6_from'},
+          { ay_label=>'To 6',                                 name=>'previous_college_6_to'},
+          { ay_label=>'Degree 6',                             name=>'previous_college_6_degree'},
+          { ay_label=>'Major 6',                              name=>'previous_college_6_major'},
+          { ay_label=>'Degree Date 6',                        name=>'previous_college_6_date'},
+          { ay_label=>'Name 7',                               name=>'previous_college_7_name'},
+          { ay_label=>'City 7',                               name=>'previous_college_7_city'},
+          { ay_label=>'State 7',                              name=>'previous_college_7_state'},
+          { ay_label=>'Country 7',                            name=>'previous_college_7_country'},
+          { ay_label=>'From 7',                               name=>'previous_college_7_from'},
+          { ay_label=>'To 7',                                 name=>'previous_college_7_to'},
+          { ay_label=>'Degree 7',                             name=>'previous_college_7_degree'},
+          { ay_label=>'Major 7',                              name=>'previous_college_7_major'},
+          { ay_label=>'Degree Date 7',                        name=>'previous_college_7_date'},
+          { ay_label=>'Name 8',                               name=>'previous_college_8_name'},
+          { ay_label=>'City 8',                               name=>'previous_college_8_city'},
+          { ay_label=>'State 8',                              name=>'previous_college_8_state'},
+          { ay_label=>'Country 8',                            name=>'previous_college_8_country'},
+          { ay_label=>'From 8',                               name=>'previous_college_8_from'},
+          { ay_label=>'To 8',                                 name=>'previous_college_8_to'},
+          { ay_label=>'Degree 8',                             name=>'previous_college_8_degree'},
+          { ay_label=>'Major 8',                              name=>'previous_college_8_major'},
+          { ay_label=>'Degree Date 8',                        name=>'previous_college_8_date'},
+          { ay_label=>'Name 9',                               name=>'previous_college_9_name'},
+          { ay_label=>'City 9',                               name=>'previous_college_9_city'},
+          { ay_label=>'State 9',                              name=>'previous_college_9_state'},
+          { ay_label=>'Country 9',                            name=>'previous_college_9_country'},
+          { ay_label=>'From 9',                               name=>'previous_college_9_from'},
+          { ay_label=>'To 9',                                 name=>'previous_college_9_to'},
+          { ay_label=>'Degree 9',                             name=>'previous_college_9_degree'},
+          { ay_label=>'Major 9',                              name=>'previous_college_9_major'},
+          { ay_label=>'Degree Date 9',                        name=>'previous_college_9_date'},
+          { ay_label=>'GPA - Undergraduate',                  name=>'gpa_undergraduate'},
+          { ay_label=>'GPA - Graduate Work',                  name=>'gpa_graduate'},
+          { ay_label=>'Numerical GPA - undergraduate',        name=>'gpa_undergraduate_numeric'},
+          { ay_label=>'Numerical GPA - Graduate work',        name=>'gpa_graduate_numeric'},
+          { ay_label=>'Analytical Mechanics',                 name=>'gpa_analytical_mechanics'},
+          { ay_label=>'Electrodynamics',                      name=>'gpa_electrodynamics'},
+          { ay_label=>'Quantum Mechanics',                    name=>'gpa_quantum_mechanics'},
+          { ay_label=>'Thermodynamics and Statistical',       name=>'gpa_thermodynamics'},
+
+          { ay_label=>'GRE Date',                             name=>'gre_date'},
+          { ay_label=>'GRE Date-SR',                          name=>'gre_sr_date'},
+
+          { ay_label=>'GRE Verbal Score',                     name=>'gre_verbal_score'},
+          { ay_label=>'GRE Verbal Score-SR',                  name=>'gre_sr_verbal_score'},
+
+          { ay_label=>'GRE Verbal Percentile',                name=>'gre_verbal_percent'},
+          { ay_label=>'GRE Verbal Percent-SR',                name=>'gre_sr_verbal_percent'},
+
+          { ay_label=>'GRE Quantitative Score',               name=>'gre_quantitative_score'},
+          { ay_label=>'GRE Quan Score-SR',                    name=>'gre_sr_quantitative_score'},
+
+          { ay_label=>'GRE Quantitative Percentile',          name=>'gre_quantitative_percent'},
+          { ay_label=>'GRE Quan Percent-SR',                  name=>'gre_sr_quantitative_percent'},
+
+          { ay_label=>'GRE Analytical Score',                 name=>'gre_analytical_score'},
+          { ay_label=>'GRE Analytical-SR',                    name=>'gre_sr_analytical_score'},
+
+          { ay_label=>'GRE Analytical Percentile',            name=>'gre_analytical_percent'},
+          { ay_label=>'GRE Analytical Percent-SR',            name=>'gre_sr_analytical_percent'},
+
+          { ay_label=>'GRE Analytical Writing Score',         name=>'gre_analytical_writing_score'},
+          { ay_label=>'GRE Analytical Writing-SR',            name=>'gre_sr_analytical_writing_score'},
+
+          { ay_label=>'GRE Analytical Writing Pct',           name=>'gre_analytical_writing_percent'},
+          { ay_label=>'GRE Analytical Writing Perc-SR',       name=>'gre_sr_analytical_writing_percent'},
+
+          { ay_label=>'GRE Subject Name',                     name=>'gre_subject_name'},
+          { ay_label=>'Subject Test-SR',                      name=>'gre_sr_subject_name'},
+
+          #GRE apparently does not report the subject test date to us, so we only have the sr version...
+          { ay_label=>'GRE Subject Date-SR',                  name=>'gre_sr_subject_date'},
+
+          { ay_label=>'GRE Subject Score',                    name=>'gre_subject_score'},
+          { ay_label=>'Score-SR',                             name=>'gre_sr_subject_score'},
+
+          { ay_label=>'GRE Subject Percentile',               name=>'gre_subject_percent'},
+          { ay_label=>'Subject Percentile-SR',                name=>'gre_sr_subject_percent'},
+
+
+          #TOEFL Test info 
+          { ay_label=>'TOEFL Date',                           name=>'toefl_date'},
+          { ay_label=>'TOEFL Date-SR',                        name=>'toefl_sr_date'},
+
+          { ay_label=>'Reading Score',                        name=>'toefl_reading_score'},
+          { ay_label=>'T Reading-SR',                         name=>'toefl_sr_reading_score'},
+
+          { ay_label=>'Listening Score',                      name=>'toefl_listening_score'},
+          { ay_label=>'T Listening-SR',                       name=>'toefl_sr_listening_score'},
+
+          { ay_label=>'Speaking Score',                       name=>'toefl_speaking_score'},
+          { ay_label=>'T Speaking-SR',                        name=>'toefl_sr_speaking_score'},
+
+          { ay_label=>'Structure Writing Score',              name=>'toefl_writing_score'},
+          { ay_label=>'T Writing-SR',                         name=>'toefl_sr_writing_score'},
+
+          { ay_label=>'Essay Rating TWE',                     name=>'toefl_essay_rating_twe'},
+          { ay_label=>'T TWE-SR',                             name=>'toefl_sr_essay_rating_twe'},
+
+          { ay_label=>'Total TOEFL Score',                    name=>'toefl_total_score'},
+          { ay_label=>'T Total Score-SR',                     name=>'toefl_sr_total_score'},
+
+          { ay_label=>'1-TOEFL Test Type',                     name=>'1-toefl_test_type'}, #unused
+
+          # Recommenders
+          { ay_label=>'First Name (1)',                       name=>'rec_1_first_name'},
+          { ay_label=>'First Name (2)',                       name=>'rec_2_first_name'},
+          { ay_label=>'First Name (3)',                       name=>'rec_3_first_name'},
+
+          { ay_label=>'Last Name (1)',                        name=>'rec_1_last_name'},
+          { ay_label=>'Last Name (2)',                        name=>'rec_2_last_name'},
+          { ay_label=>'Last Name (3)',                        name=>'rec_3_last_name'},
+
+          { ay_label=>'Email (1)',                            name=>'rec_1_email'},
+          { ay_label=>'Email (2)',                            name=>'rec_2_email'},
+          { ay_label=>'Email (3)',                            name=>'rec_3_email'},
+
+          { ay_label=>'Title (1)',                            name=>'rec_1_title'},
+          { ay_label=>'Title (2)',                            name=>'rec_2_title'},
+          { ay_label=>'Title (3)',                            name=>'rec_3_title'},
+
+          { ay_label=>'Employer (1)',                         name=>'rec_1_employer'},
+          { ay_label=>'Employer (2)',                         name=>'rec_2_employer'},
+          { ay_label=>'Employer (3)',                         name=>'rec_3_employer'},
+
+          { ay_label=>'Specialization 1',                     name=>'specialization_1'},
+          { ay_label=>'Specialization 2',                     name=>'specialization_2'},
+          { ay_label=>'Specialization 3',                     name=>'specialization_3'},
+
+          { ay_label=>'Specialization Astrophysics 1',        name=>'specialization_ast_1'},
+          { ay_label=>'Specialization Astrophysics 2',        name=>'specialization_ast_2'},
+          { ay_label=>'Specialization Astrophysics 3',        name=>'specialization_ast_3'},
+
+];
+
+my %column_by_ay_label;
+my %column_by_name;
+foreach my $column (@$column_info) {
+    $column_by_ay_label{$column->{ay_label}} = $column;
+    $column_by_name{$column->{name}} = $column;
+}
+</%init>
+<%perl>
+
+if($send) {
+    ##
+    # Dump the table structure for importing into mysql
+    ##
+    if($dump_table) {
+        my $sql = "CREATE TABLE gradapp_application (\n";
+        my $c=0;
+        foreach my $ci (@$column_info) {
+            # Figure out a good data type for the column
+            my $data_type = 'VARCHAR(250)'; #default
+            $data_type = $ci->{data_type} if(exists $ci->{data_type});
+            my $col_name = $ci->{name};
+            my $ay_label = $ci->{ay_label};
+
+            $sql .= ", \n" if($c++ > 0);
+
+            my $extra;
+            $extra .= " NOT NULL " if(exists $ci->{not_null});
+            $extra .= " DEFAULT '".$ci->{default}."' " if(exists $ci->{default});
+
+            $sql .= "    $col_name $data_type $extra comment '$ay_label'";
+
+            if(exists $ci->{primary_key} && $ci->{primary_key}) {
+                $sql .= ", PRIMARY KEY($col_name) ";
+            }
+        }
+        $sql .= ")";
+        print "<h2>Way cool!</h2>";
+        print _p($sql);
+    }
+    elsif ($import) {
+        my $req = Apache2::Request->new($r);
+        my $upload = $req->upload('file');
+        # shouldn't use this...
+        my $tmpfile = $upload->tempname;
+        my $filename = $upload->filename;
+        my $mime_type = $upload->type;
+        my $fh = $upload->fh;
+        my $data = do { local $/; <$fh> };
+        my $datasize = $upload->size;
+        my @lines = split(/[\r\n]+/, $data);
+        my $appcount = 0;
+        my @applications;
+        my @headings;
+        foreach my $line (@lines) {
+            my @columns = split(/\t/, $line);
+            if($appcount++ == 0) {
+                  @headings = @columns;
+                  foreach my $h (@headings) {
+                    if(!exists $column_by_ay_label{$h}) {
+                        print "Error: Got a column from AY called '"._h($h)."' but I don't know what it is. Did someone change the export?<br />\n";
+                        return;
+                    }
+                    #else {
+                    #    print "DEBUG: Found column '$h', mapping to '". $column_info->{$h}->{name}."'<br />\n";
+                    #}
+                  }
+            }
+            else {
+                my $c=0;
+                my $app;
+                #For each column in the uploaded file...
+                foreach my $value (@columns) {
+                    my $column_name = $column_by_ay_label{$headings[$c]}->{'name'};
+                    $app->{$column_name} = $value;
+                    $c++;
+                }
+
+                push @applications, $app;
+            }
+        }
+        foreach my $app (@applications) {
+            my @iqmarks;
+            my @qargs;
+            foreach my $c (keys %$app) {
+                push @iqmarks, "?";
+                push @qargs, $app->{$c};
+            }
+            my $icolumns = join(', ', (map { "`$_`" } keys %$app));
+            my $iqmarks = join(', ', @iqmarks);
+
+            #This line just builds the 'key1=?, key2=?, key3=?' string from the $app
+            ##my $iupdates = join(', ', ( map { "$_=?" } (grep { $_ ne 'client_id' } (keys %$app) ) ));
+            my @iupdates;
+            foreach my $c (keys %$app) {
+                next if $c eq 'client_id';
+                push @iupdates, "`$c`=?";
+                push @qargs, $app->{$c};
+            }
+
+            my $iupdates = join(', ', @iupdates);
+            my $query = " INSERT INTO gradapp_application ($icolumns) values ($iqmarks) ON DUPLICATE KEY UPDATE $iupdates\n";
+            physdb::query($query, @qargs);
+        }
+        </%perl>
+        
+        <h2>Import complete</h2>
+        I imported <% scalar @applications %> applications from your file.
+        <br /> <br /> <br /> <br /> <br /> <br />
+        <br /> <br /> <br /> <br /> <br /> <br />
+        <%perl>
+        return;
+    } #end of import
+}
+
+
+</%perl>
+
+<%method appimport>
+  <%args>
+  $app
+  $column_info
+  </%args>
+  <tr>
+  <%perl>
+    foreach my $ci ( @$column_info) {
+        my $val = $app->{$ci->{name}};
+        if($ci->{name} eq 'client_id') {
+            </%perl><td nowrap><input type="hidden" name="id_<% $app->{client_id}|u%>_<% $ci->{name}|u%>" value="<% $val|h%>" /><% $val|h%></td><%perl>
+        }
+        else {
+            </%perl><td nowrap><input type="text" name="id_<% $app->{client_id}|u%>_<% $ci->{name}|u%>" value="<% $val|h%>" /></td><%perl>
+        }
+    }
+  </%perl>
+  </tr>
+</%method>
+
+<h2>Upload ApplyYourself data</h2>
+<p>
+<i>Warning: this WILL cause errors if the ApplyYourself data format has been changed without this system being updated to handle it.</i>
+</p>
+<p>
+Upload ApplyYourself XML file:
+<form  enctype="multipart/form-data" method="post" action="upload.html">
+
+<input type="hidden" name="send" value="1">
+<input type="hidden" name="import" value="1">
+<input type="file" size=40 name="file">
+</p>
+
+<input type="submit" name="submit" value="Send">
+
+</form>
+<hr>
+Dump a mysql table create command. Why you might want to do this I have no idea, but go ahead, it might be fun!
+<br/>
+<form method="post" action="upload.html">
+<input type="hidden" name="dump_table" value="1" />
+<input type="hidden" name="send" value="1" />
+<input type="submit" value="Show Create table SQL" />
+</form>

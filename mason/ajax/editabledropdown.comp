@@ -1,0 +1,26 @@
+
+<%DOC>
+   Component: editabledropdown.comp
+        Date: 2008.04.07
+      Author: clayton
+     Changed: 2008.04.07 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id
+@entries => ()
+</%ARGS>
+
+<%INIT>
+# Escape all entries for JS, quote, and wrap in unescape
+@entries = map('unescape(\'' . $m->comp('/mason/ajax/escape_js.comp', $_) . '\')', @entries);
+my $jsarr = '[' . join(',', @entries) . ']';
+</%INIT>
+
+<script type="text/javascript">
+  /*<[CDATA[*/
+new EditableDrop('<% $id %>', <% $jsarr %>);
+  /*]]>*/
+</script>

@@ -1,0 +1,25 @@
+<%flags>
+inherit=>undef
+</%flags>
+<%INIT>
+if(!defined($ARGS{'name'}) || !defined($ARGS{'door_id'})) { print "bad args"; return; }
+
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $authorized = $m->comp('/mason/auth/auth_check_directory.comp');
+my $doormgr = $m->comp('/mason/auth/auth_check_door_mgr.comp',door_id=>$ARGS{'door_id'});
+
+if(!$admin_auth && !$doormgr && !$authorized) { print "not authorized"; return; }
+
+my $admin_query = $m->comp("/mason/ajax/people_finder.comp", name=>$ARGS{'name'});
+if (!$admin_query) { print "bad name"; return; }
+
+my $admin = $admin_query->fetchrow_hashref();
+if (!$admin) { print "failed to find name"; return; }
+if(!defined($admin->{'uid'})) { print "this user is not a physics user (no uid)"; return; }
+
+if($m->comp('/mason/db/doorlocks/assignpin.comp', door_id => $ARGS{'door_id'}, uid => $admin->{'uid'})) { print "OK!"; }
+else { print "failed to find free pin"; }
+</%INIT>
+<%filter>
+s/\n//gos
+</%filter>

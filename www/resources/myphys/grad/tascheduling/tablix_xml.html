@@ -1,0 +1,128 @@
+
+<%DOC>
+   Component: tablix_xml.html
+        Date: 2007.07.30
+      Author: clayton
+     Changed: 2007.07.30 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $display => ''
+</%ARGS>
+
+<%flags>
+inherit => undef
+</%flags>
+
+<%init>
+  my $auth_admin = $m->comp('/mason/auth/auth_check_ta_admin.comp');
+  if (!$auth_admin) { $m->redirect('not_authorized.html'); }
+
+  my %config = $m->comp('/mason/db/tascheduling/config.comp');
+  $r->content_type('text/xml');
+</%init>
+
+<%perl>		
+my ($sql, $query, $query2, $teachers, $classes);
+
+if (!$display) {
+  open(TFILE, ">tablix.xml");
+} else {
+  open (TFILE, '>-');
+}
+
+print TFILE '<ttm version="0.2.0">
+    <info>
+        <title>Timetable</title>
+        <author>Q3aiml</author>
+    </info>
+    <modules>
+        <module name="sametime.so" weight="200" mandatory="yes"/>
+        <module name="timeplace.so" weight="250" mandatory="yes"/>
+        <module name="fixedtime.so" weight="0" mandatory="yes"/>
+        <module name="available.so" weight="0" mandatory="yes"/>
+        <module name="sameclassas.so" weight="250" mandatory="yes"/>
+        <module name="fixed.so" weight="250" mandatory="yes"/>
+    </modules>
+        <events>';
+
+    $teachers = '';
+    $classes = '';
+    my $eventi = 0;
+
+    # Events go here
+    # Do Busy
+
+    $sql = 'SELECT day, slot, x500, class FROM taschedule_busy ORDER BY x500';
+    $query = $dbh->prepare($sql);
+    $query->execute();
+
+    my $prev_x500 = '';
+
+    while (my $event_row = $query->fetchrow_hashref())
+    {
+      my %event = %{$event_row};
+      if ($event{'x500'} ne $prev_x500)
+      {
+        $prev_x500 = $event{'x500'};
+        $teachers .= '<resource name="' . $event{'x500'} . '"/>';
+        $classes .= '<resource name="Busy ' . $eventi . '"/>';
+      }
+      print TFILE '<event name="Busy: ', $event{'x500'}, ' - ', $event{'class'}, ' (' . $eventi . ')" repeats="1">
+        <resource type="class" name="Busy ', $eventi, '"/>
+        <restriction type="fixed-teacher">', $event{'x500'}, '</restriction>
+        <restriction type="fixed-day">', $event{'day'}+1, '</restriction>
+        <restriction type="fixed-period">', $event{'slot'}+1, '</restriction>
+        </event>';
+        $eventi++;
+    }
+ 
+    # Do Sections
+
+    $sql = 'SELECT section, day, slot FROM taschedule_sections ORDER BY section';
+    $query = $dbh->prepare($sql);
+    $query->execute();
+
+    my $prev_section = -1;
+    my $prev_name = '';
+
+    while (my $event_row = $query->fetchrow_hashref())
+    {
+      my $new_section = 0;
+      my %event = %{$event_row};
+      if ($event{'section'} ne $prev_section) {
+        $prev_section = $event{'section'};
+        $new_section = 1;
+        $classes .= '<resource name="Section ' . $eventi . '"/>';
+      }
+      print TFILE '<event name="Class: ', $event{'section'}, ' (', $eventi, ')" repeats="1">
+        <resource type="class" name="Section ', $event{'section'}, '"/>',
+(!$new_section ? '<restriction type="same-teacher-as">' . $prev_name . '</restriction>' : ''),
+        '<restriction type="fixed-day">', $event{'day'}+1, '</restriction>
+        <restriction type="fixed-period">', $event{'slot'}+1, '</restriction>
+        </event>';
+        $prev_name = 'Class: ' . $event{'section'} . ' (' . $eventi . ')';
+        $eventi++;
+    }
+    
+
+    print TFILE '</events>
+<resources>
+                <constant>
+<resourcetype type="class">', $classes, '</resourcetype></constant><variable>
+      <resourcetype type="teacher">
+      ', $teachers, '
+      </resourcetype>
+      <resourcetype type="time">
+          <matrix width="', $config{'days'}, '" height="', $config{'periods'}, '"/>
+      </resourcetype>
+      <resourcetype type="room">
+          <linear name="Room #" from="1" to="1000"/>
+      </resourcetype>
+      </variable></resources></ttm>';
+
+    close(TFILE);
+
+</%perl>

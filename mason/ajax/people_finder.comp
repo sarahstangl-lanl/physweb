@@ -1,0 +1,154 @@
+<%DOC>
+   Component: people_finder.comp
+        Date: 2007.08.16
+      Author: clayton
+     Changed: 2007.08.16 by clayton
+
++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++++++++++++++++
+         Not sure what is going on?!
+See https://zzz.physics.umn.edu/physnet/web/magic
++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Rather than having a complex popup selector, we have the people finder. woop for plaintext and junk.
+
+Supported name formats:
+Last, First <physid@physics.umn.edu>
+Last, First <x500@umn.edu>  (Only used if no physid in directory)
+Name [UID]                  (Only used if no physid and x500 in directory)
+<physid@physics.umn.edu>    (<> Optional)
+<x500@umn.edu>              (<> Optional)
+Last, First                 (Fuzzy)
+*Any Part/ial*              (Fuzzy - First or Last or First Last or physid or x500)
+
+The first format is the one used for display.
+</%DOC>
+
+<%ARGS>
+  $name => ''
+  $uid  => undef
+  @select => ('directory.uid', 'directory.last_name', 'directory.first_name', 'directory.physid', 'directory.x500', $m->comp('/mason/ajax/people_finder_sql.comp') . ' AS display_name', 'directory.inactive', 'directory.work_phone')
+  $limit => 0
+  # This needs to default to 1 based on the usage (ex. don't want to hit edit for an old page, hit save, and lose the people entries...)
+  # The complete_people.html explicitly sets 0 so it should be ok...?
+  $inactive => 1
+  $plugin => ''
+  $plugin_args => {}
+  $pf_ta_year => undef
+  $pf_ta_semester => undef
+  $pf_groups_type => undef
+  # Whether or not to include people in the 'ShopDb' group
+  $include_shop_customers => 0
+  $order_by => ''
+</%ARGS>
+
+<%perl>
+  my (@sql_where, @exec);
+  @sql_where = ();
+  @exec = ();
+  my $left_join = '';
+  # order_by sanitization
+  $order_by = '' unless (grep { $_ eq $order_by } ('display_name')); # <-- Add new order_by options here
+
+  # These two line allow us to get the plugin_args either from those given
+  # to the top level component, or passed through to this component. Magic!
+  my %hARGS = $m->request_args;
+  %hARGS = ((defined($plugin_args) ? %$plugin_args : {}), %hARGS, %ARGS);
+
+  # Special tascheduler mode -- display only the users requested
+  if ($plugin eq 'tasched') {
+    my ($ta_where, $ta_exec);
+    ($left_join, $ta_where, $ta_exec) = $m->comp('/www/resources/classes/tascheduling/peoplefinder_plugin.comp', 'year' => $hARGS{'pf_ta_year'}, 'semester' => $hARGS{'pf_ta_semester'});
+    if (defined($ta_where)) {
+      push @sql_where, $ta_where;
+      @exec = (@exec, @$ta_exec);
+    }
+  } elsif ($plugin eq 'groups') {
+    my ($where, $exec);
+    ($left_join, $where, $exec) = $m->comp('peoplefinder_plugin_groups.comp', 'pf_groups_type' => $hARGS{'pf_groups_type'});
+    push @sql_where, $where;
+  }
+  elsif ($plugin eq 'shopdb') {
+    $left_join = 'LEFT JOIN shopdb.customers customers ON directory.uid = customers.directory_uid';
+    push @select, qw/directory.email customers.company_name/;
+  }
+
+  if (!$name && !$uid)
+  {
+    return '';
+  }
+
+  if($uid) 
+  {
+    push @sql_where, 'directory.uid=?';
+    push(@exec, $uid);
+    $limit = 1;
+  } elsif($name =~ /^(\d+)$/) {
+    # A number. assume uid
+    push @sql_where, 'directory.uid=?';
+    push(@exec, $1);
+    $limit = 1;
+  } elsif ($name =~ /^\s*(.*),?\s*(.*)\s*<(.*)\@physics.umn.edu>\s*$/) {
+    # Last, First <physid@physics.umn.edu>
+    push @sql_where, 'directory.physid=?';
+    push(@exec, $3);
+  } elsif ($name =~ /^<?(.*)\@physics.umn.edu>?$/) {
+    # <physid@physics.umn.edu>
+    push @sql_where, 'directory.physid=?';
+    push(@exec, $1);
+  } elsif ($name =~ /^\s*(.*),?\s*(.*)\s*<(.*)\@umn.edu>\s*$/) {
+    # Last, First <x500@umn.edu>
+    push @sql_where, 'directory.x500=?';
+    push(@exec, $3);
+  } elsif ($name =~ /^<?(.*)\@umn.edu>?$/) {
+    # <x500@umn.edu>
+    push @sql_where, 'directory.x500=?';
+    push(@exec, $1);
+  } elsif ($name =~ /^(.*)\s*\[(\d+)\]$/) {
+    # Name [UID]
+    push @sql_where, 'directory.uid=?';
+    push(@exec, $2);
+  } elsif ($name =~ /^\s*(.*)\s*,\s*(.*)\s*$/) {
+    # Last, First
+    push @sql_where, 'directory.first_name LIKE ? AND directory.last_name LIKE ?';
+    push(@exec, '%' . $2 . '%');
+    push(@exec, '%' . $1 . '%');
+  } else {
+    # Any Catchall
+    push @sql_where, '(CONCAT(directory.first_name, \' \', directory.last_name) LIKE ? OR directory.physid LIKE ? OR directory.x500 LIKE ?)';
+    $name =~ s/\s+/%/g;
+    push(@exec, '%' . $name . '%');
+    if ($name =~ /(.*)@.*/)
+    { # assume we have either x500 or phys if there is a @...
+      push(@exec, $1);
+      push(@exec, $1);
+    } else {
+      push(@exec, '%' . $name . '%');
+      push(@exec, '%' . $name . '%');
+    }
+  }
+
+  unless ($include_shop_customers || $inactive) {
+    $left_join .= ' LEFT JOIN (SELECT DISTINCT uid FROM webdb.groupmembers m JOIN webdb.groups g ON g.name = m.groupname WHERE type = "flags" AND groupname <> "ShopDb") u ON u.uid = directory.uid';
+    push @sql_where, 'u.uid IS NOT NULL'
+  }
+
+  my $where = join(' AND ', @sql_where);
+
+  my $pf_dbh = $dbh;
+
+  # Allow use of webdb_test cnfgroup
+  if ($session{shopdb_instance} && $session{shopdb_instance} eq 'webdb_test') {
+    $pf_dbh = $m->comp('/mason/db/shopdb/schema.comp')->storage->dbh;
+  }
+
+  # Order by inactive DESC so we prefer active people first (since inactive needs to default to 1)\
+  my $sql = 'SELECT ' . join(', ', @select) . ' FROM webdb.directory directory ' . $left_join . ' WHERE ' . $where . (!$inactive ? ' AND !inactive ' : '') . ' ORDER BY inactive ASC' . ($order_by ? ", $order_by" : '') . ($limit ? ' LIMIT ' . $limit : '');
+  my $query = $pf_dbh->prepare($sql);
+    warn Dumper({ sql => $sql, args => \@exec });
+  $query->execute(@exec)
+    or die 'PF SQL ERROR: ' . $pf_dbh->errstr . ' /// QUERY: ' . $sql;
+
+  return $query;
+</%perl>

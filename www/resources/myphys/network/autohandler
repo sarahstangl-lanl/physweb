@@ -1,0 +1,14 @@
+<%init>
+$m->comp('/mason/auth/auth_block.comp', internal => 1);
+$m->call_next;
+</%init>
+<%method titlemenu_below>
+   <& /mason/titlemenu.comp:begin, type=>"below" &>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/myphys/network/myhosts.html'  &>My Devices</&>
+% if($r->uri =~ /edit_myhost_form.html/ ) {
+   <&| /mason/titlemenu.comp:item, link=>'/resources/myphys/network/edit_myhost_form.html'  &>Add/Edit Device</&>
+% }
+   <& /mason/titlemenu.comp:end &>
+</%method>
+
+

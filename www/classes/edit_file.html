@@ -1,0 +1,98 @@
+<%doc>
+   Component: edit_file.html
+        Date: 8/5/2003
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$entryid=>''
+$parentid=>''
+$image=>''
+$caption=>''
+$mime=>''
+$max_x=>'0'
+$max_y=>'0'
+$classid=>undef
+$redirect_type=>'index'
+</%args>
+
+<%init>
+  return if $m->comp('/mason/db/dbcheck.comp', noretry=>1);
+
+  # basic input validation...
+  if (!$classid) {$m->redirect('classerror.html');}
+  if (!$entryid) {$m->redirect('classerror.html');}
+
+  $m->comp('/mason/auth/auth_block_editclass.comp', classid=>$classid, itemid=>($parentid ? $parentid : $entryid));
+
+  my $req = Apache2::Request->new($r);
+  my $upload = $req->upload('image');
+  my $filename = $upload->filename();
+  my $successful_insert;
+  my $result;
+  my ($sql,$sth);
+
+  my $priority = $m->comp('/mason/db/classes/postplacement_do.comp', classid=>$classid, parentid=>$parentid, entryid=>$entryid, item_type=>undef);
+
+  if ($filename) {
+    my $mime_type = $upload->type;
+    my $fh = $upload->fh;
+    if ( $mime_type ) {
+      my $data = do { local $/; <$fh> };
+      my $datasize = $upload->size;
+
+      my ($volume, $directories, $leaf) = File::Spec->splitpath( $filename );
+      if ($leaf =~ /:\\/) {
+        my $index = rindex($filename,"\\");
+        $leaf = substr($filename, ($index + 1));
+      }
+      #Explicitly detect PDF mime-types
+      if ($filename =~ m/.pdf$/i) {
+      	$mime_type = "application/pdf";
+      }
+      $leaf =~ s/\s/_/g;
+      
+      $sql = "REPLACE INTO classdata ";
+      $sql .= "(entryid, parentid, classid, published, attach_name, entry_type, attach_size, attach_mimetype, attach_text, priority, post_date, modified_date) ";
+      $sql .= "VALUES(?,?,?,?,?,?,?,?,?,?,now(),now()) ";
+      $sth = $dbh->prepare($sql) or die 'Unable to prepare: ' . $dbh->errstr;
+      $sth->execute($entryid, $parentid, $classid, 1, $leaf, "file", $datasize, $mime_type, $caption, $priority)
+          or die 'Unable to insert classdata: ' . $dbh->errstr;
+      
+      # Turns out this works when you are replacing an existing ID too...
+      $entryid = $sth->{mysql_insertid};
+      
+      $sql = "REPLACE INTO webdbblob.class_files ";
+      $sql .= "(entryid, attach_data) ";
+      $sql .= "VALUES(?,?) ";
+      $sth = $dbh->prepare($sql) or die 'Unable to prepare: ' . $dbh->errstr;
+      $successful_insert = $sth->execute($entryid, $data)
+          or die 'Unable to insert file: ' . $dbh->errstr;
+    } else {
+      $result = "Unusual error";
+    }
+  } else {
+    # this is if no file specified but caption changed
+    $sql = "UPDATE classdata ";
+    $sql .= "SET published=?, attach_text=?, priority=?, modified_date=now() ";
+    # override mime type if provided
+    if ($mime =~ /\//) { 
+      $sql .= ", attach_mimetype='".$mime."' ";
+    }
+    $sql .= "WHERE entryid=? ";
+    $sth = $dbh->prepare($sql);
+    $successful_insert = $sth->execute(1, $caption, $priority, $entryid);
+  }
+
+  if ($successful_insert) {
+    $m->comp('/mason/db/classes/bump_modified.comp', parentid=>$parentid);
+    $m->comp('/mason/redirect.comp', url=>$m->comp('/mason/db/classes/make_classlink.comp', classid=>$classid, fullurl=>1, type=>$redirect_type));
+  } else {
+    $result = "Error: ".$DBI::errstr;
+  }
+</%init>
+
+<%method title>Upload</%method>
+<p>
+<% $result %>

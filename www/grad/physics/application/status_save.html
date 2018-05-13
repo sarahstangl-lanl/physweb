@@ -1,0 +1,33 @@
+
+<%DOC>
+   Component: status_save.html
+        Date: 2005.12.05
+      Author: allan
+     Changed: 2005.12.05 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id
+$review_verified
+$review_paper
+$review_supplemental
+</%ARGS>
+
+<%INIT>
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) { $m->redirect('index.html'); }
+
+my ($sql, $sth, $success, $row_ref);
+$sql = "UPDATE grad.gradapp SET review_verified=?, review_paper=?, review_supplemental=? WHERE id=?";
+$sth = $dbh->prepare($sql);
+$sth->execute($review_verified, $review_paper, $review_supplemental, $id)
+    or die 'Unable to save: ' . $dbh->errstr;
+
+$m->comp('logevent.mhtml',text=>"updated review info for ".$id);
+$m->redirect("appsummary.html?id=".$id);
+</%INIT>		
+		
+
+

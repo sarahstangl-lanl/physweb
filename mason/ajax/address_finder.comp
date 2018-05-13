@@ -1,0 +1,88 @@
+<%ARGS>
+$search=>undef
+$address_id=>undef
+$customer_uid=>undef
+$customer_id=>undef
+$limit=>10
+</%ARGS>
+
+<%perl>
+    if (!$search && !$address_id && !$customer_uid && !$customer_id)
+    {
+      return '';
+    }
+
+    my $pf_dbh = $dbh;
+
+    # Allow use of webdb_test cnfgroup
+    if ($session{shopdb_instance} && $session{shopdb_instance} eq 'webdb_test') {
+        $pf_dbh = $m->comp('/mason/db/shopdb/schema.comp')->storage->dbh;
+    }
+
+    my (@where_clauses, @exec_args);
+
+    my @search_columns = (qw/company lines/);
+
+    if($address_id)
+    {
+        push(@where_clauses, '`address_id`=?');
+        push(@exec_args, $address_id);
+    }
+    else {
+        my (@search_terms, @or_clauses, @addresses);
+        if (defined $customer_uid || defined $customer_id) {
+            my @customer_ids;
+            $customer_uid = [ $customer_uid ] unless (ref $customer_uid);
+            $customer_id = [ $customer_id ] unless (ref $customer_id);
+            my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+            for my $id (@$customer_uid) {
+                next unless (defined $id);
+                my $customer = $schema->resultset('Customers')->find({ directory_uid => $id });
+                next unless ($customer);
+                push @customer_ids, $customer->customer_id;
+            }
+            for my $id (@$customer_id) {
+                next unless (defined $id);
+                push @customer_ids, $id;
+            }
+            for my $id (@customer_ids) {
+                my $customer = $schema->resultset('Customers')->find($id);
+                next unless ($customer);
+                for my $address (map { $customer->$_ } (qw/bill_address ship_address addresses/)) {
+                    push @addresses, $address->address_id if ($address);
+                }
+            }
+            if (scalar(@addresses)) {
+                push(@or_clauses, "`address_id` IN (" . join(', ', map { '?' } @addresses) . ")");
+                push(@exec_args, @addresses);
+            }
+            if (scalar(@or_clauses)) {
+                push(@where_clauses, " ( " . join(' OR ', @or_clauses) . " ) ");
+                $limit = 50;
+            }
+            else {
+                @where_clauses = ('1=0');
+            }
+        } else {
+            @search_terms = split(' ', $search);
+            foreach my $search_term (@search_terms) {
+                my @or_clauses;
+                foreach my $column (@search_columns) {
+                    push(@or_clauses, "`$column` LIKE ?");
+                    push(@exec_args, "%$search_term%");
+                }
+                push(@where_clauses, " ( " . join(' OR ', @or_clauses) . " ) ");
+            }
+        }
+    }
+
+    my $sql = 'SELECT * FROM `shopdb`.`addresses` WHERE ' . join(' AND ', @where_clauses) . ($limit ? ' LIMIT ' . $limit : '');
+    use Data::Dumper;
+    warn "Search: $search" if ($search);
+    warn Dumper({ SQL => $sql, ARGS => \@exec_args});
+    my $query = $pf_dbh->prepare($sql) or die "Failed to prepare: " . $pf_dbh->errstr;
+    $query->execute(@exec_args)
+      or die 'PF SQL ERROR: ' . $pf_dbh->errstr . ' /// QUERY: ' . $sql;
+
+    return $query;
+</%perl>

@@ -1,0 +1,33 @@
+<%doc>
+   Component: calendar_mailsend.html
+        Date: 1/21/04
+      Author: allan
+ Description:
+</%doc>
+%# ~~NOSITEMAP~~
+
+<%args>
+$address=>undef
+$from=>'webmaster@physics.umn.edu'
+$subject=>'Calendar'
+$body=>undef
+</%args>
+
+<%method title>Sending Calendar Email</%method>
+
+% if (!defined($address) || $address eq '') {
+<h2>Not sending: no address given!</h2>
+% } elsif (!($address =~ /@/)) {
+<h2>Not sending: address not valid!</h2>
+% } elsif (!defined($body) || $body eq '') {
+<h2>Not sending: no body given!</h2>
+% } else {
+% if ($m->comp('/mason/send_mail.comp', to=>$address, subject=>$subject, text=>$body, from=>$from)) {
+
+Sending message to <% $address %>
+
+<pre>
+<% $body %>
+</pre>
+% }
+% }

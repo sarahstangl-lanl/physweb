@@ -1,0 +1,6 @@
+<% $m->call_next %>
+<%method title>Gallery</%method>
+
+<%method titlemenu_above>
+</%method>
+

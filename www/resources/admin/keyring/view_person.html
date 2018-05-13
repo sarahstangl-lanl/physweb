@@ -1,0 +1,148 @@
+
+<%DOC>
+   Component: view_person.html
+        Date: 2007.08.15
+      Author: clayton
+     Changed: 2007.08.15 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $name   => ''
+  $uid    => ''
+</%ARGS>
+
+<%INIT>
+  my ($sql, $query, $result, @sql_where, @sql_exec);
+  my $found = 0;
+
+  $name =~ s/^\s+|\s+$//g;
+  $uid =~ s/^\s+|\s+$//g;
+
+  if ($uid)
+  {
+    $sql = 'SELECT directory.last_name, directory.first_name, directory.uid, directory.x500, directory.physid,
+            ' . $m->comp('/mason/ajax/people_finder_sql.comp') . ' AS display_name
+            FROM directory
+            WHERE directory.uid=? LIMIT 1';
+    $query = $dbh->prepare($sql);
+    $query->execute($uid);
+
+    if ($query->rows > 0)
+    {
+      $found = 1;
+      $result = $query->fetchrow_hashref();
+    } else {
+      $name = $uid;
+    }
+  }
+
+  if (!$found)
+  {
+    $query = $m->comp('/mason/ajax/people_finder.comp', 'name' => $name, 'limit' => 10);
+
+    if (($query) && ($query->rows == 1))
+    {
+      $result = $query->fetchrow_hashref();
+      if ($result)
+      {
+        $found = 1;
+        $uid = $$result{'uid'};
+      }
+    }
+  }
+</%INIT>		
+		
+<%method title>Key Management: Person</%method>	
+
+<table width="100%">
+<tr><td colspan="2" style="border:0; padding:0; margin:0">
+% $m->comp('doheader.comp', selected => 'view_person', name => $name);
+</td></tr>
+
+% if (!$found) {
+
+%   if (!$name) {
+<tr style="background-color: #f9f3d4; padding: 0.3em;"><td colspan="2">
+<h4 style="padding-top: 0em;">You must enter a name to search for.</h4>
+</td></tr>
+%   } else {
+
+<tr style="background-color: #f9f3d4; padding: 0.3em;"><td colspan="2">
+<h4 style="padding-top: 0em;">No exact match found.</h4>
+</td></tr>
+
+<tr><th style="background-color: #f9f3d4;">
+Similar people:
+</th></tr>
+<tr><td valign="top"  style="border: 1px solid lightgrey;">
+
+<table>
+<tr><th>Display Name</th><th>x500</th></tr>
+%     while ($result = $query->fetchrow_hashref()) {
+<tr><td><a href="view_person.html?uid=<% $$result{'uid'} |u %>"><% $$result{'display_name'} |h %></a></td><td><% $$result{'x500'} %></td></tr>
+%     }
+</table>
+
+</td></tr>
+
+%   }
+
+% } else { 
+
+<tr><td valign="top"  style="border: 1px solid lightgrey;">
+
+<table>
+<tr><td align="right">Display Name:</td><td><% $$result{'display_name'} |h %></td></tr>
+
+<tr><td align="right">Last Name:</td><td><% $$result{'last_name'} |h %></td></tr>
+<tr><td align="right">First Name:</td><td><% $$result{'first_name'} |h %></td></tr>
+<tr><td align="right">PhysID:</td><td><% $$result{'physid'} |h %></td></tr>
+<tr><td align="right">x500:</td><td><% $$result{'x500'} |h %></td></tr>
+
+
+<%perl>
+  $sql = 'SELECT key_holder.keyid, key_holder.copynum, key_holder.timestamp FROM key_holder,
+              (SELECT key_holder.keyid, key_holder.copynum, MAX(key_holder.timestamp) AS latest FROM key_holder GROUP BY copynum,keyid) AS kh2
+              WHERE key_holder.uid=? AND key_holder.keyid=kh2.keyid AND key_holder.copynum=kh2.copynum AND kh2.latest=key_holder.timestamp';
+  $query = $dbh->prepare($sql);
+  $query->execute($uid);
+</%perl>
+
+<tr><td align="right" valign="top">Keys:</td>
+
+<td>
+<table>
+<tr><th>Key ID</th><th>Copy #</th></th><th>Received On</th><th>Action</th></tr>
+% while ($result = $query->fetchrow_hashref()) {
+<tr><td><a href="view_key.html?keyid=<% $$result{'keyid'} |u %>"><% $$result{'keyid'} %></a></td><td><a href="view_key.html?keyid=<% $$result{'keyid'} |u %>&amp;copynum=<% $$result{'copynum'} |u %>"><% $$result{'copynum'} %></a></td><td><% $$result{'timestamp'} %></td><td></td></tr>
+% }
+</table>
+</td></tr>
+
+<%perl>
+  $sql = 'SELECT key_holder.keyid, key_holder.copynum, key_holder.timestamp FROM key_holder,
+              (SELECT key_holder.keyid, key_holder.copynum, MAX(key_holder.timestamp) AS latest FROM key_holder GROUP BY copynum,keyid) AS kh2
+              WHERE key_holder.uid=? AND key_holder.keyid=kh2.keyid AND key_holder.copynum=kh2.copynum AND kh2.latest!=key_holder.timestamp';
+  $query = $dbh->prepare($sql);
+  $query->execute($uid);
+</%perl>
+
+<tr><td align="right" valign="top">Key History:</td>
+<td>
+<table>
+<tr><th>Key ID</th><th>Copy #</th></th><th>Received On</th><th>Action</th></tr>
+%   while ($result = $query->fetchrow_hashref()) {
+<tr><td><a href="view_key.html?keyid=<% $$result{'keyid'} |u %>"><% $$result{'keyid'} %></a></td><td><a href="view_key.html?keyid=<% $$result{'keyid'} |u %>&amp;copynum=<% $$result{'copynum'} |u %>"><% $$result{'copynum'} %></a></td><td><% $$result{'timestamp'} %></td><td></td></tr>
+%   }
+</table>
+</td></tr>
+
+</table>
+
+</td></tr>
+
+% }
+
+</table>

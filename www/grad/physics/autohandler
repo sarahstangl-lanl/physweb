@@ -1,0 +1,19 @@
+<% $m->call_next %>
+<%method titlemenu_above>
+   <& /mason/titlemenu.comp:begin, type=>"above" &>
+   <&| /mason/titlemenu.comp:item, link=>'/grad/physics/index.html'  &>Overview</&>
+   <&| /mason/titlemenu.comp:item, link=>'/grad/physics/application.html'  &>Application</&>
+   <&| /mason/titlemenu.comp:item, link=>'/grad/physics/visit.html'  &>Prospective Student Visits</&>
+   <&| /mason/titlemenu.comp:item, link=>'/grad/physics/research.html'  &>Research: Getting Started</&>
+   <&| /mason/titlemenu.comp:item, link=>'/grad/physics/support.html'  &>Financial Aid</&>
+   <&| /mason/titlemenu.comp:item, link=>'/grad/physics/fellowships/index.html'  &>Fellowships</&>
+   <&| /mason/titlemenu.comp:item, link=>'/grad/physics/phd.html'  &>The Ph.D. Degree</&>
+   <&| /mason/titlemenu.comp:item, link=>'/grad/physics/ms.html'  &>The M.S. Degree</&>
+   <&| /mason/titlemenu.comp:item, link=>'/grad/physics/gradphi.html'  &>Organizations</&>
+   <&| /mason/titlemenu.comp:item, link=>'/grad/physics/GradFAQ.html'  &>Graduate FAQ</&>
+   <&| /mason/titlemenu.comp:item, link=>'/grad/physics/related.html'  &>Related Links</&>
+
+   <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+

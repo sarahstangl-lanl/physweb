@@ -1,0 +1,58 @@
+<%flags>
+inherit=>undef
+</%flags>
+<%args>
+$action => undef
+$attachment_id => undef
+$filename => undef
+</%args>
+<%perl>
+my %result;
+my $attachment;
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+if (!defined $action) {
+    $result{'error'} = 'No action';
+}
+elsif (!defined $attachment_id) {
+    $result{'error'} = 'No attachment_id';
+}
+elsif (!($attachment = $schema->resultset('Attachments')->find({ attachment_id => $attachment_id }))) {
+    $result{'error'} = "Invalid attachment_id $attachment_id";
+}
+elsif ($action eq 'rename' && !defined $filename) {
+    $result{'error'} = 'No filename';
+}
+elsif ($action ne 'rename' && $action ne 'delete') {
+    $result{'error'} = "Bad action '$action'";
+}
+elsif (!$m->comp('/mason/auth/loggedin.comp')) {
+    $result{'error'} = 'Not logged in';
+}
+else {
+    $m->comp('/mason/db/shopdb/build_auth.comp');
+    my $auth_args = $session{'shopdb-auth'};
+
+    if (!$m->comp('/mason/db/shopdb/check_file_auth.comp', attachment => $attachment)) {
+        $result{'error'} = "No permission to modify attachment";
+    }
+    else {
+        if ($action eq 'rename') {
+            $schema->txn_do( sub {
+                $attachment->update({filename => $filename });
+            });
+        }
+        else {
+            $schema->txn_do( sub {
+                $attachment->delete;
+            });
+        }
+        $result{'action'} = $action;
+        $result{'attachment_id'} = $attachment_id;
+        $result{'filename'} = $filename;
+    }
+}
+print $m->comp('/mason/ajax/to_json.comp', \%result);
+</%perl>
+<%filter>
+s/\n//g
+</%filter>

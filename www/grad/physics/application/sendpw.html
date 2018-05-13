@@ -1,0 +1,35 @@
+
+<%DOC>
+   Component: sendpw.html
+        Date: 2005.08.10
+      Author: allan
+     Changed: 2005.08.10 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$email=>undef
+</%ARGS>
+
+<%INIT>
+if (!defined($email)) { $m->redirect('index.html'); }
+my $sql = 'SELECT password FROM grad.gradapp WHERE email=?';
+my $sth = $dbh->prepare($sql);
+$sth->execute($email) or die 'Unable to grab app: ' . $dbh->errstr;
+</%INIT>	
+
+<%perl>
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+    my ($password) = @$row_ref;
+    print "Your password is being sent to the registered email address";
+    my $message = <<MSGEND;
+Your password for the University of Minnesota Physics Graduate Program applcation is: $password
+MSGEND
+    $Text::Wrap::columns = 72;
+    $message = wrap('', '', $message);
+    $m->comp('/mason/send_mail.comp', to=>$email, subject=>"Password Reminder", from=>'grad@physics.umn.edu', text=>$message);
+} else {
+    print "Sorry, can't find that email address";
+}
+</%perl>

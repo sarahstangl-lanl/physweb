@@ -1,0 +1,32 @@
+
+<%DOC>
+   Component: review.html
+        Date: 2005.12.05
+      Author: allan
+     Changed: 2005.12.05 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id
+$reviewid
+</%ARGS>
+
+<%INIT>
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) { $m->redirect('index.html'); }
+
+my $message;
+my ($sql, $sth);
+$sql = 'DELETE FROM grad.review WHERE reviewid=? AND appid=?';
+$sth = $dbh->prepare($sql);
+$sth->execute($reviewid, $id) or die 'Unable to delete: ' . $dbh->errstr;
+
+$m->comp('logevent.mhtml',text=>"deleted review for ".$id);
+$m->redirect("review_list.html?id=".$m->interp->apply_escapes($id, 'u'));
+</%INIT>		
+		
+<%method title>Problem</%method>
+
+<% $message %>

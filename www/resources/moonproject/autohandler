@@ -1,0 +1,141 @@
+<%shared>
+# Clear auth if requested or if x500 changes
+if ($m->request_args->{'clear-auth'} || (defined $session{'moonproject_x500'} && (! defined $session{'x500'} || $session{'moonproject_x500'} ne $session{'x500'}))) {
+    for (keys %session) {
+        delete $session{$_} if ($_ =~ /^moonproject_/);
+    }
+}
+$session{'moonproject_year'} ||= $m->comp('/mason/this_year.comp');
+$session{'moonproject_term'} ||= $m->comp('/mason/this_quarter.comp');
+
+#use lib "/home/www/docs/staging/4445/lib";
+
+use Moonproject;
+use Moonproject::Student;
+$Moonproject::term = $session{'moonproject_term'};
+$Moonproject::year = $session{'moonproject_year'};
+
+my $classids = Moonproject::get_classids(admin => 1);
+my ($errmsg, $student);
+if (!@$classids) {
+    $errmsg = "No AST1001 classes for " . ucfirst($session{'moonproject_term'}) . " $session{'moonproject_year'}";
+}
+elsif ($r->uri =~ /admin/) {
+    $student = Moonproject::Student->new(gradesid => $m->request_args->{student}) if ($m->request_args->{student});
+}
+else {
+    if($session{'moonproject_gradesid'}) {
+        $student = Moonproject::Student->new(gradesid => $session{'moonproject_gradesid'});
+    }
+    else {
+        if (defined $session{'x500'}) {
+            my $gradesid = physdb::queryone("SELECT id FROM grades.users WHERE x500 = ?", $session{'x500'});
+            $gradesid ||= $m->comp('/mason/db/classes/addstudent.comp', x500 => $session{'x500'});
+            if ($gradesid) {
+                $student = Moonproject::Student->new(gradesid => $gradesid);
+                # Populate moonproject info into session
+                $m->comp('/mason/db/moonproject/load_student.comp', student => $student);
+            }
+            else {
+                $errmsg = "Could not find student information for X.500 $session{'x500'}. Please contact net\@physics.umn.edu for assistance.";
+            }
+        }
+        else {
+            $errmsg = "No X.500 associated with logged in user.";
+        }
+    }
+}
+</%shared>
+%#<%method skel></%method>
+<%method js></%method>
+
+<%method meta>
+<style type="text/css">
+.observation { font-family: Verdana,Arial,Helvetica,sans-serif; }
+.observation TH { text-align: left; }
+.observation SELECT, .observation OPTION { font-family: Verdana,Arial,Helvetica,sans-serif; xxfont-size: 11px;  }
+.observation INPUT, .observation SELECT, .observation OPTION { background-color: white; border-color: buttonshadow; }
+#observation_list { border: 1px solid black; border-collapse: collapse; }
+#observation_list TR { border: 1px solid black; }
+%##observation_list TD { border: 1px solid black; }
+%##observation_list TH { border: 1px solid black; }
+#observation_list TD A { color: black; }
+.sketches { xxfont-size: 11px; text-align: center; }
+.moonproject_error { background-color: #FF6060 !important; }
+#ta_settings TH, #ta_settings TD { vertical-align: middle; padding: 5px 3px 10px 3px; }
+#ta_settings .moonproject_desc { font-weight: normal; padding-top: 3px; }
+.ta_detail { font-size: 11px; }
+.ta_modify TH, .ta_modify TD { border: 0 !important; }
+%#.ta_detail TD { white-space: nowrap; }
+</style>
+</%method>
+
+<%method titlemenu_above>
+% my $admin = $m->comp('/mason/auth/auth_check.comp', auth_type => [ qw/sysadm moonproject_admin/ ]);
+    <& /mason/titlemenu.comp:begin, type=>"above" &>
+    <&| /mason/titlemenu.comp:item, selected => $r->uri =~ /admin/ ? 0 : 1, link => '/resources/moonproject/index.html' &>Student</&>
+% if ($admin || @$classids) {
+    <&| /mason/titlemenu.comp:item, selected => $r->uri =~ /admin/ ? 1 : 0, link => '/resources/moonproject/admin/index.html' &>Admin</&>
+% }
+    <& /mason/titlemenu.comp:end &>
+</%method>
+
+<%method title>Moon Project - MN Institute for Astrophysics</%method>
+<%method titlemenu_below>
+    <& /mason/titlemenu.comp:begin, type=> "below" &>
+% if ($r->uri =~ /contract/) {
+    <&| /mason/titlemenu.comp:item, selected => 1, link => 'contract_form.html' &>Contract</&>
+% }
+% if (exists $session{moonproject_gradesid}) {
+    <&| /mason/titlemenu.comp:item, selected => $r->uri =~ /observation/ ? 1 : 0, link => 'observations.html' &>Observations</&>
+    <&| /mason/titlemenu.comp:item, selected => $r->uri =~ /settings/ ? 1 : 0, link => 'studentsettings_form.html' &>Settings</&>
+% }
+    <&| /mason/titlemenu.comp:item, selected => 0, link => 'http://www.astro.umn.edu/courses/1001/' &>Return to Ast 1001</&>
+    <& /mason/titlemenu.comp:end &>
+</%method>
+<%init>
+$m->comp('/mason/auth/auth_block.comp');
+use DateTime::Format::Strptime;
+use DateTime::Format::MySQL;
+warn Dumper(\%session);
+# If logged in, make sure contract is accepted and settings are set
+if ($r->uri !~ /admin/) {
+    if ($r->uri !~ /index.html/ && !@$classids) {
+        warn "redirecting to index.html - no classids";
+        $m->redirect('index.html');
+    }
+    elsif ($session{'moonproject_gradesid'}) {
+        if (!$session{'moonproject_contract'}) {
+            unless ($r->uri =~ /contract/) {
+                warn "redirecting to contract_form.html";
+                $m->redirect('contract_form.html?msg=' . _u('You must accept the contract before submitting observations.'));
+            }
+        }
+        elsif (!$session{'moonproject_fistdegrees'}) {
+            unless ($r->uri =~ /studentsettings/) {
+                warn "redirecting to studentsettings_form.html";
+                $m->redirect('studentsettings_form.html?msg=' . _u('You must update your email address and degrees per fist/hand before submitting observations.'));
+            }
+        }
+    }
+    elsif ($r->uri !~ /index.html/) {
+        warn "redirecting to index.html";
+        $m->redirect('index.html');
+    }
+}
+</%init>
+
+<script language="javascript">
+document.observe("dom:loaded", function() {
+    $$('a.moonproject_help').each(function (a) {
+        a.observe('click', function (e) {
+            a = e.findElement('a');
+            a.blur();
+            window.open(a.href, "_blank", "width=500,height=300");
+            e.stop();
+        });
+    });
+});
+</script>
+
+% $m->call_next(errmsg => $errmsg, student => $student);

@@ -1,0 +1,234 @@
+<%DOC>
+   Component: dhandler
+        Date: 2003.07.17
+      Author: allan
+     Changed: 2003.07.17 by allan
+
+General handler to display class pages (based on supplied path info)
+</%DOC>
+
+<%ARGS>
+  $showall=>''
+  $item=>''
+  $noauth=>''
+</%ARGS>
+
+<%init>
+  return if $m->comp('/mason/db/dbcheck.comp');
+</%init>
+
+<%shared>
+my $uri = $r->uri;
+$uri =~ s/ /\%20/g;
+my @args = split("/", $m->dhandler_arg);
+
+my $subject = 'phys';
+$subject = shift @args if($args[0] =~ /(ast|phys|all)/i);
+
+my $year = shift @args;
+
+my $quarter = shift @args;
+my $class = undef;
+$class = shift @args unless($args[0] eq 'index.html');
+$class =~ s/^(Phys|Ast)(\d+)/$1 $2/;
+my $type = shift @args;
+my $urlitem = shift @args;
+
+####
+#my ($year, $quarter, $class, $type, $urlitem) = split("/",$arg);
+#if($year =~ /(ast|phys)/i) {
+#  ($subject, $year, $quarter, $class, $type, $urlitem) = split("/",$arg);
+#}
+$type =~ s/.html//;
+$urlitem =~ s/.html//;
+
+my $auth_archive = $m->comp('/mason/auth/auth_check_classarchive.comp');
+my $auth = $m->comp('/mason/auth/auth_check_class.comp');
+
+
+# if year/semester aren't defined, set them to current
+$year = 1900 + (CORE::localtime)[5] unless $year =~ /^\d+$/;
+$quarter = lc($quarter);
+if ($quarter ne "spring" && $quarter ne "fall" && $quarter ne "summer") {
+    $quarter = $m->comp('/mason/this_quarter.comp');
+}
+
+my ($name, $section) = split /\./,$class;
+if (!defined($section)) {$section = "";}
+
+$type = 'post' if($type eq 'links');
+$type = 'post' if($type eq 'news');
+
+# bounce to index if not a recognised target
+if ($type !~ /^(news|post|syllabus|ask|ta|talist|feedback|scores|email|edit|class_list|manage_scores|update_clicker|view_item|description|dw|downloads)/ ) {
+   $type = 'index';
+}
+
+if ($type eq 'scores' || $type eq 'dw') {
+   $m->comp('/mason/auth/auth_block.comp');
+}
+
+my ($classid, $title, $flags, $hidden);
+my ($fulltitle, $almostfulltitle);
+#
+# look up general classlist info...
+
+if (defined($dbh)) {
+  if ($year && $quarter && $class) {
+    my $sth = $dbh->prepare('SELECT classid, title, flags FROM classlist WHERE year=? AND quarter=? AND name=? AND section=? LIMIT 1');
+    my $success = $sth->execute($year, $quarter, $name, $section);
+    if ($success) {
+      if (my $row_ref = $sth->fetchrow_arrayref()) {
+        ($classid, $title, $flags, $hidden) = @$row_ref;
+      }
+    }
+    my $proper_type = join(' ', map { ucfirst $_ }  split('_', $type));
+    $fulltitle = ucfirst($proper_type). " - ". $class." | ".$title;
+    $almostfulltitle = $class." | ".$title;
+    # override earlier auth_archive for specific class
+    $auth_archive = $m->comp('/mason/auth/auth_check_classarchive.comp', classid=>$classid);
+  }
+  elsif($type eq 'index') {
+    my %subjects = ( 'phys'=>"Physics", 'ast'=>"Astrophysics" );
+    #$almostfulltitle = (Dumper(\%subjects));
+    $almostfulltitle = ucfirst($quarter) . " $year ". ($subject?$subjects{$subject}:''). " Classes";
+  }
+  else {
+    $almostfulltitle = "$type";
+  }
+  if (!$classid) {
+    $fulltitle = ucfirst($quarter)." ".$year;
+    $fulltitle = "Class templates" if $year==0;
+  }
+}
+else {
+  $fulltitle = "Class pages are temporarily unavailable";
+}
+
+my $archived = $m->comp('/mason/db/classes/check_classarchive.comp', year=>$year, quarter=>$quarter) || $hidden;
+
+# take care of content-type if the .html was omitted in request...
+$r->content_type("text/html");
+
+</%shared>
+
+<%method title><% $almostfulltitle |h%></%method>
+<%method statusbar><% $fulltitle |h%></%method>
+
+<%method titlemenu_above>
+<& /mason/titlemenu.comp:begin, type=>"above" &>
+<&| /mason/titlemenu.comp:item,    link=>'/classes/'.($subject?"$subject/":''). 'index.html', selected=>(!$classid) &>Class List</&>
+%if(!$m->request_args->{'noauth'} && ($auth || $auth_archive)) {
+    <&| /mason/titlemenu.comp:item,    link=>'/classes/archive.html' &>Archives</&>
+%}
+%if($classid) {
+    <&| /mason/titlemenu.comp:item, link=>'index.html', selected=>1 &><% $name |h%></&>
+%}
+<& /mason/titlemenu.comp:end &>
+</%method>
+
+
+<%method titlemenu_below>
+<%perl>
+my $args = $m->request_args();
+my $nocontrols = $args->{'nocontrols'};
+my $noauth = $args->{'noauth'}?1:0;
+my $auth_any = $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, always_include_tas=>1);
+my $auth_edit = ($auth_any && ($auth_any ne 'ta'));
+my $auth_ta = ($auth_any && ($auth_any eq 'ta'));
+$nocontrols = 1 if(!$auth_edit && !$auth_ta || $noauth);
+$auth_edit = 0 if($noauth);
+my $template;
+
+</%perl>
+% if( $classid ) {
+      <& /mason/titlemenu.comp:begin,    type=>"below" &>
+      <&| /mason/titlemenu.comp:item,    link=>'index.html', selected=>($type eq "index") &>Class Home</&>
+
+%# Only show these links for archived classes for nonstudents (instructors, TAs, sysadm)
+%     if (!$archived || ($auth_archive && $auth_archive ne 'student')) { 
+          <&| /mason/titlemenu.comp:item,    link=>'syllabus.html', selected=>($type eq "syllabus") &>Syllabus</&>
+          <&| /mason/titlemenu.comp:item,    link=>'post.html', selected=>($type eq "post") &>Postings</&>
+%         if ($flags =~ /ask/) {
+              <&| /mason/titlemenu.comp:item,    link=>'ask.html', selected=>($type eq "ask") &>Ask a Question</&>
+%         }
+%         if ($flags =~ /feedback/) {
+              <&| /mason/titlemenu.comp:item,    link=>'feedback.html', selected=>($type eq "feedback") &>Anonymous Feedback</&>
+%         }
+%         if (($flags =~ /tadisc/) && $m->comp('/mason/auth/auth_check_editclass.comp', classid => $classid, always_include_tas => 1)) {
+              <&| /mason/titlemenu.comp:item,    link=>'ta.html', selected=>($type eq "ta") &>TA Discussion</&>
+%         }
+%     }
+
+      <&| /mason/titlemenu.comp:item,    link=>'scores.html', selected=>($type eq "scores") &>My Scores</&>
+%   if(!$m->request_args->{'noauth'} && ($auth || $auth_archive)) {
+        <&| /mason/titlemenu.comp:item,    link=>'/classes/archive.html?origin='.$classid.'&class='.$name &>Archive</&>
+%   }
+
+%     if(!$nocontrols) {
+          <li style="clear:both; padding-left: 14px;">Controls:</li>
+          <&| /mason/titlemenu.comp:item,    link=>'manage_scores.html', selected=>($type eq "manage_scores") &>Manage Scores</&>
+%         if (!$template) { 
+%             if($auth_edit) {
+                  <&| /mason/titlemenu.comp:item,    link=>'edit.html', selected=>($type eq "edit") &>Class Properties</&>
+%#                # TODO: Make sure only instructors can see this link (not TAs)
+                  <&| /mason/titlemenu.comp:item,    link=>'talist.html', selected=>($type eq "talist") &>TA List</&>
+%             }
+              <&| /mason/titlemenu.comp:item,    link=>'class_list.html', selected=>($type eq "class_list") &>Student List</&>
+              <&| /mason/titlemenu.comp:item,    link=>'email.html', selected=>($type eq "email") &>Send Email</&>
+%         }
+%     }
+      <%perl>
+      # View as a student link only shows on pages that students can view
+      if ($type ne 'email' && $type ne 'edit' && $type ne 'class_list' && $type ne 'manage_scores' ) {
+          # Nabbed from render_class, but meh. this should be handled with make_url.comp
+          my $quieturl = $r->uri.'?';
+          my $linkchar = '=';
+          my $args = $m->request_args();
+          if ( $args->{'noauth'} ) {  #invert noauth
+              delete $args->{'noauth'};
+          }
+          else {
+              $args->{'noauth'} = 1;
+          }
+          for my $arg (keys %$args) {
+              $quieturl .= "$arg=". $args->{$arg} . "&";
+          }
+          if($auth_any && $auth_any ne 'ta') {
+              </%perl> <&| /mason/titlemenu.comp:item,    link=>$quieturl, selected=>$noauth &>View as Student</&> <%perl>
+          }
+      }
+      if ($auth) {
+          </%perl><&| /mason/titlemenu.comp:item,    link=>"dw.html", &>Peoplesoft</&><%perl>
+      }
+      if ($auth_edit && !$nocontrols) {
+          </%perl><&| /mason/titlemenu.comp:item,    link=>"http://zzz.physics.umn.edu/admin/private/classpages", style=>"font-weight: bold;" &>Help</&><%perl>
+      }
+      </%perl>
+      <& /mason/titlemenu.comp:end &>
+% }  #end: if $classid
+% else { #show below titlemenu for class list page
+      <& /mason/db/classes/classlist.comp:titlemenu_below, subject=>$subject, quarter=>$quarter, year=>$year &>
+% }
+</%method>
+
+<%perl>
+if ($classid) {
+    if($type eq 'dw') {
+        $m->comp('/mason/db/classes/dwdump.comp', classid=>$classid);
+    }
+    else {
+        # provide feedback form for students, if enabled, and not an instructor (unless tsudent view)
+        if($type =~ /(ask|feedback)/ && $flags =~ /(ask|feedback)/ && (!$auth || $noauth)) {
+            $m->comp('/mason/db/classes/ask_form.comp' , classid=>$classid, type=>$type);
+        }
+        # now render the class items as appropriate
+        $m->comp('/mason/db/classes/render_class.comp', %ARGS, classid=>$classid, showall=>$showall, item=>$item, urlitem=>$urlitem, noauth=>$noauth, type=>$type);
+    }
+}
+else {
+    $m->comp('/mason/db/classes/classlist.comp', year=>$year, quarter=>$quarter, subject=>$subject);
+}
+
+# vim:set syntax=mason:
+</%perl>

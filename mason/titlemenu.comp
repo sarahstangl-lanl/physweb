@@ -1,0 +1,61 @@
+<%doc>
+  Print proper code to handle the above and below menus around the page title
+  vim:set syntax=mason:
+</%doc>
+
+
+<%method begin>
+  <%args>
+    $type => "above"
+  </%args>
+<div class="titlemenu titlemenu_<% $type |u%>" id="titlemenu_<% $type |u %>">
+<ul>
+</%method>
+
+<%method item>
+   <%args>
+    $selected => undef
+    $link => '#'
+    $content => ''
+    $hidden => 0
+    $style => ''
+   </%args>
+   <%perl>
+    my $uri = $r->uri; # the path... no query string 
+    if($ENV{'QUERY_STRING'}) {
+        my $query = $ENV{'QUERY_STRING'};
+        $query =~ s/&/&amp;/go;
+        $uri .= "?" . $query;
+    }
+    
+    my $simple_link = $link;
+    if ($simple_link =~ /index.html/) {
+       $uri =~ s|/$|/index.html|;
+    } else {
+       $uri =~ s/index\.html//;
+    }
+
+    if (!defined($selected)) {
+        my $reg_link = quotemeta($simple_link);
+        # Support relative links
+        (my $rel_uri = $uri) =~ s|^.+/||;
+        if(($uri eq $simple_link) || ($uri =~ /^$reg_link.*/) || ($rel_uri =~ /^$reg_link/)) {
+            $selected = 1;
+        }
+    }
+
+   if(!$hidden or $selected) {
+   </%perl>
+   <li <% $selected?'class="titlemenu_current"':''%>><a style="<% $style %>" href="<% $link %>"><% $m->content | h%><% $content | h%></a></li>
+   <%perl>
+   }
+   </%perl>
+</%method>
+
+<%method end>
+  </ul>
+  </div>
+</%method>
+
+
+ERROR: Call titlemenu component directly. Did you mean method :item?

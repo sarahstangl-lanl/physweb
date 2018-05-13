@@ -1,0 +1,59 @@
+
+<%DOC>
+   Component: time.comp
+        Date: 2007.08.01
+      Author: clayton
+     Changed: 2007.08.01 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  %start_time    => {'hour' => 8, 'minute' => 00}
+  $period_break  => 15
+  $period_length => 50
+  $separator     => ' - '
+</%ARGS>
+
+<%INIT>
+  my %time = %start_time;
+  my $sub = sub {
+  # Basic time management and display without module dependency
+
+  sub time_increment {
+    my ($minutes, %time) = @_;
+    $time{'minute'} += $minutes;
+    while ($time{'minute'} >= 60)
+    {
+      $time{'hour'}++;
+      $time{'minute'} -= 60;
+    }
+    return %time;
+  }
+
+  sub time_display {
+    my (%time) = @_;
+    my $time_hour = $time{'hour'};
+    my $is_am = 1;
+    if ($time{'hour'} >= 12)
+    {
+      $is_am = 0;
+    }
+    if ($time{'hour'} >= 13)
+    {
+      $time_hour -= 12;
+    }
+    return $time_hour . ':' . (length($time{'minute'}) < 2 ? '0' : '') . $time{'minute'} . ' ' . ($is_am ? 'AM' : 'PM');
+  }
+ 
+  my $return = time_display(%time) . $separator . time_display(%time = time_increment($period_length,%time));
+  %time = time_increment($period_break, %time);
+  return $return;
+
+  };
+</%INIT>		
+
+<%perl>
+return $sub;
+</%perl>
+		

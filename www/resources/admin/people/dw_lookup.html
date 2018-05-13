@@ -1,0 +1,63 @@
+<%ARGS>
+$last_name=>''
+$first_name=>''
+</%ARGS>
+
+<%method title>Data Warehouse People Lookup</%method>
+
+<%method no_search_box></%method>
+
+<%INIT>
+
+use tablesearch;
+
+$m->comp('/mason/auth/auth_block.comp', internal=>1);
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $directory_auth = $m->comp('/mason/auth/auth_check_directory.comp');
+if (!$admin_auth && !$directory_auth) { print "<H4>Not authorized</H4>"; return; }
+
+my $dw_dbh = $m->comp('/mason/dw_dbh.comp');
+my $query;
+my @args;
+my $where = "1 = 1 ";
+if($last_name) { 
+    $where .= " AND  UPPER(LAST_NAME) LIKE ? ";
+    push(@args,uc($last_name)); 
+}
+if($first_name) { 
+    $where .= " AND  UPPER(FIRST_NAME) LIKE ? ";
+    push(@args,uc($first_name)); 
+}
+</%INIT>
+
+<p>Enter at least last name or first name and click Submit.  Fields are case-sensitive.</p>
+<form method="POST" action="dw_lookup.html">
+<table><tr><td>Last Name</td><td><input type="text" name="last_name"></td></tr>
+<tr><td>First Name</td><td><input type="text" name="first_name"></td></tr>
+</table>
+<p><input type="submit" value="Submit"></p>
+</form>
+
+<%perl>
+if($last_name || $first_name) {
+    print "<h4>Student Account Matches</h4>\n";
+    # Query is hardly too complicated for tablesearch to generate, but this provides a working example of passing a query directly to tablesearch
+    $query = "SELECT * FROM PS_DWSA_DEMO_ADDR WHERE $where ORDER BY LAST_NAME ASC, FIRST_NAME ASC";
+    my $student_ts = new Tablesearch(
+            dbh => $dw_dbh,
+            storage_engine => 'oracle',
+            sql => [ $query, @args ],
+            debug => 0,
+    );
+    $student_ts->display;
+    print "<h4>Human Resources Matches</h4>\n";
+    $query = "SELECT * FROM PS_DWHR_DEMO_ADDR_VW WHERE $where ORDER BY LAST_NAME ASC, FIRST_NAME ASC";
+    my $hr_ts = new Tablesearch(
+            dbh => $dw_dbh,
+            storage_engine => 'oracle',
+            sql => [ $query, @args ],
+            debug => 0,
+    );
+    $hr_ts->display;
+}
+</%perl>

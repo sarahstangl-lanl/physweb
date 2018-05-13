@@ -1,0 +1,100 @@
+
+<%DOC>
+   Component: admin_section.html
+        Date: 2007.07.31
+      Author: clayton
+     Changed: 2007.07.31 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $admin_year => ''
+  $admin_semester => ''
+  $admin_section => ''
+  @schedule => ()
+  $new_section => undef
+</%ARGS>
+
+<%INIT>
+  my $auth_admin = $m->comp('/mason/auth/auth_check_ta_admin.comp');
+  if (!$auth_admin) { $m->redirect('not_authorized.html'); }
+
+  my %config = $m->comp('/mason/db/tascheduling/config.comp');
+
+  # ----------------------------------------------------------------------
+
+  # DB Magic
+
+  my $update_db = sub {
+    my ($query, $sql);
+
+    $sql = 'DELETE FROM taschedule_sections WHERE year=? AND semester=? AND section=? LIMIT ?';
+    $query = $dbh->prepare($sql);
+    $query->execute($admin_year, $admin_semester, $admin_section, $config{'days'} * $config{'periods'});
+ 
+    $sql = 'INSERT INTO taschedule_sections (year, semester, section, day, slot) VALUES (?,?,?,?,?)';
+    $query = $dbh->prepare($sql);
+   
+    for(my $i = 0; $i < scalar(@schedule); $i++)
+    {
+      my ($day, $period) = split('\|', $schedule[$i]);
+      $query->execute($admin_year, $admin_semester, $new_section, $day+1, $period);
+    }
+  };
+
+  # ----------------------------------------------------------------------
+
+  my $fetch_db = sub {
+    my ($sql, $query_sched, $query_list, $result);
+    $sql = 'SELECT slot, day+0 AS day FROM taschedule_sections WHERE year=? AND semester=? AND section=? ORDER BY slot ASC, day ASC';
+    $query_sched = $dbh->prepare($sql);
+    $query_sched->execute($admin_year, $admin_semester, $admin_section);
+
+    return ($query_sched);
+  };
+
+  if (defined($new_section))
+  {
+    &$update_db(\@schedule);
+
+    $admin_section = $new_section;
+  }
+
+  my $section = &$fetch_db();
+</%INIT>
+
+<%method title>TA Scheduling</%method>	
+
+% if (length($admin_section) > 0) {
+<h3 style="border-bottom: 1px solid black; margin-bottom: 0.25em;">Section Edit: <% $admin_section |h %>, <% ($admin_semester eq 'spring' ? 'Spring' : 'Fall') |h %> <% $admin_year |h %></h3>
+% } else {
+<h3 style="border-bottom: 1px solid black; margin-bottom: 0.25em;">New Section: <% ($admin_semester eq 'spring' ? 'Spring' : 'Fall') |h %> <% $admin_year |h %></h3>
+% }
+
+<form action="admin_section.html?admin_year=<% $admin_year |u %>&amp;admin_semester=<% $admin_semester |u %>&amp;admin_section=<% $admin_section |u %>" method="POST">
+Section #: <input type="text" name="new_section" size="5" value="<% $admin_section |h %>">
+<table>
+<tr><th></th><th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th></tr>
+% my $time = $m->comp('time.comp', 'start_time'=>$config{'start_time'}, 'period_length'=>$config{'period_length'}, 'period_break'=>$config{'period_break'});
+% my $row = 0;
+% my $fetch = $section->fetchrow_hashref();
+% for (my $period=0; $period<$config{'periods'}; $period++) {
+<tr><th style="text-align: right;"><% &$time() |h %></th>
+% for (my $day=0; $day<$config{'days'}; $day++) {
+% my $value = '';
+% if ($fetch && ${$fetch}{'day'}-1 == $day && ${$fetch}{'slot'} == $period)
+% {
+%   $value = ' checked';
+%   $fetch = $section->fetchrow_hashref();
+% }
+<td align="center"><input type="checkbox" name="schedule" value="<% $day %>|<% $period %>"<% $value %>></td>
+% }
+</tr>
+% $row++;
+% }
+</table>
+
+
+<input type="reset" value="Clear" onclick="javascript:return confirm('Are you sure?')"> <input type="submit" value="Update">
+</form>

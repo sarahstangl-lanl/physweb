@@ -1,0 +1,41 @@
+<%doc>
+Send an attached file to a reviewer
+</%doc>
+
+<%args>
+$form_reply_id => undef
+$field_name => undef
+</%args>
+<%flags>
+inherit=>undef
+</%flags>
+
+<%init>
+if(!$form_reply_id || !$field_name) {
+  print "Required arguments missing";
+  return;
+}
+
+my $file = physdb::queryfirstrow("
+               SELECT form.id, form.auth, form_reply_fields.file_name, form_reply_fields.file_mime, form_reply_fields.file_contents
+                 FROM form
+                 JOIN form_reply ON form_reply.form_id=form.id
+                 JOIN form_reply_fields ON form_reply_fields.form_reply_id=form_reply.id
+                WHERE form_reply_fields.field_name=? AND form_reply.id=? ", 
+                $field_name, $form_reply_id);
+
+if($file) {
+    if(!$m->comp('/mason/auth/auth_check.comp', auth_type=>$file->{auth})) {
+        print "You do not have access. You must be in group '". $file->{auth}. "'.";
+        return;
+    }
+    $r->content_type($file->{file_mime});
+    $r->headers_out->unset('Content-Length');
+    $r->headers_out->set('Content-Disposition' => 'file; filename="'.$file->{file_name}.'"');
+    $m->out($file->{file_contents});
+    $m->abort;
+}
+else {
+    print "ERROR: File Not found";
+}
+</%init>

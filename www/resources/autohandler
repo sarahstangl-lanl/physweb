@@ -1,0 +1,13 @@
+<%doc>
+  vim:set syntax=mason:
+</%doc>
+% return if ($m->comp('/mason/db/dbcheck.comp'));
+<% $m->call_next %>
+<%method titlemenu_above>
+% my $scheduler = $m->comp('/mason/auth/auth_check.comp', auth_type => 'scheduler');
+<& /mason/titlemenu.comp:begin, type=>"above" &>
+<&| /mason/titlemenu.comp:item,    link=>'/resources/myphys/'   &>MyPhys</&>
+<&| /mason/titlemenu.comp:item,    link=>'/resources/admin/'   &>Admin</&>
+<&| /mason/titlemenu.comp:item,    link=>'/resources/scheduling/', hidden=>$scheduler?0:1  &>Scheduling</&>
+<& /mason/titlemenu.comp:end &>
+</%method>

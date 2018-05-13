@@ -1,0 +1,13 @@
+<%args>
+$groupname
+</%args>
+<%init>
+my $results;
+my $sql = "select directory.email from groupmembers left join directory on (directory.uid=groupmembers.uid) where manager=1 and groupname=?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($groupname);
+while (my @row = $sth->fetchrow_array) {
+    $results .= ",".$row[0];
+    }
+return substr($results,1);
+</%init>

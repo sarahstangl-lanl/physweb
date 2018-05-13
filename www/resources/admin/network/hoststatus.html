@@ -1,0 +1,137 @@
+<%ARGS>
+$netclass=>''
+$debug=>0
+</%ARGS>
+
+<%method title>Network Devices</%method>
+
+<%INIT>
+use Time::Duration;
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+if(!$auth) {
+  print "Must be admin\n";
+  return;
+}
+</%init>
+
+
+<%perl>
+
+# Wrap hosts without dns entries in parenthesis
+my $name_formatter = sub {
+    my ($text, $disp_format, $vars) = @_;
+    my %vars = %$vars;
+    my $out=$text;
+
+    if (!$vars{'has_dns'}) {
+        $out = '<i>' . $text . '</i>';
+    }
+    return $out;
+};
+# format name of admin (physid or x500)
+my $admin_formatter = sub {
+    my ($text, $disp_format, $vars) = @_;
+    my %vars = %$vars;
+    if (!$text && $vars{'x500'}) {$text = '<i>'.$vars{'x500'}.'</i>';};
+    if (!$text) {$text = 'uid '.$vars{'admin_uid'};};
+    if ($vars{'inactive'}) {
+        $text .= ' <span style="color: red">inactive</span>';
+    }
+    return $text;
+};
+
+
+my $where = '1=1';
+if ($netclass) {
+    if ($netclass eq 'unix') {
+        $where = "net_hosts.os REGEXP '(tru64|solaris|unix|vms|freebsd|openbsd)' AND net_hosts.groupname='sysadm'";
+    }
+    elsif ($netclass eq 'linuxws') {
+        $where = "net_hosts.os='linux' AND net_hosts.type='workstation' AND net_hosts.groupname='sysadm'";
+    }
+    elsif ($netclass eq 'linuxsrv') {
+        $where = "net_hosts.os='linux' AND net_hosts.type='server' AND net_hosts.groupname='sysadm'";
+    }
+    elsif ($netclass eq 'windows') {
+        $where = "net_hosts.os='windows' AND net_hosts.groupname='sysadm'";
+    }
+    elsif ($netclass eq 'physlab') {
+        $where = "net_hosts.cluster='physlab'";
+    }
+    elsif ($netclass eq 'printers') {
+        $where = "net_hosts.type='printer' AND net_hosts.groupname='sysadm'";
+    }
+    elsif ($netclass eq 'netdev') {
+        $where = "net_hosts.type REGEXP '(other|fcswitch|eswitch|wap|raid|ups)' AND net_hosts.groupname='sysadm'";
+    }
+    elsif ($netclass eq 'blocked') {
+        $where = "net_interfaces.blockrt>0";
+    }
+    elsif ($netclass eq 'inactive') {
+        $where = "directory.inactive>0";
+    }
+
+    elsif ($netclass gt 0) {
+        $where = "admin_uid = '$netclass'";
+    }
+}
+
+$m->comp('/mason/db/tablesearch.comp',
+    table       => 'net_hosts',
+    debug       => $debug,
+    joins       => [
+                    'cfengine.runlog'   => 'rundate = (SELECT MAX(rundate) FROM cfengine.runlog WHERE host_id = net_hosts.id) AND net_hosts.id = runlog.host_id',
+                    ],
+    where       => [ 'groupname = \'sysadm\'' ],
+    field_list  => [
+                    'net_hosts.id AS action',
+                    'net_hosts.computer_name AS name',
+                    'net_hosts.cluster AS cluster',
+                    'CONCAT(net_hosts.building, " ", net_hosts.room) AS location',
+                    'IF(LENGTH(model), model, cfengine.runlog.system_model) AS model',
+                    'CAST(runlog.memory AS UNSIGNED) AS memory',
+                    'DATE(runlog.rundate) AS cfdate',
+                    'runlog.uname AS os',
+                    'net_hosts.type',
+                    'runlog.cfengine_staging AS staging',
+                    'runlog.phys_release AS build',
+                    'runlog.yum_errors',
+                    'runlog.warranty_end',
+                    'IF((LENGTH(runlog.system_serial) = \'7\'), runlog.system_serial,\'\') AS svctag',
+                    'runlog.bios_version AS bios',
+                    'runlog.bmc_version AS bmc',
+                    ],
+    field_params => {
+                    'action' => {
+                            'name' => '',
+                            'nowrap' => 1,
+                            'data_format' => sub {
+                                my $id = shift;
+                                my $out = '<a href="edit_host_form.html?id='.$id.'"><img src="/images/imgsel_edit.png" alt="edit" title="edit" border="0"></a>&nbsp;';
+                                $out .= '<a href="edit_host_form.html?copy='.$id.'"><img src="/images/imgsel_copy.png" alt="copy" title="copy" border="0"></a>&nbsp;';
+                                $out .= '<a href="delete_form.html?host_id='.$id.'"><img src="/images/delete.png" alt="delete" title="delete" border="0"></a>';
+                                return $out;
+                                },
+                            },
+                    'name' => {
+                                'url' => 'host.html?id=$row{action}',
+                                'nowrap' => 1,
+                                },
+                    'location' => { 'nowrap' => 1, },
+                    'type' => { 'nowrap' => 1, },
+                    'model' => { 'nowrap' => 0, },
+                    'last_seen' => {
+                                'name' => 'Last Seen',
+                                },
+                    },
+    where => 'flag_disabled = 0',
+    excluded_search_fields => [ 'net_dns.hostname IS NOT NULL' ],
+    default_sort_field => 'modified',
+    default_sort_dir => 'desc',
+    header_format      => 'ucfirst',
+    excel_link => 1,
+    extra_url_args => ['debug', 'netclass'],
+    limit => 50,
+);
+
+</%perl>

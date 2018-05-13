@@ -1,0 +1,103 @@
+
+<%DOC>
+   Component: autoindent.html
+        Date: 2009.02.17
+      Author: nick
+     Changed: 2009.02.17 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+</%INIT>
+blah
+<textarea cols="150" rows="30" id="textBox"></textarea>
+<script type="text/javascript">	
+document.getElementById('textBox').onkeydown = autoFormat;
+document.getElementById('textBox').onkeyup = clearShift;
+
+var shiftPressed = 0;
+var ta = document.getElementById('textBox');
+
+function clearShift() {
+  shiftPressed = 0;
+}
+
+function autoFormat(e) {
+  if(e.which == 16) { shiftPressed = 1; return false; }
+  else if(shiftPressed && e.which == 221) return braceFormat();
+  else if(e.which == 13) {
+    startPos = ta.selectionStart;
+    start = startPos;
+    scrollTop = ta.scrollTop;
+    indent = '\n';
+    offset = 0;
+    while(start < ta.value.length) {
+      if(ta.value.substring(start,start+1) == '\n') break;
+      if(ta.value.substring(start,start+1) == '}') {
+        ta.value = ta.value.substring(0, startPos) + '\n' + ta.value.substring(start+1, ta.value.length);
+        ta.setSelectionRange(startPos+1, startPos+1);
+        ta.scrollTop = scrollTop;
+        return braceFormat();
+      }
+      start++;
+    }
+    start = startPos;
+    while(start >= 0) {
+      if(start == 0 || ta.value.substring(start-1,start) == '\n') {
+        while(ta.value.substring(start,start+1) == ' ') { indent += ' '; start++; }
+        if(startPos < 2 || ta.value.substring(startPos-1,startPos) != '\n') {
+          start = startPos;
+          while(ta.value.substring(start,start+1) == ' ') { offset++; start++; }
+          ta.value = ta.value.substring(0, ta.selectionStart) + indent + ta.value.substring(ta.selectionStart+offset, ta.value.length);
+          ta.setSelectionRange(startPos+indent.length, startPos+indent.length);
+          ta.scrollTop = scrollTop;
+          return false; 
+        } else return true;
+      }
+      start--; 
+    }
+  }
+  return true;
+
+
+
+function braceFormat() {
+    startPos = ta.selectionStart;
+    scrollTop = ta.scrollTop;
+    pos = startPos;
+    newlineFound = false;
+    rightBraces = 0;
+    offset = 0;
+    indent = '';
+    while(pos >= 0) {
+      if(pos == 0) { return true; }
+      if(ta.value.substring(pos-1,pos) == '\n') { newlineFound = true; }
+      else if(ta.value.substring(pos-1,pos) != ' ' && !newlineFound) { return true; }
+      else if(ta.value.substring(pos-1,pos) == '}') rightBraces++;
+      else if(ta.value.substring(pos-1,pos) == '{') {
+        if(rightBraces) rightBraces--;
+        else if(newlineFound) {
+          while(pos >= 0) {
+            if(pos == 0 || ta.value.substring(pos-1,pos) == '\n') {
+              while(ta.value.substring(pos,pos+1) == ' ') { indent += ' '; pos++; }
+              indent += '}'
+              pos = startPos;
+              while(ta.value.substring(pos,pos-1) == ' ') { offset++; pos--; }
+              ta.value = ta.value.substring(0, startPos-offset) + indent + ta.value.substring(startPos, ta.value.length);
+              ta.setSelectionRange(startPos-offset+indent.length, startPos-offset+indent.length);
+              ta.scrollTop = scrollTop;
+              return false;
+            }
+            pos--; 
+          }
+        } else return true;
+      }
+      pos--;
+    }
+    return true;
+}
+</script>

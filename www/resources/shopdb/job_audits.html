@@ -1,0 +1,97 @@
+<%args>
+    $job_item => undef
+    $job_id => undef
+    $ajax => undef
+</%args>
+
+<%init>
+    use tablesearch;
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $auth_args = $session{'shopdb-auth'};
+
+    unless ($job_item || $job_id) {
+        print "job_item or job_id is required";
+        return;
+    }
+
+    $job_item ||= $schema->resultset('Jobs')->find({ job_id => $job_id });
+
+    unless ($job_item) {
+        print _h("invalid job_id $job_id");
+        return;
+    }
+
+    my %jobs = map { $_->id => $_->project_name } ($job_item, $job_item->child_jobs);
+
+    my $rs = $job_item->audit_entries(with_child_jobs => 1);
+
+    my $ts = new Tablesearch(
+        resultset           => $rs,
+        prefix              => 'audits_',
+        columns             => [ qw/entry_id display_name result_id action_type value entry_date/ ],
+        field_params        => {
+            entry_id => {
+                hidden => 1,
+            },
+            display_name => {
+                name => 'Name',
+                width => 125,
+            },
+            result_id => {
+                name => 'Project Name',
+                data_format => sub {
+                    my $value = shift;
+                    return $jobs{$value};
+                },
+            },
+            action_type => {
+                name => 'Entry',
+                data_format => sub {
+                    my ($value, $disp, $row, $ts) = @_;
+                    if ($value eq 'insert') {
+                        return '
+<span id="entry' . $row->{'entry_id'} . '_desc">Created job.</span>
+<span id="entry' . $row->{'entry_id'} . '_value" style="display:none">' . $row->{'value'} . '</span>
+<a id="entry' . $row->{'entry_id'} . '_link" href="#" onclick="showEntry(' . $row->{'entry_id'} . ')"><small>[Show values]</small></a>';
+                    }
+                    return $row->{'value'};
+                },
+            },
+            value => {
+                hidden => 1,
+            },
+            entry_date => {
+                width => 150,
+            },
+        },
+        header_format       => 'ucfirst_all',
+        html_table_id       => 'table_job_audits',
+        hide_search         => 1,
+        extra_url_args      => [ qw/job_id/ ],
+        ajax_url            => 'job_audits.html',
+        ajax_parameters     => { ajax => 1 },
+        default_sort_field  => 'entry_date',
+        default_sort_dir    => 'desc',
+        limit => 10,
+    );
+
+    if ($ajax) {
+        $m->clear_buffer;
+        $ts->display;
+        $m->abort;
+        return;
+    }
+
+</%init>
+
+<script language="javascript">
+function showEntry(entryID) {
+    $('entry' + entryID + '_desc').hide();
+    $('entry' + entryID + '_link').hide();
+    $('entry' + entryID + '_value').show();
+}
+</script>
+
+<span>
+% $ts->display;
+</span>

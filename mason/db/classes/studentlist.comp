@@ -1,0 +1,182 @@
+<%method tshash>
+    <%doc>
+    Returns a hash of tablesearch args for querying students and sections. Override as needed for use or get its ->sql for manual use.
+    </%doc>
+    <%args>
+    $showsection=>undef
+    $showall=>1
+    $clickers_enabled=>undef
+    $classid
+    </%args>
+    <%init>
+      unless (defined $clickers_enabled) {
+          my $sth = $dbh->prepare("SELECT flags FROM classlist WHERE classid=?");
+          $sth->execute($classid) or die "Failed to fetch class flags: " . $sth->errstr;
+          if (my $row = $sth->fetchrow_hashref) {
+              $clickers_enabled = $row->{flags} =~ /clickers/;
+          }
+      }
+      use tablesearch;
+      return (
+        field_list=>[
+            'grades.users.dispname as student_name',
+            'concat(grades.users.x500, \'@umn.edu\') as email',
+            'grades.clickers.clickerid',
+            'group_concat(distinct(child_class.section)) as lab_section',
+            'group_concat(concat(ta_directory.first_name, \' \', ta_directory.last_name)) as lab_TA',
+            'group_concat(ta_directory.email) as ta_email',
+            'grades.users.id as userid',
+            'grades.classlist.auto_added',
+        ],
+        table=>'grades.users',
+        joins => [
+            'grades.classlist' => 'grades.classlist.userid=grades.users.id',
+            #'grades.classlist child_classlist' => ['child_classlist.userid=grades.users.id AND child_classlist.classid IN (SELECT classid FROM classlist WHERE (parent=? AND component=\'LAB\') OR classlist.classid=?) ', $classid, $classid],
+            'grades.classlist child_classlist' => ['child_classlist.userid=grades.users.id AND child_classlist.classid IN (SELECT classid FROM classlist WHERE (parent=? AND component=\'LAB\')) ', $classid],
+            'webdb.classlist child_class' => 'child_class.classid=child_classlist.classid ',
+            # ta here means child section ta (ie labs)
+            'webdb.members as ta' => "ta.type='TA' AND ta.memberof=child_classlist.classid",
+            # tried this to include parent section tas but i dont think thats what we really want...
+            #'webdb.members as ta' => "ta.type='TA' AND (ta.memberof=child_classlist.classid OR ta.memberof=classlist.classid)",
+            'webdb.directory as ta_directory' => 'ta_directory.uid=ta.uid',
+            'grades.clickers clickers' => ['clickers.classid=? AND grades.users.id=clickers.userid', $classid],
+        ],
+        where => [ "grades.classlist.classid=? AND ( child_class.section=? OR ?=1 ) ", $classid, $showsection, $showall ],
+        group_by => "GROUP BY grades.users.dispname, grades.users.x500, grades.users.id",
+        field_params => {
+            id => { hidden=>1, },
+            ta_email => { hidden=>1, },
+            clickerid => {
+                name => 'Clicker ID',
+                hidden => !$clickers_enabled,
+            },
+            auto_added => {
+                hidden => 1,
+            },
+            userid => { hidden => 1,},
+        },
+        header_format => 'ucfirst_all',
+        default_sort_field=>'student_name',
+        hide_pagenator => 1,
+        no_limit => 1,
+        debug => 0,
+        prefix => 'students',
+        excel_link => 1,
+        excel_filename => "students_of_classid_$classid.xls",
+        excluded_search_fields => [ 'group_concat(ta_directory.email)',
+                                    'group_concat(concat(ta_directory.first_name, \' \', ta_directory.last_name))',
+                                    'group_concat(distinct(child_class.section))'],
+      );
+    </%init>
+</%method>
+
+<%method taonlyquery>
+    <%doc>
+      Returns string and args to append to WHERE clause, to limit the queries to only students (or sections) for which $uid is the TA
+    </%doc>
+    <%args>
+    $tauid
+    $classid
+    </%args>
+    <%init>
+        ### This where clause will filter the list down to only members of sections where someone is ta. ###
+        my $authta_subquery = ' AND child_class.classid IN (SELECT classlist.classid FROM classlist
+                                                         JOIN members
+                                                           ON members.memberof=classlist.classid
+                                                        WHERE members.type=?
+                                                          AND members.uid=?
+                                                          AND classlist.parent=?) ';
+        my @authta_subqueryargs = ('TA', $tauid, $classid);
+        return ($authta_subquery, @authta_subqueryargs);
+    </%init>
+</%method>
+
+<%method sections>
+    <%doc>
+        Returns a tablesearch object which will show all sections, or a TA's own sections
+    </%doc>
+    <%args>
+    $classid
+    $tauid=>undef
+    </%args>
+    <%init>
+        ## Grab the common base to work from
+        my %tshash = $m->comp('SELF:tshash', classid=>$classid);
+
+        if($tauid) {
+            my ($authta_subquery, @authta_subqueryargs) = $m->comp("SELF:taonlyquery", tauid=>$tauid, classid=>$classid);
+            # Insert the ta filter if they are a ta
+            $tshash{'where'}[0] .= $authta_subquery;
+            push @{$tshash{'where'}}, @authta_subqueryargs;
+        }
+        # Override field list to only class sections
+        $tshash{field_list} = [ 'distinct(child_class.section)', 'child_class.classid' ];
+        $tshash{group_by} = undef;
+        $tshash{default_sort_field} = "section";
+        my $ts = Tablesearch->new(%tshash);
+        return $ts;
+    </%init>
+</%method>
+
+<%method students>
+    <%doc>
+        Gets the list of students for a class and its labs.
+        If tauid is passed, only show students in sections tauid is TA of
+    </%doc>
+    <%args>
+    $classid
+    $tauid=>undef
+    </%args>
+    <%perl>
+        ## Grab the common base to work from
+        my %tshash = $m->comp('SELF:tshash', classid=>$classid);
+        if($tauid) {
+            my ($authta_subquery, @authta_subqueryargs) = $m->comp("SELF:taonlyquery", tauid=>$session{'uid'}, classid=>$classid);
+            # Insert the ta filter if they are a ta
+            $tshash{'where'}[0] .= $authta_subquery;
+            push @{$tshash{'where'}}, @authta_subqueryargs;
+        }
+        my $ts = Tablesearch->new(%tshash);
+        return $ts;
+    </%perl>
+</%method>
+
+<%method tas>
+    <%doc>
+    Returns a tablesearch object of all the TAs for labs of a class
+    </%doc>
+    <%args>
+    $classid
+    </%args>
+    <%init>
+       # ## Grab the common base to work from
+       # my %tshash = $m->comp('SELF:tshash', classid=>$classid);
+
+        return Tablesearch->new(
+            field_list=>[
+                'distinct concat(ta_directory.last_name, \', \', ta_directory.first_name) as fullname',
+                'ta_directory.email',
+                #"if(classlist.parent IS NOT NULL, classlist.section, 'Lecture') as lab_section",
+                "if(classlist.parent IS NOT NULL, classlist.section, NULL) as lab_section",
+
+            ],
+            table=>'directory as ta_directory',
+            joins => [
+                'members' => 'members.uid=ta_directory.uid',
+                'classlist' => 'classlist.classid=members.memberof',
+            ],
+            where => [ "(classlist.classid=? OR (classlist.parent=? AND classlist.component='LAB')) AND members.type='TA' ", $classid, $classid ],
+            header_format => 'ucfirst_all',
+            #sort_prefix_field => 'type <> \'instructor\'',
+            default_sort_field=>'fullname',
+            hide_pagenator => 1,
+            no_limit => 1,
+            prefix => 'tas',
+            hide_search => 1,
+            excel_filename => "tas_of_classid_$classid.xls",
+            excluded_search_fields => [ 'group_concat(distinct(child_class.section))'],
+        );
+    </%init>
+</%method>
+
+

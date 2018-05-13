@@ -1,0 +1,65 @@
+<%flags>
+inherit=>undef
+</%flags>
+<%init>
+use Socket;
+use physdb;
+use MIME::Base64;
+</%init>
+<%perl>
+if(!defined($dbh)) { return; } # Check database connection
+my $fqdn = gethostbyaddr(inet_aton($r->connection->get_remote_host), AF_INET);
+my ($hostname,undef) = split(/\./, $fqdn, 2);
+#$hostname = 'phys-demo-01';
+my @args = ($hostname);
+my $query = "SELECT cluster FROM net_hosts WHERE computer_name = ? AND cluster <> ''";
+my $sth = physdb::query($query, @args);
+$query = "SELECT DISTINCT * FROM (";
+if ($sth->rows) {
+	$query .= "
+        SELECT d.id, d.name, e.filename, e.string
+        FROM webdb.net_hosts AS a
+        JOIN grouppolicy.policysetmembers AS b ON b.clusterid = a.cluster
+        JOIN grouppolicy.policymembers AS c ON c.policysetid = b.policysetid
+        JOIN grouppolicy.policies AS d ON c.policyid = d.id
+        JOIN grouppolicy.policystrings AS e ON d.id = e.policyid
+        WHERE a.computer_name = ?";
+    push(@args, $hostname);
+} else {
+    $query .= "
+        SELECT c.id, c.name, d.filename, d.string
+        FROM grouppolicy.policysetmembers AS a
+        JOIN grouppolicy.policymembers AS b ON a.policysetid = b.policysetid
+        JOIN grouppolicy.policies AS c ON b.policyid = c.id
+        JOIN grouppolicy.policystrings AS d ON c.id = d.policyid
+        WHERE clusterid = '0'";
+}
+$query .= "
+	UNION
+    SELECT d.id, d.name, e.filename, e.string
+    FROM webdb.net_hosts AS a
+    JOIN grouppolicy.policysetmembers AS b ON a.id = b.computerid
+    JOIN grouppolicy.policymembers AS c ON b.policysetid = c.policysetid
+    JOIN grouppolicy.policies AS d ON c.policyid = d.id
+    JOIN grouppolicy.policystrings AS e ON d.id = e.policyid
+	WHERE a.computer_name = ?) AS z ORDER BY filename, id";
+$sth = physdb::query($query, @args);
+</%perl>
+<?xml version="1.0" encoding="utf-8"?>
+<GroupPolicies>
+% my $filename = '';
+% while (my $results = $sth->fetchrow_hashref) {
+%     if ($filename ne $results->{'filename'}) {
+%         if ($filename) {
+  </PolicyFile>
+%         }
+%     $filename = $results->{'filename'};
+  <PolicyFile filename="<% decode_base64($filename) %>">
+%     }
+    <Policy>
+      <PolicyName><% $results->{'name'} %></PolicyName>
+      <PolicyString><% $results->{'string'} %></PolicyString>
+    </Policy>
+% }
+  </PolicyFile>
+</GroupPolicies>

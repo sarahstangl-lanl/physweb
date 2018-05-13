@@ -1,0 +1,62 @@
+<%args>
+$uid => undef
+$admin => undef
+$error_fields => []
+</%args>
+<%init>
+$uid = $session{uid} unless ($uid && $admin);
+my $ta = $m->comp('/mason/db/moonproject/load_ta.comp', admin => $admin, uid => $uid);
+my $ta_settings = $m->comp('/mason/db/moonproject/ta_settings.comp');
+
+</%init>
+<h2>TA Settings</h2>
+<br/>
+<form action="settings_update.html" method="post">
+<table id="ta_settings">
+<%perl>
+my $print_field = sub {
+    my %args = @_;
+    my $type = $args{params}->{type};
+    my $value = defined $ARGS{$args{field}}  ? $ARGS{$args{field}} : ref $args{params}->{inflate} eq 'CODE' ? $args{params}->{inflate}->($args{value}) : $args{value};
+    print '<td>';
+    if ($type =~ /^int|float$/) {
+        print '<input ' . ((grep { $_ eq $args{field} } @$error_fields) ? 'style="background-color:red" ' : '') . 'size="10" name="' . _h($args{field}) . '" value="' . _h($value) . '"/>';
+    }
+    elsif ($type eq 'radio') {
+        my @options = @{$args{params}->{options}};
+        while (@options) {
+            my $option_value = shift @options;
+            my $option = shift @options;
+            print '<input type="radio" value="' . _h($option_value) . '" name="' . _h($args{field}) . '"' . (($value && $value eq $option_value) ? ' CHECKED' : '') . '/>' . $option;
+        }
+    }
+    elsif ($type eq 'select') {
+        my @options = @{$args{params}->{options}};
+        print '<select name="' . _h($args{field}) . '">';
+        while (@options) {
+            my $option_value = shift @options;
+            my $option = shift @options;
+            print '<option value="' . $option_value . '"' . (($value && $option_value eq $value) ? ' SELECTED' : '') . '>' . $option . '</option>';
+        }
+        print '</select>';
+    }
+    else {
+        die "Unknown type $type";
+    }
+    print '</td><td>' . ($args{params}->{help}) . '</td>';
+};
+
+if ($ta) {
+    my @settings = @{$ta_settings};
+    while (@settings) {
+        my $setting = shift @settings;
+        my $params = shift @settings;
+        print '<tr><th align="right" style="max-width: 200px; padding-right: 5px;">' . _h($params->{name}) . '<div class="moonproject_desc">' . _h($params->{desc}) . '</div></th>';
+        $print_field->(field => $setting, value => $ta->{$setting}, params => $params);
+        print '</tr>';
+    }
+}
+</%perl>
+<tr><td colspan="3" align="right"><input type="submit" value="Update values"/></td></tr>
+</table>
+</form>

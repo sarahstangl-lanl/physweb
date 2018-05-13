@@ -1,0 +1,23 @@
+
+<%DOC>
+   Component: classerror.html
+        Date: 2006.04.12
+      Author: allan
+     Changed: 2006.04.12 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+my $referer = $r->headers_in->{'Referer'};
+my $uri = $r->uri;
+</%INIT>		
+		
+<%method title>Class page error</%method>
+
+The page <% $uri |h %> was called incorrectly.
+
+This sometimes happens, for unknown reasons, with (older?) WebKit based browsers such as Safari.

@@ -1,0 +1,42 @@
+<%doc>
+   Component: auth_block.comp
+        Date: 9/3/2002
+      Author: allan
+ Description: bounce user to login page if not logged in
+</%doc>
+
+<%args>
+    $internal=>0
+</%args>
+
+<%init>
+    my $auth;
+    my $redirect = '/auth/index.html';
+    my $url = $r->uri;
+    my $message = "The page you are trying to view is not accessible unless you log in using a University of Minnesota username and password";
+    
+    if ($internal) {
+        $message .= " and are an internal Physics Department user";
+    
+        $auth = $m->comp('/mason/auth/auth_check_internal.comp');
+        if ($m->comp('/mason/auth/loggedin.comp')) {
+            $redirect = "/auth/restricted.html";
+        }
+    } else {
+        $auth = $m->comp('/mason/auth/auth_check.comp');
+    }
+    
+    $message =~ s/ /+/g;
+    $url =~ s/ /\%20/g;
+    
+    if ($r->args()) {
+        $url .= $m->interp->apply_escapes('?' . $r->args(), 'u');
+    }
+    if (!$auth) { 
+        $m->redirect("$redirect?url=$url&message=$message");
+    }
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

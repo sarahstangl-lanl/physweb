@@ -1,0 +1,101 @@
+<%method title>Activate Account</%method>
+<%init>
+    # temp for development and such
+    return
+        if (!$m->comp('/mason/auth/auth_check_sysadm.comp'));
+</%init>
+
+%# TODO: Will this be used for reactivated accounts too? Probably. If so it should grab current values for e-mail forward and the like.
+
+<table>
+
+<tr><td align="right">
+    Username
+</td><td>
+    <input type="text">
+</td></tr>
+
+<tr><td align="right">
+    Current Password
+</td><td>
+    <input type="password">
+</td></tr>
+
+<tr><td></td><td>
+<input type="submit" value="Begin Activation">
+</td></tr>
+
+<tr><td></td><td>
+    Activating username <b>clayton</b>
+</td></tr>
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><th align="left">Change password</th></tr>
+
+<tr><td align="right">
+    New Password
+</td><td>
+    <input type="password">
+</td></tr>
+
+<tr><td align="right" nowrap>
+    Repeat New Password
+</td><td>
+    <input type="password">
+</td></tr>
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><th align="left">Contact information</th></tr>
+
+<tr><td></td><td>
+We occasionally need to send you essential physics system mail such as quota notifications and account expiration warnings. 
+If you do not plan on checking your physics e-mail account, we suggest forwarding it to an address you do read.
+</td></tr> 
+
+<tr><td></td></tr>
+
+<tr><td align="right">
+    E-mail Forward
+</td><td>
+    <input type="text"> <small>(optional)</small>
+%# <!--  This should not be optional for those without a physics e-mail. For those we should just say E-mail and explain why required... -->
+</td></tr>
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><th align="left">Systems Announce</th></tr>
+
+<tr><td></td><td>
+<label><input type="checkbox"> I <b>do not</b> want to receive information via e-mail about planned downtime of managed systems and network infrastructure</label>
+</td></tr> 
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><th align="left" nowrap>Acceptable Use Policy</th></tr>
+
+<tr><td></td><td>
+To use our computing facilities, you must agree to follow our Acceptable Use Policy. In brief:
+
+<ul>
+<li>Do not share your account or password with anyone</li>
+<li>Do not use your account for illegal or unethical purposes</li>
+<li>Protect your account and our system resources by using strong passwords</li>
+<li>Respect the privacy of others</li>
+<li>Do not attempt to circumvent security or other administrative measures on the systems</li>
+<li>Contact the system administrators (<em>net@physics.umn.edu</em>) with any questions</li>
+</ul>
+
+The full policy is available on our computer support web page.
+
+<p><label><input type="checkbox"> I agree to the Acceptable Use Policy.</label>
+</td></tr>
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><td></td><td>
+<input type="submit" value="Activate Account">
+</td></tr>
+
+</table>

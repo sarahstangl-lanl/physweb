@@ -1,0 +1,129 @@
+<%doc>
+  vim: set syntax=mason:
+  Description:  Build a link like the current page, only changed slightly.
+</%doc>
+
+<%args>
+    $dargs=>undef         # The base arguments
+    $no_dargs => 0        # Don't add current query args to this url
+    $dargs_with_post => 0 # Include POST args in the new query (GET) string
+    %nargs=>()            # The args you want added/changed (Pass in (key=>val))
+    $protocol=>''         # Override https or http (or w/e)
+    $host=>''             # Override the hostname
+    $port=>''             # Override the port
+    $path=>''             # Override the /path/and/file.html
+    $oargs=>''            # Override the args (query string)
+    $full=>0              # Make the link include protocol://host:port (1) or just /path?foo=bar (0)
+    $escape=>0            # Escape the URL
+    %pathquery=>()        # Path query args to modify in the path
+    $pathquery_empty => 0 # Empty any incoming pathquery args
+</%args>
+
+<%perl>
+    #Don't edit the hashes that get pased in, edit a copy..
+    my %darg_copy;
+    if($dargs) {
+       %darg_copy = %$dargs;
+    }
+    $dargs = \%darg_copy;
+    # If we haven't been given default query args, and they do want them added (default), then grab them
+    if (!defined($dargs) && !$no_dargs) {
+        if ($dargs_with_post) {
+            # Grab combined GET and POST args
+            my %request_args = $m->request_args();
+            $dargs = \%request_args;
+        } else {
+            # Grab only GET args
+            $dargs = $m->comp('/mason/GET.comp');
+        }
+    } elsif (!defined($dargs)) { $dargs = {}; }
+    my $url = "";
+    my %info = $m->comp("/mason/request_info.comp");
+    
+    if($full) { 
+        $protocol = $info{'protocol'} unless($protocol);
+        $host = $info{'hostname'} unless($host);
+        $port = $info{'port'} unless($port);
+        if($port == 80 || $port == 443) {
+           $port = '';
+        } else {
+           $port = ":$port";
+        }
+        $url = "$protocol://$host$port";
+    }
+
+    $path = $info{'uri'} unless($path);
+    
+    # Only bother with pathquery munging if it's asked for.
+    # While there shouldn't be regressions/changes to existing use, this ensures
+    # the new behavior of the comp does not go botch up the rest of the site on accident     
+    if (%pathquery || $pathquery_empty) {
+        my @url_parts = split('/', $path);
+        my @pre_pathquery;
+        my %cur_pathquery;
+        my @post_pathquery;
+        
+        # grab the part pre-pathquery (anything without = and .)
+        while (@url_parts && $url_parts[0] !~ /\=/ && $url_parts[0] !~ /\./) {
+            my $part = shift @url_parts;
+            push @pre_pathquery, $part;
+        }
+        
+        # grab path query (parts with =)
+        while (@url_parts && $url_parts[0] =~ /\=/) {
+            my $part = shift @url_parts;
+            my ($name, $val) = split('=', $part, 2);
+            $cur_pathquery{$name} = $val;        
+        }
+        
+        # grab remaining url bits
+        @post_pathquery = @url_parts;
+        
+        if ($pathquery_empty) {
+            # remove all current pathquery variables
+            %cur_pathquery = ();
+        }
+        
+        %cur_pathquery = (%cur_pathquery, %pathquery);
+        
+        my @new_parts = @pre_pathquery;
+        foreach my $name (keys %cur_pathquery) {
+            push @new_parts, $name . '=' . $m->interp->apply_escapes($cur_pathquery{$name}, 'u');
+        }
+        foreach my $val (@post_pathquery) {
+            push @new_parts, $val;
+        }
+        
+        $path = join('/', @new_parts);
+    }
+    
+    $url .= $path;
+    
+    my ($k, $v);
+    foreach $k (keys %nargs) {
+      $dargs->{$k} = $nargs{$k};
+    }
+    my @url_array=();
+    foreach $k (keys %$dargs) {
+      if(defined($dargs->{$k})) { 
+        @url_array = (@url_array, ("$k=".$m->interp->apply_escapes($dargs->{$k}, 'u')));
+      }
+    }
+    # don't put &amp; here... it's the wrong place. Simply escape the URL before output...
+    my $url_args = join '&', @url_array; 
+    if ($oargs) {
+      $url .= "?$oargs";
+    } else {
+      $url .= "?$url_args" if($url_args);
+    }
+    
+    if($escape) { $url = $m->comp('/mason/get_escaped_url.comp', $url); }
+    
+    print $url;
+    return $url;
+</%perl>
+
+<%filter>
+s/\n//go #remove annoying newline chars
+</%filter>
+

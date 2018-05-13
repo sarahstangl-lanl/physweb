@@ -1,0 +1,157 @@
+<%args>
+    $uid
+    $year
+    $semester
+    %auths
+    
+    $save => undef
+    $superskel => undef
+    $certainty => undef
+    $ta_amt => undef
+    $ra_amt => undef
+    $fellowship => undef
+    $advisor_approval => undef
+    $advisor_approval_notes => undef
+    $notes => undef
+</%args>
+
+<%method title>Appointments</%method>
+
+<%init>
+    if (!$auths{'appointment'} && !$auths{'advisor'}) { $m->redirect('index.html'); }
+    if (!$uid) { $m->redirect('index.html'); }
+    my $retval = 1;
+
+    use physdb::appointment;
+    
+    my $appt = new Appointment('uid' => $uid, 'year' => $year, 'semester' => $semester);
+    
+    my %advising_access = (
+        'advisor_approval' => 1,
+        'advisor_approval_notes' => 1,
+    );
+    
+    my $selextend = sub {
+        my ($field_name, $val) = @_;
+    
+        if (defined($val) && ($appt->get($field_name) eq $val)) { print ' CHECKED'; }
+        if (!$auths{'appointment'} && !$advising_access{$field_name}) { print ' DISABLED'; }
+        
+        return '';
+    };
+</%init>
+
+<%perl>
+    if ($save) {
+        my %save_vars = (
+            'certainty'              => $certainty,
+            'ta_amt'                 => $ta_amt,
+            'ra_amt'                 => $ra_amt,
+            'fellowship'             => $fellowship,
+            'advisor_approval'       => ($advisor_approval eq 'yes' ? 'yes' : 'no'),
+            'advisor_approval_notes' => $advisor_approval_notes,
+            'notes'                  => $notes,
+        );
+        
+        foreach my $name (keys %save_vars) {
+            if ((!$auths{'appointment'} && !$advising_access{$name}) or !defined $save_vars{$name}) { delete $save_vars{$name}; }
+        }
+        
+        $appt->set(%save_vars);
+
+        if (!$appt->save()) {
+            print '<div style="padding: 0.3em; border: 1px solid #B13D3D; background: #FF6060;">';
+            print '<b>Save Failed</b>';
+            print '<pre style="padding: 0; margin: 0;">' . $appt->dumperrors() . '</pre>';
+            print '</div>';
+            
+            $retval = 'noredirect';
+        } else {
+            print '<div style="padding: 0.3em; border: 1px solid #6FCB78; background: #8EFF99;">';
+            print '<b>Saved Successfully</b>';
+            print '<pre style="padding: 0; margin: 0;">' . $appt->changes_as_str() . '</pre>';
+            print '</div>';
+            
+            if (my $text = $appt->changes_as_str()) {
+                $m->comp('/mason/db/students/auditlog.comp:log', text => $text,
+                    appt_uid => $uid, appt_year => $year, appt_semester => $semester);
+            }
+        }
+        
+    }
+</%perl>
+
+<form action="appointments.html?uid=<% $uid |h %>" method="post">
+<input type="hidden" name="save" value="1">
+
+<table>
+<tr><td valign="top">
+    <table>
+    <tr>
+        <td valign="top">Certainty</td>
+        <td><span style="background: #FF7798; padding: 0.1em;"><label>
+            <input type="radio" name="certainty" value="uncertain"<% $selextend->('certainty', 'uncertain') %>> Uncertain&nbsp;
+        </label></span>&nbsp;
+        <span style="background: #FFFE98; padding: 0.1em;"><label>
+            <input type="radio" name="certainty" value="semifinal"<% $selextend->('certainty', 'semifinal') %>> Semifinal&nbsp; 
+        </label></span>&nbsp;
+        <span style="background: #98FFA2; padding: 0.1em;"><label>
+            <input type="radio" name="certainty" value="final"<% $selextend->('certainty', 'final') %>> Final&nbsp;
+        </label></span></td>
+    </tr><tr>
+        <td valign="top">Advisor Approval</td>
+        <td><label>
+            <input type="checkbox" name="advisor_approval" value="yes"<% $selextend->('advisor_approval', 'yes') %>> Approved&nbsp;<br/>
+        </label>
+        <textarea name="advisor_approval_notes" rows="4" cols="60"<% $selextend->('advisor_approval_notes') %>><% $appt->get('advisor_approval_notes') |h %></textarea>    
+    </tr><tr>
+        <td valign="top">Appointment</td>
+        <td>
+        <table>
+        <tr>
+            <th>Type</th>
+            <th colspan="5">Level</th>
+        </tr>
+        <tr>
+            <td>TA</td>
+            <td style="background-color: #EEE"><label><input type="radio" name="ta_amt" value="0"<% $selextend->('ta_amt', '0') %>> None</label></td>
+            <td><label><input type="radio" name="ta_amt" value="1/8"<% $selextend->('ta_amt', '1/8') %>> 1/8 time</label></td>
+            <td style="background-color: #EEE"><label><input type="radio" name="ta_amt" value="1/4"<% $selextend->('ta_amt', '1/4') %>> 1/4 time</label></td>
+            <td><label><input type="radio" name="ta_amt" value="3/8"<% $selextend->('ta_amt', '3/8') %>> 3/8 time</label></td>
+            <td style="background-color: #EEE"><label><input type="radio" name="ta_amt" value="1/2"<% $selextend->('ta_amt', '1/2') %>> 1/2 time</label></td>
+        </tr><tr>
+            <td>RA</td>
+            <td style="background-color: #EEE"><label><input type="radio" name="ra_amt" value="0"<% $selextend->('ra_amt', '0') %>> None</label></td>
+            <td><label><input type="radio" name="ra_amt" value="1/8"<% $selextend->('ra_amt', '1/8') %>> 1/8 time</label></td>
+            <td style="background-color: #EEE"><label><input type="radio" name="ra_amt" value="1/4"<% $selextend->('ra_amt', '1/4') %>> 1/4 time</label></td>
+            <td><label><input type="radio" name="ra_amt" value="3/8"<% $selextend->('ra_amt', '3/8') %>> 3/8 time</label></td>        
+            <td style="background-color: #EEE"><label><input type="radio" name="ra_amt" value="1/2"<% $selextend->('ra_amt', '1/2') %>> 1/2 time</label></td>
+        </tr><tr>
+            <td><label>Fellowship</label></td>
+            <td style="background-color: #EEE"><label><input type="radio" name="fellowship" value="0"<% $selextend->('fellowship', '0') %>> None</label></td>
+            <td><label><input type="radio" name="fellowship" value="1/8"<% $selextend->('fellowship', '1/8') %>> 1/8 time</label></td>
+            <td style="background-color: #EEE"><label><input type="radio" name="fellowship" value="1/4"<% $selextend->('fellowship', '1/4') %>> 1/4 time</label></td>
+            <td><label><input type="radio" name="fellowship" value="3/8"<% $selextend->('fellowship', '3/8') %>> 3/8 time</label></td>
+            <td style="background-color: #EEE"><label><input type="radio" name="fellowship" value="1/2"<% $selextend->('fellowship', '1/2') %>> 1/2 time</label></td>
+            
+        </tr>
+        </table>
+        </td>
+    </tr><tr>
+        <td valign="top">Notes</td>
+        <td><textarea name="notes" rows="4" cols="60"<% $selextend->('notes') %>><% $appt->get('notes') |h %></textarea></td>
+    </tr><tr>
+        <td colspan="2"><input type="submit" name="submitsave" value="Save"> <input type="submit" name="next" value="Save and View Next"> <small>(Note: Save and View Next does not display save confirmation--only errors.)</small></td>
+    </tr>
+    </table>
+</td><td style="padding-left: 2em; max-width: 40em">
+% $m->comp('/mason/db/students/progress_report.comp:appt_info', uid => $uid, appointment_only => 1, force_year => $year, force_semester => $semester);
+</td></tr>
+</table>
+
+</form>
+
+<& '/mason/db/students/auditlog.comp:display',
+            appt_uid => $uid, appt_year => $year, appt_semester => $semester &>
+
+% return $retval;

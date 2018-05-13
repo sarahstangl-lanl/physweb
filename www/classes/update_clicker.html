@@ -1,0 +1,94 @@
+<%args>
+$classid => undef
+</%args>
+
+<%init>
+
+use physdb;
+
+$m->redirect('/classes') unless ($classid);
+$m->comp('/mason/auth/auth_block.comp');
+
+my $x500 = $session{'x500'};
+my $clickerid = $m->request_args->{clickerid};
+my $userid;
+if ($clickerid) {
+    # Determine userid
+    if (my $row = physdb::queryfirstrow("SELECT * FROM grades.users WHERE x500=?", $x500)) {
+        $userid = $row->{id};
+    }
+    else {
+        print "Couldn't find userid for x500 $x500";
+        return;
+    }
+    # Check for existing clicker id in class for another user
+    if (my $row = physdb::queryfirstrow("SELECT * FROM grades.clickers WHERE classid=? AND clickerid=? AND userid<>?", $classid, $clickerid, $userid)) {
+        print "<b>The Clicker ID " . _h($clickerid) . " is already registered to another user for this class. Please contact net\@physics.umn.edu with your X.500, Clicker ID, and Class name for assistance.</b>";
+    }
+    # Check if user already has another clicker id for this class
+    elsif ($row = $m->comp('SELF:clickerid', x500 => $x500, classid => $classid)) {
+        physdb::query("UPDATE grades.clickers SET clickerid=? WHERE clickerid=? AND classid=? AND userid=?", $clickerid, $row->{clickerid}, $classid, $userid);
+    }
+    # Else insert new row
+    else {
+        physdb::query("INSERT INTO grades.clickers (clickerid, classid, userid) VALUES (?,?,?)", $clickerid, $classid, $userid);
+    }
+}
+
+$m->comp('SELF:clicker_info', classid => $classid, show_form => 1);
+
+</%init>
+
+<%method clicker_info>
+<%args>
+$classid=>undef
+$show_form=>0
+</%args>
+<%perl>
+use physdb;
+my $x500 = $session{'x500'};
+if ($classid && $x500) {
+    if (my $row = physdb::queryfirstrow("SELECT flags FROM classlist WHERE classid = ?", $classid)) {
+        if ($row->{flags} =~ /clickers/) {
+            (my $title = $m->scomp('/www/classes/dhandler:title')) =~ s/\|.*//;
+            print "<h3>Your Clicker ID for " . $title . "</h3><p>";
+            if ($row = $m->comp('SELF:clickerid', x500 => $x500, classid => $classid)) {
+                print "<b>$row->{clickerid}</b>";
+                $m->comp('SELF:form', show_form => $show_form, classid => $classid, desc => 'Update Clicker ID');
+            }
+            else {
+                print '<b>None found</b>';
+                $m->comp('SELF:form', show_form => $show_form, classid => $classid, desc => 'Add New Clicker ID');
+            }
+        }
+    }
+}
+</%perl>
+</%method>
+<%method form>
+<%args>
+$classid => undef
+$show_form => 0
+$desc => ''
+</%args>
+% if ($show_form) {
+</p>
+<form>
+    <input type="text" name="clickerid">
+    <input type="hidden" name="classid" value="<% $classid |u %>">
+    <input type="submit" value="<% $desc |h %>">
+</form>
+% }
+% else {
+ | <a href="update_clicker.html"><% $desc |h %></a></p>
+% }
+</%method>
+
+<%method clickerid>
+<%args>
+$classid
+$x500
+</%args>
+% use physdb;
+% return physdb::queryfirstrow("SELECT clickerid FROM grades.clickers JOIN grades.users ON clickers.userid = users.id WHERE users.x500 = ? AND clickers.classid = ?", $x500, $classid);
+</%method>

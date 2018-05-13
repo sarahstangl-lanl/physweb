@@ -1,0 +1,118 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: complete_ips.html
+        Date: 2008.05.19
+      Author: clayton
+     Changed: 2008.05.19 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $vlan=>undef
+  $ippart=>''
+</%ARGS>
+
+
+<%flags>
+  inherit=>undef
+</%flags>
+
+<%INIT>
+  use physdb;
+  use Socket;
+
+$m->comp('/mason/auth/auth_check_sysadm.comp');
+
+sub ip2long {
+    return unpack("l*", pack("l*", unpack("N*", inet_aton(shift))));
+}
+
+sub long2ip {
+    return inet_ntoa(pack("N*", shift));
+}
+
+  my $networks;
+  my @results;
+
+  if ($vlan)
+  {
+    $networks = physdb::query('SELECT net, INET_NTOA(net) as neta, netmask, INET_NTOA(netmask) AS netmaska FROM net_subnets WHERE (vlan = ?)', $vlan);
+  } else {
+    my $mask = '255.255.255.255';
+    my @ipparts = split /\./, $ippart;
+    my $parts = @ipparts;
+
+    if ($parts == 3)
+    {
+      $mask = '255.255.255.0';
+      push @ipparts, 0;
+    }
+    elsif ($parts == 2)
+    {
+      $mask = '255.255.0.0';
+      push @ipparts, 0; push @ipparts, 0;
+    }
+    elsif ($parts == 1)
+    {
+      $mask = '255.0.0.0';
+      push @ipparts, 0; push @ipparts, 0; push @ipparts, 0;
+    }
+
+    for my $part (@ipparts) {
+      $part = int($part);
+    }
+
+    my $newippart = join '.', @ipparts;
+    
+    $networks = physdb::query('SELECT net, INET_NTOA(net) as neta, netmask, INET_NTOA(netmask) AS netmaska FROM net_subnets WHERE ((INET_ATON(?) & netmask & INET_ATON(?)) = (net & INET_ATON(?))) OR (INET_NTOA(net) LIKE ?)', $newippart, $mask, $mask, $ippart . '%');
+  }
+
+  while(my $network = $networks->fetchrow_hashref()) {
+    my $hosts = physdb::query('SELECT INET_NTOA(ip) AS ipa, hostname FROM net_dns WHERE ((ip & ?) = ?) AND (? OR (INET_NTOA(ip) LIKE ?)) ORDER BY ip', $network->{netmask}, $network->{net}, ($vlan ? 1 : 0), $ippart . '%');
+
+    my $firstip = ((int($network->{'net'}) & int($network->{'netmask'})) + 1);
+    my $lastip =  (($network->{'net'} | ($network->{'netmask'} ^ ((2 ** 32) - 1))) - 1);
+    my $hostname = undef;
+    my $host = undef;
+
+    for (my $ip = $firstip; $ip <= $lastip; $ip++) {
+      if ((index(long2ip($ip), $ippart) != 0) && !$vlan)
+      {
+        next;
+      }
+
+      if (!$host)
+      {
+        $host = $hosts->fetchrow_hashref();
+      }
+
+      if ($host->{'ipa'} eq long2ip($ip))
+      {
+        $hostname = $host->{'hostname'};
+        $host = undef;
+      }
+      push @results, [long2ip($ip), $hostname];
+      $hostname = undef;
+    }
+  }
+</%INIT>		
+
+<ul>
+% if (scalar(@results) == 0) {
+<li><b>No results found!</b><br>
+% if (defined($vlan)) {
+<i>Please try selecting another VLAN</i>
+% }
+</li>
+% }
+% foreach my $result (@results) {
+<li>
+% if (!defined($$result[1])) {
+<span style="font-weight:bold" class="selectText"><% $$result[0] |h %></span>
+% } else {
+<span class="selectText"><% $$result[0] %></span><span class="informal"> - <% $$result[1] %></span>
+% }
+</li>
+% }
+</ul>

@@ -1,0 +1,141 @@
+body {
+  background-image: none;
+/*  font-family: serif;*/
+}
+
+#leftcol {display:none}
+
+div#contentblock { 
+  margin: 0; padding: 0;
+  border-top: 0px;
+  border-left: 0px;
+}
+
+#phys #phys_logo_text {
+    display: block;
+    color: black;
+    padding: 0;
+    margin: 0;
+    text-indent: 0;
+    background: none repeat scroll 0 0 transparent;
+    text-decoration: none;
+/*    font-size: 130%; */
+    font-size: 3em;
+}
+#phys {
+    background: none;
+    display: block;
+    color: black;
+    padding: 0;
+    margin: 0;
+    height: inherit;
+}
+
+div.leftprint {
+    float: right;
+    padding:0;
+    margin:0;
+    width: 500px;
+    display: block;
+}
+
+div#whereami {
+   display: none;
+}
+
+.image_comp {
+   padding: 0.5em 1em 0.5em 1em;
+}
+
+div.rightmenu, div.cal_panel, h1.cal_heading, div.cal_edit, div.cal_readmore, div.titlemenu_below, div.titlemenu_above
+ {
+    display:none;
+}
+
+body #skipLinks {
+    display:none;
+}
+
+#campus_links, #CSEHeader, #CSELinks, #search_area, #UMNfooter_right, #UMNfooter_right p, #header, div.leftprint {
+    display:none;
+}
+#CSEHeader {
+    padding-top: 15px;
+    height: inherit;
+    border: none;
+}
+
+#CSELogo {
+    font-size: 120%;
+    padding-bottom: 0px;
+}
+
+#phys #linkbox {
+    display: none;
+}
+
+#physfooter {
+    border-top: 1px solid gray;
+}
+#physfooter, #footeraddress {
+    background: none !important;
+    color: black !important;
+}
+
+#UMNfooter {
+    font-size: 10px;
+    padding-left: 1em;
+    padding-top: 0;
+    margin-top: 0;
+}
+
+#UMNfooter_left p {
+    margin: 0; padding: 0;
+}
+
+#physfooter a {
+    display: none;
+}
+
+#logo_uofm a{
+  display: none;
+}
+
+#contentblock {
+    clear: both;
+    padding-top: 200px;
+}
+
+.rsslink {
+    display: none;
+}
+
+
+/* Scheduler print code */
+tr.schedulerOdd {
+    background-color: #EEEEEE;
+}
+tr.schedulerEven {
+    background-color: #FFFFFF;
+}
+td.schedulerLabel {
+    width: 8em;
+    font-size: 16px;
+}
+td.schedulerX16 {
+    width: 15em;
+    text-align: center;
+    font-size: 16px;
+}
+td.schedulerLocation {
+    width: 10em;
+    font-size: 16px;
+}
+td.schedulerPhone {
+    width: 10em;
+    font-size: 16px;
+}
+td.schedulerComment {
+    width: 20em;
+    font-size: 16px;
+}

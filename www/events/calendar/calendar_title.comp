@@ -1,0 +1,35 @@
+<%args>
+$sortcode
+$areatag=>'spa'
+</%args>
+<%init>
+my $title = "Physics and Astronomy Calendar";
+
+if ($areatag ne 'spa') {
+# figure out default page title from areatag...
+  my $sql = "SELECT name FROM calendar_areas WHERE tag=? LIMIT 1";
+  if (defined($dbh)) {
+    my $sth = $dbh->prepare($sql);
+    my $ok = $sth->execute($areatag);
+    if ($ok) {
+      my $row_ref = $sth->fetchrow_arrayref;
+      if ($row_ref) {($title) = @$row_ref; $title .= ' Calendar';}
+    }
+  }
+
+}
+
+if ($sortcode) {
+# figure out the page title from sortcode...
+  my $sql = "SELECT title FROM calendar WHERE class=? AND sortcode=? LIMIT 1";
+  if (defined($dbh)) {
+    my $sth = $dbh->prepare($sql);
+    my $ok = $sth->execute('template', $sortcode);
+    if ($ok) {
+      my $row_ref = $sth->fetchrow_arrayref;
+      if ($row_ref) {($title) = @$row_ref;}
+    }
+  }
+}
+return $title;
+</%init>

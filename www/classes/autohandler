@@ -1,0 +1,5 @@
+<%doc>
+  vim:set syntax=mason:
+</%doc>
+<% $m->call_next %>
+

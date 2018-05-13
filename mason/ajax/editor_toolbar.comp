@@ -1,0 +1,23 @@
+<%args>
+    $div_id
+    $textarea
+</%args>
+
+<%init>
+    $m->comp('/mason/ajax/jsload.comp', file => 'fancy_edit.js');
+    $m->comp('/mason/ajax/js.comp');
+</%init>
+
+<script><!--
+    initToolbar('<% $div_id %>', '<% $textarea %>', toolbar);
+    
+    function disableEditorToolbar() {
+        $('toolbar').addClassName('disabled');
+        toolbarDisabled = true;
+    }
+    
+    function enableEditorToolbar() {
+        $('toolbar').removeClassName('disabled');
+        toolbarDisabled = false;
+    }
+--></script> 

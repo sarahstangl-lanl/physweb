@@ -1,0 +1,21 @@
+<%doc>
+    vim: set syntax=mason:
+</%doc>
+% $m->comp('/mason/auth/auth_block.comp', internal=>'yes');
+<% $m->call_next %>
+<%method titlemenu_above>
+% my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+   <& /mason/titlemenu.comp:begin, type=>"above" &>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/network/hosts.html'  &>Devices</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/network/hoststatus.html'  &>Host Status</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/network/radius.html'  &>Radius</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/network/networks.html'  &>Networks</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/network/switchports.html'  &>Switch Ports</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/network/dhcp.html'  &>DHCP</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/network/bigfixreport.html'  &>BigFix</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/network/smscheckin.html'  &>SMS Checkin</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/network/loginreport.html'  &>Login Report</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+

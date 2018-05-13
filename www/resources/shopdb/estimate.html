@@ -1,0 +1,180 @@
+<%args>
+$action => ''
+$get_updated_totals => 0
+$copy_totals_to_job => 0
+</%args>
+<%method title><% $title |h %></%method>
+<%shared>
+    my ($title, $msg);
+
+    my %args = $m->request_args;
+
+    $m->comp('/mason/db/shopdb/build_auth.comp');
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+    my $auth_args = $session{'shopdb-auth'};
+
+    # Find job item based on job_id arg
+    my $job_item = $args{job_id} ? $schema->resultset('Jobs')->find( { job_id => $args{'job_id'} }) : undef;
+
+    # Determine page title/error message
+    if (!defined($args{'job_id'})) {
+        $title = 'Shop Jobs';
+        $msg = 'job_id argument required';
+    } else {
+        if (!$job_item) {
+            $title = 'Shop Jobs';
+            $msg = "Invalid job id " . $args{'job_id'};
+        }
+        else {
+            $title = 'Shop Jobs: Estimate for Job #' . $job_item->job_id . ': ' . $job_item->project_name;
+        }
+    }
+
+</%shared>
+
+<%method titlemenu_below>
+<& '/mason/db/shopdb/job_menu.comp', job_item => $job_item &>
+</%method>
+
+<%init>
+    if (defined $msg) {
+        print '<h2 style="color:red;">' . _h($msg) . '</h2>';
+        return;
+    }
+
+    # Find existing estimate
+    my $estimate_item = $job_item->estimate;
+
+    # Prevent unauthorized access
+    unless ($auth_args->{foreman} || ($auth_args->{machinist_id} && (!$estimate_item || $auth_args->{uid} eq $estimate_item->creator_uid))) {
+        print "You are not authorized to view estimates for this job";
+        return;
+    }
+
+    unless ($estimate_item || $action eq 'create') {
+        print '<p>Click "Create estimate" below to create an estimate for this job. Only foremen and the machinist that creates the estimate may view or edit it.</p><a href="?job_id=' . $job_item->id . '&action=create">Create estimate</a>';
+        return;
+    }
+
+    # Create new estimate if none exist
+    $estimate_item ||= $schema->resultset('JobEstimates')->create({
+        job_id => $job_item->id,
+        creator_uid => $auth_args->{uid},
+        created_date => \'NOW()',
+        labor_rate => 55,   # Default rate in $/hour
+        edm_labor_rate => 18, # Default rate in $/hour
+    })->discard_changes;
+
+    my @sections = (
+        { type => 'labor', category => 'general', header => 'Labor' },
+        { type => 'material', category => 'general', header => 'Material' },
+        { type => 'material', category => 'consumables', header => 'Consumables' },
+        { type => 'labor', category => 'wire', header => 'Wire EDM' },
+        { type => 'material', category => 'misc', header => 'Miscellaneous' },
+    );
+
+    my $totals = {
+       labor_cost => 0,
+       material_cost => 0,
+       charge_hours => 0,
+    };
+
+    for my $section (@sections) {
+        my $rs = $m->comp('/mason/db/shopdb/estimate_charge_line_rs.comp', job_estimate_id => $estimate_item->id, edit_auth => 0, line_id => undef, %$section);
+        if ($section->{type} eq 'labor' && $section->{category} ne 'wire') {
+            $totals->{labor_cost} += $rs->get_column('extended_cost')->sum || 0;
+            $totals->{charge_hours} += $rs->get_column('charge_hours')->sum || 0;
+        }
+        else {
+            $totals->{material_cost} += $rs->get_column('extended_cost')->sum || 0;
+        }
+    }
+
+    my $estimate_total = $totals->{labor_cost} + $totals->{material_cost};
+
+    # Check if totals differ from job values
+    my $totals_differ_from_job = 0;
+    for my $type (qw/charge_hours material_cost labor_cost/) {
+        my $accessor = "projected_$type";
+        if ($totals->{$type} && $job_item->$accessor != $totals->{$type}) {
+            $totals_differ_from_job = 1;
+            last;
+        }
+    }
+
+    # Copy totals to job if requested
+    if ($copy_totals_to_job) {
+        $job_item->update({
+            projected_charge_hours => $totals->{charge_hours},
+            projected_labor_cost => $totals->{labor_cost},
+            projected_material_cost => $totals->{material_cost},
+        });
+    }
+
+    if ($get_updated_totals) {
+        use PhysAjax;
+        print_ajax({
+            labor_cost => sprintf("\$%.2f", $totals->{labor_cost}),
+            material_cost => sprintf("\$%.2f", $totals->{material_cost}),
+            charge_hours => sprintf("%.2f", $totals->{charge_hours}),
+            estimate_total => sprintf("\$%.2f", $estimate_total),
+            show_copy_totals_link => $totals_differ_from_job,
+        });
+    }
+
+</%init>
+
+% print '<h4 style="padding: 3px;">Estimate created by ' . $estimate_item->creator->display_name . ' on ' . $estimate_item->created_date . '</h4>';
+
+<table cellpadding="3" cellspacing="0">
+<tr><td valign="top" width="50%"><h2>Estimate Rates</h2>
+<%perl>
+use ShopDb::Form::JobEstimate;
+
+my $form = ShopDb::Form::JobEstimate->new(item => $estimate_item, job_item => $job_item, schema => $schema, auth_args => $auth_args);
+
+if ($r->method eq 'POST') {
+    if ($form->process(params => \%ARGS)) {
+        # Regenerate form on successful change
+        $form = ShopDb::Form::JobEstimate->new(item => $estimate_item, job_item => $job_item, schema => $schema, auth_args => $auth_args);
+    }
+}
+
+print $form->render;
+
+</%perl>
+</td><td width="50%" valign="top">
+<style type="text/css">
+TABLE#estimate_totals { padding-top: 5px; }
+TABLE#estimate_totals TD { font-weight: bold; text-align: right; font-size: 1.1em; }
+TABLE#estimate_totals TD:last-child { padding-right: 20px; }
+</style>
+<h2>Estimate Totals</h2>
+<table width="100%" cellpadding="3" cellspacing="0" id="estimate_totals">
+    <tr><td width="150">Charge Hours:</td><td id="charge_hours"><% sprintf("%.2f", $totals->{charge_hours}) %></td></tr>
+    <tr><td>Labor Charges:</td><td id="labor_cost"><% sprintf("\$%.2f", $totals->{labor_cost}) %></td></tr>
+    <tr><td>Material Charges:</td><td id="material_cost"><% sprintf("\$%.2f", $totals->{material_cost}) %></td></tr>
+    <tr><td>Estimate Total:</td><td id="estimate_total"><% sprintf("\$%.2f", $estimate_total) %></td></tr>
+<%perl>
+my $copy_totals_display = "none";
+for my $type (qw/charge_hours material_cost labor_cost/) {
+    my $accessor = "projected_$type";
+    if ($totals->{$type} && $job_item->$accessor != $totals->{$type}) {
+        $copy_totals_display = "table-row";
+        last;
+    }
+}
+</%perl>
+<tr id="copy_totals_line" style="display: <% $copy_totals_display %>"><td style="font-size: 1em;" colspan="2"><a href="?job_id=<% $job_item->id %>&amp;copy_totals_to_job=1">Copy Totals to Job</a></td></tr>
+</table>
+</td></tr>
+% for my $section (@sections) {
+    <tr><td colspan="2">
+<h2><% $section->{header} |h %> Charges</h2>
+<& estimate_charge_lines.html, estimate_item => $estimate_item, %$section &>
+    </td></tr>
+% }
+</table>
+

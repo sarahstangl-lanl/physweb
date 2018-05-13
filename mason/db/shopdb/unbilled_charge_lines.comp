@@ -1,0 +1,111 @@
+<%args>
+$job_id => undef
+$job_item => undef
+$charge_lines => undef
+$type => undef
+$finalized => undef
+$dates => undef
+$no_filter => 0
+</%args>
+
+<%init>
+
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+die "Invalid type $type" if (defined $type && $type !~ /^(labor|material)$/);
+
+die "job_id or job_item required" unless ($job_id || $job_item);
+
+die "dates required unless no_filter set" unless ($no_filter || $dates);
+
+$job_item ||= $schema->resultset('Jobs')->find({ job_id => $job_id });
+
+die "Invalid job_id $job_id" unless ($job_item);
+
+my $columns = $m->comp('/mason/db/shopdb/charge_line_columns.comp');
+
+my $column_mappings = {
+    labor => {
+        charge_hours_quantity => 'charge_hours',
+        labor_rate_unit_cost => 'labor_rate',
+    },
+    material => {
+        charge_hours_quantity => 'quantity',
+        labor_rate_unit_cost => 'unit_cost',
+    },
+};
+
+my @types = $type ? ( $type ) : ( qw/labor material/ );
+
+# Parse charge_lines
+my $line_ids = { labor => [ ], material => [ ] };
+if ($charge_lines) {
+    for my $charge_line (@$charge_lines) {
+        if ($charge_line =~ /(Labor|Material)_(\d+)/) {
+            push(@{$line_ids->{lc $1}}, $2);
+        }
+        else {
+            die "Unknown charge_line format $charge_line";
+        }
+    }
+}
+
+my ($charge_line_array, $charge_line_hash);
+my (@charge_line_array_finalized, @charge_line_array_unfinalized);
+my (@charge_line_hash_finalized, @charge_line_hash_unfinalized);
+
+# Total to bill (active, finalized charge lines within date range)
+my $total = 0;
+
+for my $type (@types) {
+    my $type_method = "${type}_lines";
+    my $search_args = {
+        bill_date => undef,
+    };
+    unless ($no_filter) {
+        $search_args->{charge_date} = { '>=' => $dates->{start_date}->ymd, '<=' => $dates->{end_date}->ymd };
+    }
+    if (@{$line_ids->{$type}}) {
+        $search_args->{"${type}_line_id"} = $line_ids->{$type};
+    }
+    my @charge_lines = $job_item->$type_method->active->with_ts_fields->with_billing_fields->search({
+        %$search_args,
+    }, {
+        order_by => [ { -desc => 'finalized' } ],
+    })->all;
+    for my $charge_line (@charge_lines) {
+        if ($charge_line->finalized) {
+            $total += $charge_line->get_column("extended_cost") || 0;
+            $charge_line_array = \@charge_line_array_finalized;
+            $charge_line_hash = \@charge_line_hash_finalized;
+        }
+        else {
+            $charge_line_array = \@charge_line_array_unfinalized;
+            $charge_line_hash = \@charge_line_hash_unfinalized;
+        }
+        my (@line_array, %line_hash);
+        for my $col (@{$columns->{combined}}) {
+            my $accessor = $column_mappings->{$type}->{$col} || $col;
+            my $value = $col eq 'type' ? ucfirst($type) :
+                $col eq 'line_id' ? $charge_line->get_column("${type}_${col}") :
+                    $charge_line->get_column($accessor);
+            $line_hash{$col} = $value;
+            push(@line_array, $value);
+        }
+        # Add material line unit to results
+        if ($type eq 'material') {
+            push(@line_array, $charge_line->unit);
+            $line_hash{unit} = $charge_line->unit;
+        }
+        push(@$charge_line_array, \@line_array);
+        push(@$charge_line_hash, \%line_hash);
+    }
+}
+
+if (defined $finalized) {
+    return ($total, $finalized ? ( \@charge_line_array_finalized, \@charge_line_hash_finalized ) : ( \@charge_line_array_unfinalized, \@charge_line_hash_unfinalized ));
+}
+else {
+    return ($total, [ @charge_line_array_finalized, @charge_line_array_unfinalized ], [ @charge_line_hash_finalized, @charge_line_hash_unfinalized ]);
+}
+</%init>

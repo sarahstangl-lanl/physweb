@@ -1,0 +1,62 @@
+<%doc>
+You probably want your dhandler to look something like this:
+
+    <%shared>
+        my $comp = $m->comp('/mason/pathquery/init.comp');
+        if (!$comp) { return; }
+        $r->content_type('text/html');
+    </%shared>
+    
+    <%method title>
+    % $m->comp($comp . ':title');
+    </%method>
+    
+    % $m->comp($comp, %ARGS);
+</%doc>
+
+<%shared>
+
+</%shared>
+
+<%init>
+    use querystorehash;
+    
+    my %pathquery;
+    tie %pathquery, 'QueryStoreHash';
+    my $pq = tied(%pathquery);
+    
+    my $arg = $m->dhandler_arg;
+    my @args = split('/', $arg);
+    
+    my @url_stack;
+    
+    while (@args) {
+        my $i = shift(@args);
+        
+        if (@url_stack || $i !~ /\=/) {
+            # Grabbing stuff after pathquery
+            if ($i !~ /^[\w.]*$/) {
+                # Thanks to url encoding we should never get strange characters, but let's be sure
+                return;
+            }
+            
+            push(@url_stack, $i);
+        } else {
+            # Grabbing pathquery vals
+            my ($name, $val) = split('=', $i, 2);
+        
+            $pq->add($name, $val);
+        }
+    }
+    
+    my $comp = join('/', @url_stack);
+    
+    $m->notes('pathquery', \%pathquery);
+    $m->notes('pathquery-comp', $comp);
+    
+    return $comp;
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

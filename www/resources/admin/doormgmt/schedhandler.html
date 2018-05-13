@@ -1,0 +1,82 @@
+<%DOC>
+      vim: set syntax=mason:
+     Date: 2010.07.16
+   Author: mackey
+</%DOC>
+
+<%INIT>
+use physdb;
+use strict;
+use Date::Parse;
+</%INIT>
+
+<%ARGS>
+$door_id => 0
+$locktext => ""
+$unlocktext => ""
+$Monday => ""
+$Tuesday => ""
+$Wednesday => ""
+$Thursday => ""
+$Friday => ""
+$Saturday => ""
+$Sunday => ""
+$update => "clear"
+</%ARGS>
+
+<%perl>
+    my $error = 0;
+    my $errstring = "";
+
+    my $daystring = $Monday . $Tuesday . $Wednesday . $Thursday . $Friday . $Saturday . $Sunday;
+
+    my $ref = physdb::queryfirstrow('SELECT unlocktime, locktime, lockdays FROM doorlocks WHERE door_id=?', $door_id);
+
+    my $dbdays = $ref->{'lockdays'};
+    my $dblock = $ref->{'locktime'};
+    my $dbunlock = $ref->{'unlocktime'};
+
+    if ($ref->{'locktime'} =~ m/(\d{1,2}:\d{1,2}):\d{1,2}/) {
+        $dblock = $1;
+    }
+    
+    if ($ref->{'unlocktime'} =~ m/(\^d{1,2}:\d{1,2}):\d{1,2}/) {
+        $dbunlock = $1;
+    }
+
+    my (undef, $minute, $hour, undef, undef, undef, undef) = strptime($locktext);
+    $locktext = $hour . ':' . $minute;
+
+    (undef, $minute, $hour, undef, undef, undef, undef) = strptime($unlocktext);
+    $unlocktext = $hour . ':' . $minute;
+
+    if ($locktext !~ m/^\d{1,2}:\d{1,2}$/) {
+        $error = 1;
+        $errstring .= "Lock Time: invalid format<br />";
+    }
+        
+    if ($unlocktext !~ m/^\d{1,2}:\d{1,2}$/) {
+        $error = 1;
+        $errstring .= "Unlock Time: invalid format<br />";
+    }
+
+    if (($daystring ne $dbdays) || ($locktext ne $dblock) || ($unlocktext ne $dbunlock) && ($update ne "clear") && !($error)) {
+        # something has changed, need to update
+
+        my $sql = "UPDATE doorlocks SET locktime=\"$locktext\", unlocktime=\"$unlocktext\", lockdays=\"$daystring\", needs_programming=1 WHERE door_id=?";
+        physdb::query($sql, $door_id);
+    }
+
+    if ($update eq "clear") {
+        #null out schedule values
+        physdb::query('UPDATE doorlocks SET locktime=NULL, unlocktime=NULL, lockdays=NULL, needs_programming=1 WHERE door_id=?', $door_id);
+    }
+
+    if ($error) {
+        print "<meta HTTP-EQUIV=\"REFRESH\" content=\"0; url=doorschedule.html?door_id=$door_id&error=1&errstring=$errstring\" \\>"
+    }
+    else {
+        print "<meta HTTP-EQUIV=\"REFRESH\" content=\"0; url=index.html\" \\>";
+    }
+
+</%perl>

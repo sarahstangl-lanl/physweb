@@ -1,0 +1,36 @@
+<%init>
+use supportdb;
+use tablesearch;
+
+my $sdb = new supportdb;
+$sdb->connect();
+</%init>
+<%method title>Mailing lists at lists.physics.umn.edu</%method>
+
+<p>
+This shows all currently-active mailing lists hosted on lists.physics.umn.edu, and who the list owners are. 
+</p>
+<p>
+Some lists have automated subscription based on your physics directory attributes; others may be private and unavailable to you. This page is simply provided to help you find what lists might be available and who to contact about them.
+</p>
+<%perl>
+
+my $ts = new Tablesearch(
+    table => 'sympa.list_table',
+    joins => [ 'sympa.admin_table' => "admin_table.list_admin = list_table.name_list and role_admin='owner' and visibility_admin='noconceal'",],
+    field_list => [ 'name_list AS list', 'subject_list AS subject', 'topics_list AS topic', 'GROUP_CONCAT(user_admin) AS owners'],
+    field_params => {
+    owners => {
+        data_format => sub { my $str=shift; $str =~ s/,/<br>/g; return $str;},
+        },
+    },
+    where => "status_list='open' AND topics_list <> 'sysadm'",
+    default_sort_field  =>  'list',
+    default_sort_dir  =>  'asc',
+    group_by => 'GROUP BY name_list',
+    excluded_search_fields => [ 'GROUP_CONCAT(user_admin)' ],
+);
+$ts->{dbh} = $sdb->get_dbh();
+
+$ts->display();
+</%perl>

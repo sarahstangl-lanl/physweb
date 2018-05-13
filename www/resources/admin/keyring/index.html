@@ -1,0 +1,60 @@
+
+<%DOC>
+   Component: index.html
+        Date: 2007.08.15
+      Author: clayton
+     Changed: 2007.08.15 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%method js></%method>
+
+<%INIT>
+  my ($keyid_count, $physkey_count) = (-1,-1);
+  my $sql = 'SELECT COUNT(DISTINCT keyid) AS keyid_count, COUNT(DISTINCT keyid, copynum) AS physkey_count FROM key_holder';
+  my $query = $dbh->prepare($sql);
+  $query->execute();
+  my $res = $query->fetchrow_hashref();
+  if ($res)
+  {
+    $keyid_count = $$res{'keyid_count'};
+    $physkey_count = $$res{'physkey_count'};
+  }
+</%INIT>
+
+<%method title>Key Management</%method>	
+
+<table width="100%">
+<tr><td colspan="2" style="border:0; padding:0; margin:0">
+% $m->comp('doheader.comp');
+</td></tr>
+</table>
+
+<p>There are currently <% $keyid_count %> key IDs comprising <% $physkey_count %> physical keys in the database.</p>
+
+<br clear="all">
+<center>
+<small>Hint: To view all in a category simply click Lookup without any search terms.</small>
+<p>[<a href="help.html">View Manual</a>]</p>
+</center>
+<hr>
+
+<h2>Change Log</h2>
+
+<ul>
+<li>July 12, 2010: Added ability to delete room from key</li>
+<li>January 30, 2009: A whole batch of delicious changes!
+<ul>
+<li>Fixed a bug preventing users without a physid from displaying correctly</li>
+<li>Merged KeyID and Physical Key views</li>
+<li>Reworked the layout</li>
+<li>Layout update (mostly?) complete -- Feb 2.</li>
+</ul>
+</li>
+<li>January 8, 2008: <a href="help.html">Read the new manual</a></li>
+<li>December 11, 2007: Fixed a bug allowing the creation of keys with empty KeyIDs (this also broke the ability to view all by simply clicking Lookup without entering text in the fields above)</li>
+</ul>

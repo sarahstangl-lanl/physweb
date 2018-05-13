@@ -1,0 +1,78 @@
+<%doc>
+    vim: set syntax=mason:
+</%doc>
+<%init>
+use physdb::directory;
+$m->comp('/mason/auth/auth_block.comp', internal=>'yes');
+
+</%init>
+<% $m->call_next(directory => $directory) %>
+
+<%shared>
+my %args = $m->request_args();
+my $uid = $m->interp->apply_escapes($args{'uid'}, 'u');
+my $physid = $m->interp->apply_escapes($args{'physid'}, 'u');
+my $x500 = $m->interp->apply_escapes($args{'x500'}, 'u');
+my $emplid = $m->interp->apply_escapes($args{'emplid'}, 'u');
+
+my $directory;
+$directory = new Directory( uid => $uid ) if $uid;
+$physid = $directory->get('physid') unless $physid || !$directory; # Try to get physid
+$x500 = $directory->get('x500') unless $x500 || !$directory; # Try to get x500
+$emplid = $directory->get('emplid') unless $emplid || !$directory;
+
+$uid = $m->comp('/mason/db/directory/x500_to_uid.comp',x500=>$x500) unless $uid || !$x500; #Try to get uid
+$uid = $m->comp('/mason/db/directory/physid_to_uid.comp',physid=>$physid) unless $uid || !$physid; #Try to get uid
+$directory = new Directory( uid => $uid ) if $uid;
+</%shared>
+
+
+<%method title>
+<% $directory ? ('User Details for ' . $directory->get("first_name") . " " . $directory->get("last_name")) : 'User Details' %>
+</%method>
+
+
+<%method titlemenu_above>
+<& /mason/titlemenu.comp:begin, type=>"above" &>
+<&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/index.html' &>Index</&>
+% if($uid and $r->uri !~ /quickadd/) {
+<&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/user.html?uid='.$uid, selected=>1 &>View/Edit</&>
+% }
+<&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/quickadd_form.html' &>Add a Person</&>
+<&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/bulkadd_form.html' &>Add Multiple People</&>
+<&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/ldap_lookup.html' &>Physics Account Lookup</&>
+<&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/emplid_lookup.html' &>Employee ID Lookup</&>
+<&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/position_report.html' &>Positions Report</&>
+<&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/sponsored_report.html' &>Sponsored Report</&>
+<&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/visitor_accts.html' &>Visitor Accounts</&>
+<&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/export.html' &>Export</&>
+<& /mason/titlemenu.comp:end &>
+</%method>
+
+<%method titlemenu_below>
+<%perl>
+my $sysadm = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $dirauth = $m->comp('/mason/auth/auth_check_directory.comp');
+my $keyauth = $m->comp('/mason/auth/auth_check_keyring.comp');
+
+my $admin = $m->comp('/mason/auth/auth_check.comp',auth_type=>'sysadm');
+</%perl>
+<%perl>if(($uid) && $r->uri !~ /quickadd/){ </%perl>
+   <& /mason/titlemenu.comp:begin, type=>"below" &>
+     <&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/user.html?uid='.$uid.'', selected=>($r->uri =~ /user\.html/ ? 1 : 0) &>Directory/Account Info</&>
+%   if($emplid) {
+       <&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/dw_emplid.html?uid='.$uid.'&emplid='.$emplid, selected=>($r->uri =~ /dw_emplid\.html/ ? 1 : 0) &>Peoplesoft Data</&>
+%   }
+%   if ($uid && ($sysadm||$dirauth)) {
+       <&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/edit_entry_form.html?uid='.$uid, selected=>($r->uri =~ /edit_entry_form\.html/ ? 1 : 0) &>Edit Directory</&>
+%   }
+%   if($sysadm) {
+       <&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/logins.html?uid='._u($uid).'&physid='._u($physid).'&x500='._u($x500), selected=>($r->uri =~ /logins\.html/ ? 1 : 0) &>Logins</&>
+       <&| /mason/titlemenu.comp:item, link=>'/resources/admin/people/tickets.html?uid='.$uid, selected=>($r->uri =~ /tickets\.html/ ? 1 : 0) &>Tickets</&>
+%   } 
+   <& /mason/titlemenu.comp:end &>
+<%perl> } </%perl>
+</%method>
+
+<!-- vim: set syntax=mason: -->
+

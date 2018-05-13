@@ -1,0 +1,38 @@
+<%args>
+$number => undef
+$id => undef
+$type => 'last' # first or last, required with number
+$student => $session{'moonproject_gradesid'}
+</%args>
+<%init>
+my $func;
+unless ($id || ($number && $type)) {
+    die "ID or number and type (last or first) is required";
+}
+if ($number) {
+    die "Type must be last or first" unless ($type =~ /^(last|first)$/);
+}
+my $observation;
+if ($id) {
+    $observation = Moonproject::Observation->new(id => $id);
+}
+else {
+    $observation = Moonproject::Observation->new(student => $student)->load(type => $type, number => $number);
+}
+return undef unless ($observation->{loaded});
+my $observation_fields = $m->comp('/mason/db/moonproject/observation_fields.comp');
+while (@$observation_fields) {
+    my $field = shift @$observation_fields;
+    my $params = shift @$observation_fields;
+    if (ref $params->{inflate} eq 'CODE') {
+        warn "Applying inflate for $field";
+        $observation->{$field} = $params->{inflate}->($observation->{$field}, $observation);
+    }
+}
+
+$observation->{fists} = $observation->{fists} . ".0" if ($observation->{fists} !~ /\./);
+$observation->{fists2} = $observation->{fists2} . ".0" if ($observation->{fists2} !~ /\./);
+$observation->{fists3} = $observation->{fists3} . ".0" if ($observation->{fists3} !~ /\./);
+$observation->{aveFist} = $observation->{aveFist} . ".0" if ($observation->{aveFist} !~ /\./);
+return $observation;
+</%init>

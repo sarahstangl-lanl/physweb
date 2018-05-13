@@ -1,0 +1,62 @@
+<%doc>
+   Component: format_wikitext.comp
+        Date: 04-09-2007
+      Author: allan
+ Description:  attempt to format a block of wikitext for HTML
+</%doc>
+<%args>
+$text=>''
+$extended=> 1
+$img_category => ''
+$img_parentid => -1
+$class => 'wikitext'
+$latex => 1
+$nodiv => undef
+$nopar => undef
+</%args>
+<%init>
+use Encode;
+use Text::WikiFormat;
+# [physics>path|Text] syntax for internal links
+# [intranet>path|Text] syntax for intranet links
+my %info = $m->comp("/mason/request_info.comp");
+my $siteurl = $info{siteroot} . "/";
+my $intranet = "http://zzz.physics.umn.edu/";
+$text =~ s/\[physics\>\/?(.+)\|(.+)\]/[$siteurl${1}|${2}]/gi;
+$text =~ s/\[intranet\>\/?(.+)\|(.+)\]/[$intranet${1}|${2}]/gi;
+# Convert [absolute link|title] syntax into [[absolute link|title]] syntax
+$text =~ s/([^[])\[(http[^]]+)\]/$1\[\[$2\]\]/gi;
+# get rid of any carriage return characters...
+$text =~ s/\r//g;
+my %tags = (
+                strong_tag     => qr/\*(.+?)\*/,
+                extended_link_delimiters => [ '[[', ']]' ],
+        );
+
+my $html = Text::WikiFormat::format(encode('utf8', $text), \%tags, {
+    implicit_links => 0,
+    extended => $extended,
+    absolute_links => 1,
+});
+
+# this is for images such as with Research Profile
+if ($img_category && ($img_parentid != -1))
+{
+    $html =~ s/\{\{image\|(\d+)\}\}/$m->scomp('\/mason\/db\/images\/insert_image.comp', category=>$img_category, parentid=>$img_parentid, indexid=>$1)/gie; 
+}
+# attempt to do LaTeX replacement
+if ($latex)
+{
+    # 30-character max match for embedded latex code $...$
+    $html =~ s/\$([^\$]{1,30})\$/$m->scomp('\/mason\/insert_math.comp', input=>$1)/gie; 
+    # handle <math></math> 
+    $html =~ s/<math>(.+?)<\/math>/$m->scomp('\/mason\/insert_math.comp', input=>$1)/gie; 
+}
+if ($nopar) { $html =~ s!(^<p>|</p>$)!!gi; }
+if ($nodiv) { return $html; }
+return(decode('utf8', "<div class=\"$class\">$html</div>"));
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

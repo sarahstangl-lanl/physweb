@@ -1,0 +1,20 @@
+
+<%DOC>
+   Component: auth_check_ta.comp
+        Date: 2007.08.01
+      Author: clayton
+     Changed: 2007.08.01 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%init>
+  my $auth = $m->comp('/mason/auth/auth_check.comp',auth_type=>'keyring');
+</%init>
+
+<%perl>
+return $auth;
+</%perl>

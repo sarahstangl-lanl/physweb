@@ -1,0 +1,42 @@
+<%doc>
+   Component: dhandler
+        Date: 9/11/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%args>
+$filename=>''
+</%args>
+
+<%init>
+my $uri = $r->uri;
+my $directory = "/home/groups/grades/templates";
+my $file = $directory."/".$filename;
+my $data;
+my $access;
+my $mimetype = "application/octet-stream";
+if ($filename =~ /.doc$/i) { $mimetype = "application/msword";}
+if ($filename =~ /.xls$/i) { $mimetype = "application/ms-excel";}
+
+my $test;
+$access = $m->comp('/mason/auth/check_groups.comp', allow=>['ta', 'staff'], type=>'flags');
+if ($access) {
+  if (-f $file) {
+    $data = $m->file($file);
+    $r->content_type($mimetype);
+    $r->headers_out->set('Content-Length' => -s $file );
+    $r->headers_out->set('Content-Disposition' => "inline; filename = $filename");
+#    $m->clear_buffer;
+    $r->send_http_header unless (MP2);
+    $m->out($data);
+    $m->abort(200)
+  }
+} else {
+ # $m->comp('/mason/redirect.comp',url=>'denied.html');
+}
+</%init>

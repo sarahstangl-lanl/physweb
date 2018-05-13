@@ -1,0 +1,39 @@
+
+<%DOC>
+   Component: review.html
+        Date: 2005.12.05
+      Author: allan
+     Changed: 2005.12.05 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id=>undef
+$reviewid=>undef
+$email=>undef
+$score=>undef
+$comments=>undef
+</%ARGS>
+
+<%INIT>
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) { $m->redirect('index.html'); }
+if (!defined($id) || !defined($reviewid) || !defined($email) || !defined($score) || !defined($comments)) {
+  print "<h3>Form called with invalid parameters</h3>";
+  return;
+}
+my $message;
+my ($sql, $sth, $success, $row_ref);
+$sql = "UPDATE grad.review SET score=?, comments=?, reviewer=? WHERE reviewid=? AND appid=?";
+$sth = $dbh->prepare($sql);
+$sth->execute($score, $comments, $session{'uid'}, $reviewid, $id)
+    or die 'Unable to update: ' . $dbh->errstr;
+
+$m->comp('logevent.mhtml',text=>"updated review for ".$email);
+$m->redirect("review_list.html?id=".$m->interp->apply_escapes($id, 'u'));
+</%INIT>		
+		
+<%method title>Problem</%method>
+
+<% $message |h %>

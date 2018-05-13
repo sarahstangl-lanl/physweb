@@ -1,0 +1,11 @@
+
+<%INIT>
+my $adminuser = $m->comp('/mason/auth/check_groups.comp', allow => ['deptoffice','sysadm']);
+if ($adminuser) {
+    $m->call_next;
+}
+else {
+    print "<p>No access to this area!</p>";
+}
+</%INIT>
+

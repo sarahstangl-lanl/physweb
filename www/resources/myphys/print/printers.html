@@ -1,0 +1,56 @@
+<%doc>
+vim:set syntax=mason:
+
+</%doc>
+
+
+<%method title>Physics Printers</%method>
+<p>
+This page only lists printers which are managed by Physics Computing.
+</p><p>
+For information on how to access printers, or on their supplies or repair, please consult the <a href="http://zzz.physics.umn.edu/computing/department/print/home">Physics Computing Wiki</a>.
+</p>
+<ul>
+<li>Many names and queues are based on original Tate Lab locations, and may as well now be treated as random labels.
+<li>The "name" is the hostname to connect to for self-managed computers (see wiki for further directions).
+<li>For Physics-managed windows systems, connect to our windows print server \\SPA-PRINTSERVER for a list of available printers
+</ul>
+<%perl>
+       $m->comp('/mason/db/tablesearch.comp',
+    		table              => 'net_hosts',
+        	field_params       => {
+                                    'hostid' => {
+                                        'hidden' => 1,
+                                    },
+                                    'queue' => 	{
+                                        'name' => 'cups queue',
+                                        'url' => 'http://cups.physics.umn.edu:631/printers/$row{queue}',
+                                        },
+                                    'hostname' => {
+                                        'name' => 'name',
+                                        'url' => 'http://$row{hostname}',
+                                        },
+                                  },
+            header_format      => 'ucfirst',
+            no_limit           => 1,
+#            hide_header        => 1,
+            field_list         => [
+                'CONCAT(building, \' \', room) AS location',
+                'net_hosts.id AS hostid',
+                'IF (net_dns.hostname IS NULL, computer_name, CONCAT_WS(".", net_dns.hostname, net_dns.domain)) AS hostname',
+                'computer_name AS queue',
+                'model',
+                'purpose',
+            ],
+
+            joins              => [
+                net_interfaces  =>  'net_interfaces.host_id = net_hosts.id',
+                net_dns         =>  'net_dns.interface_id = net_interfaces.id',
+            ],
+            where => 'type = \'printer\' AND groupname = \'sysadm\' AND flag_disabled=0 AND net_dns.hostname IS NOT NULL',
+            default_sort_field => 'queue',
+            default_sort_dir   => 'asc',
+            limit => '100',
+            hide_header => 1,
+	);
+</%perl>

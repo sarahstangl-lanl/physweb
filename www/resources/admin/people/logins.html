@@ -1,0 +1,60 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: index.html
+        Date: 2008.08.27
+      Author: rubin
+     Changed: 2008.08.27 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$uid=>''
+$physid=>''
+$x500=>''
+$sort => 'timestamp'
+$sort_reverse => ''
+</%ARGS>
+
+<%init>
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+if(!$auth) {
+    print "Must be admin\n";
+    return;
+}
+</%init>
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+            table              => 'accounting.login_accounting',
+            field_params       => {
+                                     'from'        => {
+                                                        'name'           => 'Target'
+                                                      },
+                                     'timestamp'   => {
+                                                        'nowrap'         => 1
+                                                      },
+                                     'id'          => {
+                                                        'name'           => 'Entry ID'
+                                                      },
+                                     'uid'         => {
+                                                        'display_format' => 'uc'
+                                                      },
+                                     'host_id'     => {
+                                                        'name'           => 'Host ID'
+                                                      },
+                                     'physid'      => {
+                                                        'url'            => '/resources/admin/people/user.html?uid=$row{uid}&physid=$row{physid}&x500=$row{x500}'
+                                                      },
+                                     'hostname'      => {
+                                                        'url'            => '/resources/admin/network/host.html?id=$row{host_id}'
+                                                      }
+                                  },
+            header_format      => 'ucfirst',
+            field_list         => ['id','physid','x500','uid','host_id','hostname','event','`from`','timestamp'],
+            where              => [ "WHERE (uid=? AND uid <> '') OR (physid=? AND physid <> '') OR (x500=? AND x500 <> '')", $ARGS{'uid'}, $ARGS{'physid'}, $ARGS{'x500'} ],
+            default_sort_field => 'timestamp',
+            default_sort_dir   => 'desc',
+            hide_search        => 1,
+            extra_url_args     => ['uid','physid','x500'],
+        );
+</%perl>

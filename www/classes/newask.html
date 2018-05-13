@@ -1,0 +1,86 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: edit_classitem_form.html
+        Date: 2003.07.18
+      Author: allan
+     Changed: 2003.07.18 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$entryid=>'new'
+$parentid=>'0'
+$item_type=>'ask'
+$classid=>''
+</%ARGS>
+
+<%INIT>
+return if $m->comp('/mason/db/dbcheck.comp');
+
+$m->comp('/mason/auth/auth_block.comp');
+
+# set up classlist variables
+my ($year, $quarter, $name, $title, $location, $time, $url, $cflags);
+# set up classdata variables
+my ($post_date, $modified_date, $start_date, $priority, $headline, $text, $text_type, $attach_name, $entry_type, $attach_text, $flags);
+
+# Get class information
+my $sql = "SELECT year, quarter, name, title, location, time, flags FROM classlist WHERE classid = ? LIMIT 1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($classid);
+
+my $row_ref = $sth->fetchrow_arrayref;
+($year, $quarter, $name, $title, $location, $time, $cflags) = @$row_ref;
+
+  $text_type="wiki";
+  $headline = "";
+  $priority = "100";
+  $start_date = 'today';
+  $entry_type="item";
+
+  my $enabled = ($cflags =~ /ask/);
+</%INIT>		
+		
+<%method title>Ask New Question</%method>
+
+% if (!$enabled) {
+
+<h2>Ask a Question is not currently enabled for this class</h2>
+
+% } else {
+
+<form method="POST" name="edit" action="edit_classitem.html?oclassid=<% $classid |h %>">
+
+<input type=hidden name="entryid" value="<% $entryid %>">
+<input type=hidden name="classid" value="<% $classid %>">
+<input type=hidden name="parentid" value="<% $parentid %>">
+<input type=hidden name="item_type" value="ask">
+<table border=0 width="100%">
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Item Data</th></tr>
+
+% if ($post_date) {
+<tr valign="top"><td colspan=2><small>Posted <% $post_date %>, Modified <% $modified_date %></small></td></tr>
+% }
+
+<tr valign="top"><td>Subject:</td><td><input type=text name="headline" value="<% $headline %>" size=50></td></tr>
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Publishing Controls</th></tr>
+
+<tr valign="top"><td>Formatting Style:</td><td>wiki [<a href="#">Syntax Help</a>]</td></tr>
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Item Text</th></tr>
+
+<tr valign="top"><td colspan=2>
+<textarea name="text" cols=70 rows=15 wrap="virtual" style="width: 100%;"><% $text %></textarea>
+</td></tr>
+
+
+</table>
+<p>
+<input type="submit" value="Submit Question">
+
+
+</form>
+
+% }

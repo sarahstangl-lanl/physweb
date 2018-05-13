@@ -1,0 +1,54 @@
+<%DOC>
+   Component: member_check.comp
+        Date: 2007.11.12
+      Author: clayton
+     Changed: 2007.11.12 by clayton
+</%DOC>
+
+<%ARGS>
+$type=>''
+$uid=>''
+$memberof=>''
+$include_children=>1
+</%ARGS>
+
+<%INIT>
+</%INIT>
+
+<%perl>
+
+if ($type && $uid && $memberof)
+{
+  my $query;
+  if($include_children) {
+      $query = $dbh->prepare('SELECT uid, GROUP_CONCAT(secondary) AS secondary 
+                               FROM members 
+                              WHERE type=? 
+                                AND uid=? 
+                                AND (memberof IN (SELECT classid FROM classlist WHERE parent=?)
+                                     OR memberof=?)
+                           GROUP BY members.uid 
+                              LIMIT 1');
+      $query->execute($type, $uid, $memberof, $memberof);
+  } 
+  else {
+      $query = $dbh->prepare('SELECT uid, GROUP_CONCAT(secondary) AS secondary 
+                               FROM members 
+                              WHERE type=? 
+                                AND uid=? 
+                                AND memberof=? 
+                           GROUP BY members.uid 
+                              LIMIT 1');
+      $query->execute($type, $uid, $memberof);
+   }
+  
+  if (my $result = $query->fetchrow_hashref())
+  {
+    return 'ta';
+  }
+}
+
+return 0;
+
+</%perl>	
+		

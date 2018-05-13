@@ -1,0 +1,190 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: upload_image.html
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$category=>undef
+$parentid=>undef
+$indexid=>'0'
+$autoindexid=>'0'
+$image=>undef
+$caption=>''
+$credit=>''
+$alt=>''
+$width=>''
+$align=>'left'
+$max_x=>'0'
+$max_y=>'0'
+$ajax=>'0'
+</%args>
+
+<%init>
+return if($m->comp('/mason/db/dbcheck.comp', noretry=>1));
+
+return "Invalid arguments" unless defined($category) && defined($parentid) && defined($image);
+
+my $referer = $r->headers_in->{'Referer'};
+my $req = Apache2::Request->new($r);
+my $upload = $req->upload('image');
+my $filename;
+my $successful_insert;
+my $result;
+my %ajaxresult;
+# quick basic authentication check...
+my $internal_user = $m->comp('/mason/auth/auth_check_internal.comp');
+if (!$internal_user && $ajax) { $ajaxresult{'return'} = 'NOAUTH'; return %ajaxresult; }
+if (!$internal_user) {$m->redirect($referer);}
+
+if (defined($upload) && ($filename = $upload->filename)) {
+    my $mime_type = $upload->type;
+    my $image_type = substr($mime_type,6);
+    # validate to accept only jpeg, gif or png...
+    if (($image_type !~ /jpeg/) && ($image_type !~ /gif/) && ($image_type !~ /png/)) { $result = "I can't accept that type of file ($mime_type). Please upload only JPEG, GIF or PNG files."; $ajaxresult{'return'} = 'BADFILETYPE'; }
+    my $fh = $upload->fh;
+    my $data = do { local $/; <$fh> };
+    my $data_resized;
+    my ($size_x, $size_y, $type) = imgsize (\$data);
+    my ($osize_x, $osize_y) = ($size_x, $size_y);
+
+    if ((($max_x > 0) && ($size_x > $max_x)) || (($max_y > 0) && ($size_y > $max_y))) {
+        $result = "Image ($size_x x $size_y) is larger than the limit for this page ($max_x x $max_y)";
+        $ajaxresult{'return'} = 'IMAGETOOLARGE';
+    }
+    if ($width) {
+        # resize image if parameters ok...
+        if(1) {
+        #if (($width>50) && ($width<500) && ($width<$size_x)) {
+            $data_resized = $m->comp('/mason/db/images/create_thumbnail.comp', image=>$data, width=>$width, type=>$image_type);
+            ($size_x, $size_y, $type) = imgsize (\$data_resized);
+        } else {
+            $result = "Can't resize image: width ($width) is too small (<50), too large (>500), or larger than original image ($size_x)";
+            $ajaxresult{'return'} = 'IMAGERESIZEFAIL';
+        }
+    }
+    if (!$result) {
+        # All OK: try to get the image id...
+        my $imageid = "nv";
+        my $row_ref;
+        my $sql; my $sth;
+        
+        if ($autoindexid) {
+            # Pick next available indexid
+            $sql = 'SELECT indexid FROM images WHERE category=? AND
+            parentid=? ORDER BY indexid DESC LIMIT 1';
+            my $query = $dbh->prepare($sql);
+            $query->execute($category, $parentid);
+            my $rid = $query->fetchrow_hashref();
+            if ($rid)
+            {
+                $indexid = $$rid{'indexid'}+1;
+            } else {
+                $indexid = 1;
+            }
+            $ajaxresult{'autoid'} = $indexid;
+        } else {
+            $sql = "SELECT imageid FROM images WHERE category=? AND parentid=? AND indexid=?";
+            $sth = $dbh->prepare($sql);
+            my $exists = $sth->execute($category, $parentid, $indexid);
+            $row_ref = $sth->fetchrow_arrayref;
+        }
+
+        if (!$autoindexid && defined($row_ref)) {
+            ($imageid) = @$row_ref;
+            $sql = "UPDATE images SET ";
+            $sql .= "category=?, parentid=?, indexid=?, name=?, original_image=?, osize_x=?, osize_y=?, image=?, size_x=?, size_y=?, mime_type=?, alt=?, caption=?, credit=?, align=?, thumbnail=?, tsize_x=?, tsize_y=? ";
+            $sql .= " WHERE imageid=?";
+        } else {
+            $sql = "INSERT INTO images (category, parentid, indexid, name, original_image, osize_x, osize_y, image, size_x, size_y, mime_type, alt, caption, credit, align, thumbnail, tsize_x, tsize_y, imageid) ";
+            $sql .= "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        }
+
+        my $thumbsize;
+        if (($category eq "profiles") || $ajax) { $thumbsize = 64; } else { $thumbsize = 100; }
+        my $thumbnail = $m->comp('/mason/db/images/create_thumbnail.comp',image=>$data, width=>$thumbsize);
+        my ($tsize_x, $tsize_y, $ttype) = imgsize (\$thumbnail);
+        $ajaxresult{'tsize_y'} = $tsize_y;
+        $ajaxresult{'size_x'} = $size_x;
+        $ajaxresult{'size_y'} = $size_y;
+        $ajaxresult{'osize_x'} = $osize_x;
+        $ajaxresult{'osize_y'} = $osize_y;
+        $sth = $dbh->prepare($sql);
+        $successful_insert = $sth->execute($category, $parentid, $indexid, $filename, $data, $osize_x, $osize_y, (defined($data_resized) ? $data_resized : $data), $size_x, $size_y, $mime_type, $alt, $caption, $credit, $align, $thumbnail, $tsize_x, $tsize_y, $imageid);
+        if ($successful_insert) {
+            # get out of here...
+            if ($imageid eq 'nv') { $ajaxresult{'imageid'} = $dbh->{ q{mysql_insertid} }; }
+            else { $ajaxresult{'imageid'} = $imageid; }
+            if ($ajax) { $ajaxresult{'return'} = 'DONE'; return %ajaxresult; }
+            $m->redirect($referer);
+        } else {
+            $result = "Error: ".$DBI::errstr;
+        }
+    }
+} else {
+    # no file -- just update alt, caption, etc fields
+    if ($width) {
+        # they want us to resize it
+        my $sql = 'SELECT original_image, mime_type, osize_x, osize_y FROM images WHERE category=? AND parentid=? AND indexid=? LIMIT 1';
+        my $query = $dbh->prepare($sql);
+        $query->execute($category, $parentid, $indexid);
+
+        if (my $img = $query->fetchrow_hashref()) {
+            my $data = $$img{'original_image'};
+            my $image_type = substr($$img{'mime_type'}, 6);
+            if ($width != $$img{'osize_x'}) {
+                # no resize needed -- just use original image
+                $data = $m->comp('/mason/db/images/create_thumbnail.comp', image=>$data, width=>$width, type=>$image_type);
+            }
+
+            my ($size_x, $size_y, $type) = imgsize (\$data);
+
+            $ajaxresult{'size_x'} = $size_x;
+            $ajaxresult{'size_y'} = $size_y;
+            $ajaxresult{'osize_x'} = $$img{'osize_x'};
+            $ajaxresult{'osize_y'} = $$img{'osize_y'};
+
+            $sql = 'UPDATE images SET image=?, size_x=?, size_y=? WHERE
+            category=? AND parentid=? AND indexid=? LIMIT 1';
+
+            $query = $dbh->prepare($sql);
+            $query->execute($data, $size_x, $size_y, $category, $parentid, $indexid);
+        }
+    } else {
+        # No resize requested, but we should grab the width & height
+
+        my $sql = 'SELECT size_x, size_y, osize_x, osize_y FROM images WHERE category=? AND parentid=? AND indexid=? LIMIT 1';
+        my $query = $dbh->prepare($sql);
+        $query->execute($category, $parentid, $indexid);
+
+        if (my $info = $query->fetchrow_hashref()) {
+            $ajaxresult{'size_x'} = $$info{'size_x'};
+            $ajaxresult{'size_y'} = $$info{'size_y'};
+            $ajaxresult{'osize_x'} = $$info{'osize_x'};
+            $ajaxresult{'osize_y'} = $$info{'osize_y'};
+        }
+    }
+
+    my $sql = "UPDATE images SET alt=?, caption=?, credit=?, align=? WHERE category=? AND parentid=? AND indexid=?";
+    my $sth = $dbh->prepare($sql);
+    $sth->execute($alt, $caption, $credit, $align, $category, $parentid, $indexid);
+    $ajaxresult{'alt'} = $alt;
+    $ajaxresult{'caption'} = $caption;
+    $ajaxresult{'credit'} = $credit;
+    $ajaxresult{'align'} = $align;
+    $ajaxresult{'indexid'} = $indexid;
+    $ajaxresult{'parentid'} = $parentid;
+    if ($ajax) { $ajaxresult{'return'} = 'DONE'; return %ajaxresult; }
+    $m->redirect($referer);
+}
+</%init>
+
+<%method title>Image Upload</%method>
+% if (!$ajax) {
+<p>
+<% $result %>
+% } else {
+% $ajaxresult{'message'} = $result;
+% return %ajaxresult;
+% }

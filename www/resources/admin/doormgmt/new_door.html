@@ -1,0 +1,16 @@
+<%init>
+unless ($m->comp('/mason/auth/auth_check_sysadm.comp')) {
+    print '<h2>You are not authorized to create door locks</h2>';
+    return;
+}
+use physdb::doorlocks;
+$m->redirect('index.html') unless ($ARGS{'name'} && $ARGS{'type'});
+my $doorlock = Doorlocks->new(defaults => { name => $ARGS{'name'}, type => $ARGS{'type'}, generate_pin => 0 });
+if ($doorlock->save) {
+    $doorlock->log_changes(prefix => 'Create doorlock ' . $doorlock->get('name') . ': ');
+    $m->redirect('edit_door_form.html?door_id=' . $doorlock->get('door_id'));
+}
+else {
+    $m->redirect('new_door_form.html?' . _args(message => 'Failed to create doorlock: ' . $doorlock->dumperrors, %ARGS));
+}
+</%init>

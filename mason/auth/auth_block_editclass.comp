@@ -1,0 +1,27 @@
+<%doc>
+   Component: auth_block_editclass.comp
+        Date: 
+      Author: allan
+ Description: disallow edits to class data unless ok
+</%doc>
+
+<%args>
+$classid=>0
+$itemid=>''
+$always_include_tas=>0
+$item_type=>''
+</%args>
+
+<%init>
+  my $redirect = 'noedit.html';
+
+  my $auth = $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, always_include_tas=>$always_include_tas, item_type=>$item_type, itemid=>$itemid);
+  if (!$auth) { 
+      $m->redirect("$redirect");
+  }
+  return $auth;
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

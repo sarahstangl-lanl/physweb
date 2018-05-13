@@ -1,0 +1,78 @@
+<%flags>
+inherit=>undef
+</%flags>
+
+<%args>
+$job_id=>undef
+$job_item=>undef
+$ajax=>undef
+</%args>
+
+<%init>
+
+return unless defined $job_id || defined $job_item;
+
+# Ensure shopdb-auth hash has been generated
+$m->comp('/mason/db/shopdb/build_auth.comp');
+
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+$job_item ||= $schema->resultset('Jobs')->find({ job_id => $job_id });
+
+# Return if job doesn't exist
+return unless $job_item;
+
+# Return if not authorized
+my $auth_args = $session{'shopdb-auth'};
+return unless ($auth_args->{'foreman'});
+
+my @job_ids = ( $job_item->job_id, map { $_->get_column('job_id') } $job_item->child_jobs->all );
+
+my @columns = (
+    { column => 'll_total_projected_cost', name => 'Projected Labor Cost', currency => 1 },
+    { column => 'll_total_extended_cost', name =>'Extended Labor Cost', currency => 1 },
+    { column => 'ml_total_projected_cost', name => 'Projected Material Cost', currency => 1 },
+    { column => 'ml_total_extended_cost', name =>'Extended Material Cost', currency => 1 },
+    { column => 'total_projected_cost', name => 'Projected Total Cost', currency => 1 },
+    { column => 'total_extended_cost', name => 'Extended Total Cost', currency => 1 },
+    { column => 'total_projected_charge_hours', name => 'Projected Charge Hours', currency => 0 },
+    { column => 'total_charge_hours', name => 'Total Charge Hours', currency => 0 },
+);
+
+my $row = $schema->resultset('JobTotals')->search({ job_id => \@job_ids }, {
+    select => [ map { { sum => $_->{column} } } @columns ],
+    as => [ map { $_->{column} } @columns ],
+})->single;
+
+my $currency_formatter = sub {
+    my $value = shift;
+};
+
+my $formatter = sub {
+    my $self = shift;
+    my $value = $row->get_column($_->{'column'}) || 0;
+    my $negative = $value < 0;
+    $value =~ s/^-//;
+    $value = sprintf('%0.2f', $value);
+    if ($negative) {
+        return "<font color=\"red\">($value)</font>";
+    }
+    else {
+        return $value;
+    }
+};
+
+for (@columns) {
+    $_->{'value'} = $formatter->($_)
+}
+
+if ($ajax) {
+    print $m->comp('/mason/ajax/to_json.comp', \@columns);
+}
+else {
+    return @columns;
+}
+</%init>
+
+<%filter>
+s/\n//gos
+</%filter>

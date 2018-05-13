@@ -1,0 +1,8 @@
+<%doc>
+   Component: autohandler
+        Date: 9/11/2002
+      Author: allan
+ Description: check access to this directory
+</%doc>
+% $m->comp('/mason/auth/auth_block.comp', internal=>'yes');
+% $m->call_next;

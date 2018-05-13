@@ -1,0 +1,76 @@
+<%init>
+
+my $common_field_params = {
+    'edit'              => {
+        'data_format'       => sub {
+            my ($text, $format, $row) = @_;
+            my $class = "roweditor_checkbox";
+            return "<span style=\"display:none\" class=\"$class\"></span>";
+        },
+        'html_class'        => 'roweditor_edit',
+        'width'             => 20,
+        'name'              => '',
+        'nowrap'            => 1,
+        'no_sort'           => 1,
+    },
+    'machinist' => {
+        'url' => 'machinist.html?machinist_id=$row{machinist_id}',
+    },
+    'machinist_id' => {
+        'hidden' => 1,
+    },
+    'customer' => {
+        'url' => 'customer.html?customer_id=$row{customer_id}',
+    },
+    'customer_id' => {
+        'hidden' => 1,
+    },
+    'job_id' => {
+        'url' => 'job.html?job_id=$row{job_id}',
+    },
+    'project_name' => {
+        'url' => 'job.html?job_id=$row{job_id}',
+    },
+    'efs_account' => {
+        'name'              => 'EFS Account',
+        'data_format' => sub {
+            my ($value, $code, $row, $ts) = @_;
+            $value ||= $row->{account_key};
+            return '<a href="account.html?account_key=' . _u($row->{account_key}) . '">' . _h($value) . '</a>';
+        },
+        secondary_sort_field => 'account_key',
+    },
+    'account_key' => {
+        'hidden' => 1,
+    },
+    'unit_cost' => {
+        'data_format' => 'currency',
+    },
+    'extended_cost' => {
+        'data_format' => 'currency',
+    },
+    'labor_rate' => {
+        'data_format' => sub {
+            my ($value, $format, $row, $ts) = @_;
+            return $ts->currency_formatter($value) . '/hr';
+        },
+    },
+    'charge_hours_quantity' => {
+        'name' => 'Charge Hours/Qty',
+    },
+    'labor_rate_unit_cost' => {
+        'name' => 'Labor Rate/Unit Cost',
+        'data_format' => sub {
+            my ($value, $format, $row, $ts) = @_;
+            $value = $ts->currency_formatter($value);
+            return '' unless ($value);
+            return ($row->{type} eq 'Labor' ? "${value}/hr" : "$value/" . $row->{unit});
+        },
+    },
+    line_id => { hidden => 1 },
+    finalized => { hidden => 1 },
+};
+
+return $common_field_params;
+
+</%init>

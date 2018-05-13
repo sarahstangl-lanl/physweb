@@ -1,0 +1,85 @@
+<%doc>
+   Component: upload_classitem.html
+        Date: 8/5/2003
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$classid=>undef
+$entryid=>undef
+$parentid=>undef
+$item_type=>'post'
+</%args>
+
+<%init>
+  return if $m->comp('/mason/db/dbcheck.comp', noretry=>1);
+  if (!$classid || !$entryid) {$m->redirect('classerror.html');}
+  $m->comp('/mason/auth/auth_block_editclass.comp', classid => $classid);
+
+
+  my $req = Apache2::Request->new($r);
+  my $upload = $req->upload('file');
+  # shouldn't use this...
+  my $tmpfile = $upload->tempname;
+  my $filename = $upload->filename;
+  my $result;
+  my @queryargs;
+  my ($sql,$sth);
+  if ($filename) {
+    my $mime_type = $upload->type;
+    my $fh = $upload->fh;
+    my $data = do { local $/; <$fh> };
+    my $datasize = $upload->size;
+    my $ok = 0;
+    my $text_type = "plain";
+    if ($mime_type eq "text/html" ) {
+      $ok = 1;
+      $data = $m->comp('/mason/clean_html.comp',html=>$data);
+    } elsif ($mime_type =~ /excel/ ) {
+      $ok = 1;
+      $data = $m->comp('/mason/excel2html.comp',excel=>$tmpfile);
+    } elsif ($mime_type =~ /msword/ ) {
+      $ok = 1;
+      $text_type = "text";
+      $data = $m->comp('/mason/word2html.comp',doc=>$tmpfile);
+    } elsif ($mime_type eq "text/plain") {
+      $ok = 1;
+      $text_type = "wiki";
+    }
+    if ($ok) {
+      if ($entryid eq "new") {
+        $sql = "INSERT INTO classdata (classid, parentid, item_type, published, headline, text, text_type, priority, start_date, kill_date, author, post_date, modified_date, entry_type, entryid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, now(), ?, ?, now(), now(), ?, ?)";
+        @queryargs = ($classid, $parentid, $item_type, 1, '', $data, $text_type, '100', '2010-01-01', $session{'uid'}, 'item', $entryid);
+      } else {
+        $sql = "UPDATE classdata SET classid=?, parentid=?, published=?, text=?, text_type=?, modified_date=now() WHERE entryid=?";
+        @queryargs = ($classid, $parentid, 1, $data, $text_type, $entryid);
+      }
+      $sth = $dbh->prepare($sql);
+      $sth->execute(@queryargs)
+        or die 'Upload classitem failure: ' . $dbh->errstr;
+
+
+      $m->comp('/mason/db/classes/bump_modified.comp', parentid=>$parentid);
+      if ($entryid eq "new") {
+        $sql = "SELECT LAST_INSERT_ID() FROM classdata";
+        $sth = $dbh->prepare($sql);
+        my $get_id = $sth->execute();
+        if ($get_id) {
+          my $rowref = $sth->fetchrow_arrayref;
+          ($entryid) = @$rowref;
+        }
+      }
+      $m->comp('/mason/redirect.comp',url=>"edit_classitem_form.html?classid=$classid&entryid=$entryid");
+
+    } else {
+      $result = "Bad file type ".$mime_type.". Try using the \"Attach file\" function instead.";
+    }
+  } else {
+    $result = "No upload file specified";
+  }
+</%init>
+
+<%method title>Upload</%method>
+<p>
+<% $result %>

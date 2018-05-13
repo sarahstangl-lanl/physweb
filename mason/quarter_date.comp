@@ -1,0 +1,45 @@
+<%args>
+    $year => undef
+    $quarter
+</%args>
+
+<%doc>
+    Returns the range of days a semester should be active. (Used to check if a class is archived or not, for example.)
+
+    Sending in invalid years can cause this to return invalid Date::Calc objects
+    
+    Checking for this is easy:
+    
+        if (!$end->is_valid() || !$start->is_valid()) { return ...; } 
+</%doc>
+
+<%init>
+    use Date::Calc::Object;
+    my %start;
+    my %end;
+    my $archive_days = 30;
+    
+    if (!$year) { ($year) = 1900 + (CORE::localtime)[5]; }
+    
+    if ($quarter eq 'fall') {
+        %start = (month => 8, day => 22);
+        %end   = (month => 12, day => 28);
+    } elsif ($quarter eq 'spring') {
+        %start = (month => 1, day => 10);
+        %end   = (month => 5, day => 20);
+    } elsif ($quarter eq 'summer') {
+        %start = (month => 5, day => 20);
+        %end   = (month => 8, day => 22);
+    } else {
+        die 'Unknown quarter specified';
+    }
+    
+    # we return the start (date), end (date), and archive days (delta) 
+    return (Date::Calc->new(0, $year, $start{'month'}, $start{'day'}),
+            Date::Calc->new(0, $year, $end{'month'}, $end{'day'}),
+            Date::Calc->new(1, 0, 0, $archive_days));
+</%init>
+
+<%filter>
+s/.//go
+</%filter>

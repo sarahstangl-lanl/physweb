@@ -1,0 +1,128 @@
+<%doc>
+   Component: storyblog.comp
+        Date: 7/3/2007
+      Author: allan / alex
+ Description: display of news/events/features/etc in blog-type format
+</%doc>
+
+<%args>
+$class=>''      # additional class to belong to
+$auth=>0        # 1 to show  buttons, 0 not to 
+$story
+</%args>
+
+<%init>
+
+#die("invalid type") unless ($type =~ /^[a-zA-Z0-9]+$/);
+#my $auth = $m->comp('/mason/auth/auth_check_events.comp');
+#if ($view =~ /normal/) { $auth=0; }
+my $uri = $r->uri;
+#my ($priority, $event_date, $post_date, $modified_date, $start_date, $kill_date, $headline, $author, $summary, $text, $url);
+my $row_ref;
+my ($date,$time);
+my $sql;
+my $lastdate = "";
+my ($year,$month,$day);
+my ($hour,$minute,$second,$ampm);
+my $count;
+my $authorlink;
+my $subtype;
+my $subtype_type;
+$sql = "SELECT eventid, stories.type, stories.subtype, priority, event_date, post_date, modified_date, start_date, kill_date, headline, author, summary, text, url ";
+$sql .= ", images.imageid, images.size_x, images.size_y, images.alt ";
+$sql .= ", subtypes.subtype_type";
+$sql .= " FROM stories ";
+$sql .= " LEFT OUTER JOIN images on images.parentid=stories.eventid";
+$sql .= " LEFT OUTER JOIN subtypes ON ( stories.type=subtypes.type AND stories.subtype=subtypes.subtype )";
+$sql .= " WHERE 1=1 ";
+$sql .= " AND eventid='$story' ";
+#if (!$auth) { 
+#  $sql .= " AND start_date <= now()"; 
+#}
+$sql .= " LIMIT 1";
+</%init>
+%#<pre> <% $sql %> </pre>
+
+<%perl>
+if (defined($dbh)) {
+    my $sth = $dbh->prepare($sql);
+    $sth->execute();
+
+    while ($row_ref = $sth->fetchrow_arrayref) {
+      my ($eventid, $dbtype, $st, $priority, $event_date, $post_date, $modified_date, $start_date, $kill_date, $headline, $author, $summary, $text, $url,  $imageid, $sizex, $sizey, $alt, $stt) = @$row_ref;
+        $url =~ s/^\s*//;
+        $url = 'http://' . $url if ($url && $url !~ /^http:/);
+        $subtype = $st; $subtype_type = $stt;
+        $count++;
+        ($date,$time) = split(" ",$event_date);
+        ($hour,$minute,$second) = split(":",$time);
+        if ($hour>11) {$ampm="pm";} else {$ampm="am";}
+        if ($hour>12) {$hour-=12;}
+        $time = $hour.":".$minute."&nbsp;".$ampm;
+        if ($hour eq "00") { 
+          $time = "";
+        }
+        ($year,$month,$day) = split("-",$post_date);
+        $date = Date_to_Text_Long($year,$month,$day);
+        my $frontpage_str;
+        if($priority eq "none") {
+           $frontpage_str = "No";
+        } else {
+           $frontpage_str = "Yes, Priority: $priority";
+        }
+
+        if($author) {
+          $authorlink = $m->comp('/mason/db/directory/user_to_linkedname.comp', uid=>$author);
+        }
+        $text = $m->comp('/mason/format_wikitext.comp', text=>$text);
+        $summary = $m->comp('/mason/format_wikitext.comp', text=>$summary);
+        $class = $dbtype unless($class);
+        </%perl>
+          <div class="story story_<%$class%>">
+            <h1 class="story story_<%$class%>"><a name="<%$eventid%>" class="story_<%$class%>"><%$headline%></a></h1>
+            <%perl> if ($imageid) {  </%perl>
+               <div  class="story_image story_image_<%$class%>">
+                <%perl>$m->comp('/mason/db/images/insert_image.comp', category=>'stories', parentid=>$eventid); </%perl>
+               </div>
+            <%perl> } </%perl>
+            <%perl> if ($sizex > 900) { </%perl>
+              <br clear="all" />
+            <%perl> } </%perl>
+            <!-- hack to force a break if the image is too big to display text next to -->
+            <span style="color: white; line-height: 1px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+            <% $summary %>
+            <% $text %>
+            <%perl> if($url) { </%perl>
+               More information at <a href="<% $url %>"><% $url %></a>
+            <%perl> } </%perl>
+            <div class="story_info">
+                <div class="story_posted">Posted <% $date %>
+                <%perl> if ($author) { </%perl>
+                   by <% $authorlink %>
+                <%perl> } </%perl>
+                <%perl> if ($auth) { </%perl>
+                   | <a class="story_edit" href="/resources/admin/news/edit_story_form.html?eventid=<% $eventid|u%>" title="Type: <%$dbtype%>, Frontpage: <%$frontpage_str%>">Edit</a>
+                <%perl> } </%perl>
+
+                </div> <!-- posted -->
+
+            </div> <!-- story_info -->
+          </div> <!-- story -->
+        <%perl>
+   } #while
+
+  if ($subtype && $subtype_type) {
+    print '<hr style="clear: both">';
+    $m->comp("/mason/db/stories/storyblog.comp", type=>$subtype_type, subtype=>$subtype, auth=>$auth, view=>'', posted=>0, menu=>0, args=>{ year => 'all' });
+  }
+
+} #dbh
+if (!$count) {
+  $m->comp("/mason/404.comp");
+  #$m->out("Story not found");
+}
+# vim: set syntax=mason:   
+</%perl>
+
+%#}
+

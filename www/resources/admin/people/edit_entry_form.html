@@ -1,0 +1,524 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: edit_entry_form.html
+        Date: 8/30/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$uid => 'new'
+$readonly => 0
+$entered_emplid => undef
+$dw_x500 => undef
+$groupargs => 0 #If set, fill checkboxes from url arguments (for form errors to preserve state)
+</%args>
+
+<%method js></%method>
+
+<%shared>
+use physdb::directory;
+
+my $directory = $m->request_args->{'directory'};
+unless (ref $directory && $directory->isa('Directory')) {
+    $directory = Directory->new( uid => $m->request_args->{'uid'} );
+}
+</%shared>
+
+<%init>
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+use physdb::groups;
+use Net::LDAP;
+
+#bring in form tools
+$m->comp("/mason/formhandler.comp");
+
+my $buildings = physdb::queryallarray('SELECT BLDG_NO, BLDG_ABBR FROM dwsp_building WHERE FM_SUPPORT_STATUS="SUPPORTED" OR BLDG_ABBR="MCNAMARAC" ORDER BY BLDG_ABBR') or die ("unable to get building names");
+
+my @room_types = split ',', $m->comp("/mason/db/getvalues.comp", table=>"directory", column=>"room_type");
+
+
+my $access = $m->comp('/mason/auth/auth_check_directory.comp');
+my $admin_access = $m->comp('/mason/auth/auth_check_sysadm.comp');
+unless ($access || $admin_access) {
+    $m->redirect("index.html");
+}
+
+if ($uid ne 'new') {
+    if ($directory->{'loaded'}) {
+        # convert sponsor from uid to people finder format
+        $directory->set('sponsor', $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid => $directory->get('sponsor')));
+    }
+    else {
+        print "<p><h4 style='color:red'>Invalid uid $uid.  Creating new entry.</h4><p>";
+        $uid = "new";
+        $directory->set('uid' => 'new');
+    }
+}
+
+# Overwrite directory data with form values if there was an error
+if ($ARGS{'err_str'}) {
+    for my $column ($directory->columns) {
+        $directory->set($column, $ARGS{$column}) if (exists($ARGS{$column}));
+    }
+}
+
+# Fetch list of positions from database
+my $positions = physdb::queryarray('SELECT DISTINCT position FROM directory WHERE inactive=0 ORDER BY position');
+
+</%init>
+
+%# Handle error/success messages
+
+% if($ARGS{'err_str'}) {
+  <div class="errorbox" style="font-size: large; color: red;">Error, entry not saved!: <% $ARGS{'err_str'} |h%></div>
+% }
+% if($ARGS{'msg_str'}) {
+  <div class="msgbox" style="font-size: large; color: green;"><% $ARGS{'msg_str'} |h%></div>
+% }
+
+%# Handle possible emplid/x500 matches
+
+% if (!$directory->get('emplid') && $entered_emplid) {
+<form action="link_account.html" method="POST">
+<input type=hidden name="uid" value="<% $uid %>">
+<input type=hidden name="emplid" value="<% $entered_emplid %>">
+<input type=hidden name="url" value="<% $ENV{'REQUEST_URI'} |h %>">
+<table width="100%">
+<tr><th align="left" colspan=2 bgcolor="#eeeeee">Link Employee ID Number</th></tr>
+<tr><td valign="top">
+<p style="color:red">This entry is missing an employee ID!</p>
+<p>If this directory entry matches the person you were trying to add, you should link their employee ID number to this directory entry by clicking the button below.  You will be brought back to this page for further editing.</p>
+<p><input type=submit value="Link Employee ID"></p>
+</td></tr>
+</table>
+</form>
+<p>
+% }
+
+% if (!$directory->get('x500') && $dw_x500) {
+<form action="link_account.html" method="POST">
+<input type=hidden name="uid" value="<% $uid %>">
+<input type=hidden name="x500" value="<% $dw_x500 %>">
+<input type=hidden name="url" value="<% $ENV{'REQUEST_URI'} |h %>">
+<table width="100%">
+<tr><th align="left" colspan=2 bgcolor="#eeeeee">Link x500 Account</th></tr>
+<tr><td valign="top">
+<p style="color:red">This entry is missing an x500 account!</p>
+<p>If this directory entry matches the person you were trying to add, you should link their x500 account to this directory entry by clicking the button below.  You will be brought back to this page for further editing.</p>
+<p><input type=submit value="Link x500 Account"></p>
+</td></tr>
+</table>
+</form>
+<p>
+
+% }
+
+%# Main edit entry form
+
+<form method="POST" action="edit_entry.html">
+<input type=hidden name="uid" value="<% $uid %>">
+<!-- testing removal of this function, no longer allowing requested usernames -->
+<!--
+<script type="text/javascript">
+function enablereq(checkbox) {
+    if (checkbox.checked) {
+        $('reqname').style.display = "none";
+    } else {
+        $('reqname').style.display = "none";
+    }
+}
+</script>
+-->
+<table border=0 width="100%">
+
+<tr><th align="left" colspan=3 bgcolor="#eeeeee">Directory information: <% $directory->fullname |h %><% $readonly ? " | <a href=\"?uid=$uid\">edit</a>" : "" %></th></tr>
+
+% if ($uid > 0) {
+<tr><td colspan=3><small>Entry created <% $directory->get('create_date')|h %>, last modified: <% $directory->get('modified_date')|h %></small><p></td></tr>
+% }
+
+<& 'field', name=>'last_name', desc=>'Last Name', size=>30 &>
+<& 'field', name=>'first_name', desc=>'First Name', size=>30 &>
+<& 'field', name=>'physid', desc=>'Physics username', size=>10, readonly=>($admin_access ? 0 : 1), comment=>'Physics account name (now automatically populated)', inner_html=>$m->scomp('acctreq_checkbox') &>
+<!-- no longer need this field for requesting a username -->
+%# if (!$directory->get('physid')) {
+%#<& 'field', name=>'acctreq_physid', desc=>'Requested Physics username', size=>10, tr_args=>{id=>"reqname",style=>"display:none"} &>
+%# }
+<& 'field', name=>'x500', desc=>'UMN Internet ID', size=>10, comment=>'Essential for users to log in to web site' &>
+<& 'field', name=>'emplid', desc=>'Employee/Student ID', size=>9, comment=>"Will override nightly from datawarehouse if available" &>
+<& 'field', name=>'email', desc=>'Display Email', comment=>'Email address should generally be in lowercase' &>
+<& 'field', name=>'dw_position', desc=>'Position (Auto)', comment=>'', input_args=>{id=>'input_position'}, readonly=>1 &>
+<& 'field', name=>'position', desc=>'Position (Override)', comment=>'DO NOT USE THIS EVER, REALLY!', input_args=>{id=>'input_position'} &>
+% if(!$readonly) {
+<& '/mason/ajax/editabledropdown.comp', id=>"input_position", entries=>$positions &>
+% }
+<tr valign="top"><td>Location (1), room, phone:</td><td nowrap colspan="2">
+<% fh_input_select('room_type', \@room_types, $directory) %>
+<% fh_input_select("room_building",  $buildings, $directory ) %>
+<% fh_input_text("room", $directory, {size=>"15"}) %>
+<% fh_input_text("room_phone", $directory, {size=>"16"}) %>
+</td></tr>
+<tr valign="top"><td>Location (2), room, phone:</td><td nowrap colspan="2">
+<% fh_input_select('room2_type', \@room_types, $directory) %>
+<% fh_input_select("room2_building",  $buildings, $directory ) %>
+<% fh_input_text("room2", $directory, {size=>"15"}) %>
+<% fh_input_text("room2_phone", $directory, {size=>"16"}) %>
+</td></tr>
+
+<& 'field', name=>'home_phone', desc=>'Home Phone', comment=>'Use all 10 digits (including area code).' &>
+<& 'field', name=>'cell_phone', desc=>'Cell Phone' &>
+<& 'field', name=>'pager_phone', desc=>'Pager' &>
+<& 'field', name=>'address', desc=>'Street Address' &>
+<& 'field', name=>'www', desc=>'Personal Web Page' &>
+<& 'field', name=>'research_www', desc=>'Research Web Page' &>
+<& 'field', name=>'sponsor', desc=>'Sponsor (for visitor/collaborator)', input_args=>{id=>'sponsor'}, comment=>$m->scomp('advisor_check') &>
+<& 'field', name=>'ucard', desc=>'UCard Number' &>
+<& 'field', name=>'ucardprox', desc=>'UCard ProxID' &>
+% if ($admin_access) {
+<& 'field', name=>'doorpin', desc=>'Door PIN' &>
+<!--& 'field', name=>'copyid', readonly=>1, desc=>'Copy Code', comment=>$m->scomp('copycode_checkbox') &-->
+% }
+</table>
+% if (!$readonly) {
+<& "/mason/ajax/complete_people.comp", id => 'sponsor', name => 'sponsor', div_id=>'sponsor_magic' &>
+% }
+<%def advisor_check>
+<%perl>
+if ($directory->{'loaded'}) {
+    # query advisor from progress report
+    my $advisor = $m->comp('/mason/db/students/progress_report.comp:query_advisor', uid => $directory->get('uid'));
+    my $name = $m->comp('/mason/db/directory/uid_to_name.comp', uid => $advisor);
+    print "<i>$name is currently marked as advisor in Progress Reports</i>" if ($name);
+}
+</%perl>
+</%def>
+
+<%def copycode_checkbox>
+%   if($directory->get('copyid')) {
+        Check here <input type="checkbox" name="reset_copycode" value="1" /> 
+        to clear the Copy Code. A new one will be generated with the next nightly job.<br />
+%   }
+%   else {
+        Copycodes are generated automatically every night for anyone with at least one "Groups" (below) checked.
+%   }
+</%def>
+
+<!-- removed call to function 'enablereq' because it has been removed -->
+<%def acctreq_checkbox>
+% if (!$directory->get('physid')) {
+<label><i><input name="acctreq" value="1" type="checkbox"<% ($directory->get('acctreq') ? 'checked disabled' : '') %>> <% ($directory->get('acctreq') ? 'New account request pending' : 'Request new account') %></i></label>
+% }
+</%def>
+
+<%def error_block>
+<%args>
+$display
+$name
+</%args>
+    <span class="errorarrow" id="error_indicator_<% $name %>" style="background: red; color: black; <%  ($display ? "display: inline;" : "display: none;") %>"><img src="/images/a_ar_left_black.gif" border="none">&nbsp;</span>
+</%def>
+
+<%def field>
+    <%args>
+    $desc
+    $name
+    $comment => undef
+    $type => 'text'
+    $size => 40
+    $readonly => $m->request_args->{readonly}
+    %tr_args => ()
+    %input_args => ()
+    $div_style => undef
+    $inner_html => ''
+    </%args>
+    <%init>
+        my $value = $directory->get($name);
+        if ($type eq 'checkbox') {
+            if ($value) {
+                $input_args{'checked'} = 'checked';
+            }
+            if ($readonly) {
+                $input_args{'disabled'} = 'disabled';
+            }
+        }
+        my $input_args_str = join(' ', map { $_ . '="' . $input_args{$_} . '"' } keys %input_args);
+        my %args = $m->request_args();
+        my $display = (exists $args{'err_key'} && $args{'err_key'} eq $name) ? 1 : 0;
+    </%init>
+    <tr height="24" <% join(' ', map { $_ . '="' . $tr_args{$_} . '"' } keys %tr_args) %>><td valign="top" nowrap><% $desc |h %></td><td valign="top" nowrap>
+    <% $inner_html %>
+    <% $div_style && !$readonly ? "<div style=\"$div_style\">" : "" %>
+%   if ($readonly && $type ne 'checkbox') {
+        <% $value |h %>
+%   } else {
+%       if ($type eq 'text') {
+            <input type=text name="<% $name %>" size="<% $size %>" value="<% $value %>" <% $input_args_str %>>
+%       } else {
+            <input type="<% $type %>" name="<% $name %>" <% $input_args_str %>>
+%       }
+%   }
+    <% $div_style && !$readonly ? "</div>" : "" %>
+    <& 'error_block', display=> $display, name => $name &>
+    </td>
+    <td valign="top">
+%   if ($comment) {
+        <small><& 'error_block', display => $display, name => $name &><% $comment %></small>
+%   }
+    </td>
+    </tr>
+</%def>
+
+<a name="flags"></a>
+<table  border=0 width="100%">
+<tr style="background: #eee; text-align: left;"><th colspan=99>Group Memberships</td></tr>
+<tr><td colspan=99>Check boxes to add this person to groups. Grayed out groups are auto-determined 
+from external sources. You can override them further below. Checking some groups will activate membership in
+the physics-all list, or public visibility in the people page.  Hover your mouse over group names to see more information about them. 
+</td></tr>
+<tr valign="top">
+
+<%perl>
+my @areas = (
+#               {
+#                 display_name => 'Overrides',
+#                 flag_type    => 'overrides',
+#                 can_edit     => 1,
+#                 keep_col     => 1,
+#               },
+               {
+                 display_name => 'Primary Departmental Flags',
+                 display_note => 'Uncheck all to deactivate this person.<br>To be active, people MUST have at least one flag below checked.',
+                 flag_type    => 'flags',
+                 can_edit     => 1,
+                 background   => "#eee",
+                 keep_col => 1,
+               },
+               {
+                 display_name => 'Sponsored Groups',
+                 display_note => 'Anyone in these groups <b>must have a sponsor set</b>. Choose only one group.',
+                 flag_type  => 'sponsored',
+                 can_edit => 1,
+               },
+               {
+                 display_name => 'Research Areas',
+                 flag_type    => 'rgroup',
+                 can_edit     => 1,
+                 keep_col     => 1,
+               },
+               {
+                 display_name => 'Other Attributes',
+                 flag_type    => 'attributes',
+                 keep_col     => 1,
+                 can_edit     => 1,
+               },
+               {
+                 display_name => 'Faculty Type',
+                 display_note => 'Needs Physics Faculty or Astro Faculty',
+                 flag_type    => 'facultytype',
+                 can_edit     => 1,
+               },
+#               {
+##                 display_name => 'Workgroups',
+#                 flag_type    => 'workgroup',
+#                 can_edit     => $admin_access,
+#               },
+#               {
+#                 display_name => 'Permissions',
+#                 flag_type    => 'auth',
+#                 can_edit     => $admin_access,
+#               },
+        );
+
+my @user_groups = $directory->groups_array;
+my $keep_col = 0;
+foreach my $area (@areas) {
+    if (!$keep_col) { print "<td>"; }
+    $keep_col = $area->{'keep_col'};
+    </%perl>
+    <p><b><% $area->{'display_name'} |h %></b>
+%   if (defined($area->{'display_note'})) {
+       <br/><small id="needsnotice"><% $area->{'display_note'} %></small>
+%   }
+    </p>
+%   if (!$area->{'can_edit'}) {
+       <b>(view only)</b><br/>
+%   }
+    <%perl>
+        foreach my $group (Groups->new->search('`type` = ? ORDER BY sort DESC, description', $area->{'flag_type'})) {
+            my $auto = ($group->get('import') ne "No");
+            my $checked;
+            my @arg_groups = grep( /^group_/, keys %{$m->request_args()});
+            if($groupargs) {
+                $checked = 'checked' if (grep { $_ eq "group_" . $group->get('name') } @arg_groups);
+            }
+            else {
+                $checked = 'checked' if (grep { $_ eq $group->get('name') } @user_groups);
+            }
+            my $disabled = ($readonly || $auto || !$area->{'can_edit'} ) ? 'disabled' : '';
+            my $labelstyle = ($disabled) ? 'style="color:grey"' : '';
+            # XXX This code is duplicated in user.html, merge them somehow?
+            my @attrs = ('group '.$group->get('name'));
+            push(@attrs, $group->get('purpose')) if ($group->get('purpose'));
+            push(@attrs, 'auto from ' . $group->get('import')) if ($auto);
+            push(@attrs, 'published') if ($group->get('publish'));
+            push(@attrs, 'physics-all email') if ($group->get('physics_all'));
+            </%perl>
+                <input <% $disabled %> type="checkbox" name="group_<% $group->get('name') %>" id="group_<% $group->get('name') %>" <% $checked %>>&nbsp;
+                <label <% $labelstyle %> for="group_<% $group->get('name') %>" title="<% join(', ', @attrs) %>"><% $group->get('description') %></label>
+%               if($disabled && $checked) { #disabled inputs dont submit, so make a hidden one so the form is still filled correctly...
+                    <input type="hidden" name="group_<% $group->get('name') %>" value="<% $checked ? 'on' : 'off' %>">
+%               }
+                <br/> <%perl>
+        }
+        if (!$keep_col) { 
+            print "</td>"; 
+        }
+}
+
+</%perl>
+</tr>
+</table>
+
+% if (!$readonly) {
+<p>
+<input type=submit name="submit" value="Update directory">
+<input type=submit name="recompute" value="Update and recompute">
+<input type=reset value="Undo any changes">
+</p>
+% }
+</form>
+
+<table cellspacing="0" cellpadding="5" width="100%">
+<tr><th align="left" colspan=99 bgcolor="#eeeeee"><a name="overrides">Group Overrides</a></th></tr>
+<tr><td align="left" colspan=99 >Overrides will force this person to be added or removed from grayed out groups
+(above) which we normally pull from other sources (such as data warehouse).
+Note: overrides
+will remain active for only as long as they are relevent. If, in the future, the override action
+is already the case, the rule will be removed automatically.</td></tr>
+<tr><td>
+<table cellspacing="0" cellpadding="5" width="100%" style="padding: 0 2em;">
+<tr style="text-align: left; background: #999; ">
+   <td style="background; white; ">&nbsp;&nbsp;&nbsp;</td>
+   <th>Group</th>
+   <th>Override Type</th>
+   <th>Created By</th>
+   <th>Date Created</th>
+   <th></th>
+</tr>
+<%perl>
+my @overrides = physdb::queryall("SELECT groups.description, group_override.*, creator.first_name, creator.last_name 
+                                    FROM group_override 
+                               LEFT JOIN directory creator ON creator.uid = group_override.creator_uid 
+                               LEFT JOIN groups ON group_override.group_name=groups.name
+                                   WHERE group_override.uid=?", $uid);
+my $oddeven = "even";
+foreach my $override_row (@overrides) {
+    </%perl>
+      <tr style="border-bottom: 1px solid black;" class="<% $oddeven %>">
+          <td></td>
+          <td><span title="<% $override_row->{"group_name"}|h%>"><% $override_row->{"description"}|h%></span></td>
+          <td><% $override_row->{"override"}|h%></td>
+          <td><% $override_row->{"first_name"} . " " . $override_row->{'last_name'} |h%></td>
+          <td><% $override_row->{"timestamp"}|h%></td>
+          <td>
+            <form method="post" action="edit_group_override.html" style="display: inline;">
+              <input type="hidden" name="uid" value="<% $uid |h%>" />
+              <input type="hidden" name="delete_override_group" value="<% $override_row->{'group_name'} |h%>" />
+              <input type="submit"  name="delete_override" value="Remove this Override" />
+            </form>
+          </td>
+      </tr>
+    <%perl>
+    if($oddeven eq "odd") {
+        $oddeven = "even";
+    }
+    else {
+        $oddeven = "odd";
+    };
+}
+</%perl>
+<tr class="<% $oddeven %>">
+<td></td>
+
+<td> 
+<%perl>
+my @grey_groups = physdb::queryall("SELECT groups.name, groups.description 
+                                      FROM groups 
+                                     WHERE groups.import <> 'No' 
+                                  ORDER BY groups.description, groups.name");
+</%perl>
+<form method="post" action="edit_group_override.html" style="display: inline;">
+    <input type="hidden" name="uid" value="<% $uid |h%>" />
+    <select name="add_override_group">
+        <%perl>foreach my $g (@grey_groups) { </%perl>
+        <option value="<% $g->{'name'}|h%>"><% $g->{'description'}|h%></option>
+        <%perl> } </%perl>
+    </select>
+</td>
+
+<td><select name="add_override_type">
+        <option value="add">add</option>
+        <option value="remove">remove</option>
+</select>
+</td>
+
+<td>
+<input type="Submit" name="add_override" value="Add new Group Override" />
+</form>
+</td></tr>
+</table></td></tr>
+
+</table>
+
+
+% if ($uid > 0 && !$readonly) {
+%     if ($admin_access) {
+        <form method="POST" action="delete_entry.html">
+        <input type=hidden name="uid" value="<% $uid %>">
+        <table width="100%">
+        <tr><th align="left" colspan=2 bgcolor="#eeeeee">Delete Directory Entry</th></tr>
+        <tr><td valign="top">
+        <p>
+        This should only be used to delete entries which are errors. People who have left the School should have their group membership boxes unchecked (above), so their entry simply becomes "inactive".
+        </p>
+        <& checkbox, label => "I'm sure I want to permanently delete this entry from the directory.", name => 'confirm', note => '(You must check this box to confirm)' &>
+        <p>
+        <input type=submit value="Delete Entry">
+        </p>
+        </td></tr>
+        </table>
+        </form>
+%     }
+% }
+
+<%def checkbox>
+<%args>
+$name
+$label
+$enable=>'1'
+$note=>''
+</%args>
+% my $disabled = $enable ? "" : " disabled";
+<input type="checkbox" name="<% $name %>"<% $disabled %>>&nbsp;<% $label %> <% $note %><br/>
+</%def>
+
+<%def lookup_expire>
+<%args>
+    $physid => undef
+</%args>
+<%init>
+    if ($physid) {
+        my $suffix = "dc=physics,dc=umn,dc=edu";
+        my $userdn = "ou=People,${suffix}";
+        my $ldap = Net::LDAP->new( 'ldap.spa.umn.edu' ) or die "$@";
+        my $mesg = $ldap->bind or die "$@";
+        $mesg = $ldap->search( base => $userdn, attrs => [ 'shadowExpire' ], filter => '(uid='.$physid.')' );
+        if ($mesg->count && $mesg->entry(0)->exists('shadowExpire')) {
+            return $mesg->entry(0)->get_value('shadowExpire');
+        }
+    }
+    return undef;
+</%init>
+</%def>

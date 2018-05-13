@@ -1,0 +1,34 @@
+<%args>
+$student
+</%args>
+<h2>Submit New Observation</h2>
+<br/>
+% $m->comp('/mason/db/moonproject/observation_form.comp', %ARGS);
+<br/>
+<h2>Observation Summary</h2>
+<table style="margin-top: 10px;" cellpadding="3" cellspacing="0">
+    <tr>
+<%perl>
+my $summary = $m->comp('/mason/db/moonproject/get_student_summary.comp', student => $student->{gradesid});
+my @cols = ('Unreviewed', 'Accepted', 'Needs Work', 'Rejected', 'Total');
+my $filter;
+for my $col (@cols) {
+    (my $name = lc $col) =~ s/ //;
+    my $ul = ($ARGS{gradesfilter} && $ARGS{gradesfilter} eq $name) ? 1 : 0;
+    $filter = $col if ($ul && $name ne 'total');
+    print '<th align="right" width="90">' . ($ul ? '<u>' : '') . '<a href="?gradesfilter=' . $name . '">' . $col . '</a>' . ($ul ? '</u>' : '') .'</th>';
+}
+print '</tr><tr>';
+for my $col (@cols) {
+    (my $name = lc $col) =~ s/ //;
+    print '<td align="right">' . $summary->{$name} . '</td>';
+}
+</%perl>
+    </tr>
+</table>
+<div style="padding: 10px 0 0 10px;">Click on a grade category above to filter displayed observations.</div>
+% if ($filter) {
+<div style="padding: 10px 0 0 10px;"><b>Only showing '<% $filter %>' observations.</b> <a href="?">Show all observations</a>.</div>
+% }
+<br/>
+% $m->comp('/mason/db/moonproject/print_observations.comp', student => $student, ta => undef, gradesfilter => $ARGS{gradesfilter});

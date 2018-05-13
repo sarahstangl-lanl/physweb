@@ -1,0 +1,51 @@
+<%doc>
+   Component: x500_to_linkedname.comp
+        Date: 9/11/2002
+      Author: allan
+ Description: returns full name for an x500 user
+              linked either to directory entry or email
+</%doc>
+
+<%args>
+  $uid
+  # type can be: email, position, (anything else links to profile)
+  $type=>''
+</%args>
+
+<%init>
+  my $key = $uid.$type;
+  my $return = $m->cache->get($key);
+  if (!defined($return) && $uid && defined($dbh)) {
+    my $sth = $dbh->prepare('SELECT first_name, last_name, physid, x500, email, position, inactive FROM directory WHERE uid=? LIMIT 1');
+    $sth->execute($uid)
+      or die 'Unable to lookup user: ' . $sth->errstr;
+    if (my $row = $sth->fetchrow_hashref()) {
+      my $physid = $row->{'physid'};
+      if (!$physid) { $physid = $row->{'x500'}; }
+      $return = $row->{'last_name'};
+      if ($row->{'first_name'}) { $return = $row->{'first_name'}.' '.$row->{'last_name'}; }
+      $return =~ s/ /&nbsp;/g;
+      if ($type eq 'email') {
+        if ($row->{'email'}) {
+          $return = $m->comp('/mason/encode_mailto.comp', email=>$row->{'email'});
+        }
+      } elsif ($type eq 'position') {
+        $return = "<a href=\"/people/$physid.html\">$return</a>";
+        $return .= ', '.$row->{'position'} if $row->{'position'};
+      } else {
+        if (!$row->{'inactive'}) {
+          $return = "<a href=\"/people/$physid.html\">$return</a>";
+        }
+      }
+    } else {
+      $return = '<em>deleted user</em>';
+    }
+    $m->cache->set($key,$return,'5 min');
+  }
+
+  return $return;
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

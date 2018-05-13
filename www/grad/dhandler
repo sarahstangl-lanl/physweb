@@ -1,0 +1,22 @@
+<%DOC>
+   Component: dhandler
+ Description: Temporary handler for the move to physics/ subdirectory. Delete this file after August 2012.
+</%DOC>
+
+<%perl>
+
+my $arg = $m->dhandler_arg;
+my $newpath = $r->filename;
+$newpath =~ s/\/www\/grad\//\/www\/grad\/physics\//;
+
+# Only do the redirection if the file exists.
+if(-f "$newpath" || -d "$newpath") {
+#    $m->out("redirecting to physics/".$arg);
+    $m->redirect("/grad/physics/".$arg);
+}
+else {
+    $m->comp("/mason/404.comp");
+}
+
+# vim:set syntax=mason:
+</%perl>

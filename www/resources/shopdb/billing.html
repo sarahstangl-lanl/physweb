@@ -1,0 +1,532 @@
+<%args>
+$ajax => undef
+$job_id => undef
+</%args>
+
+<%shared>
+
+my %args = $m->request_args;
+
+$m->comp('/mason/db/shopdb/build_auth.comp');
+
+my $action = $args{action} || '';
+$action = 'finalize' unless ($action =~ /^(finalize|generate|reconcile|reports)$/);
+
+my $group_by = $args{group_by} || '';
+$group_by = 'charge_lines' unless ($group_by =~ /^(charge_lines|jobs)$/);
+
+my $finalized_filter = $args{finalized_filter} || '';
+$finalized_filter = 'show_all' unless ($finalized_filter =~ /^(show_all|unfinalized)$/);
+
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+(my $cnfgroup = $shopdb->{schema}->storage->{_dbi_connect_info}->[0]) =~ s/.*mysql_read_default_group=(.*)/$1/;
+
+my $auth_args = $session{'shopdb-auth'};
+
+my $columns = $m->comp('/mason/db/shopdb/charge_line_columns.comp');
+
+my $common_field_params = $m->comp('/mason/db/shopdb/billing_ts_params.comp');
+
+</%shared>
+
+<%init>
+use tablesearch;
+use PhysAjax;
+use JSON;
+use ShopDb::Form::ChargeLineBulkUpdate;
+use ShopDb::TablesearchMethods;
+use DateTime;
+use DateTime::Format::Strptime;
+
+unless ($auth_args->{'foreman'} || $auth_args->{'accounting'}) {
+    print "You do not have permission to view this page";
+    return;
+}
+
+my $helper_methods = ShopDb::TablesearchMethods->new;
+
+$m->comp('/mason/ajax/jsload.comp', file=>'RowEditor.js');
+
+</%init>
+
+<%method title>Shop Billing</%method>
+
+<%method titlemenu_below>
+% my $dates = $m->comp('/mason/db/shopdb/date_range.comp', no_output => 1);
+    <& /mason/titlemenu.comp:begin, type=>"below"&>
+    <&| /mason/titlemenu.comp:item, link => '?' . _args( %{ $dates->{comp_args} }, action => 'finalize' ), selected => $action eq 'finalize' ? 1 : 0 &>Finalize</&>
+    <&| /mason/titlemenu.comp:item, link => '?' . _args( %{ $dates->{comp_args} }, action => 'generate' ), selected => $action eq 'generate' ? 1 : 0 &>Generate</&>
+    <&| /mason/titlemenu.comp:item, link => '?' . _args( %{ $dates->{comp_args} }, action => 'reconcile' ), selected => $action eq 'reconcile' ? 1 : 0 &>Reconcile</&>
+    <&| /mason/titlemenu.comp:item, link => '?' . _args( %{ $dates->{comp_args} }, action => 'reports' ), selected => $action eq 'reports' ? 1 : 0 &>Reports</&>
+    <& /mason/titlemenu.comp:end &>
+</%method>
+
+<%perl>
+if ($action eq 'reconcile') {
+
+    my $dw_dbh = $m->comp('/mason/dw_dbh.comp');
+    #$dw_dbh->trace(2);
+
+    if ($ARGS{voucher_id}) {
+        my $voucher = Tablesearch->new(
+            prefix => 'tsvoucher_',
+            dbh => $dw_dbh,
+            storage_engine => 'oracle',
+            column_fetch_format => 'NAME_lc',
+            header_format => sub {
+                my $text = shift;
+                $text = join " ", map { ucfirst } split /_/, $text;
+                $text =~ s/id/ID/ig;
+                return $text;
+            },
+            table => 'fs_ps_distrib_line',
+            where => [ "voucher_id = ? AND business_unit = 'UMNIS'", $ARGS{voucher_id} ],
+            columns => [ qw/voucher_id voucher_line_num account monetary_amount descr chart_edit_status accounting_dt error_flag business_unit_pc project_id activity_id asset_flg asset_id fund_code program_code budget_ref deptid budget_line_status doc_tol_ln_status appr_status/ ],
+            show_column_filter => 1,
+            default_sort_field => 'voucher_line_num',
+            extra_url_args => [ grep { $_ !~ /^tsvoucher_/ } keys %{ $m->request_args } ],
+            field_params => {
+                voucher_line_num => { name => 'Line No' },
+                monetary_amount => { name => 'Amount', data_format => 'currency' },
+                accounting_dt => { name => 'Accounting Date', nowrap => 1 },
+            },
+        );
+        my $columns = $ARGS{tsvoucher_columns} || $voucher->{columns} || $voucher->raw_column_names;
+        my $descr = $dw_dbh->prepare("SELECT FIELDVALUE, XLATLONGNAME FROM FS_PS_XLATTABLE_VW WHERE FIELDNAME = ?");
+        for my $column (@$columns) {
+            my @values;
+            $descr->execute(uc $column) or die "Failed to fetch info: " . $descr->errstr;
+            while (my $row = $descr->fetchrow_arrayref) {
+                push @values, @$row;
+            }
+            if (@values) {
+                $voucher->{field_params}->{$column}->{data_format} = sub {
+                    my $value = shift;
+                    my %vals = @values;
+                    return $vals{$value} if (exists $vals{$value});
+                    return $value;
+                };
+            }
+        }
+        if ($ARGS{month} && $ARGS{year}) {
+            print '<a href="billing.html?' . _args(map { $_ => $ARGS{$_} } (qw/month year action/)) . '">Back to list</a><br/><br/>';
+        }
+        $voucher->display;
+    }
+
+    else {
+
+        my $dates = $m->comp('/mason/db/shopdb/date_range.comp', hide_form => 1, no_clear => 1);
+        my $year_month = sprintf("%d%02d", $dates->{start_date}->year, $dates->{start_date}->month);
+        my $vouchers = Tablesearch->new(
+            prefix => 'vouchers',
+            dbh => $dw_dbh,
+            storage_engine => 'oracle',
+            column_fetch_format => 'NAME_lc',
+            columns => [
+              'invoice_id',
+              'voucher_id',
+              'descr254_mixed',
+              'invoice_dt',
+              'accounting_dt',
+              'entered_dt',
+              'last_update_dt',
+              'oprid_last_updt',
+              'vchr_ttl_lines',
+              'close_status',
+              'entry_status',
+              'appr_status',
+              'post_status_ap',
+              'budget_hdr_status',
+              'budget_misc_status',
+              'error_flag',
+              'in_process_flg',
+              'vchr_bal_err_flg',
+              'vendor_id',
+            ],
+            table => 'fs_ps_voucher',
+            where => "(invoice_id LIKE 'CSEShop" . $year_month . "Job%' OR invoice_id LIKE 'MS" . $year_month . "Job%' OR invoice_id LIKE 'ES" . $year_month . "Job%' OR invoice_id LIKE '3DPrinter" . $year_month . "Job%')",
+            show_column_filter => 1,
+            header_format => sub {
+                my $text = shift;
+                $text = join " ", map { ucfirst } split /_/, $text;
+                $text =~ s/id/ID/ig;
+                $text =~ s/\bdt\b/Date/ig;
+                return $text;
+            },
+            filter_field => 'post_status_ap',
+            filter_values => [
+                [ N => 'Payment Not Applied' ],
+                [ P => 'Posted' ],
+                [ U => 'Unposted' ],
+            ],
+            field_params => {
+                voucher_id => {
+                    url => '?' . _args(%ARGS) . '&voucher_id=$row{voucher_id}',
+                },
+                invoice_id => {
+                    url => '?' . _args(%ARGS) . '&voucher_id=$row{voucher_id}',
+                },
+            },
+            default_sort_field => 'invoice_id',
+            search_fields => [ qw/invoice_id voucher_id descr254_mixed/ ],
+            extra_url_args => [ grep { $_ !~ /^vouchers/ } keys %{ $m->request_args } ],
+            no_limit => 1,
+            excel_link => 1,
+        );
+        my $columns = $ARGS{voucherscolumns} || $vouchers->{columns};
+        my $descr = $dw_dbh->prepare("SELECT FIELDVALUE, XLATLONGNAME FROM FS_PS_XLATTABLE_VW WHERE FIELDNAME = ?");
+        for my $column (@$columns) {
+            my @values;
+            $vouchers->{field_params}->{$column}->{nowrap} = 1 if ($column =~ /_dt\b/i);
+            $descr->execute(uc $column) or die "Failed to fetch info: " . $descr->errstr;
+            while (my $row = $descr->fetchrow_arrayref) {
+                push @values, @$row;
+            }
+            if (@values) {
+                $vouchers->{field_params}->{$column}->{data_format} = sub {
+                    my $value = shift;
+                    my %vals = @values;
+                    return $vals{$value} if (exists $vals{$value});
+                    return $value;
+                };
+            }
+        }
+        $vouchers->display;
+    }
+}
+elsif ($action eq 'generate') {
+
+    my $dates = $m->comp('/mason/db/shopdb/date_range.comp', hide_form => 1);
+
+    my $internal = !$m->request_args->{external};
+    my $finalized = !$m->request_args->{unfinalized};
+    my $generate = !!$m->request_args->{generate};
+</%perl>
+<table cellpadding="3" cellspacing="0">
+    <tr><th align="left">Filter by Finalized (only valid for preview)</th></tr>
+    <tr><td><table cellspacing="0" cellpadding="3"><tr>
+        <td><% $finalized ? '<u>' : '<a href="?' . _args(%ARGS, unfinalized => 0) . '">' %>Finalized Only<% $finalized ? '</u>' : '</a>' %></td><td>|</td>
+        <td><% $finalized ? '<a href="?' . _args(%ARGS, unfinalized => 1) . '">' : '<u>' %>Include Unfinalized<% $finalized ? '</a>' : '</u>' %></td>
+    </tr></table></td></tr>
+    <tr><th align="left">EFS Upload Spreadsheet</th></tr>
+    <tr><td><table cellspacing="0" cellpadding="3"><tr>
+        <td><% $generate ? '<a href="?' . _args(%ARGS, unfinalized => 0, generate => 0) . '">' : '<u>' %>Preview spreadsheet<% $generate ? '</a>' : '</u>' %></td><td>|</td>
+        <td><% $generate ? '<u>' : '<a href="?' . _args(%ARGS, unfinalized => 0, generate => 1) . '">' %>Download spreadsheet<% $generate ? '</u>' : '</a>' %></td>
+    </tr></table></td></tr>
+</table>
+<%perl>
+
+    my $result = $m->comp('/mason/db/shopdb/generate_efs_ss.comp', dates => $dates, finalized => $finalized, internal => $internal);
+    if (exists $result->{errors}) {
+        $m->comp('/mason/notice_box.comp', type => 'error', text => '', html => join('<br/>', @{$result->{errors}}));
+    }
+    if (!$m->request_args->{generate} && $result->{data}) {
+        my $ts = Tablesearch->new(
+            data => $result->{data},
+            extra_url_args => [ qw/action year month unfinalized generate external/ ],
+            field_params => {
+                checkbox => {
+                    name => '',
+                    data_format => sub {
+                        my $value = shift;
+                        return '<input type="checkbox" />';
+                    },
+                },
+            },
+            header_format => 'ucfirst_all',
+            html_table_id => 'shopdb_generate_ts',
+        );
+        $ts->display;
+        return;
+    }
+    if (exists $result->{filename}) {
+        my $filename = $result->{filename};
+        open(FH, "<$filename") or die "Failed to open spreadsheet: $!";
+        $r->content_type('application/vnd.ms-excel');
+        $r->headers_out->add('Content-Disposition' => 'attachment; filename="voucher.xls"');
+        $m->clear_buffer;
+        while (<FH>) {
+            $m->out($_);
+        }
+        close(FH);
+        $m->abort(200);
+    }
+    elsif (! exists $result->{errors}) {
+        $m->comp('/mason/notice_box.comp', type => 'error', text => 'An unknown problem occurred while generating the spreadsheet. Please notify net@physics.umn.edu.');
+    }
+}
+elsif ($action eq 'reports') {
+    my @reports = (
+        [ charge_hours_by_type => 'Charge Hours by Type' ],
+        [ monthly_charge_hours => 'Charge Hours by Month' ],
+        [ machinist_charge_hours => 'Charge Hours by Machinist' ],
+        [ labor_by_machinist => 'Charge Hours by Machinist and Job' ],
+        [ material_by_machinist => 'Material Charges' ],
+        [ jobs_without_accounts => 'Jobs without Accounts' ],
+        [ account_mismatches => 'Account Mismatches' ],
+        [ efs => 'EFS' ],
+    );
+    my $report = $ARGS{report};
+    $report = 'monthly_charge_hours' unless ($report && grep { $report eq $_->[0] } @reports);
+    my $dates = $m->comp('/mason/db/shopdb/date_range.comp', no_output => 1);
+</%perl>
+<table style="padding-bottom: 10px;" cellpadding="3" cellspacing="0">
+    <tr><form name="reportform" action="billing.html">
+        <input type="hidden" name="action" value="reports"/>
+% while (my ($key, $val) = each %{ $dates->{comp_args} }) {
+        <input type="hidden" name="<% $key %>" value="<% $val %>"/>
+% }
+        <select name="report" onchange="document.reportform.submit()">
+<%perl>
+    for my $option (@reports) {
+        print '            <option value="' . $option->[0] . '"' . ($option->[0] eq $report ? ' SELECTED' : '') . '>' . $option->[1] . "</option>\n";
+    }
+</%perl>
+        </select>
+    </form></tr>
+</table>
+<%perl>
+    if ($report eq 'charge_hours_by_type') {
+        $m->comp('/mason/db/shopdb/reports_charge_hours_by_type.comp', %ARGS, schema => $schema, helper_methods => $helper_methods );
+    }
+    elsif ($report eq 'machinist_charge_hours') {
+        $m->comp('/mason/db/shopdb/reports_machinist_hours.comp', %ARGS, schema => $schema, helper_methods => $helper_methods );
+    }
+    elsif ($report eq 'monthly_charge_hours') {
+        $m->comp('/mason/db/shopdb/reports_charge_hours_by_date.comp', %ARGS, schema => $schema, helper_methods => $helper_methods );
+    }
+    elsif ($report eq 'labor_by_machinist') {
+        $m->comp('/mason/db/shopdb/reports_labor_by_machinist.comp', %ARGS, schema => $schema, helper_methods => $helper_methods );
+    }
+    elsif ($report eq 'material_by_machinist') {
+        $m->comp('/mason/db/shopdb/reports_material.comp', %ARGS, schema => $schema, helper_methods => $helper_methods );
+    }
+    elsif ($report eq 'job_summaries') {
+        $m->comp('/mason/db/shopdb/reports_job_summaries.comp', %ARGS, schema => $schema, helper_methods => $helper_methods );
+    }
+    elsif ($report eq 'account_mismatches') {
+        $m->comp('/mason/db/shopdb/reports_account_mismatches.comp', %ARGS, schema => $schema, helper_methods => $helper_methods );
+    }
+    elsif ($report eq 'efs') {
+        $m->comp('/mason/db/shopdb/reports_efs.comp', %ARGS, schema => $schema, helper_methods => $helper_methods );
+    }
+    else {
+        $m->comp('/mason/db/shopdb/reports_jobs_without_accounts.comp', %ARGS, schema => $schema, helper_methods => $helper_methods );
+    }
+}
+else { # $action eq 'finalize'
+
+</%perl>
+
+% my $dates = $m->comp('/mason/db/shopdb/date_range.comp');
+<h5>Change grouping</h5>
+<table style="padding-top: 5px;"><tr>
+<td><a href="?<% _args(%{ $dates->{url_args} }, group_by => 'jobs') %>" style="<% $group_by eq 'jobs' ? 'text-decoration:underline' : '' %>">Group By Job</a></td>
+<td>|</td>
+<td><a href="?<% _args(%{ $dates->{url_args} }, group_by => 'charge_lines') %>" style="<% $group_by eq 'charge_lines' ? 'text-decoration:underline' : '' %>">Group By Type</a></td>
+</tr></table>
+
+<%perl>
+if ($group_by eq 'charge_lines') {
+    my @sections = (qw/fl_ fm_ ul_ um_/);
+    if ($ajax && $ARGS{prefix}) {
+        if (grep { $ARGS{prefix} eq $_ } @sections) {
+            @sections = ($ARGS{prefix});
+        }
+        else {
+            print "Invalid prefix " . _h($ARGS{prefix});
+            return;
+        }
+    }
+    print '<h1>Unbilled Charge Lines Grouped by Type</h1>';
+    for my $section (@sections) {
+        $m->comp('/mason/db/shopdb/billing_charge_lines.comp', prefix => $section, dates => $dates, ajax => $ajax);
+    }
+}
+else { # group_by eq 'jobs'
+</%perl>
+    <h5>Filter by Finalized</h5>
+    <table style="padding-top: 5px;"><tr>
+    <td><a href="?<% _args(%{ $dates->{url_args} }, finalized_filter => 'show_all') %>" style="<% $finalized_filter eq 'show_all' ? 'text-decoration:underline' : '' %>">All Jobs</a></td>
+    <td>|</td>
+    <td><a href="?<% _args(%{ $dates->{url_args} }, finalized_filter => 'unfinalized') %>" style="<% $finalized_filter eq 'unfinalized' ? 'text-decoration:underline' : '' %>">Jobs with Unfinalized Charge Lines</a></td>
+    </tr></table>
+
+    <h1>Unbilled Charge Lines Grouped by Job</h1>
+<%perl>
+    my $rows = 5;
+    my $page = $ARGS{page} && $ARGS{page} =~ /^\d+$/ ? $ARGS{page} : 1;
+    my $job_item = $job_id ? $schema->resultset('Jobs')->find({ job_id => $job_id }) : undef;
+    if ($job_id && !$job_item) {
+        print "Invalid job_id " . _h($job_id);
+        return;
+    }
+    my (@ll_date_filter, @ml_date_filter, @ll_finalized_filter, @ml_finalized_filter);
+    my $no_filter = $ARGS{date_filter} && $ARGS{date_filter} eq 'Clear filter';
+    unless ($no_filter) {
+        @ll_date_filter = ('labor_lines.charge_date' => { '>=' => $dates->{start_date}->ymd, '<=' => $dates->{end_date}->ymd });
+        @ml_date_filter = ('material_lines.charge_date' => { '>=' => $dates->{start_date}->ymd, '<=' => $dates->{end_date}->ymd });
+    }
+    unless ($finalized_filter eq 'show_all') {
+        @ll_finalized_filter = ('labor_lines.finalized' => 0);
+        @ml_finalized_filter = ('material_lines.finalized' => 0);
+    }
+    # Find jobs with unbilled active material or labor lines within date range or fetch specific job if requested
+    my $jobs = $schema->resultset('Jobs')->search(($job_item ?
+        {
+            job_id => $job_item->id,
+        } :
+        {
+            'labor_lines.bill_date' => undef,
+            'material_lines.bill_date' => undef,
+            -or => [
+                -and => [ @ll_finalized_filter, @ll_date_filter, 'labor_lines.active' => 1 ],
+                -and => [ @ml_finalized_filter, @ml_date_filter, 'material_lines.active' => 1 ],
+            ],
+        }),
+        {
+            join => [ qw/labor_lines material_lines/ ],
+            group_by => 'me.job_id',
+            order_by => { -asc => 'me.job_id' },
+            rows => $rows,
+            page => $page,
+        }
+    );
+    my $total_jobs = $jobs->pager->total_entries;
+    my $offset = $rows * ($page - 1);
+    my $prev_enabled = $page > 1 ? 1 : 0;
+    my $next_enabled = $rows * $page >= $total_jobs ? 0 : 1;
+    </%perl>
+    <div style="width: 100%; text-align: center;">
+        <a href="billing.html?<% _args(%{ $dates->{url_args} }, page => 1) %>"><button<% $prev_enabled ? '' : ' DISABLED' %>> &lt;&lt; </button></a>
+        <a href="billing.html?<% _args(%{ $dates->{url_args} }, page => $page - 1) %>"><button<% $prev_enabled ? '' : ' DISABLED' %>> &lt; </button></a>
+        Showing jobs <% $total_jobs ? $offset + 1 : 0 %> - <% $offset + $rows >= $total_jobs ? $total_jobs : $offset + $rows %> of <% $total_jobs %>
+        <a href="billing.html?<% _args(%{ $dates->{url_args} }, page => $page + 1) %>"><button<% $next_enabled ? '' : ' DISABLED' %>> &gt; </button></a>
+        <a href="billing.html?<% _args(%{ $dates->{url_args} }, page => int(($total_jobs + $rows - 1) / $rows)) %>"><button<% $next_enabled ? '' : ' DISABLED' %>> &gt;&gt; </button></a>
+    </div>
+    <%perl>
+    while (my $job = $jobs->next) {
+        my $charge_line_data_header = $columns->{combined};
+        my ($total, $charge_line_data) = $m->comp('/mason/db/shopdb/unbilled_charge_lines.comp', job_item => $job, dates => $dates, no_filter => $no_filter);
+        my $ts = new Tablesearch(
+            columns             => $columns->{combined},
+            data                => [ [ @{$charge_line_data_header}, 'unit' ], @$charge_line_data ],
+            header_format       => 'ucfirst_all',
+            hide_search         => 1,
+            hide_header         => 1,
+            no_limit            => 1,
+            html_table_id       => "table_job" . $job->id . "_charge_lines",
+            field_params        => {
+                %$common_field_params,
+            },
+            row_tagger          => sub {
+                my ($row) = @_;
+                return 'data-line_id="' . $row->{'line_id'} . '" data-type="' . $row->{'type'} . '"'; },
+            prefix              => 'job' . $job->job_id,
+            prerow              => sub {
+                my ($row, $ts) = @_;
+                if ($row->{finalized} && !$ts->{tmp}->{finalized}) {
+                    $ts->{tmp}->{finalized} = 1;
+                    return '<tr><td colspan="' . scalar($ts->column_names) . '"><i>Finalized Charge Lines</i></td></tr>';
+                }
+                unless ($row->{finalized} || $ts->{tmp}->{unfinalized}) {
+                    $ts->{tmp}->{unfinalized} = 1;
+                    return '<tr><td colspan="' . scalar($ts->column_names) . '"><i>Unfinalized Charge Lines</i></td></tr>';
+                }
+                return '';
+            },
+            ajax_url            => 'billing.html',
+            ajax_parameters     => { %{$dates->{url_args}}, ajax => 1, job_id => $job->id },
+            ajax_pre_callback   => 'preJob' . $job->id . 'Submit();',
+            ajax_post_callback  => 'loadJob' . $job->id .'RowEditor();',
+            default_sort_field  => "charge_date",
+            sort_prefix_field   => 'finalized',
+            sort_prefix_dir     => 'desc',
+            extra_url_args      => [ 'group_by' ],
+        );
+
+        if ($ajax) {
+            $m->clear_buffer;
+            $ts->display;
+            $m->abort;
+            return;
+        }
+
+        if ($ARGS{get_updated_total}) {
+            print_ajax({ total => sprintf('$%0.2f', $total) });
+            return;
+        }
+
+        print '<h2 style="padding-bottom: 5px;">Job #' . $job->job_id . ': <a href="job.html?job_id=' . $job->job_id . '">' . $job->project_name . '</a></h2>';
+        print '<span>';
+        $ts->display;
+        print '</span>';
+        my $bulk_update_form = ShopDb::Form::ChargeLineBulkUpdate->new(
+            auth_args => $auth_args,
+            prefix => "job" . $job->id . "_charge_lines_",
+            charge_lines_table_id => "table_job" . $job->id . "_charge_lines",
+            success_callback => 'refreshJob' . $job->id . 'Data()',
+            reset_on_success => 1,
+        );
+</%perl>
+<table cellspacing="0" cellpadding="3" width="100%"><tr>
+    <td><table cellpadding="3" cellspacing="0" style="padding-top: 5px"><tr>
+        <td valign="middle"><a href="#" id="check_all_job<% $job->id %>_charge_lines">Check all</a></td>
+        <td>|</td>
+        <td valign="middle"><a href="#" id="clear_all_job<% $job->id %>_charge_lines">Clear all</a></td>
+        <td>|</td>
+        <td valign="middle">With selected:</td>
+        <td valign="middle"><% $bulk_update_form->render %></td>
+    </tr></table></td>
+    <td style="padding-right: 10px;font-weight:bold" align="right">Total to bill: <span id="job<% $job->id %>total"><% sprintf('$%0.2f', $total) |h %></span></td>
+</tr></table>
+
+<script type="text/javascript">
+function preJob<% $job->id %>Submit() {
+    $('table_job<% $job->id %>_charge_lines').roweditor.cleanup();
+}
+
+function loadJob<% $job->id %>RowEditor() {
+    $('table_job<% $job->id %>_charge_lines').roweditor = new RowEditor(
+        'table_job<% $job->id %>_charge_lines',
+        'charge_line_ajax.html',
+        <% to_json($columns) %>,
+        {
+            checkAllID: 'check_all_job<% $job->id %>_charge_lines',
+            clearAllID: 'clear_all_job<% $job->id %>_charge_lines',
+            parameters: {
+            },
+            tdClassName: 'tableitem',
+            hiddenAttributes: $H({type: 'type', line_id: 'line_id'}),
+        }
+    );
+}
+
+function refreshJob<% $job->id %>Data() {
+    document.job<% $job->id %>tsform.submit();
+    new Ajax.Request('billing.html', {
+        method: 'post',
+        parameters: { job_id: <% $job->id %>, get_updated_total: 1, group_by: 'jobs' },
+        onSuccess: function(transport) {
+            try {
+                response = transport.responseText.evalJSON();
+                $('job<% $job->id %>total').update(response.total);
+            } catch (e) { }
+        },
+        onFailure: function () { alert("There was a failure refreshing the job total. Please refresh the page."); }
+    });
+}
+
+loadJob<% $job->id %>RowEditor();
+
+</script>
+<%perl>
+        print "<br />";
+    }
+}
+
+
+} # end $action eq 'finalize'
+</%perl>

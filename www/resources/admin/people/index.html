@@ -1,0 +1,132 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: index.html
+        Date: 2008.08.27
+      Author: rubin
+     Changed: 2008.08.27 by rubin
+
+Description ... 
+$m->interp->apply_escapes($var, 'h');
+</%DOC>
+
+<%ARGS>
+$excel=>''
+$published=>''
+</%ARGS>
+
+<%method title>People</%method>
+
+<%init>
+
+use physdb::directory;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $dirauth = $m->comp('/mason/auth/auth_check_directory.comp');
+
+if(! ($auth || $dirauth )) {
+    print "No Access\n";
+    return;
+}
+
+</%init>
+
+<%perl>
+    my $where;
+    if ($published) {
+        $where = "WHERE  (directory.uid in (SELECT distinct uid FROM groupmembers JOIN groups ON groups.name=groupmembers.groupname WHERE type='flags' AND publish=1))";
+    }
+    my $directory = Directory->new();
+    my $status_sql_fragment = $directory->status_sql_fragment();
+    $m->comp('/mason/db/tablesearch.comp',
+        table => 'directory',
+        joins => [
+            'dwsp_building' => 'dwsp_building.BLDG_NO = directory.room_building',
+            ],
+        field_list => [ 'concat(last_name, \', \', first_name) as name',
+                        'uid as profile', 
+                        $status_sql_fragment .  ' as directory',
+                        'physid', 
+                        'x500',
+                        'CONCAT(BLDG_ABBR, " ", room) AS location',
+                        'room_phone as phone', 
+                        'uid as uid', 
+                        'IF(position>\'\',position,dw_position) AS position', 
+                        'spa_ad_account',
+                        'CONCAT(" ",ucard) AS ucard',
+                        'ucardprox',
+                        'emplid',
+                        'home_phone',
+                        'DATE(directory.modified_date) AS modified',
+                        'DATE(create_date) AS added',
+                    ],
+        field_params => {
+            uid => {
+                hidden => 1,
+            },
+            spa_ad_account => {
+                hidden => 1,
+            },
+            ucard => {
+                hidden => (!$excel),
+                },
+            ucardprox => {
+                hidden => (!$excel),
+            },
+            emplid => {
+                hidden => (!$excel),
+            },
+            home_phone => {
+                hidden => 1,
+            },
+            name => {
+                url => 'user.html?uid=$row{uid}',
+            },
+            phone => {
+                data_format => sub {
+                    my ($field_value, $coderef, $row_hashref) = @_;
+                    # only display local part of a (+1) 612- number
+                    $field_value =~ s/[\+1\s]*612-(\d\d\d\-\d\d\d\d)/$1/g;
+                    return $field_value;
+                }
+            },
+                profile => {
+                # needs to be hidden for excel export
+                hidden =>$excel,
+                data_format => sub {
+                    my ($field_value, $coderef, $row_hashref) = @_;
+                    my $output = '<a href="/resources/myphys/profile/index.html?uid='. $row_hashref->{'uid'}. '"><img src="/images/nav_profile3.gif" alt="View" title="View Directory Profile" border="0" /></a>';
+                    $output .= ' <a href="edit_entry_form.html?uid='. $row_hashref->{'uid'} .'"><img src="/images/imgsel_edit.png" alt="Edit Directory" title="Edit Directory Entry" border="0" /></a>';
+                    return $output;
+                }
+            },
+        },
+        header_format => 'ucfirst',
+        default_sort_field => 'directory.modified_date',
+        default_sort_dir => 'DEC',
+        hide_pagenator => 0,
+        no_limit => 0,
+        limit => 50,
+        debug => 0,
+        excel_link => 1,
+        excel_filename => 'directory',
+        where => $where,
+        extra_url_args => [ 'published', ],
+);
+
+</%perl>
+
+
+
+<%method meta>
+<script language="javascript">
+function accountHelp() {
+  window.alert("DISABLED: loginShell = /bin/false\nEXPIRED: shadowExpire < today\nSAMBA DISABLED: sambaAcctFlags = D\nSAMBA EXPIRED: sambaKickoffTime < today\nLOGIN DISABLED: loginShell = /sbin/nologin")
+}
+</script>
+<style>
+   .rotated{
+        font-size: 9px; line-height: 0px; margin: 25px 0 0 7px; width: 3px; -moz-transform: rotate(-90deg); display: block;
+   }
+</style>
+</%method>
+

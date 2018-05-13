@@ -1,0 +1,33 @@
+<%doc>
+  vim:set syntax=mason:
+</%doc>
+
+<%init>
+  use Time::Duration;
+
+</%init>
+<%method title>
+Login Report
+</%method>
+
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+    sql => "SELECT net_hosts.computer_name, count(a.id)as count, group_concat(distinct a.physid) as logins 
+            FROM net_hosts 
+            LEFT OUTER JOIN accounting.login_accounting a ON a.host_id = net_hosts.id 
+            WHERE a.timestamp IS NULL 
+               OR (a.timestamp > DATE_SUB(now(), INTERVAL 90 DAY) 
+                  AND a.physid NOT IN ('root','git','rubin','allan','adam','nick','hdfs')) 
+              AND net_hosts.os='linux' AND net_hosts.type='workstation' 
+              AND net_hosts.groupname = 'sysadm'
+         GROUP BY a.host_id ORDER BY count",
+    #default_sort_field => 'timestamp',
+    #default_sort_dir   => 'desc',
+    header_format      => 'ucfirst_all',
+    no_limit => 1,
+    no_sort => 1,
+    #limit              => 50,
+    #group_by => "GROUP BY dhcp_accounting.hwa, ip, timestamp",
+    #debug => 1,
+);
+</%perl>

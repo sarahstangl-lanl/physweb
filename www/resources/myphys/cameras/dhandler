@@ -1,0 +1,33 @@
+<%DOC>
+    vim: set syntax=mason:
+   Component: netcam-ld-1.html
+        Date: 2008.04.23
+      Author: nick
+     Changed: 2008.04.23 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+    $m->comp('/mason/auth/auth_block.comp', internal=>'yes');
+
+    use Data::Dumper;
+    $r->content_type('text/html');
+    my $camera = $m->dhandler_arg;
+</%INIT>
+
+<%METHOD title>Cameras</%METHOD>
+
+<P><IMG id="campic" src="./loading.gif">
+<SCRIPT language="JavaScript">
+function reloadPic() {
+  $time = new Date().getTime()/1000.0;
+  document.getElementById('campic').src = "./getpic.html?camera=<%$camera%>&time=" + $time;
+}
+//#reloadPic();
+$timeout=setTimeout('reloadPic()',100);
+$interval=setInterval('reloadPic()',10000);
+</SCRIPT>

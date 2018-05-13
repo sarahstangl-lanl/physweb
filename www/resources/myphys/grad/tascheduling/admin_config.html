@@ -1,0 +1,58 @@
+<%DOC>
+   Component: admin_config.html
+        Date: 2007.07.31
+      Author: clayton
+     Changed: 2007.07.31 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $update_config => ''
+</%ARGS>
+
+<%INIT>
+  my $auth_admin = $m->comp('/mason/auth/auth_check_ta_admin.comp');
+  if (!$auth_admin) { $m->redirect('not_authorized.html'); }
+
+  my $update_dbconfig = sub {
+    my @valid_config_opts = ('active_year','active_sem','days','periods','period_length','period_break','start_time');
+    my ($query, $sql);
+
+    foreach(@valid_config_opts)
+    {
+      if (exists($ARGS{$_}))
+      {
+        $sql = 'INSERT INTO taschedule_settings (name, value) VALUES (?,?)
+               ON DUPLICATE KEY UPDATE value=?';
+        $query = $dbh->prepare($sql);
+        $query->execute($_,$ARGS{$_},$ARGS{$_});
+      }
+    }
+  };
+
+  if ($update_config) {
+    &$update_dbconfig();
+  }
+
+  my %config = $m->comp('/mason/db/tascheduling/config.comp');
+</%INIT>
+
+<%method title>TA Scheduling</%method>
+
+<h3 style="border-bottom: 1px solid black; margin-bottom: 0.25em;">Admin: Configuration</h3>
+<form action="admin_config.html" method="POST">
+<table>
+<tr><th align="right">Active Year: </th><td><input type="text" name="active_year" size="5" value="<% $config{'active_year'} |h %>"> Clear to deactivate registration</td></tr>
+<tr><th align="right">Active Semester: </th><td><select name="active_sem"><option<% ($config{'active_sem'} eq 'spring' ? ' SELECTED' : '') %> value="spring">Spring</option>
+<option <% ($config{'active_sem'} eq 'fall' ? ' SELECTED' : '') %> value="fall">Fall</option></select></td></tr>
+<tr><th align="right">Days: </th><td><input type="text" name="days" size="5" value="5" DISABLED></td></tr>
+<tr><th align="right">Periods: </th><td><input type="text" name="periods" size="5" value="<% $config{'periods'} |h %>"></td></tr>
+<tr><th align="right">Period Duration: </th><td><input type="text" name="period_length" size="5" value="<% $config{'period_length'} |h %>"> minutes</td></tr>
+<tr><th align="right">Duration Between Periods: </th><td><input type="text" name="period_break" size="5" value="<% $config{'period_break'} |h %>"> minutes</td></tr>
+<tr><th align="right">Start Time: </th><td><input type="text" name="start_time" size="5" value="<% $config{'start_time'}{'hour'} . ':' . (length($config{'start_time'}{'minute'}) < 2 ? '0' : '') . $config{'start_time'}{'minute'} |h %>"> (h:mm format)</td></tr>
+</table>
+<input type="submit" name="update_config" value="Save Changes">
+</form>
+
+<br/>

@@ -1,0 +1,64 @@
+
+<%DOC>
+   Component: startapp.html
+        Date: 2005.08.10
+      Author: allan
+     Changed: 2005.08.10 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$email=>''
+$pass1=>''
+$pass2=>''
+</%ARGS>
+
+<%INIT>
+use Email::Valid;
+#remove whitespace from email...
+$email =~ s/ //g;
+my $sql = "SELECT id FROM grad.gradapp WHERE email=?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($email);
+
+my $email_ok = Email::Valid->address($email);
+my $year = $m->comp('/mason/db/gradapp/current_app_year.comp');
+my $appdate = strftime("%e %b %Y", CORE::localtime);
+# supply a default date for degree start/end...
+my $degdate = This_Year."-01-01";
+my ($pin, $test);
+</%INIT>	
+
+<%method title>Start application</%method>
+
+<%perl>
+if (!$email_ok) {
+  print "Sorry, that doesn't look like a valid email address";
+} else {
+  if (my $row_ref = $sth->fetchrow_arrayref()) {
+    print "<p><b>Sorry, that email address has already applied. If you want to review an existing application, please return to the previous page, and enter your email and password under <i>Review an Existing Application</i></b></p> ";
+  } else {
+      if ((length($pass1) > 4) && (length($pass1) < 30) && ($pass1 eq $pass2)) {
+        # email not found, insert a new record
+        # first choose a unique PIN
+        $sql = "SELECT COUNT(*) FROM grad.gradapp WHERE pin=?";
+        do {
+          $pin = 1000 + int(rand(8999));
+          $sth = $dbh->prepare($sql);
+          $sth->execute($pin);
+          $row_ref = $sth->fetchrow_arrayref();
+          ($test) = @$row_ref;
+        } until (!$test);
+        $sql = "INSERT INTO grad.gradapp (email, password, entryyear, appdate, pin, degstart1, degstart2, degend1, degend2) VALUES (?,?,?,?,?,?,?,?,?)";
+        $sth = $dbh->prepare($sql);
+        $sth->execute($email, $pass1, $year, $appdate, $pin, $degdate, $degdate, $degdate, $degdate) or die 'Unable to add new app: ' . $dbh->errstr;
+        my $id = $dbh->last_insert_id(undef, undef, undef, undef);
+        $session{'gradappid'}=$id;
+        $m->redirect('appform.html');
+      } else {
+        print "<p><b>Problem - password too short or too long (must be between 4-30 characters), or password and confirmation didn't match - please go back and try again.</b></p>";
+      }
+  }
+}
+</%perl>

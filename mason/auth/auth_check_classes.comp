@@ -1,0 +1,19 @@
+<%doc>
+   Component: auth_check_class.comp
+        Date: 9/2/2002
+      Author: allan
+ Description: checks if the user has global classpage access
+</%doc>
+
+<%init>
+my $auth = $m->comp('/mason/auth/auth_check.comp', auth_type=>'classes');
+</%init>
+
+<%perl>
+return $auth;
+</%perl>
+
+
+<%filter>
+s/.//gos
+</%filter>

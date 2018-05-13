@@ -1,0 +1,77 @@
+<%DOC>
+        vim: set syntax=mason:
+  Component: tickets.html
+       Date: 2010.07.27
+     Author: mackey
+
+Description: Allows people to view their open tickets
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%method title>My Tickets</%method>
+
+
+<%INIT>
+    use tablesearch;
+    use supportdb;
+
+    my $physid  = $session{'physid'};
+    my $x500    = $session{'x500'};
+
+    my @addresses;
+    if ($physid) {
+        push (@addresses, $physid . "\@physics.umn.edu");
+        push (@addresses, $physid . "\@astro.umn.edu");
+    }
+    push (@addresses, $x500 . "\@umn.edu") if ($x500);
+
+</%init>
+<p>This is a really basic interface to show you a list of your tickets with status.
+</p>
+
+<%perl>
+    my $sql_where = "WHERE Tickets.Status <> 'deleted' AND Tickets.EffectiveId = Tickets.id AND (1=0 ";
+    foreach my $address (@addresses) {
+       $sql_where .= " OR (Users.EmailAddress = \'$address\' AND Users.EmailAddress <> '') OR Users.Name = \'$physid\'";
+    }
+    $sql_where .= ")";
+
+    my $sdb = new supportdb;
+    $sdb->connect();
+
+    my $ts = new Tablesearch(
+            joins => [
+                'GroupMembers'  =>  'GroupMembers.MemberId = Users.id',
+                'Groups'        =>  'Groups.id = GroupMembers.GroupId AND Domain=\'RT::Ticket-Role\' AND Type=\'Requestor\'',
+                'Tickets'       =>  'Tickets.id = Groups.instance',
+                'Queues'        =>  'Queues.id = Tickets.Queue',
+            ],
+            table => 'Users',
+            field_list         => ['Tickets.EffectiveId as id','Tickets.subject', 'Queues.Name as name', 'Tickets.Created as created', 'Tickets.LastUpdated as lastupdated', 'Tickets.Status as status'],
+            field_params       => {
+                                    'id'   => {
+                                        name                => 'Ticket #',
+                                        url                 => 'https://support.physics.umn.edu/rt/SelfService/Display.html?id=$row{id}',
+                                    },
+                                    'name'   =>  {
+                                        name                 => 'Queue',
+                                    },
+                                    'lastupdated'   =>  {
+                                        name                 => 'Modified',
+                                    },
+            },
+            filter_field => 'Tickets.status',
+            filter_join => "RIGHT JOIN ( SELECT 'resolved' as status UNION SELECT 'new' UNION SELECT 'open' ) Tickets ON Tickets.status IS NOT NULL",
+            where => $sql_where,
+            default_sort_field  =>  'Created',
+            default_sort_dir  =>  'desc',
+            hide_search       =>    1,            
+            header_format => 'ucfirst',
+    );
+
+    $ts->{dbh} = $sdb->get_dbh();
+
+    $ts->display();       
+</%perl>

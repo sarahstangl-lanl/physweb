@@ -1,0 +1,54 @@
+<%DOC>
+   Component: doheader.comp
+        Date: 2009.01.30
+      Author: clayton
+     Changed: 2009.01.30 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $selected => undef
+
+  $keyid => ''
+  $copynum => ''
+  $name => ''
+  $room => ''
+</%ARGS>
+
+<%INIT>
+  my $active_color = '#f9f3d4';
+  my $inactive_color = '#eeeeee';
+</%INIT>		
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" >
+<tr>
+<td style="background-color: <% ($selected eq 'view_key' ? $active_color : $inactive_color) %>" align="center" width="33%">
+
+<form action="view_key.html" method="GET">
+<table><tr><th colspan="2">Lookup Key</th></tr>
+<tr><td nowrap>KeyID: <input type="text" name="keyid" size="10"<% " value=\"$keyid\"" %> onclick="javascript:select();"></td><td nowrap>Copy#: <input type="textbox" name="copynum" size="10" <% " value=\"$copynum\"" %> onclick="javascript:select();"> <input type="submit" value="Lookup"></td></tr>
+</table>
+</form>
+
+</td><td style="border-left: 2px solid white; background-color: <% ($selected eq 'view_person' ? $active_color : $inactive_color) %>" align="center" width="33%">
+
+<form action="view_person.html" method="GET">
+<table><tr><th colspan="2">Lookup Person</th></tr>
+<tr><td nowrap>Person: <input type="text" id="name" name="name" <% " value=\"$name\"" %> onclick="javascript:select();">
+<& /mason/ajax/complete_people.comp, name => 'name', id => 'name', dest_id => 'name_auto_complete' &>
+<input type="submit" value="Lookup">
+</td></tr>
+</table>
+</form>
+
+</td><td style="border-left: 2px solid white; background-color: <% ($selected eq 'view_room' ? $active_color : $inactive_color) %>" align="center" width="33%">
+
+<form action="view_room.html" method="GET">
+<table><tr><th colspan="2">Lookup Room</th></tr>
+<tr><td nowrap>Room: <input type="text" name="room" <% " value=\"$room\"" %> onclick="javascript:select();"> <input type="submit" value="Lookup"></td>
+</table>
+</form>
+
+</td></tr>
+</table>

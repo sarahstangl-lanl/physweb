@@ -1,0 +1,11 @@
+Handle: mailform
+
+Author-Id: DRRHO
+
+Version: 0.1
+
+Summary: Emails form submissions, checks fields (required, typed), template controlled
+
+Components: failure.mc  mailform.mc  success.mc  templates/generic.mail  testform.mc
+
+Require-Mason: 0.896

@@ -1,0 +1,17 @@
+
+<%DOC>
+   Component: loggedin.comp
+        Date: 2008.06.03
+      Author: clayton
+     Changed: 2008.06.03 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+return ($session{'x500'} || $session{'physid'} || $session{'fauxid'});
+</%INIT>		
+		

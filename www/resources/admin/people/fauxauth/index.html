@@ -1,0 +1,79 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: index.html
+        Date: 2008.04.01
+      Author: clayton
+     Changed: 2008.04.01 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $create=>0
+  $delete=>0
+  $confirm=>0
+  $fauxid=>''
+  $username=>''
+  $firstname=>''
+  $lastname=>''
+  $password=>''
+  $email=>''
+  @groups=>()
+</%ARGS>
+
+<%INIT>
+use Digest::MD5 qw(md5_hex);
+
+my $auth =$m->comp('/mason/auth/auth_check_sysadm.comp');
+
+if (!$auth)
+{
+  $m->out('Access Denied');
+  return;
+}
+
+my $grouplist = join ',', @groups;
+
+my ($query);
+
+if ($fauxid ne '' || $create) {
+  if ($delete && $confirm) {
+    $query = $dbh->prepare('DELETE FROM fauxauth WHERE fauxid=? LIMIT 1');
+    $query->execute($fauxid);
+  } elsif ($password || $create) {
+    # Generate a random salt
+    my @chars = ("A" .. "Z","a" .. "z", 0 .. 9, qw(! @ $ ^ & *));
+    my $salt  = join ("", @chars [ map { rand @chars } (1..8) ]);
+
+    my $pass = $salt . md5_hex($salt.$password);
+    if ($create) {
+      $query = $dbh->prepare('INSERT INTO fauxauth (fauxid, first_name, last_name, email, password, groups) VALUES (?,?,?,?,?,?)');
+      $query->execute($username, $firstname, $lastname, $email, $pass, $grouplist) or print $dbh->errstr;
+    } else {
+      $query = $dbh->prepare('UPDATE fauxauth SET fauxid=?, first_name=?, last_name=?, email=?, password=?, groups=? WHERE fauxid=? LIMIT 1');
+      $query->execute($username, $firstname, $lastname, $email, $pass, $grouplist, $fauxid);
+    }
+  } else {
+    $query = $dbh->prepare('UPDATE fauxauth SET fauxid=?, first_name=?, last_name=?, email=?, groups=? WHERE fauxid=? LIMIT 1');
+    $query->execute($username, $firstname, $lastname, $email, $grouplist, $fauxid);
+  }
+}
+
+$query = $dbh->prepare('SELECT fauxid, first_name, last_name, email, groups FROM fauxauth ORDER BY fauxid ASC');
+$query->execute();
+</%INIT>
+
+<%method title>FauxUsers</%method>		
+
+
+
+<a href="edituser.html">Create New User</a>
+
+<form>
+<table>
+<tr class="tablehead"><th>Faux Physid</th><th>First Name</th><th>Last Name</th><th>E-mail</th><th>Groups</th></tr>
+% while (my $row = $query->fetchrow_hashref()) {
+<tr><td><a href="edituser.html?fauxid=<% $$row{'fauxid'} |u %>"><% $$row{'fauxid'} %></a></td><td><% $$row{'first_name'} %></td><td><% $$row{'last_name'} %></td><td><% $$row{'email'} %></td><td><% $$row{'groups'} %></td></tr>
+% }
+</table>
+</form>

@@ -1,0 +1,19 @@
+<%doc>
+vim:set syntax=mason:
+</%doc>
+<%method backgroundcolor>#DCA3d5</%method>
+    <h1>Viewing the Beginning of the Universe from the Bottom of the World</h1>
+    <!--<h2>The Keck Array </h2>-->
+    <p>Clem Pryke is a cosmologist who uses telescopes at the South Pole in Antarctica to learn about the origins of the Universe.  </p>
+    
+     <p>The Keck Array is a series of sensitive recievers located in Antarctica which measures the Cosmic Microwave Background (CMB), a remnant of the Big Bang.
+     The South Pole is an ideal place to make such observations - the extreme cold and high altitude combine to
+     make the atmosphere there almost free of water vapor - allowing a clear view of the microwave sky.
+     
+     Measurement of the CMB has helped to answer such questions as "How old is the Universe?" (answer: 14 billion years), and "What is it made of?"
+     (answer: mostly mysterious stuff called Dark-Matter and Dark-Energy).  
+     
+    <div id="sideiconblock" style="position: absolute; top: 750px; right:0px; text-align: center; width: 100%;">
+     
+      
+    </div>

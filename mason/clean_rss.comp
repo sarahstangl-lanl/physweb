@@ -1,0 +1,42 @@
+<%DOC>
+   Component: clean_rss.comp
+        Date: 2008.09.02
+      Author: clayton
+     Changed: 2008.09.02 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+  for (@_) {
+    s/^\s+|\s+$//; # strip leading/trailing line breaks and whitespace
+    s/\xE2\x80\x99/\'/g; #convert special single-quote to '
+    s/\xE2\x80\x9D/\"/g; #convert right smart quote to "
+    s/\xE2\x80\x9C/\"/g; #convert left smart quote to "
+    s/\xE2\x80\x93/\&ndash\;/g; #convert hex dash to &ndash;
+
+    # These should be done separately/by a call to WikiFormat if wanted
+    # The class page stuff is already passed through the wiki->htmlifier
+    # DO NOT ENABLE THE FOLLOWING UNLESS YOU WANT TO BREAK THE FEEDS!!!
+    # YES!!! CAPS AND THREE EXCLAMATION POINTS!!!
+
+    #s/\*(.*?)\*/\<b\>$1\<\/b\>/g; #convert *...* to <b>...</b>
+    #s/\[(.*?)\|(.*?)\]/\<a href=$1\>$2\<\/a\>/g; #convert [...|...] to link
+    #s/\[(.*?)\]/\<a href=$1\>$1\<\/a\>/g; #convert [...] to link
+    #s/([^=">])(http.*?)\s/$1\<a href=\"$2\"\>$2\<\/a\> /g; #convert http://... to link
+    #s/(\r\n)/\<br\>/g; #convert line breaks to <br>
+    # What are these two for?
+    #s/(\<a.*)\.(\"\>)/$1$2/g; #strip . from end of link URL
+    #s/\.\<\/a\>/\<\/a\>\./g; #move . from end of link text
+    #s/^(www.*)\b/\<a href=\"http\:\/\/$1\"\>http\:\/\/$1\<\/a\>/g; #convert www... at beginning to link
+    #s/\b([A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4})\b/\<a href\=\"mailto\:$1\"\>$1\<\/a\>/g;
+#    $_ = Text::WikiFormat::format($_ , { strong_tag => qr/\*(.+?)\*/ } , { implicit_links => 0 , extended => 1 , absolute_links => 1 } );
+  }
+</%INIT>		
+		
+<%filter>
+s/.//gos
+</%filter>

@@ -1,0 +1,185 @@
+<%args>
+$helper_methods
+$schema
+</%args>
+<%init>
+use tablesearch;
+
+my $dates = $m->comp('/mason/db/shopdb/date_range.comp', hide_form => 1);
+
+my $jobs = $schema->resultset('Jobs')->search(
+    {
+        'me.account_key' => [
+            { -not_in => [
+                'UMFIN;1026;11140;20247;;;;1000009786', # External shop jobs
+                'UMFIN;1150;11140;20248;;;;1000009786', # Internal mshop jobs
+                'UMFIN;1150;11140;20248;;;;1000004725', # Internal eshop jobs
+                'UMFIN;1026;12155;20247;;;;',           # External cseshop jobs
+                'UMFIN;1150;12155;20248;;;;',           # Internal cseshop jobs
+                'UMFIN;1026;12155;SEPRT;;;;',           # External 3dshop jobs
+                'UMFIN;1150;12155;SEPRT;;;;',           # Internal 3dshop jobs
+            ] },
+            undef,
+        ],
+        'me.external' => 0,
+        'labor_lines.bill_date' => undef,
+        'material_lines.bill_date' => undef,
+        -or => [
+            -and => [
+                'labor_lines.active' => 1,
+                'labor_lines.charge_date' => { -between => [ $dates->{start_date}->ymd, $dates->{end_date}->ymd ] },
+            ],
+            -and => [
+                'material_lines.active' => 1,
+                'material_lines.charge_date' => { -between => [ $dates->{start_date}->ymd, $dates->{end_date}->ymd ] },
+            ],
+        ],
+    },
+    {
+        join => [ qw/labor_lines material_lines/ ],
+        group_by => 'me.job_id',
+        order_by => { -asc => 'me.job_id' },
+    }
+);
+
+my $dw_dbh = $m->comp('/mason/dw_dbh.comp');
+my $year_month = sprintf("%d%02d", $dates->{start_date}->year, $dates->{start_date}->month);
+
+my $all_vouchers = $dw_dbh->prepare("
+    SELECT v.INVOICE_ID, l.*
+      FROM FS_PS_VOUCHER v
+      JOIN FS_PS_DISTRIB_LINE l ON v.VOUCHER_ID = l.VOUCHER_ID
+     WHERE (v.INVOICE_ID LIKE ? OR v.INVOICE_ID LIKE ? OR v.INVOICE_ID LIKE ? OR v.INVOICE_ID LIKE ?)
+       AND l.ACCOUNT IN ('720299','720403','850104')
+");
+$all_vouchers->execute(map { "${_}${year_month}Job%" } (qw/ES MS 3DPrinter CSEShop/)) or die "Failed to fetch all vouchers for $year_month: " . $all_vouchers->errstr;
+my ($vouchers);
+while (my $voucher_line = $all_vouchers->fetchrow_hashref) {
+    (my $job_id = $voucher_line->{INVOICE_ID}) =~ s/.*Job(\d+)/$1/;
+    push @{ $vouchers->{$job_id}->{$voucher_line->{INVOICE_ID}} }, $voucher_line;
+}
+
+my $currency = sub {
+    my $value = shift;
+    return sprintf "\$%0.2f", ($value || 0);
+};
+
+my @data = (
+ [ qw/job_id invoice_ids voucher_ids shopdb_mat shopdb_labor efs_mat efs_labor comments/ ],
+);
+
+while (my $job = $jobs->next) {
+    my $job_id = $job->id;
+    # Check for unfinalized lines and calculate total
+    my $unfinalized = 0;
+    my $comments = '';
+    my $ll_rs = $job->search_related('labor_lines', 
+        {
+            'me.active' => 1,
+            charge_date => { -between => [ $dates->{start_date}->ymd, $dates->{end_date}->ymd ] },
+        },
+        {
+            'select' => [ 'me.finalized' ],
+        }
+    )->with_extended_cost;
+    my $ml_rs = $job->search_related('material_lines',
+        {
+            'me.active' => 1,
+            charge_date => { -between => [ $dates->{start_date}->ymd, $dates->{end_date}->ymd ] },
+        },
+        {
+            'select' => [ 'me.finalized' ],
+        }
+    )->with_extended_cost;
+    my $ll_total = $currency->($ll_rs->get_column('extended_cost')->sum);
+    my $ml_total = $currency->($ml_rs->get_column('extended_cost')->sum);
+    for my $ll ($ll_rs->all) {
+        $unfinalized = 1 unless ($ll->finalized);
+    }
+    for my $ml ($ml_rs->all) {
+        $unfinalized = 1 unless ($ml->finalized);
+    }
+    if ($unfinalized) {
+        $comments .= " There are unfinalized charge lines for Job $job_id.";
+    }
+    my $voucher_ids = '';
+    my $invoice_ids = '';
+    my $voucher_ll = 0;
+    my $voucher_ml = 0;
+    if (exists $vouchers->{$job_id}) {
+        for my $invoice (keys %{ $vouchers->{$job_id} }) {
+            for my $voucher (@{ $vouchers->{$job_id}->{$invoice} }) {
+                if ($voucher->{DESCR} =~ /^LAB/) {
+                    $voucher_ll += $voucher->{MONETARY_AMOUNT};
+                }
+                elsif ($voucher->{DESCR} =~ /^MAT/) {
+                    $voucher_ml += $voucher->{MONETARY_AMOUNT};
+                }
+                else {
+                    $comments .= " Couldn't determine charge line type from DESCR $voucher->{DESCR}.";
+                }
+            }
+        }
+        $voucher_ids = join ',', map { $vouchers->{$job_id}->{$_}->[0]->{VOUCHER_ID} } keys %{ $vouchers->{$job_id} };
+        $invoice_ids = join ',', keys %{ $vouchers->{$job_id} };
+    }
+    else {
+        $comments .= " No vouchers for Job #$job_id in $year_month.";
+    }
+    $voucher_ll = $currency->($voucher_ll);
+    $voucher_ml = $currency->($voucher_ml);
+    $comments .= " Labor total mismatch. " if ($voucher_ll ne $ll_total);
+    $comments .= " Material total mismatch. " if ($voucher_ml ne $ml_total);
+    push @data, [ $job->id, $invoice_ids, $voucher_ids, $ml_total, $ll_total, $voucher_ml, $voucher_ll, $comments ],
+}
+my $efs_params = sub {
+    my $type = shift;
+    return (
+        "efs_$type" => {
+            name => "EFS " . ($type eq 'mat' ? 'Material' : 'Labor'),
+            data_format => sub {
+                my ($value, $self, $row, $ts) = @_;
+                return '<font color="red">' . $value . '</font>'
+                    if ($value ne $row->{"shopdb_$type"});
+                return $value;
+            },
+        }
+    );
+};
+my $efsts = Tablesearch->new(
+    data => \@data,
+    prefix => 'efs_',
+    header_format => 'ucfirst_all',
+    field_params => {
+        job_id => $helper_methods->job_id,
+        shopdb_mat => { name => 'Dashboard Material' },
+        shopdb_labor => { name => 'Dashboard Labor' },
+        invoice_ids => {
+            name => 'Invoice IDs',
+            data_format => sub {
+                my ($value, $self, $row, $ts) = @_;
+                my @ids = split /,/, $value;
+                my $html = join ', ', map {
+                    '<a href="billing.html?' . _args(action => 'reconcile', year => $dates->{start_date}->year, month => $dates->{start_date}->month, voucherssearch => $_) .'">' . $_ . '</a>';
+                } (@ids);
+            },
+        },
+        voucher_ids => {
+            name => 'Voucher IDs',
+            data_format => sub {
+                my ($value, $self, $row, $ts) = @_;
+                my @ids = split /,/, $value;
+                my $html = join ', ', map {
+                    '<a href="billing.html?action=reconcile&voucher_id=' . $_ . '">' . $_ . '</a>';
+                } (@ids);
+            },
+        },
+        $efs_params->('mat'),
+        $efs_params->('labor'),
+    },
+    no_limit => 1,
+    extra_url_args => [ grep { $_ !~ /^efs_/ } keys %{ $m->request_args } ],
+);
+$efsts->display;
+
+</%init>

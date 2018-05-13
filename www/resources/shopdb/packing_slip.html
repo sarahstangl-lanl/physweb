@@ -1,0 +1,70 @@
+<%flags>
+inherit => undef
+</%flags>
+<%args>
+$packing_slip_id => undef
+$packing_slip_line_id => undef
+</%args>
+<%init>
+use PhysAjax;
+use ShopDb::Form::PackingSlipLine;
+
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+$m->comp('/mason/db/shopdb/build_auth.comp');
+my $auth_args = $session{'shopdb-auth'};
+
+unless ($packing_slip_id) {
+    print_ajax({ result => 'error', message => 'packing_slip_id is required' });
+    return;
+}
+
+my $packing_slip = $schema->resultset('PackingSlips')->find({ packing_slip_id => $packing_slip_id });
+
+unless ($packing_slip) {
+    print_ajax({ result => 'error', message => 'Invalid packing_slip_id ' . _h($packing_slip_id) });
+    return;
+}
+
+my $job_item = $packing_slip->job;
+my $auth = $m->comp('/mason/db/shopdb/check_job_auth.comp', job_item => $job_item);
+unless ($auth eq 'foreman' || $auth eq 'machinist') {
+    print_ajax({ result => 'error', message => 'You are not authorized to modify packing slips for Job #' . $job_item->job_id });
+    return;
+}
+
+my $packing_slip_line = $packing_slip->find_or_new_related('lines', { packing_slip_line_id => $packing_slip_line_id });
+
+unless (!$packing_slip_line_id || $packing_slip_line->in_storage) {
+    print_ajax({ result => 'error', message => 'Invalid packing_slip_line_id ' . _h($packing_slip_line_id) });
+    return;
+}
+
+if ($ARGS{'delete_packing_slip_line'}) {
+    $packing_slip_line->delete;
+    print_ajax({ result => 'ok' });
+    return;
+}
+
+if ($ARGS{'is_comment'}) {
+    $packing_slip_line->set_columns({
+        is_comment => 1,
+    });
+}
+
+my $line_form = ShopDb::Form::PackingSlipLine->new(
+    item => $packing_slip_line,
+    auth_args => $auth_args,
+    schema => $schema,
+    inactive => [ $ARGS{'is_comment'} ? (qw/quantity_backordered quantity_shipped/) : () ],
+);
+
+if ($line_form->process(params => \%ARGS)) {
+print_ajax({ result => 'ok', update => [ '<span class="roweditor_edit roweditor_delete"></span>', $line_form->item->description, $line_form->item->is_comment ? ('', '') : ($line_form->item->quantity_backordered, $line_form->item->quantity_shipped) ], attrs => { packing_slip_line_id => $line_form->item->id } });
+    return;
+}
+else {
+    print_ajax({ result => 'error', errors => { map { $_->name => join(', ', $_->all_errors) } $line_form->error_fields } });
+    return;
+}
+
+</%init>

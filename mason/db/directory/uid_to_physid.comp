@@ -1,0 +1,29 @@
+<%doc>
+   Component: uid_to_x500.comp
+        Date: 9/6/2002
+      Author: allan
+ Description: returns physid of a directory uid
+</%doc>
+
+<%args>
+$uid=>undef
+</%args>
+
+<%init>
+  my $physid;
+  if ($session{'uid'} && ($session{'uid'} == $uid)) {
+    $physid = $session{'physid'};
+  } else {
+    $physid = $m->cache->get($uid);
+  }
+
+  if (!defined($physid)) {
+    my $sth = $dbh->prepare('SELECT physid FROM directory WHERE uid = ? LIMIT 1');
+    $sth->execute($uid);
+    if (my $row_ref = $sth->fetchrow_arrayref()) {
+      ($physid) = @$row_ref;
+    }
+    $m->cache->set($uid, $physid, '5 min');
+  }
+  return $physid;
+</%init>

@@ -1,0 +1,65 @@
+<%DOC>
+   Component: audits.html
+        Date: 2008.07.30
+      Author: nick
+     Changed: 2008.07.30 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp');
+
+</%INIT>		
+
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+             table               => 'auditlog',
+             joins               => [
+                                        directory => 'directory.uid = auditlog.directory_uid',
+                                    ],
+             field_list          => [
+                        'timestamp',
+                        'user', 
+                        'concat(directory.last_name, \', \', directory.first_name) as Undergrad',
+                        'directory_uid',
+                        'text', 
+                        ],
+             field_params        => {
+                                      'timestamp'  => {
+                                            name => 'Time',
+                                            'nowrap' => 1,
+                                      },
+                                      'user'       => {
+                                            name => "Advisor",
+                                      },
+                                      'text'       => {
+                                            name => "Log",
+                                            'data_format' => sub { 
+                                                    my ($text) = @_; 
+                                                    $text = $m->interp->apply_escapes($text); 
+                                                    $text =~ s/\n/<br>/g; 
+                                                    return $text; 
+                                            },
+                                      },
+                                      'undergrad'   => {
+                                            'nowrap'=> 1,
+                                            'data_format' => sub {
+                                                my ($value, $foo, $row) = @_;
+                                                return "<a href=\"report_form.html?uid=".$row->{'directory_uid'}."\">$value</a>";
+                                            },
+                                      },
+                                      'directory_uid' => {
+                                            'hidden' => 1,
+                                      },
+                                    },
+             header_format       => 'ucfirst',
+             default_sort_field  => 'timestamp',
+             default_sort_dir    => 'desc',
+             #filter_field        => 'user',
+             where => ['type = \'uga_course\' OR type = \'uga_student\''],
+        );
+</%perl>

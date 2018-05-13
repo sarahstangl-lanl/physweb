@@ -1,0 +1,102 @@
+<%doc>
+vim: set syntax=mason:
+This component generates a URL-dependant "URL-trail" -- a list of paths
+leading up the current document. 
+
+For example, the URL /foo/bar/baz.html yields the following "Where am I"
+string (this is indented and spaced for clarity):
+
+      <a href="/">Home</a>
+&gt; <a href="/foo/">Foo</a>
+&gt; <a href="/foo/bar/">Bar</a>
+&gt; <a href="/foo/bar/baz.html">Baz</a>
+
+which looks (kind of) like (imagine the hyperlinks):
+
+ Home > Foo > Bar > Baz
+
+A functional example can be found at, e.g., http://dir.yahoo.com/Business_and_Economy/Shopping_and_Services/Communication_and_Information_Management/Internet_and_World_Wide_Web/Portals/Personalized/.
+
+Many sites generate these by hand, which gets tedious.
+
+Since it is URL dependent, using informative URL names helps. Some work is
+done to make the display string cleaner: the trailing '.html', if any, is
+stripped out; underscores are translated to spaces; and it is run through
+ucfirst.
+
+TODO: 
+ * Make the individual parts nameable from a configuration file or data
+   structure, rather than using the URL.
+</%doc>
+<%once>
+%HTML::Mason::Commands::WhereAmICache = ();
+</%once>
+<%perl>
+# Configuration stuff
+    # name_of_home is the label for the top level link
+    my $name_of_home      = 'Home';
+    # joining_character is what gets put between the different items in
+    # the string, e.g., Home > News or Home --> News or Home :> News
+    my $joining_character = ' &gt; ';
+    my $droplast = 1; # drop the very right-most (current) page from crumbs.
+    my $self = $m->request_comp;
+
+    # Caching stuff...
+    my $uri = $r->uri;
+    if (0 and defined($HTML::Mason::Commands::WhereAmICache{$uri})) {
+      $m->out($HTML::Mason::Commands::WhereAmICache{$uri});
+    } else {
+    # Lexicals...
+    my $whereami = '';
+    my @urlparts = ();
+    my $urlpath  = '/';
+
+    my @uri      = split '/', $uri;
+    my $droped_index = 0;
+    while (@uri) {
+        my $original = shift @uri;
+        my $display = $original;
+
+        #$droped_index++ if($display =~ /index\.html$/); 
+        #if($self->method_exists('titlemenu_above')) {
+            $display =~ s:\.html$::;
+        #    $display =~ s:index$::;
+       # }
+
+        $display =~ s:/::;
+        $display =~ tr/_/ /; #/
+        $display = $m->interp->apply_escapes($display, 'h');
+        $original = $m->interp->apply_escapes($original, 'u');
+   
+        push @urlparts, { 
+             display  => ucfirst($display),
+             original => $original 
+        };
+    }
+    @urlparts = grep { $_->{original} ne '' && $_->{display} ne '' } @urlparts;
+
+    # If you need to filter the breadcrumb list in part of the site, create a method 
+    # called whereamifilter in your .html or autohandler. It'll be passed a ref to
+    # @urlparts, and returns a new @urlparts to be displayed.  See 
+    # /resources/admin/students/autohandler for an example.
+    if($self->method_exists('whereamifilter')) {
+         @urlparts = ($self->call_method('whereamifilter', partsref => \@urlparts));
+         $droped_index++; #If theres a custom handler, don't pop the last one down below
+    }
+
+    @uri = map {
+               $urlpath = sprintf("%s%s", $urlpath,$_->{original});
+               $urlpath .= '/' unless $_->{original} =~ m:html$:;
+               sprintf(qq{<a class="whereami" href="%s">%s</a>},$urlpath,$_->{display});
+           } @urlparts;
+
+    pop @uri if($droplast and $droped_index < 1);
+
+    $whereami = join $joining_character,qq{<a class="whereami" href="/">$name_of_home</a>},@uri;
+    $whereami .= $joining_character if $droplast;
+    $HTML::Mason::Commands::WhereAmICache{$uri} = $whereami;
+$m->out($whereami);
+#    return $whereami; 
+}
+</%perl>
+%#<!-- vim: set syntax=mason: -->

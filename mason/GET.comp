@@ -1,0 +1,18 @@
+<%doc>
+    This component returns ONLY the GET/query args.
+    
+    ($m->request_args() COMBINES BOTH POST AND GET!)
+</%doc>
+<%init>
+    use Apache2::Request;
+    use APR::Request;
+
+    my %args;
+    
+    foreach my $key ($r->APR::Request::args) {
+        my @values = $r->APR::Request::args($key);
+        $args{$key} = @values == 1 ? $values[0] : \@values;
+    }
+
+    return \%args;
+</%init>

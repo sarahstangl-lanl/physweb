@@ -1,0 +1,257 @@
+<%DOC>
+    vim: set syntax=mason: 
+    Component: render_item.comp
+        Date: 2003.07.18
+        Author: allan
+        Changed: 2003.07.18 by allan
+
+    enforce_type ensures that it and the type of the item are the same -- used to prevent
+    access to restricted areas, such as TA Discussion, by those who shouldn't (without
+    duplicating the access checks between here and render_class).
+
+    Similar with enforce_classid, but archive protection...
+</%DOC>
+
+<%ARGS>
+    $entryid
+    $expand=>0
+    # noauth removes editing controls for (eg) "view as student"
+    $noauth=>0
+    $nocontrols=>0
+    $base_type=>''
+    $uri_base=>''
+    $enforce_type=>''
+    $enforce_classid=>0
+    # Any type of elevated class access -- including TA, instructor, global class edit, ...
+    $auth_any=>undef
+    $auth_edit=>undef
+    $auth_archive=>undef
+    $norestricted=>0
+    $copyto=>undef
+    $copyto_text=>undef
+    $depth=>0
+</%ARGS>
+
+<%INIT>
+my ($classid, $published, $post_date, $modified_date, $start_date, $kill_date, $headline, $author, $text, $text_type, $flags, $priority, $item_type, $killed, $class_section, $x500);
+my ($year,$month,$day);
+my ($post_date_text, $modified_date_text, $start_date_text, $kill_date_text);
+
+my ($parentid, $childid, $entry_type);
+my ($restricted, $studentonly, $isstudent, $expandable);
+my $row_ref;
+my $uri = $r->uri;
+my $baseurl = "/classes";
+
+#
+# first get the classid so we can decide authorization
+#
+my $sql = 'SELECT classid, item_type FROM classdata WHERE entryid=?';
+my $sth = $dbh->prepare($sql);
+$sth->execute($entryid)
+    or die 'Unable to grab class information for authorization: ' . $sth->errstr;
+
+if ($row_ref = $sth->fetchrow_arrayref()) {
+    ($classid, $item_type) = @$row_ref;
+}
+
+if (!defined($auth_any)) {
+    $auth_any = $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, always_include_tas=>1);
+}
+
+if (!defined($auth_edit)) {
+    $auth_edit = ($auth_any && ($auth_any ne 'ta'));
+}
+
+if (!defined($auth_archive)) {
+    $auth_archive = $m->comp('/mason/auth/auth_check_classarchive.comp', classid => $classid, area => $item_type);
+}
+
+# unauthorized if no edit or archive access...
+$noauth = 1 if !($auth_edit || $auth_archive);
+$nocontrols =1 if $noauth;
+
+#
+# now get the rest of the item data...
+#
+$sql = "SELECT parentid, published, UNIX_TIMESTAMP(post_date), UNIX_TIMESTAMP(modified_date), 
+               start_date, kill_date, headline, author, text, text_type, d.flags, priority, 
+               (kill_date < now()) AS killed, c.section as class_section, x500
+          FROM classdata d
+          LEFT JOIN classlist c ON c.classid=d.classid
+         WHERE entryid=? ";
+
+# was if ($quiet && !($auth_edit || $auth_archive)) {
+if ($noauth) { 
+  $sql .= "AND start_date <= now() AND kill_date >= now() AND published = 1";
+}
+
+$sth = $dbh->prepare($sql);
+$sth->execute($entryid) or die 'Unable to fetch item: ' . $dbh->errstr;
+if ($row_ref = $sth->fetchrow_arrayref()) {
+    ($parentid, $published, $post_date, $modified_date, $start_date, $kill_date, $headline, $author, $text, $text_type, $flags, $priority, $killed, $class_section, $x500) = @$row_ref;
+
+#
+# Do enforce_type and enforce_classid if set
+#
+
+    if ($enforce_type && ($enforce_type ne $item_type)) {
+        print 'Class pages warning: The given item (' . $entryid . ') is from ' . $item_type . ' rather than ' . $enforce_type;
+        return;
+    }
+
+    if ($enforce_classid && ($enforce_classid != $classid)) {
+        print 'Class pages warning: The given item (' . $entryid . ') is from class #' . $classid . ' rather than class #' . $enforce_classid;
+        return;
+    }
+
+
+    if ($post_date) {
+        $post_date_text = $m->comp('/mason/gmtunix_to_text.comp', $post_date);
+        $modified_date_text = $m->comp('/mason/gmtunix_to_text.comp', $modified_date);
+        # trap invalid start or kill dates...
+        ($year,$month,$day) = split("-",$start_date);
+        eval {$start_date_text = Date_to_Text($year,$month,$day);};
+        ($year,$month,$day) = split("-",$kill_date);
+        eval {$kill_date_text = Date_to_Text($year,$month,$day);};
+    }
+    $restricted = ($flags =~ /restricted/);
+    $studentonly = ($flags =~ /studentonly/);
+    $isstudent = $studentonly && $m->comp('/mason/auth/auth_check_student.comp', classid => $classid);
+    $headline = "Untitled" unless $headline;
+}
+else {
+    return;
+}
+</%INIT>
+
+%#DEBUG: is student: <% $m->comp('/mason/auth/auth_check_student.comp', classid => $classid)|h %><BR>
+%#DEBUG: edit class: <% $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, always_include_tas=>1) |h %><br>
+<!-- start output from render_item component -->
+
+<table width="100%" border=0 cellpadding=0 cellspacing=0 class="classitem<% (($killed && !$parentid) ? ' killedpost' : '') %><% ((!$published) ? ' draftpost' : '') %>">
+<tr valign="top">
+% if ($depth > 0) {
+    <td rowspan="2" class="emptytag">
+% }
+</td>
+% if (!$published) {
+    <td bgcolor="#d0d0d0" class="itemtag">
+    <img src="/images/draft.png" alt="draft -- unpublished to students"/>
+    </td>
+% }
+<th bgcolor="#d0d0d0" align="left">
+<a name="<% $entryid %>">
+<div class="class_item_headline" style="font-size: 1.2em; margin: 4px 3px;">
+    <% $headline |h %>
+</div>
+%#(DEBUG: from section <% $class_section|h%>)
+% if ($copyto) {
+    <div style="font-size: 0.9em; font-weight: normal; margin: 3px;"><a href="<% $baseurl %>/copy_classitem.html?entryid=<% $entryid |u %>&classid=<% $copyto |u %>&redirect_type=<% $base_type |u %>">Copy item to <% $copyto_text|h %></a></div>
+% }
+% if ((($auth_edit) || $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, item_type=>$item_type)) && (!$nocontrols)) {
+    <div style="font-size: 0.9em; margin: 0 3px 4px 3px;">
+    <a href="<% $baseurl %>/edit_classitem_form.html?entryid=<% $entryid |u %>&amp;classid=<% $classid |u %>&amp;redirect_type=<% $base_type |u %>">Edit/Delete&nbsp;this item</a>&nbsp;|
+
+    <%perl> 
+      # Sub-item should just be called 'answer' on the ask page.
+      my $subitemstr='sub-item';
+      $subitemstr = 'answer' if($base_type eq 'ask');
+    </%perl>
+    <a href="<% $baseurl %>/edit_classitem_form.html?parentid=<% $entryid |u %>&amp;classid=<% $classid |u %>&amp;item_type=<% $base_type|u%>&amp;redirect_type=<% $base_type |u %>">Add&nbsp;<% $subitemstr %></a>&nbsp;|
+
+    <a href="<% $baseurl %>/edit_image_form.html?parentid=<% $entryid |u %>&amp;classid=<% $classid |u %>&amp;redirect_type=<% $base_type |u %>">Add&nbsp;image</a>&nbsp;|
+
+    <a href="<% $baseurl %>/edit_file_form.html?parentid=<% $entryid |u %>&amp;classid=<% $classid |u %>&amp;redirect_type=<% $base_type |u %>">Add&nbsp;file</a>&nbsp;(PDF,&nbsp;Word&nbsp;doc,&nbsp;etc)&nbsp;|
+
+    <a href="<% $baseurl %>/edit_link_form.html?parentid=<% $entryid |u %>&amp;classid=<% $classid |u %>&amp;redirect_type=<% $base_type |u %>">Add&nbsp;link</a>
+<!--
+    <a href="<% $baseurl %>/copy_classitem.html?entryid=<% $entryid |u %>&amp;redirect_type=<% $base_type |u %>">Copy to another class</a>-->
+    </div>
+% }
+</th>
+<td bgcolor="#d0d0d0" align="right" valign="middle">
+<small><i>
+% if ($modified_date eq $post_date) {
+        posted <% $post_date_text %>
+% } else {
+        modified <% $modified_date_text %>
+% }
+% if ($author) {
+        by <% $m->comp('/mason/db/directory/uid_to_name.comp',uid=>$author) %>
+% }
+% elsif ($auth_edit && $x500) {
+%   my $name = physdb::queryone("SELECT dispname FROM grades.users WHERE x500=?", $x500);
+        by <% $name ? "$name ($x500)" : $x500 |h %>
+% }
+% if ($auth_edit) {
+        <br/>visible <% $start_date_text %> &mdash; <% $kill_date_text %>
+%   if ($auth_edit && $restricted) { print "- <span style=\"color: red;\" title=\"Only logged in students can see this item.\">RESTRICTED</span>"; }
+%   if ($auth_edit && $killed && !$parentid) { print "- PASTKILL"; }
+% }
+    </a>
+</i></small>
+</td>
+</tr>
+<tr><td colspan=2>
+
+% if ((($restricted || $studentonly) && !$m->comp('/mason/auth/loggedin.comp')) || $norestricted) {
+    <p><i>This item can't be displayed unless you are logged in to our web site</i>
+    <%perl>$m->comp('/mason/auth/loginout.comp');</%perl></p>
+% }
+% elsif ($studentonly && !$isstudent && !$auth_any && !$auth_edit && !$auth_archive) {
+    <p><i>This item is only visible to students in this class, but you are not in the classlist</i></p>
+% }
+% else { # non-restricted...
+%   if (0 && $expandable && (!$expand)) { # expandable items are disabled...
+        <li><a href="<% $item_type %>.html?item=<% $entryid %>">Click here to view this entry</a>
+%   }
+%   else { # expanded item...
+        <%perl>
+        if ($text_type eq "html") {
+            print "<div class=\"class_html\">".$text."</div>";
+        } elsif($text_type eq "preformatted") {
+            print "<PRE class=\"class_pre\">\n$text\n</PRE>";
+        } elsif($text_type eq "wiki") {
+            print '<div class="class_wiki">';
+            print $m->comp("/mason/format_wikitext.comp", text=>$text, img_category => 'classdata', img_parentid => $classid);
+            print '</div>';
+        } else { # $text_type eq "text" (old fancy)
+            print '<div class="class_wiki">';
+            print $m->comp("/mason/format_text.comp", text=>$text);
+            print '</div>';
+        }
+
+        # now search the database for any attachments to render...
+        $sth = $dbh->prepare('SELECT entryid, entry_type FROM classdata WHERE parentid=? ORDER BY priority DESC, post_date DESC');
+        if ($sth->execute($entryid)) {
+            while ($row_ref = $sth->fetchrow_arrayref) {
+                ($childid, $entry_type) = @$row_ref;
+                if ($entry_type eq "item") {
+                    $m->comp('/mason/db/classes/render_item.comp',
+                        entryid=>$childid,
+                        base_type=>$base_type,
+                        uri_base=>$uri_base,
+                        auth_edit=>$auth_edit,
+                        auth_archive=>$auth_archive,
+                        noauth=>$noauth,
+                        nocontrols=>$nocontrols,
+                        depth=>($depth+1)
+                        );
+                } elsif ($entry_type eq "image") {
+                    $m->comp('/mason/db/classes/insert_image.comp', entryid=>$childid, base_type=>$base_type, auth=>$auth_edit);
+                } elsif ($entry_type eq "file") {
+                    $m->comp('/mason/db/classes/insert_file.comp', entryid=>$childid, base_type=>$base_type, auth=>$auth_edit, uri_base=>$uri_base);
+                } elsif ($entry_type eq "url") {
+                    $m->comp('/mason/db/classes/insert_link.comp', entryid=>$childid, base_type=>$base_type, auth=>$auth_edit);
+                }
+                # no object type - do nothing!
+            } #while
+        } # end of secondary (child) sql success test
+    } # end of expandable test...
+} # end of restricted test...
+print '</td></tr></table>';
+    print '<p>';
+
+</%perl>
+<!-- end output from render_item component -->

@@ -1,0 +1,76 @@
+
+<%DOC>
+   Component: hostaudits.html
+        Date: 2008.07.30
+      Author: nick
+     Changed: 2008.07.30 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp');
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+
+if (!$admin_auth) { print "<H2>You must be an
+administrator to view this page.</H2>"; return; }
+
+</%INIT>		
+
+<%method title>Host Change Audits</%method>
+
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+             table               => 'accounting.net_auditlog',
+             field_list          => [
+                                      'net_auditlog.id',
+                                      'timestamp',
+                                      'IF(net_dns.hostname <> "",
+                                          CONCAT(net_dns.hostname,".",net_dns.domain),
+                                          IF(net_hosts.computer_name <> "",
+                                              net_hosts.computer_name,
+                                              IF(net_auditlog.host_id = 0,
+                                                  "Not specified",
+                                                  CONCAT("Host missing (",net_auditlog.host_id,")")))) AS hostname',
+                                      'username',
+                                      'uid',
+                                      'address',
+                                      'net_auditlog.text',
+                                      'net_auditlog.host_id',
+                                    ],
+             field_params        => {
+                                      'timestamp'  => {
+                                                        'nowrap' => 1
+                                                      },
+                                      'username'   => {
+                                                        'url'    => '/resources/admin/people/user.html?x500=$row{username}&uid=$row{uid}'
+                                                      },
+                                      'id'         => {
+                                                        'header_format' => 'uc'
+                                                      },
+                                      'uid'        => {
+                                                        'hidden' => 1
+                                                      },
+                                      'hostname'   => {
+                                                        'nowrap' => 1,
+                                                        'url'    => '/resources/admin/network/host.html?id=$row{host_id}',
+                                                        'nourl'  => ['Host missing','Not specified']
+                                                      },
+                                      'host_id'    => {
+                                                        'hidden' => 1
+                                                      }
+                                    },
+             joins               => [
+                                      'net_hosts'      => 'net_auditlog.host_id = net_hosts.id',
+                                      'net_interfaces' => 'net_auditlog.host_id = net_interfaces.host_id',
+                                      'net_dns'        => 'net_interfaces.id = net_dns.interface_id'
+                                    ],
+             header_format       => 'ucfirst_all',
+             default_sort_field  => 'timestamp',
+             default_sort_dir    => 'desc',
+             insecure            => 1,
+        );
+</%perl>

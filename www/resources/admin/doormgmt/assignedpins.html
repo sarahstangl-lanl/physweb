@@ -1,0 +1,26 @@
+<%flags>
+inherit=>undef
+</%flags>
+<%INIT>
+my $authorized = $m->comp('/mason/auth/auth_check.comp', auth_type => 'deptoffice');
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $doormgr = $m->comp('/mason/auth/auth_check_door_mgr.comp');
+if (!$authorized && !$doormgr && !$admin_auth) { return; }
+my $query;
+print "<tr><th>Name</th><th>Door Name</th><th>PIN</th></tr>\n";
+if($authorized || $admin_auth) {
+	my $restrict_clause = $admin_auth ? '' : "c.name NOT IN ('physS43','phys481') AND";
+	$query = $dbh->prepare("SELECT c.name,b.last_name,b.first_name,b.uid,a.pin FROM doorpins AS a LEFT JOIN directory AS b ON a.uid = b.uid LEFT JOIN doorlocks AS c ON a.door_id = c.door_id WHERE $restrict_clause a.active = 1 AND a.uid IS NOT NULL ORDER BY b.last_name, b.first_name, c.name");
+	$query->execute or die "Failed to execute query: ".$dbh->errstr;
+} else {
+	$query = $dbh->prepare("SELECT c.name,b.last_name,b.first_name,b.uid,a.pin FROM doorpins AS a LEFT JOIN directory AS b ON a.uid = b.uid LEFT JOIN doorlocks AS c ON a.door_id = c.door_id WHERE a.active = 1 AND a.uid IS NOT NULL AND c.door_id IN (SELECT door_id FROM doormanagers WHERE doormanagers.uid = ?) ORDER BY b.last_name, b.first_name, c.name");
+	$query->execute($session{'uid'}) || die "Failed to execute query: ".$dbh->errstr;
+}
+if($query->rows) {
+	while(my ($door_name,$last_name,$first_name,$uid,$pin) = $query->fetchrow_array()) {
+		print "<tr><td><a href=\"/resources/admin/people/user.html?uid=$uid\">$last_name, $first_name</a></td><td>$door_name</td><td width=\"120\" onmouseover=\"this.innerHTML = '" . sprintf("%08d", $pin) . "';\" onmouseout=\"this.innerHTML = 'Hover to reveal';\">Hover to reveal</td></tr>\n";
+	}
+} else {
+	print "<tr><td colspan=\"3\">No assigned PINs</td></tr>\n";
+}
+</%INIT>

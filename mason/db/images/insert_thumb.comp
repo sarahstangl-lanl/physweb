@@ -1,0 +1,53 @@
+<%doc>
+   Component: insert_thumb.comp
+        Date: 9/4/2002
+      Author: allan
+ Description: provides thumbnail of the requested image
+</%doc>
+<%args>
+$imageid=>''
+$category=>''
+$parentid=>''
+$indexid=>0
+$align=>'left'
+$width=>'100'  # Will be overridden to 64 if category is profiles.
+$mischtml=>''
+</%args>
+<%init>
+my $sql;
+my $sth;
+if ($imageid) {
+    $sql = "SELECT imageid, name, image, mime_type, thumbnail, alt, tsize_x, tsize_y FROM images WHERE imageid=?";
+    $sth = $dbh->prepare($sql);
+    $sth->execute($imageid);
+}
+else {
+    $sql = "SELECT imageid, name, image, mime_type, thumbnail, alt, tsize_x, tsize_y FROM images WHERE category=? AND parentid = ? AND indexid = ? LIMIT 1";
+    $sth = $dbh->prepare($sql);
+    $sth->execute($category, $parentid, $indexid);
+}
+my $image_row = $sth->fetchrow_arrayref;
+my ($name, $image, $mime_type, $thumb, $alt, $tsize_x, $tsize_y);
+my ($type);
+my $alttext;
+$width = 64 if($category eq "profiles");
+if (defined($image_row)) {
+  ($imageid, $name, $image, $mime_type, $thumb, $alt, $tsize_x, $tsize_y) = @$image_row;
+  # use filename as alt text, if none in database...
+  $alttext = $alt||$name;
+  if (!$thumb) {
+    # no thumbnail exists - build it
+    $type = substr($mime_type,6);
+    $thumb = $m->comp('/mason/db/images/create_thumbnail.comp', image=>$image, type=>$type, width=>$width);
+    if ($thumb) {
+      ($tsize_x, $tsize_y, $type) = imgsize (\$thumb);
+      $sql = "UPDATE images SET thumbnail=?, tsize_x=?, tsize_y=? WHERE imageid=?";
+      $sth = $dbh->prepare($sql);
+      $sth->execute($thumb, $tsize_x, $tsize_y, $imageid);
+    }
+  }
+}
+</%init>
+% if ($thumb) {
+<img src="/stateless/imagedb.html?type=thumbnail&amp;id=<% $imageid %>&amp;name=<% $name %>" alt="<% $alttext %>" width="<% $tsize_x %>" height="<% $tsize_y %>" <% $mischtml %> />
+% }

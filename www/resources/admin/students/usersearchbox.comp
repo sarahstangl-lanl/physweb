@@ -1,0 +1,141 @@
+<%args>
+    $mode
+    $year
+    $semester
+    %auths
+    
+    $search => undef
+    $sort => undef
+    $sort_reverse => undef
+    $last_search => undef
+</%args>
+
+<%shared>
+    my %args = $m->request_args();
+    my $query = $m->comp('/mason/pathquery/getref.comp');
+    my $pq_comp = $m->comp('/mason/pathquery/get_comp.comp');
+</%shared>
+
+<%init>
+    use Data::Dumper;
+    use physdb::directory;
+    
+    my $directory;
+    $directory = new Directory( uid => $args{'uid'} ) if $args{'uid'};
+    
+    if($last_search) {
+        $search = $session{'student_search'};
+        $sort = $session{'student_sort'};
+        $sort_reverse = $session{'student_sort_reverse'};
+    }
+    
+    my ($prev_year, $prev_semester) = $m->comp('/mason/prev_quarter.comp', year => $year, semester => $semester);
+    my ($next_year, $next_semester) = $m->comp('/mason/next_quarter.comp', year => $year, semester => $semester);
+    
+    my $prev_semester_url = $m->scomp('/mason/makeurl.comp', 'pathquery' => {'year' => $prev_year, 'semester' => $prev_semester});
+    my $next_semester_url = $m->scomp('/mason/makeurl.comp', 'pathquery' => {'year' => $next_year, 'semester' => $next_semester});
+</%init>
+
+<div class="adminusersearchbox">
+<table border="0" cellpadding="5" cellspacing="0" width="100%">
+    
+<tr>
+<td nowrap>
+    <form method="GET" action="index.html">
+    <input type="text" name="search" value="<% $args{'search'} |h %>">
+    <input type="submit" value="Search">
+    <input type="hidden" name="sort" value="<% $args{'sort'} |h %>">
+    <input type="hidden" name="sort_reverse" value="<% $args{'sort_reverse'} |h %>">
+    </form>
+</td>
+<td align="center" nowrap>
+<div style="padding: 0 10px 0 10px; font-size: 1.2em;">
+% if ($directory) {
+    <a href="?prev=1&amp;uid=<% $args{'uid'} |h %>">&lt;&lt;</a>
+    &nbsp;&nbsp;<b><% $directory->get('first_name') %> <% $directory->get('last_name') %></b>&nbsp;&nbsp;
+    <a href="?next=1&amp;uid=<% $args{'uid'} |h %>">&gt;&gt;</a>
+    <br />
+% }
+% if ($year && $semester) {
+<a href="<% $prev_semester_url |h %>">&laquo;</a> <b><% ucfirst($semester) |h %> <% $year |h %></b> <a href="<% $next_semester_url |h %>">&raquo;</a>
+% }
+</div>
+</td>
+<td style="padding-left: 55px;"> <!-- Little hackery to make the second line start indented if it wraps -->
+<small style=" margin-left: -50px;"><b>Views</b>: 
+<%perl>
+    my @links;
+    my $selected_link;
+    my $add_link = sub {
+        (my $name = shift) =~ s/ /&nbsp\;/g;
+        my %pq_args = @_;
+        my $match = 1;
+        foreach my $key (keys %pq_args) {
+            if(!defined($query->{$key}) || $query->{$key} ne $pq_args{$key}) {
+                $match = 0;
+                last;
+            } 
+        }
+        if (!defined($selected_link) && $match) {
+            $selected_link = $name;
+        }
+        
+        my %time_args = (year => $year, semester => $semester);
+        
+        my %args = (mode => $mode, %time_args, @_);
+        my $link = $m->scomp('/mason/makeurl.comp', pathquery_empty => 1, pathquery => \%args);
+        
+        unshift @links, '<a ' . ($selected_link eq $name ? 'class="selected" ' : '') . 'href="' . $link . '">' . $name . '</a>';
+    };
+    
+    if ($mode eq 'advisor') {
+    
+    } else {
+        if ($auths{'appointment'}) {
+            $add_link->('Recent Appointment Changes', show_appt_changes => 1, sort => 'timestamp', sort_reverse => 1,
+                columns => 'timestamp,student_first_name,student_last_name,editor,text');
+        }
+        if ($mode eq 'progreport') {
+            $add_link->('Missing PR Comment', missing_advisor_comments => 1);
+            $add_link->('Missing Progress Report', has_not_progress => 1);
+        }
+        elsif ($mode eq 'appointment') {
+            $add_link->('Missing Advisor Approval', missing_advisor_approval => 1);
+            $add_link->('Non-zero Appointments', nonzero_appointments => 1);
+            $add_link->('Fellowships', has_fellowship_appointment => 1);
+            $add_link->('RAs', has_ra_appointment => 1);
+            $add_link->('TAs', has_ta_appointment => 1);
+        }
+        elsif ($mode eq 'ta') {
+            $add_link->('Missing Schedules', has_not_ta_sched => 1);
+            # TODO : Need to add a thing that checks that they actually should submit one as well as having not done it
+            # $add_link->('Unscheduled TAs');
+        }
+        
+    }
+ 
+    $add_link->('All');
+
+    print join(' &middot; ', @links);
+</%perl>
+</small></small>
+</td>
+</tr>
+</table>
+</div>
+<span style="float: right; margin-right: 2em; height: 0;"><small><small>
+% if ($auths{'appointment'}) {
+<a href="http://zzz.physics.umn.edu/admin/private/students_area" target="_blank"><span style="vertical-align: top">Help & Changelog</span> <img src="/images/update_log.gif" border="0"></a>
+&nbsp;
+<a <% $pq_comp eq 'add_student.html' ? 'class="selected"' : '' %> href="add_student.html"><span style="vertical-align: top">Add Student</span> <img src="/images/icon_add2.gif" border="0"></a>
+&nbsp;
+% }
+% if ($auths{'progreport'} || $auths{'appointment'}) {
+<a href="stats.html"><span style="vertical-align: top">Statistics</span> <img src="/images/stats.gif" border="0"></a>
+&nbsp;
+% }
+<a href="mailmerge.html"><span style="vertical-align: top">Mail Merge</span> <img src="/images/email_icon.png" border="0"></a>
+&nbsp;
+<a href="<& '/mason/makeurl.comp', 'nargs' => {'excel' => 1} &>"><span style="vertical-align: top">Excel Export</span> <img src="/images/excel.png" border="0"></a>
+</small></small></span>
+<div style="clear: both; padding-top: 8px;" >&nbsp;</div>

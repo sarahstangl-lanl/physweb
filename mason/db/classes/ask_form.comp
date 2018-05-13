@@ -1,0 +1,38 @@
+<%args>
+$classid
+$type=>'ask'
+</%args>
+    <h3>
+    <% (($type eq 'ask') ? 'Ask A New Question' : 'Anonymous Feedback') %>
+    </h3>
+%   my $authsubmit = $m->comp('/mason/auth/auth_check.comp');
+%   if ($authsubmit) {
+        <form method="POST" name="edit" action="/classes/edit_classitem.html">
+        <input type=hidden name="entryid" value="new">
+        <input type=hidden name="classid" value="<% $classid %>">
+        <input type=hidden name="parentid" value="0">
+        <input type=hidden name="item_type" value="<% $type %>">
+
+        <table class="classitem" border=0 width="100%">
+
+        <tr valign="top" bgcolor="#d0d0d0" align="left"><th>Subject</th></tr>
+        <tr><td>
+        <input type=text name="headline" value="" size=70>
+        </td></tr>
+
+        <tr valign="top" bgcolor="#d0d0d0" align="left"><th>Question or comments</th></tr>
+        <tr><td>
+        <textarea name="text" cols=70 rows=7 wrap="virtual"></textarea>
+        </td></tr>
+        <tr><td>
+        <input type="submit" value="Submit<% ($type eq 'ask' ? ' Question' : '') %>">
+       </td></tr>
+        </table>
+        </form>
+%   }
+%   else {
+%       # User is not authorized to submit a question (yet)
+%       my $uri = HTML::Entities::encode($r->uri);
+        You must <a href="https://<% $r->server->server_hostname %>/auth/index.html?url=<% $uri %> ">login</a> to post a question.
+        <br>
+%   }

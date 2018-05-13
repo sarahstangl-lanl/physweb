@@ -1,0 +1,7 @@
+<%init>
+</%init>
+% $m->call_next;
+<%method imgurl></%method>
+<%method imgbackground>black</%method>
+<%method imgcontent></%method>
+<%method title></%method>

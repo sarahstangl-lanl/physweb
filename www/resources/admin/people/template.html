@@ -1,0 +1,66 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: index.html
+        Date: 2008.08.27
+      Author: rubin
+     Changed: 2008.08.27 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$uid=>''
+$physid=>''
+$x500=>''
+</%ARGS>
+
+<%method title>User Details of <% $fullname %></%method>
+
+<%init>
+if(!$auth) {
+    print "Must be admin\n";
+    return;
+}
+</%init>
+<%shared>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+use physdb::directory;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my %args = $m->request_args();
+
+
+
+my $uid = $args{'uid'};
+my $x500 = $args{'x500'};
+my $physid = $args{'physid'};
+my $do404 = 0;
+
+my ($directory, $ldap, $umn);
+if($uid) {
+    $directory = new Directory(uid => $uid);
+}
+
+my $fullname;
+if($directory) {
+    $fullname = $directory->get('name');
+}
+else {
+    $do404 = 1;
+}
+</%shared>
+<%perl>
+if($do404) {
+    $m->comp("/mason/404.comp");   
+}
+else {
+</%perl>
+   <table><tr><td>
+   table here
+   </td></tr></table>
+<%perl>
+}
+</%perl>
+

@@ -1,0 +1,60 @@
+<%DOC>
+   Component: complete_group.html
+        Date: 2008.03.26
+      Author: clayton
+     Changed: 2008.03.26 by clayton
+
+Description ... 
+</%DOC>
+<%flags>
+    inherit=>undef
+</%flags>
+<%args>
+  $name=>''
+</%args>
+<%init>
+my $uid = 0;
+
+if ($name) {
+  my $result = $m->comp('/mason/ajax/people_finder.comp', 'name'=>$name, 'limit'=>1);
+  if ($result) {
+    my $user = $result->fetchrow_hashref();
+    if ($user) {
+      $uid = $$user{'uid'};
+    }
+  }
+}
+
+warn("Group finder, decided name '$name' is uid '$uid'\n");
+
+my $join = "WHERE 1=1 ";
+if ($uid) {
+  $join = "JOIN groupmembers on
+  groups.name=groupmembers.groupname WHERE uid=" . $dbh->quote($uid);
+}
+my $qstr = "SELECT name, description, type FROM groups ".$join." AND type IN ('rgroup', 'labgroup', 'workgroup') ORDER BY type, description";
+my $query = $dbh->prepare($qstr);
+$query->execute() or die("query failed");
+
+my @groups;
+while(my $group = $query->fetchrow_hashref()) {
+    my $description = $group->{'description'};
+    my $len = length($description);
+    push @groups, [$group->{'type'}, $group->{'name'}, $description];
+}
+unshift @groups, ['', '', 'Personal Registration'];
+</%init>
+<%perl>
+my $oldtype = 0;
+foreach my $grp (@groups) {
+  if ($oldtype ne $$grp[0]) {
+    print '^' . $m->comp('/mason/ajax/escape_js.comp', $$grp[0]) . '+';
+    $oldtype = $$grp[0];
+  }
+  print $m->comp('/mason/ajax/escape_js.comp', $$grp[1]).'|'.$m->comp('/mason/ajax/escape_js.comp', $$grp[2]).',';
+}	
+</%perl>
+		
+<%filter>
+s/\n//gos
+</%filter>

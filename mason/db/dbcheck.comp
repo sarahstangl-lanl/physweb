@@ -1,0 +1,25 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: dbcheck_post.comp
+        Date: 2008.01.08
+      Author: rubin
+     Changed: 2008.01.08 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$noretry=>0
+</%ARGS>
+
+<%perl>
+if(!$dbh) {
+    $r->pnotes('fiveohthree.noretry' => $noretry);
+    
+    $r->status(503);
+    $m->clear_buffer();
+    $m->abort(503);
+} else {
+  return 0;
+}
+</%perl>

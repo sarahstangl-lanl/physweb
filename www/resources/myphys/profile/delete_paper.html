@@ -1,0 +1,58 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: delete_paper.html
+        Date: 8/30/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$paperid=>''
+$uid=>''
+</%args>
+
+<%init>
+return unless($paperid);
+if(!$uid) {
+    $uid = $session{'uid'};
+}
+
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+my $auth = $m->comp('/mason/auth/auth_check_profile.comp', uid=>$uid);
+my $successful_delete;
+
+if ($auth) {
+
+# needs way more checking
+# ie, that uid of paper matches current_uid
+  # Now update the entry
+  my $sql = "DELETE FROM papers ";
+     $sql .= "WHERE paperid=?  AND uid=? ";
+  my $sth = $dbh->prepare($sql);
+  $successful_delete = $sth->execute($paperid, $uid);
+  # TODO: this error checking doesn't fully work; if theres no match, it still a successful query...
+
+}
+</%init>
+
+<%method title>Papers update</%method>
+
+% if ($successful_delete) {
+
+      Paper deleted successfully. Click on the menu above to continue. <a href="index.html?uid=<%$uid|u%>">Back to profile...</a>
+% } 
+% else {
+
+%     if ($auth) {
+        The entry was not deleted successfully. Error message: </P>
+        <pre>
+        <% $DBI::errstr %>
+        </pre>
+        <a href="index.html?uid=<%$uid|u%>">Back to profile...</a>
+%     } 
+%     else {
+         You aren't authorized to do that! <a href="index.html?uid=<%$uid|u%>">Back to profile...</a>
+%     }
+% }
+

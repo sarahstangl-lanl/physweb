@@ -1,0 +1,95 @@
+<%doc>
+   Component: insert_image_form.comp
+        Date: 9/4/2002
+      Author: allan
+ Description: includes a form for imagedb upload...
+</%doc>
+
+<%args>
+$category
+$parentid
+$indexid=>0
+$max_x=>0
+$max_y=>0
+$alttype=>'text'
+$captiontype=>'text'
+$credittype=>'text'
+$type=>''
+</%args>
+
+<%init>
+my $sql = "SELECT imageid, name, alt, align, caption, credit, mime_type, size_x, size_y FROM images WHERE category=? AND parentid = ? AND indexid = ? LIMIT 1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($category, $parentid, $indexid)
+    or die 'Grab image data failed: ' . $dbh->errstr;
+my $image_row = $sth->fetchrow_arrayref;
+my ($imageid, $name, $image, $alt, $align, $caption, $credit);
+my ($size_x, $size_y, $mime_type);
+if (defined($image_row)) {
+  ($imageid, $name, $alt, $align, $caption, $credit, $mime_type, $size_x, $size_y) = @$image_row;
+}
+my $alignvalues = $m->comp('/mason/db/getvalues.comp', table=>'images', column=>'align');
+</%init>
+
+<table cellspacing=4 cellpadding=0 border=0>
+<tr valign="top"><td>
+% $m->comp('/mason/db/images/insert_image.comp', category=>$category, parentid=>$parentid, indexid=>$indexid);
+</td><td>
+
+<form enctype="multipart/form-data" method="POST" action="/imagedb/upload_image.html">
+<input type=hidden name="category" value="<% $category %>">
+<input type=hidden name="parentid" value="<% $parentid %>">
+<input type=hidden name="indexid" value="<% $indexid %>">
+<input type=hidden name="max_x" value="<% $max_x %>">
+<input type=hidden name="max_y" value="<% $max_y %>">
+
+<table cellspacing=4 cellpadding=0 border=0>
+<tr><td colspan=2><b>Upload image</b></td></tr>
+<tr><td>File</td><td><input type="file" size=20 name="image"></td></tr>
+% if($type eq "foyer") {
+<tr><td>Rescale</td><td><input type="hidden" name="width" value="527">(Foyer images will be scaled and cropped to 527x250)</td></tr>
+% } 
+% else {
+<tr><td>Rescale</td><td><input type="text" size=4 name="width"> width in pixels (new images only)</td></tr>
+% }
+
+% if ($alttype =~ /text/) {
+<tr><td>Alt&nbsp;Text</td><td><input type=<% $alttype %> name="alt" size=20 value="<% $alt |h%>"></td></tr>
+% }
+% if ($captiontype =~ /text/) {
+<tr><td>Caption</td><td><input type=<% $captiontype %> name="caption" size=50 value="<% $caption|h %>"></td></tr>
+% }
+% if ($credittype =~ /text/) {
+<tr><td>Photo&nbsp;Credit</td><td><input type=<% $credittype %> name="credit" size=40 value="<% $credit|h %>"></td></tr>
+% }
+% if ($credittype =~ /text/) {
+<tr><td>Alignment</td><td>
+% $m->comp( '/mason/form_selector.comp', name=>'align', selected=>$align, optionlist=>$alignvalues);
+</td></tr>
+% }
+<tr><td colspan=2>
+<input type=submit value="Update image">
+
+</td></tr>
+</table>
+
+</form>
+
+% if ($imageid) {
+% # option to delete image, if there is one...
+
+% if ($name) {
+  <p>Current image <b><% $name %></b>
+% if ($size_x) {
+  size is <% $size_x %>x<% $size_y %> pixels
+% }
+% }
+
+<form method="POST" action="/imagedb/delete_image.html">
+<input type=hidden name="imageid" value="<% $imageid %>">
+<input type=submit value="Delete Image">
+</form>
+
+% }
+</td></tr>
+</table>

@@ -1,0 +1,41 @@
+
+<%DOC>
+   Component: config.comp
+        Date: 2007.07.30
+      Author: clayton
+     Changed: 2007.07.30 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+my $sql = 'SELECT name, value FROM taschedule_settings';
+my $query = $dbh->prepare($sql);
+$query->execute();
+my %result = ('active_year'   => 2007,
+              'active_sem'    => 'spring', # spring or fall
+              'days'          => 5,        # Can't just edit this -- db enum and @daysofweek
+              'periods'       => 12,
+              'period_length' => 55,
+              'period_break'  => 15,
+              'start_time'    => {'hour' => 8, 'minute' => 0}
+             );
+
+while (my $nameval = $query->fetchrow_arrayref())
+{
+  if ($$nameval[0] eq 'start_time')
+  {
+    if ($$nameval[1] =~ m/^(.*?):(.*)$/)
+    {
+      $result{$$nameval[0]} = {'hour' => $1, 'minute' => $2};
+    }
+  } else {
+    $result{$$nameval[0]} = $$nameval[1];
+  }
+}
+
+return %result;
+</%INIT>

@@ -1,0 +1,348 @@
+<%doc>
+  Mainly for debugging--dump everything we can out of datawarehouse for this class
+</%doc>
+
+<%args>
+$classid
+</%args>
+
+<%shared>
+my $dw_dbh = $m->comp('/mason/dw_dbh.comp');
+</%shared>
+
+<%init>
+# Be paranoid and dont let anyone look at this.
+$m->comp('/mason/auth/auth_block.comp', internal=>1);
+return unless ($m->comp('/mason/auth/auth_check_sysadm.comp'));
+
+my $show_history = $m->request_args->{show_history};
+
+#$dw_dbh->trace(2);
+
+#first get the class from OUR database to know its section and name and all that
+my $class_sth = physdb::query("
+        SELECT c.*, p.classid as parent_classid, p.name as parent_name, p.section as parent_section
+          FROM classlist c
+     LEFT JOIN classlist p ON c.parent IS NOT NULL
+           AND c.parent = p.classid
+         WHERE c.classid=?
+         LIMIT 1", $classid);
+my $class = $class_sth->fetchrow_arrayref;
+my $j = 0;
+my $physclass = { map { $_ => $class->[$j++] } @{$class_sth->{NAME}} };
+
+my %terms = ('spring'=>3, 'summer'=>5, 'fall'=>9 );
+
+$physclass->{'year'} =~ /^\d\d(\d\d)$/ or die ("Unable to figure out year from ". $physclass->{'year'});
+my $year = $1;
+my $term = "1" . $year. $terms{$physclass->{'quarter'}};
+
+$physclass->{'name'} =~ /(\w+) (\d+.*)/ or die("Unable to find cat number in ". $physclass->{'name'});
+my $subject = uc($1);
+my $catalog_nbr = $2;
+
+my $section = $physclass->{'section'};
+
+</%init>
+
+% $m->comp('SELF:table', header => 'Local class data', query => 'SELECT * FROM data', data => [ $class_sth->{NAME}, $class ], table_dbh => DBI->connect('dbi:AnyData(RaiseError=>1):'), params => { summary => 'style="min-width:400px;"' });
+
+<h2>Data warehouse data dump - primary keys</h2>
+<table><tr>
+<th>Subject</th><td><% $subject %></td>
+</tr><tr>
+<th>Term</th><td><% $term %></td>
+</tr><tr>
+<th>Catalog number</th><td><% $catalog_nbr %></td></tr>
+</table>
+
+<h2>Historical Data Filter</h2>
+<table><tr><td><% $show_history ? 'Including historical data' : 'Only showing current data' %> | <a href="?show_history=<% !$show_history %>"><% $show_history ? 'Only show current data' : 'Include historical data' %></a></td></tr></table>
+<%perl>
+
+my ($course_id, $course_offer_number, $term_end_dt, $course_topic_id) = $m->comp('SELF:table',
+    header   => 'Class data from PS_DWSR_CLASS',
+    query    => "
+            SELECT c.*, t.TERM_END_DT
+              FROM PS_DWSR_CLASS c
+              JOIN CS_PS_TERM_TBL t ON (c.ACAD_CAREER = t.ACAD_CAREER AND t.INSTITUTION = c.INSTITUTION AND c.TERM = t.STRM)
+             WHERE c.SUBJECT=?
+               AND c.TERM=?
+               AND c.CATALOG_NBR=?
+               AND c.CLASS_SECTION=?
+               AND (c.CRSE_ATTR = 'DELM' OR c.CRSE_ATTR IS NULL)
+          ORDER BY c.SUBJECT, c.TERM, c.CLASS_SECTION",
+    args     => [ $subject, $term, $catalog_nbr, $section ],
+    callback => sub {
+        my ($sth, $row) = @_;
+        return unless (defined $sth && defined $row);
+        my @col_names = map { $_ } @{$sth->{NAME}};
+        my @vals;
+        my @cols = (qw/CRSE_ID CRSE_OFFER_NBR TERM_END_DT CRS_TOPIC_ID/);
+        for my $col (@cols) {
+            for (my $i = 0; $i < scalar(@$row); $i++) {
+                if ($col_names[$i] eq $col) {
+                    push @vals, $row->[$i];
+                    last;
+                }
+            }
+        }
+        return @vals;
+    },
+);
+
+for ($course_id, $course_offer_number, $term_end_dt, $course_topic_id) {
+    unless (defined $_) {
+        print "<b>Couldn't get course ID, offer number, term end date or topic id from PS_DWSR_CLASS</b>";
+#        return;
+        last;
+    }
+}
+
+# skip next section if undefined
+if ($course_id) {
+</%perl>
+
+<h2>Derived Keys</h2>
+<b>Course ID</b> <% $course_id %><br/>
+<b>Course offer number</b> <% $course_offer_number %><br/>
+<b>Term end date</b> <% $term_end_dt %><br/>
+<b>Course topic ID</b> <% $course_topic_id %></td><br/>
+
+<%perl>
+$m->comp('SELF:table',
+    header   => "Course data from PS_DWSR_COURSE",
+    query    => "
+            SELECT c.*
+              FROM PS_DWSR_COURSE c
+             WHERE c.CRSE_ID=?
+               AND c.CRSE_OFFER_NBR=?" . ($show_history ? "" : "
+               AND c.EFFDT = (SELECT MAX(c2.EFFDT)
+                              FROM PS_DWSR_COURSE c2
+                             WHERE c2.CRSE_ID = c.CRSE_ID
+                               AND c2.EFFDT <= ?)"),
+    args     => [ $course_id, $course_offer_number, $show_history ? () : $term_end_dt ],
+);
+
+$m->comp('SELF:table',
+    header   => "Course topic data from PS_DWSR_CRSE_TPCS",
+    query    => "
+            SELECT c.*
+              FROM PS_DWSR_CRSE_TPCS c
+             WHERE c.CRSE_ID=?
+               AND c.CRS_TOPIC_ID=?" . ($show_history ? "" : "
+               AND c.EFFDT = (SELECT MAX(c2.EFFDT)
+                                FROM PS_DWSR_COURSE c2
+                               WHERE c2.CRSE_ID = c.CRSE_ID
+                                 AND c2.EFFDT <= ?)") ."
+          ORDER BY c.EFFDT",
+    args     => [ $course_id, $course_topic_id, $show_history ? () : $term_end_dt ],
+);
+
+$m->comp('SELF:table',
+    header   => "Course guide data from PS_DWSR_CRSE_GUIDE",
+    note     => 'Includes data for all UM_TOPSEQ_CRSGD (SECTION) values.',
+    query    => "
+            SELECT c.*
+              FROM PS_DWSR_CRSE_GUIDE c
+             WHERE c.CRSE_ID = ?
+               AND c.CRSE_OFFER_NBR = ?" . ($show_history ? "" : "
+               AND c.UM_EFFDT_CRSGD = (SELECT MAX(c2.UM_EFFDT_CRSGD)
+                                         FROM PS_DWSR_CRSE_GUIDE c2
+                                        WHERE c2.CRSE_ID = c.CRSE_ID
+                                          AND c2.UM_EFFDT_CRSGD <= ?)") . "
+          ORDER BY c.UM_EFFDT_CRSGD, ROWID",
+    args     => [ $course_id, $course_offer_number, $show_history ? () : $term_end_dt ],
+    params   => { DESCRLONG => 'style="min-width:400px;"' },
+);
+
+
+$m->comp('SELF:table',
+    header => "Course note data from PS_DWSR_CLASS_NOTES",
+    query  => "SELECT * FROM PS_DWSR_CLASS_NOTES WHERE CRSE_ID=? AND TERM=? AND CLASS_SECTION=? AND CRSE_OFFER_NBR=?",
+    args   => [ $course_id, $term, $section, $course_offer_number ],
+);
+
+$m->comp('SELF:table',
+    header   => "Class characteristic data from PS_DWSR_CLS_CHR",
+    query    => "SELECT * FROM PS_DWSR_CLS_CHR WHERE CRSE_ID=? AND TERM=? AND CLASS_SECTION=? AND CRSE_OFFER_NBR=?",
+    args     => [ $course_id, $term, $section, $course_offer_number ],
+);
+
+$m->comp('SELF:table',
+    header   => "Class permission data from PS_DWSR_CLS_PRMSN",
+    query    => "SELECT * FROM PS_DWSR_CLS_PRMSN WHERE CRSE_ID=? AND TERM=? AND CLASS_SECTION=? AND CRSE_OFFER_NBR=? ORDER BY CLASS_PRMSN_SEQ",
+    args     => [ $course_id, $term, $section, $course_offer_number ],
+);
+
+$m->comp('SELF:table',
+    header   => "Course attribute data from PS_DWSR_CRSE_ATTR",
+    query    => "
+            SELECT *
+              FROM PS_DWSR_CRSE_ATTR a
+             WHERE a.CRSE_ID=?" . ($show_history ? "" : "
+               AND a.EFFDT = (SELECT MAX(a2.EFFDT)
+                                FROM PS_DWSR_CRSE_ATTR a2
+                               WHERE a2.CRSE_ID = a.CRSE_ID
+                                 AND a2.EFFDT <= ?)") . "
+          ORDER BY a.EFFDT",
+    args     => [ $course_id, $show_history ? () : $term_end_dt ],
+);
+
+
+}
+# end of skip for course_id being defined
+
+$m->comp('SELF:table',
+    header   => "Course enrollment data from PS_DWSA_STDNT_ENRL",
+    query    => "
+            SELECT a.EMAILID_1, a.LAST_NAME, a.FIRST_NAME, a.MIDDLE_NAME, c.*
+              FROM PS_DWSA_DEMO_ADDR a, PS_DWSA_STDNT_ENRL c
+             WHERE a.EMPLID = c.EMPLID
+               AND c.SUBJECT =  ?
+               AND c.TERM = ?
+               AND c.CATALOG_NBR = ?
+               AND c.CLASS_SECTION = ?
+               AND c.INSTITUTION = 'UMNTC'
+               AND c.GRADING_BASIS_ENRL != 'WTH'
+               AND c.STDNT_ENRL_STATUS = 'E'
+          ORDER BY c.EMPLID",
+    args     => [ $subject, $term, $catalog_nbr, $section ],
+);
+
+$m->comp('SELF:table',
+    header => "Datawarehouse::Classes::dw_get_classes Query",
+    query => "
+                SELECT DISTINCT NULLIF(b.INSTR_ROLE, 'PRXY') AS REAL_INSTRUCTOR,
+                                b.CLASS_NBR,a.CRSE_ID,b.SUBJECT,b.CATALOG_NBR,b.CLASS_SECTION,b.TERM,a.COURSE_TITLE_LONG,b.EMPLID,b.NAME,b.FACILITY_DESCR,
+                                b.TIME_START,b.DAYS_DISPLAYED,b.INSTR_ROLE,b.AUTO_ENROLL_SECT_1,b.AUTO_ENROLL_SECT_2,b.ASSOCIATED_CLASS,a.EFFDT,b.COMPONENT_MAIN,b.COMP_MAIN_DESCR,
+                                b.SCHED_PRINT_INSTR,b.CRSE_OFFER_NBR,c.DESCR AS TOPIC_DESCR,t.TERM_BEGIN_DT,t.TERM_END_DT,b.CRS_TOPIC_ID,
+                                TO_CHAR(b.START_DT_CLS_MTG,'MM/DD') AS START_DT_CLS_MTG, TO_CHAR(b.END_DT_CLS_MTG, 'MM/DD') AS END_DT_CLS_MTG,
+                                b.CLASS_TYPE, parent.COMPONENT_MAIN as child_group_of
+
+                FROM    PS_DWSR_CLASS b
+
+                JOIN    CS_PS_TERM_TBL t ON (b.ACAD_CAREER = t.ACAD_CAREER AND t.INSTITUTION = b.INSTITUTION AND b.TERM = t.STRM)
+
+                RIGHT JOIN PS_DWSR_COURSE a ON (b.CRSE_ID=a.CRSE_ID AND b.CRSE_OFFER_NBR=a.CRSE_OFFER_NBR)
+
+                LEFT  JOIN PS_DWSR_CRSE_TPCS c ON
+                     (c.CRSE_ID = b.CRSE_ID AND
+                      c.CRS_TOPIC_ID = b.CRS_TOPIC_ID AND
+                      a.EFFDT = c.EFFDT)
+
+                LEFT JOIN PS_DWSR_CLASS parent
+                       ON b.CRSE_ID = parent.CRSE_ID
+                      AND b.CRSE_OFFER_NBR = parent.CRSE_OFFER_NBR
+                      AND b.TERM = parent.TERM
+                      AND b.SESSION_CODE = parent.SESSION_CODE
+                      AND b.COMPONENT_MAIN <> parent.COMPONENT_MAIN
+                      AND b.AUTO_ENROLL_SECT_1 = ' '
+                      AND b.AUTO_ENROLL_SECT_2 = ' '
+                      AND parent.CLASS_TYPE = 'N'
+                      AND b.COMPONENT_MAIN <> 'LET'
+                      AND b.CLASS_TYPE = 'E'
+
+                WHERE   b.SUBJECT = ? AND
+                        b.TERM = ? AND
+                        b.CATALOG_NBR = ? AND
+                        b.CLASS_SECTION = ? AND
+                        b.CLASS_STAT = 'A' AND
+                        b.CAMPUS = 'UMNTC' AND
+                        b.COMPONENT_MAIN <> 'DST' AND
+                        b.COMPONENT_MAIN <> 'DRS' AND
+                        b.COMPONENT_MAIN <> 'LET' AND
+                        b.COMPONENT_MAIN <> 'THE' AND
+                        a.EFFDT =  (SELECT  MAX(a2.EFFDT)
+                                    FROM PS_DWSR_COURSE a2
+                                    WHERE   a2.CRSE_ID = a.CRSE_ID AND
+                                            a2.EFFDT <= t.TERM_END_DT)
+                ORDER BY b.TERM,b.CATALOG_NBR,b.CLASS_SECTION,REAL_INSTRUCTOR",
+    args => [ $subject, $term, $catalog_nbr, $section ],
+);
+
+$m->comp('SELF:table',
+    header   => 'Datawarehouse::Classes::dw_get_class_descr Query (obsolete - table not updated post-ESUP)',
+    query    => "
+                SELECT * FROM (
+                    SELECT c.DESCRLONG
+                    FROM   PS_DWSR_CRSE_GUIDE c
+                    WHERE  c.CRSE_ID = ? AND
+                           c.CRSE_OFFER_NBR = ? AND
+                           c.DESCRLONG IS NOT NULL AND
+                           c.UM_EFFDT_CRSGD = (SELECT  MAX(c2.UM_EFFDT_CRSGD)
+                                              FROM PS_DWSR_CRSE_GUIDE c2
+                                              WHERE   c2.CRSE_ID = c.CRSE_ID AND
+                                                      c2.UM_EFFDT_CRSGD <= ?) AND
+                          (c.UM_TOPSEQ_CRSGD = ? OR c.UM_TOPSEQ_CRSGD = 0)
+                    ORDER BY UM_TOPSEQ_CRSGD DESC
+                ) WHERE ROWNUM < 2",
+    args     => [ $course_id, $course_offer_number, $term_end_dt, $section ],
+);
+
+$m->comp('SELF:table',
+    header   => 'Datawarehouse::Classes::dw_get_class_descr2 Query',
+    query    => "
+                SELECT * FROM (
+                    SELECT c.DESCRLONG
+                    FROM   PS_DWSR_CRSE_DESCR c
+                    WHERE  c.CRSE_ID = ? AND
+                           c.DESCRLONG IS NOT NULL AND
+                           c.EFFDT = (SELECT  MAX(c2.EFFDT)
+                                              FROM PS_DWSR_CRSE_DESCR c2
+                                              WHERE   c2.CRSE_ID = c.CRSE_ID AND
+                                                      c2.EFFDT <= ?)
+                ) WHERE ROWNUM < 2",
+    args     => [ $course_id, $term_end_dt ],
+);
+
+</%perl>
+
+<%method table>
+<%args>
+$header
+$query
+@args => ()
+$callback => sub { }
+$params => { }
+$table_dbh => $dw_dbh
+$data => undef
+$note => undef
+</%args>
+
+<h2><% $header |h %></h2>
+% if ($note) {
+<div><% $note |h %></div>
+% }
+
+<%perl>
+my $count = 0;
+if ($data) {
+    $table_dbh->func('data', 'ad_clear');
+    $table_dbh->func('data', 'ARRAY', $data, 'ad_import');
+}
+my $sth = $table_dbh->prepare($query) || die "Failed to prepare: " . $dw_dbh->errstr;
+$sth->execute(@args) or die "Failed to execute: " . $sth->errstr;
+print '<table style="border: 1px solid black; border-collapse: collapse" cellpadding="4" cellspacing="0">';
+my @col_names = @{$sth->{NAME}};
+my $last_row;
+while (my $row = $sth->fetchrow_arrayref) {
+    if($count++ % 10 == 0) {
+        print '<tr class="tablehead" style="border: 1px solid black;">';
+        for (my $i = 0; $i < scalar(@col_names); $i++ ) {
+          print '<th align="left" ' . ($params->{$col_names[$i]} || "") . ' style="border: 1px solid black;">' . $col_names[$i] . "</th>";
+        }
+        print "</tr>\n";
+    }
+    print "<tr>";
+    for (my $i = 0; $i < scalar(@$row); $i++ ) {
+        print '<td valign="top" class="' . ($count % 2 ? "odd" : "even") . '" style="border: 1px solid black;">' . _h($row->[$i]) . '</td>';
+    }
+    print "</tr>\n";
+    $last_row = $row;
+}
+print "</table>\n<br/>";
+return $callback->($sth, $last_row);
+</%perl>
+</%method>
+

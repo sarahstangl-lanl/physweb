@@ -1,0 +1,49 @@
+
+<%DOC>
+   Component: group_picker.comp
+        Date: 2008.04.02
+      Author: clayton
+     Changed: 2008.04.02 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$selected=>''
+@selected=>()
+$name=>''
+</%ARGS>
+
+<%INIT>
+
+my $groups = $dbh->prepare("SELECT name, description, type
+FROM groups ORDER BY type, description");
+$groups->execute();
+my @groups;
+while(my $group = $groups->fetchrow_hashref()) {
+    my $description = $group->{'description'};
+    my $len = length($description);
+    push @groups, [$group->{'name'}, $group->{type}, $description];
+}
+
+my $prevtype = '';
+if ($selected) {
+  @selected = split ',', $selected;
+}
+</%INIT>		
+
+<select multiple size="9" name="<% $name |h %>">
+% foreach my $group (@groups) {
+%  if ($prevtype ne $$group[1]) {
+%    if ($prevtype ne '') {
+</optgroup>
+%    }
+% $prevtype = $$group[1];
+<optgroup label="<% $$group[1] |h %>">
+%  }
+<option <% ((grep $_ eq $$group[0], @selected) ? 'SELECTED' : '') %> value="<% $$group[0] |h %>"><% $$group[2] |h %></option>
+% }
+%    if ($prevtype ne '') {
+</optgroup>
+%    }
+</select>

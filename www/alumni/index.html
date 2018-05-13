@@ -1,0 +1,51 @@
+<%doc>
+   Component: index.html
+        Date: 2/6/2002
+      Author: allan
+ Description:
+</%doc>
+
+
+<%args>
+$featrow=>undef
+</%args>
+
+<%method title>Welcome Physics Alumni</%method>
+
+<& "/mason/db/stories/feature.comp", type=>'feature', subtype=>'alumni', style_prefix=>'rf', featrow=>$featrow&>
+
+
+<p>
+Thanks for stopping in to our website.
+</p>
+
+<& /mason/image.comp, filename=>'WODiscovery.jpg',alt=>'Wall of Discovery',credit=>'photo by Patrick OLeary',caption=>'The Wall of Discovery features several contributions from School professors including Al Nier and Phyllis Frier.' &>
+<p>
+There are many ways that Alumni can get involved and support Physics at Minnesota.  
+</p>
+<ul>
+<li><a href="newsletter.html">Read the newsletter</a>.
+<li>Send in Class Notes about what you've been up to since graduation to <a href="mailto:alumni@physics.umn.edu">alumni@physics.umn.edu</a>. 
+<li>Visit the department during homecoming or any time.  Would you like to tour the building?  Contact <a href="mailto:jjmurphy@physics.umn.edu">Julie Murphy</a>.  
+<li>Take a stroll on the Scholars Walk and look at our contributions to the <a href="http://www.scholarswalk.umn.edu/discovery/">Wall of Discovery</a>. Featured on the Wall of Discovery are John Bardeen, Walter Brattain, Roberta Humphreys, Ernest Lawrence, Alfred O. Nier, Edward Ney and Phyllis St. Cyr Freier.
+<li>Attend a <a href="/events/calendar/PAC/thisweek/index">seminar</a> in the department or 
+<a href="http://events.umn.edu/"> events </a>at the University.
+</ul>
+ 
+<h4>Make a Gift</h4>
+<p>Please consider giving financially to physics. <a href="/alumni/makeagift/">Make a gift here</a>.  Your private philanthropy enhances the quality of our education and research.
+</p>
+
+<p>
+If you have a tip for a news story, please send us an e-mail at <a href="mailto:alumni@physics.umn.edu">alumni@physics.umn.edu</a>.</p>  
+<p>We welcome feedback on the new site, the newsletter, and of course, any other way we can help you connect with the department.</p>
+
+
+<%method related>
+<ul>
+<li><a href="http://www.ftpi.umn.edu/misel/index.html">The Edythe and Irving Misel Family Lecture Series</a>
+<li><a href="http://cse.umn.edu/admin/exrel/alumni/CSE_CONTENT_213760.php">College of Science and Engineering Alumni Society</a>
+<li><a href="http://www.alumni.umn.edu/">U of M Alumni Association</a>
+</ul>
+</%method>
+%# vim:set syntax=mason: 

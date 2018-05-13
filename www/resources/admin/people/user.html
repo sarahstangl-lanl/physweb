@@ -1,0 +1,400 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: index.html
+        Date: 2008.08.27
+      Author: rubin
+     Changed: 2008.08.27 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$uid=>''
+#$physid=>''
+#$x500=>''
+</%ARGS>
+
+<%init>
+use Number::Bytes::Human qw(format_bytes);
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $dirauth = $m->comp('/mason/auth/auth_check_directory.comp');
+
+if(! ($auth || $dirauth )) {
+    print "No Access\n";
+    return;
+}
+
+</%init>
+<%shared>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+use physdb::directory;
+use physdb;
+use Net::LDAP;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my %args = $m->request_args();
+
+my $uid = $args{'uid'};
+#my $x500 = $args{'x500'};
+#my $physid = $args{'physid'};
+my $do404 = 0;
+my ($physid, $x500, $directory, $ldap, $umn, $unlinked_phys, $unlinked_x500, $unlinked_dir, $unix_groups, $dir_groups_flags, $dir_groups_nonflags, $copy_code);
+
+# Try to get uid if not already set
+$uid = $m->comp('/mason/db/directory/x500_to_uid.comp',x500=>$x500) unless $uid || !$x500;
+$uid = $m->comp('/mason/db/directory/physid_to_uid.comp',physid=>$physid) unless $uid || !$physid;
+
+# Try to find directory entry for uid
+if($uid) {
+    $directory = new Directory( uid => $uid );
+    # Get physid and x500 if available and not already set
+    $physid = $directory->get('physid') unless $physid || !$directory;
+    $x500 = $directory->get('x500') unless $x500 || !$directory;
+}
+
+# Try to get physics and x500 account info
+$ldap = $m->comp("/mason/ldap_lookup.comp:getuser",physid=>$physid) if $physid;
+$umn = $m->comp("/mason/ldap_lookup.comp:getuser",server=>'ldap.umn.edu',x500=>$x500) if $x500;
+
+# Try to find accounts by name and indicate unlinked account found
+if($directory) {
+    (my $stripped_fname = $directory->get('first_name')) =~ s/^(\w+)\b.*/$1/;
+    # Try to find physics account
+    if(!$ldap) {
+        ($ldap) = $m->comp("/mason/ldap_lookup.comp:search", 
+                     filter=>"(&(objectclass=posixAccount)(sn=".$directory->get('last_name').")(|(givenname=$stripped_fname*)(givenname=".$directory->get('first_name').")))");
+        $unlinked_phys = 1 if $ldap;
+    }
+    # Try to find x500 account
+    if(!$umn) {
+        ($umn) = $m->comp('/mason/ldap_lookup.comp:search', server=>'ldap.umn.edu',
+                     filter=>"(&(sn=".$directory->get('last_name').")(|(givenname=$stripped_fname*)(givenname=".$directory->get('first_name').")))");
+        $unlinked_x500 = 1 if $umn;
+    }
+} else {
+    # Try to find directory entry by physics account name
+    if($ldap && !$uid) {
+        (my $stripped_fname = $ldap->get_value('givenName')) =~ s/^(\w+)\b.*/$1/;
+        ($uid) = physdb::queryone("
+                                    SELECT uid
+                                      FROM directory
+                                     WHERE last_name = '".$ldap->get_value('sn')."'
+                                       AND (first_name LIKE '$stripped_fname%'
+                                        OR first_name = '".$ldap->get_value('givenname')."')
+                                     LIMIT 1
+                                  ");
+        $directory = new Directory( uid => $uid ) if $uid;
+        if($directory) {
+            $unlinked_dir = 1;
+            # Try to get x500 if available and not already set
+            if(!$x500) {
+                $x500 = $directory->get('x500');
+                # Try to get x500 account info
+                $umn = $m->comp("/mason/ldap_lookup.comp:getuser",server=>'ldap.umn.edu',x500=>$x500) if $x500;
+                $unlinked_x500 = 1 if $umn;
+            }
+        }
+    }
+    # Try to find directory entry by x500 account name
+    if($umn && !$uid) {
+        (my $stripped_fname = $umn->get_value('givenName')) =~ s/^(\w+)\b.*/$1/;
+        ($uid) = physdb::queryone("
+                                    SELECT uid
+                                      FROM directory
+                                     WHERE last_name = '".$umn->get_value('sn')."'
+                                       AND (first_name LIKE '$stripped_fname%'
+                                        OR first_name = '".$umn->get_value('givenname')."')
+                                     LIMIT 1
+                                  ");
+        $directory = new Directory( uid => $uid ) if $uid;
+        if($directory) {
+            $unlinked_dir = 1;
+            # Try to get physid if available and not already set
+            if(!$physid) {
+                $physid = $directory->get('physid');
+                # Try to get physics account info
+                $ldap = $m->comp("/mason/ldap_lookup.comp:getuser",physid=>$physid) if $physid;
+                $unlinked_phys = 1 if $ldap;
+            }
+        }
+    }
+}
+
+my($fullname, $emplid, $advisor_year, $advisor_fullname);
+if($directory) {
+    $fullname = $directory->fullname();
+    $emplid = $directory->get('emplid');
+    my $gradprogress = physdb::queryfirstrow("SELECT directory.first_name, directory.last_name, record_year 
+                                                FROM gradprogress 
+                                                JOIN directory 
+                                                  ON directory.uid=gradprogress.advisor
+                                                WHERE gradprogress.advisor IS NOT NULL AND gradprogress.uid=?
+                                                ORDER BY entryid DESC", $directory->get("uid"));
+    $advisor_fullname = $gradprogress->{'first_name'} . ' ' . $gradprogress->{'last_name'};
+    $advisor_year = $gradprogress->{'record_year'};
+}
+elsif($ldap) {
+    $fullname = $ldap->get_value("gecos");
+}
+elsif($umn) {
+    $fullname = $umn->get_value("displayName");
+}
+else {
+    $do404 = 1;
+}
+</%shared>
+<%perl>
+if($do404) {
+    $m->comp("/mason/404.comp");   
+}
+if($directory || $ldap || $umn) {
+ </%perl>
+   <table id="usertable" cellspacing=5><tr><td width="400">
+       <%perl>if($directory) {</%perl>
+       <h2>Directory Info
+    <span style="width:200px">
+    <a href="/resources/myphys/profile/index.html?uid=<% $directory->get("uid") %>"><img src="/images/nav_profile3.gif" alt="View" title="View Directory Page" border="0" /></a>
+    <%perl>
+    if($directory->get("physid")) {
+    </%perl><a href="/people/<% $directory->get("physid") %>"><img src="/images/imgsel_view.png" alt="Go to Profile" title="Go to Profile" border="0" /></a><%perl>
+    } 
+    elsif($directory->get("x500")) {
+    </%perl><a href="/people/<% $directory->get("x500") %>"><img src="/images/imgsel_view.png" alt="Go to Profile" title="Go to Profile" border="0" /></a><%perl>
+    }
+    </%perl>
+    </span>
+       </h2>
+<%perl>
+ if($unlinked_dir) { 
+     print "<small style=\"color:red\">Possible unlinked directory entry match";
+     if($umn && $umn->get_value('uid') && $directory && $directory->get('physid')) {
+         print "&nbsp;|&nbsp;<a href=\"link_account.html?uid=".$directory->get('uid')."&x500=".$umn->get_value('uid')."\">Link</a>";
+     }
+     else {
+         if($ldap && $ldap->get_value('uid')) {
+             print "&nbsp;|&nbsp;<a href=\"link_account.html?uid=".$directory->get('uid') ."&physid=".$ldap->get_value('uid')."\">Link</a>";
+         }
+     }
+     print "</small><br/>"; 
+ }
+ </%perl>
+           <table border=0>
+           <tr><td>Name:</td><td colspan="2" nowrap><% $directory->get('last_name') |h %>, <% $directory->get('first_name') |h %></td></tr>
+           <%perl>my $dirstatus = $directory->status();</%perl>
+           <tr><td>Directory status:</td><td colspan="2"><span title="<% $directory->status_description($dirstatus)|h %>"><% $dirstatus |h %></span></td></tr>
+           <tr><td>Physics Username:</td><td><% $directory->get('physid') |h %></td>
+                <td rowspan="5" style="border:1;">
+                <&'/mason/db/images/insert_thumb.comp', mischtml=>'style="border: 1px solid black;"', category=>'profiles', parentid=>$directory->get('uid') &>
+                </td></tr>
+           <tr><td>UMN Internet ID:</td><td> <% $directory->get('x500') |h %></td></tr>
+           <%perl>
+           if ($directory->get('spa_ad_account')) {
+                print "<tr><td>SPA AD account:</td><td>" . $directory->get('spa_ad_account') . "</td></tr>";
+           }
+           </%perl>
+           <tr><td>Employee&nbsp;ID:</td><td> <% $emplid |h %></td></tr>
+           <tr><td>Ucard:</td><td> <% $directory->get('ucard') |h %></td></tr>
+           <tr><td>UcardProx:</td><td> <% $directory->get('ucardprox') |h %></td></tr>
+           <tr><td>Location/phone (1):</td><td> <% $directory->location_text('room') %></td></tr>
+           <tr><td>Location/phone (2):</td><td> <% $directory->location_text('room2') %></td></tr>
+           <tr><td>Position (Phys):</td><td colspan="2"> <% $directory->get('position') |h %></td></tr>
+           <tr><td>Position (Psoft):</td><td colspan="2"> <% $directory->get('dw_position') |h %></td></tr>
+           <tr><td>Display Email:</td><td colspan="2"><a href="mailto:<% $directory->get('email') |h %>"><% $directory->get('email') |h %></a></td></tr>
+           <tr><td>Copy Code:</td><td colspan="2"> <% $directory->get("copyid") |h%></td></tr>
+           <tr><td>Entered&nbsp;by:</td><td colspan="2"> <% $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$directory->get('acctreq_uid')) |h %></td></tr>
+           <tr><td>Sponsor:</td><td colspan="2"> <% $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid => $directory->get('sponsor')) |h%></td></tr>
+           <%perl>if($advisor_fullname) { </%perl>
+               <tr><td>Academic Advisor:</td><td> <% $advisor_year|h%> - <% $advisor_fullname|h %></td></tr>
+<%perl>
+#Generate alt text and href link for each group:
+my $attr_sub = sub {
+    my $group = shift;
+    my $auto = ($group->get('import') ne "No");
+    # XXX This code is duplicated in edit_entry_form.html, merge them somehow?
+    my @attrs = ('group '.$group->get('name'));
+    push(@attrs, $group->get('purpose')) if ($group->get('purpose'));
+    push(@attrs, 'auto from ' . $group->get('import')) if ($auto);
+    push(@attrs, 'published') if ($group->get('publish'));
+    push(@attrs, 'physics-all email') if ($group->get('physics_all'));
+    return join(', ', @attrs);
+};
+my $link_sub = sub {
+    return "<a href=\"/resources/myphys/groupmgmt/group_edit.html?group=".$_->get('name')."\" title=\""._h(&$attr_sub($_))."\">".$_->get('description')."</a>";
+};
+$dir_groups_flags = join("<br/> ", map { &$link_sub($_) } $directory->groups("type = 'flags'"));
+$dir_groups_nonflags = join("<br/> ", map { &$link_sub($_) } $directory->groups("type <> 'flags'"));
+</%perl>
+           <%perl> } </%perl>
+           <tr><td>Primary Dept Groups:</td><td colspan="2"> <% $dir_groups_flags %></td></tr>
+           <tr><td>Other Groups:</td><td colspan="2"> <% $dir_groups_nonflags %></td></tr>
+           <tr><td>Lookup:</td><td colspan="2">
+               <a href="/resources/admin/network/hosts.html?netclass=<% $uid|u%>">Hosts</a>
+               | <a href="/resources/admin/network/traffic.html?magic=<% "WHERE directory.uid=$uid"|u%>">Net Traffic</a>
+               | <a href="/resources/admin/network/radius.html?magic=WHERE%20<% ($physid ? "UserName='".$physid."'".($x500 ? " OR " : "") : "").($x500 ? "UserName='".$x500."'" : "")|u%>">Radius</a>
+               | <a href="/resources/admin/keyring/view_person.html?uid=<% $uid |u%>">Keys</a>
+           </td></tr>
+           </table>
+       <%perl>} else {</%perl>
+       <h2 style="width:200px;">Directory Info</h2>
+       <p>Not found in directory!
+       <%perl>} </%perl>
+       </td>
+       <td>
+       <h2>Directory History</h2>
+       <table>
+       <tr><td colspan=2>First added:</td><td><% $directory->get('create_date') %></td></tr>
+       <%perl>
+                my @dirhist = physdb::queryall("SELECT user,text, timestamp FROM auditlog WHERE type='directory' AND directory_uid=? ORDER BY timestamp DESC LIMIT 8", $directory->get("uid")) unless !$directory;
+                if(@dirhist) {
+                    </%perl><tr><th>Date</th><th>By</th><th>Action</th></tr><%perl>
+                    foreach my $row (@dirhist) {
+                    </%perl>
+                    <tr>
+                    <td><% $row->{'timestamp'} |h %></td>
+                    <td><% $row->{'user'} |h %></td>
+                    <td><% $row->{'text'} |h %></td>
+                    </tr>
+                    <%perl>
+                 }
+                 }
+        </%perl>
+        </table>
+       <h2>Computer Logins</h2>
+       <%perl>
+           if($directory && $auth) {
+               # login accouting stores UID for all known people, so we'll just match by that...
+               my @logins = physdb::queryall("SELECT hostname, host_id, timestamp, event, uid FROM accounting.login_accounting WHERE event <> 'logout' AND uid=? ORDER BY timestamp DESC LIMIT 8", $uid);
+               if(@logins) {
+                  </%perl><table><%perl>
+                   foreach my $row (@logins) {
+                       </%perl>
+                           <tr>
+                           <td><% $row->{'event'} |h %></td>
+                           <td><a href="/resources/admin/network/host.html?id=<% $row->{'host_id'} |u%>"><% $row->{'hostname'} |h %></a></td>
+                           <td><% $row->{'timestamp'} |h %></td>
+                           </tr>
+                       <%perl>
+                   }
+                 </%perl></table> [<a href="/resources/admin/audits/loginaudits.html?limit=20&page=0&search=+<% $uid %>&sort=timestamp&sort_reverse=1">More...</a>]<%perl>
+               } else { 
+                 </%perl>None<%perl>
+               }
+           }
+       </%perl>
+      </%perl><h2>Network Registrations</h2><%perl>
+       my @netregs = physdb::queryall("SELECT computer_name, id, os, type, last_seen FROM net_hosts WHERE admin_uid=?", $uid);
+       if (@netregs) {
+            </%perl><table><%perl>
+                   foreach my $row (@netregs) {
+                       </%perl>
+                           <tr>
+                               <td><a href="/resources/admin/network/host.html?id=<% $row->{'id'} |u%>"><% $row->{'computer_name'} |h %></a></td>
+                               <td><% $row->{'os'} |h %> <% $row->{'type'} |h %></td>
+                               <td><% $row->{'last_seen'} |h %></td>
+                           </tr>
+                       <%perl>
+                       }
+                       print "</table>";
+                    }
+        </%perl>
+        </td><td>
+       </td></tr><tr><td>
+       <h2>Physics Account Info</h2>
+       <%perl>if($unlinked_phys) { 
+                  print "<small style=\"color:red\">Possible unlinked physics account match".((!$unlinked_dir && $directory->get('uid')) ? "&nbsp;|&nbsp;<a href=\"link_account.html?uid=".$directory->get('uid')."&physid=".$ldap->get_value('uid')."\">Link</a>" : "")."</small><br/>"; 
+              }
+              if($ldap) {
+                  my $shadowExpire = "NONE";
+                  my $sambaKickoffTime = "NONE";
+              
+                  if($ldap->get_value('shadowExpire')) {
+                      my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday) = gmtime ($ldap->get_value('shadowExpire') * 24 * 60 * 60);
+                      $year += 1900;
+                      $mon += 1;
+                      $shadowExpire = "$mon/$mday/$year";
+                  }
+                  if($ldap->get_value('sambaKickoffTime')) {
+                      my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday) = gmtime ($ldap->get_value('sambaKickoffTime'));
+                      $year += 1900;
+                      $mon += 1;
+                      $sambaKickoffTime = "$mon/$mday/$year";
+                  }
+                  my %flaglookup = ( "X" => "Password does not expire",
+                                     "W" => "Workstation trust account",
+                                     "U" => "Normal user account",
+                                     "T" => "Temporary duplicate account entry.",
+                                     "S" => "Server trust account",
+                                     "N" => "Password not required",
+                                     "M" => "Microsoft Network Service logon account",
+                                     "L" => "Account has been auto-locked",
+                                     "I" => "Inter-domain trust account",
+                                     "H" => "Home directory is required",
+                                     "D" => "Account is disabled");
+                  my $sambaFlags = "";
+                  foreach my $flag (split //, $ldap->get_value('sambaAcctFlags')) {
+                    if($flaglookup{$flag}) {
+                       #$sambaFlags .= ", " if($sambaFlags);
+                       $sambaFlags .= "$flag=". $flaglookup{$flag}. "<br/>";
+                    }
+                  }
+                  my $ldap_physid = $ldap->get_value('uid');
+                  $unix_groups = `groups $ldap_physid`;
+                 </%perl>
+           <table>
+           <tr><td>Name:</td><td nowrap><% $ldap->get_value('sn') |h %>, <% $ldap->get_value('givenName') |h %></td></tr>
+           <tr><td>Username:</td><td><% $ldap->get_value('uid') |h %></td></tr>
+           <tr><td>Mail Forward: </td><td><% $ldap->get_value('mailForwardingAddress') || '' |h %></td></tr>
+           <tr><td>Mail Alternate: </td><td><% $ldap->get_value('mailAlternateAddress') || '' |h %></td></tr>
+           <tr><td>Unix Shell:</td><td><% $ldap->get_value('loginShell') |h %></td></tr>
+           <tr><td valign="top">Samba&nbsp;Flags <a href="http://us3.samba.org/samba/docs/man/Samba-HOWTO-Collection/passdb.html#TOSHARG-acctflags" target="_blank">?</a>:</td><td nowrap><% $sambaFlags %></td></tr>
+           <tr><td nowrap>Unix Expire:</td><td><% $shadowExpire |h %></td></tr>
+           <tr><td nowrap>Windows Expire:</td><td><% $sambaKickoffTime |h %></td></tr>
+           <tr><td nowrap>UNIX Groups:</td><td><% $unix_groups |h %></td></tr>
+           <tr><td nowrap>Quotas:</td><td>
+              <table>
+              <%perl>
+              my @quotas = physdb::queryall("SELECT path, used, quota, timestamp, last_notified FROM userquotas WHERE uid=?", $directory->get('uid'));
+              foreach my $quota (@quotas) {
+                 </%perl><tr><td><% $quota->{'path'}|h%></td><td><% format_bytes($quota->{'used'}) |h%>/<% format_bytes($quota->{'quota'}) |h%></td></tr><%perl>
+              }
+              </%perl>
+              </table>
+           </td></tr>
+           </table>
+%#       foreach my $attrib ($ldap->attributes) { print "$attrib: ".$ldap->get_value($attrib)."<br/>"; }
+       <%perl>} else {</%perl>
+           <p>No physics account found!
+       <%perl>} </%perl>
+   </td><td>
+       <h2>Internet Account Info</h2>
+       <%perl>if($unlinked_x500) { print "<small style=\"color:red\">Possible unlinked X.500 account match".((!$unlinked_dir && $directory->get('uid')) ? "&nbsp;|&nbsp;<a href=\"link_account.html?uid=".$directory->get('uid')."&x500=".$umn->get_value('uid')."\">Link</a>" : "")."</small><br/>"; }
+              if($umn) {
+       </%perl>
+       <table>
+          <tr><td>Name:</td><td><% $umn->get_value('sn') |h%>, <% $umn->get_value('givenName') |h%></td></tr>
+          <tr><td>Username:</td><td><% $umn->get_value('uid') |h%></td></tr>
+<%perl>
+$umn->get_value('umnPublicPersonType') =~ /([A-Z][a-z]+)([A-Z][a-z]+)*([A-Z][a-z]+)*([A-Z][a-z]+)*([A-Z][a-z]+)*([A-Z][a-z]+)*/;
+my $position = join(" ",($1,$2,$3,$4,$5,$6));
+my $mail = $umn->get_value('umndisplaymail') || $umn->get_value('mail');
+</%perl>
+          <tr><td>Position:</td><td><% $position |h%></td></tr>
+          <tr><td>Email:</td><td><a href="mailto:<% $mail |h%>"><% $mail |h%></a></td></tr>
+          <tr><td>Phone:</td><td><% $umn->get_value('telephoneNumber') |h%></td></tr>
+       </table>
+       <%perl>
+              }
+                else {
+                  print "<p>No UMN internet account found!";
+              }
+       </%perl></td></tr></table>
+<%perl>
+}
+</%perl>
+<style type="text/css">
+#groupstable TD { vertical-align:top; }
+#usertable TD { vertical-align:top; }
+</style>

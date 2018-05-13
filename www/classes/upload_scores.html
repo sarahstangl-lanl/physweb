@@ -1,0 +1,166 @@
+
+<%DOC>
+   Component: upload_scores.html
+        Date: 2008.08.11
+      Author: clayton
+     Changed: 2008.08.11 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$upload=>undef
+$file=>undef
+$classid=>undef
+$sendupdatemail=>undef
+$receiptto=>undef
+</%ARGS>
+
+<%INIT>
+  return if $m->comp('/mason/db/dbcheck.comp');
+  $m->comp('/mason/auth/auth_block.comp');
+  my $auth = $m->comp('/mason/auth/auth_check_classes.comp');
+  if (!$auth || !$classid)
+  {
+    $m->redirect('index.html');
+  }
+  if(!$receiptto) { $receiptto = $m->comp('/mason/db/directory/uid_to_email.comp'); }
+</%INIT>		
+
+<%method title>Upload Scores</%method>
+
+<%perl>
+  if ($upload && $file) {
+    my $req = Apache2::Request->new($r);
+    my $destdir = "/home/admin/grades/webgrades";
+    my $upload = $req->upload('file');
+    my $tmpfile = $upload->tempname;
+    my $filename = $upload->filename;
+    my $successful_insert;
+    my $x500 = $session{'x500'};
+    my $time = strftime("%d-%b-%Y %k:%M:%S", CORE::localtime);
+    my ($volume, $directories, $leaf) = File::Spec->splitpath( $filename );
+    if ($leaf =~ /:\\/) {
+      # get leafname from Windows filename
+      my $index = rindex($filename,"\\");
+      $leaf = substr($filename, ($index + 1));
+    }
+    my $destfile =  $destdir.'/(' . $time . ') '.$leaf;
+    my $logfile =  $destdir.'/logfile.txt';
+    if ($filename) {
+      my $mime_type = $upload->type;
+      my $fh = $upload->fh;
+      #my $data = do { local $/; <$fh> };
+      my $datasize = $upload->size;
+      if ($filename !~ /.xls$/i ) {
+        print "Not an Excel file?";
+      } 
+      else {
+        my $report;
+        my $psuccess = 1;
+        my %info;
+        my $error;
+        eval {
+          $report = $m->scomp({store=>\$report}, '/mason/db/classes/parse_excel_to_db.comp', classid=>$classid, receiptto=>$receiptto, inputfile=>$fh, info=>\%info, send_update_email=>$sendupdatemail);
+        };
+        if ($@) {
+          $psuccess = 0;
+          $error = $@;
+        }
+        if ($psuccess) {
+          print '<h4>Scores upload successful.</h4><br><h4>Details:</h4>';
+        } else {
+          print '<h4>Scores upload failed!</h4><b><a href="http://zzz.physics.umn.edu/computing/contact">Contact us</a> and include the contents of this page as well as the failed excel spreadsheet...</b>';
+          print '<pre>' . $m->interp->apply_escapes($error, 'h') . '</pre>';
+        }
+        print '<table>';
+        print '<tr><td>Processed Students:</td><td>' . $info{'students'} . '</td></tr>';
+        print '<tr><td>Grade Update E-mails Sent:</td><td>' . $info{'emailok'} . '</td></tr>';
+        if ($info{'emailfail'}) {
+          print '<tr><td>Grade Update E-mails FAILED:</td><td>' . $info{'emailfail'} . '</td></tr>';
+        }
+        print '<tr><td>Receipts Sent To:</td><td>' . $m->interp->apply_escapes($receiptto, 'h') . ($receiptto ? ', ' : '') . $m->interp->apply_escapes($info{'instructor'}, 'h') . '</td></tr>';
+        print '</table>';
+	print "<br><h4>Receipt:</h4>";
+        print '<h5>No refunds granted after 90 seconds.</h5>';
+        print "<pre>Upload of $filename successful... Starting parsing:\n";
+        print $m->interp->apply_escapes($report, 'h');
+        print "</pre>";
+        print "<a href=\"/classes/". $m->comp('/mason/db/classes/make_classlink.comp', classid=>$classid). "manage_scores.html\">Back to class</a>";
+
+      }
+    } else {
+      print "Upload failed";
+    }
+  } else {
+</%perl>
+
+% if ($upload && !$file) {
+  <em>You must select a file to upload!</em><br><br>
+% }
+
+<%perl>
+  my $sth = $dbh->prepare('SELECT year, quarter, name, section FROM classlist WHERE classid=? LIMIT 1');
+  $sth->execute($classid) or die "Could not fetch class: " . $sth->errstr;
+  my ($semester, $classname, $section);
+  if (my $row = $sth->fetchrow_hashref()) {
+    $semester = ucfirst($row->{'quarter'}) . ' ' . $row->{'year'};
+    $classname = $row->{'name'};
+    $section = $row->{'section'};
+  }
+
+  my $assignments = $dbh->prepare('SELECT id, name FROM grades.assignments WHERE legacy_email_flag=1 AND classid=?');
+  $assignments->execute($classid) or die "Could not fetch assignments: " . $assignments->errstr;
+</%perl>
+
+<form enctype="multipart/form-data" method="POST" action="/classes/upload_scores.html?classid=<% $classid |u %>">
+
+<input type="hidden" name="upload" value="true">
+
+<table>
+<tr>
+  <th bgcolor="#eeeeee" colspan="2" align="left">Selected Class</th>
+</tr>
+<tr>
+  <td>Class:</td>
+  <td><a href="/classes/<% $m->comp('/mason/db/classes/make_classlink.comp', classid=>$classid) %>"><% $classname |h %> (<% $semester |h %>)</a> section <% $section |h %></td>
+</tr>
+<tr valign="top">
+  <td>Existing Columns:</td>
+  <td>
+% my $first=1;
+% while (my $row = $assignments->fetchrow_hashref()) {
+<% ($first ? '' : '&middot;') %> <% $row->{'name'} |h %> <small>[<a href="/classes/delete_grades_assignment.html?classid=<% $classid |u %>&assnid=<% $row->{'id'} |u %>">Delete</a>]</small>
+% $first=0;}
+% if (!$first) {
+ &middot; <small>[<a href="/classes/delete_grades_assignment.html?classid=<% $classid |u %>&deleteall=1">Delete All</a>]</small>
+% }
+  </td>
+</tr>
+<tr>
+  <td>Template:</td>
+  <td><a href="/classes/download_gradebook_template.html?classid=<% $classid |h %>">Download Template</a></td>
+</tr>
+<tr>
+  <th bgcolor="#eeeeee" colspan="2" align="left">Excel File Upload</th>
+</tr>
+<tr>
+  <td>File:</td>
+  <td><input type="file" name="file" size="30"></td>
+</tr>
+<tr>
+  <td>Send receipt to:</td>
+  <td><input type="text" name="receiptto" value="<% $m->comp('/mason/db/directory/uid_to_email.comp') |h %>"  size="30"> (and instructor as specified in file)</td>
+</tr>
+<tr>
+  <td></td>
+  <td><input type="checkbox" id="sendupdatemail" name="sendupdatemail" CHECKED="checked" value="1"><label for="sendupdatemail"> Notify students when their grades are updated</label></td>
+</tr>
+<tr>
+  <td><input type="submit" value="Upload"></td>
+  <td></td>
+</tr>
+</table>
+</form>
+
+% }

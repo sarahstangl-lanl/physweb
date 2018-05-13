@@ -1,0 +1,31 @@
+<%init>
+my $ta_settings = $m->comp('/mason/db/moonproject/ta_settings.comp');
+my @settings = @$ta_settings;
+my (@columns, @values, @error_fields, @error_messages);
+warn Dumper(\%ARGS);
+while (@settings) {
+    my $setting = shift @settings;
+    my $params = shift @settings;
+    if (ref $params->{validate} eq 'CODE') {
+        if (my $error = $params->{validate}->($ARGS{$setting})) {
+            push @error_fields, $setting;
+            push @error_messages, "$params->{name} $error";
+        }
+    }
+    if (@error_fields) {
+        warn Dumper(@error_fields);
+        $m->comp('/mason/notice_box.comp', type => 'error', text => '', html => join('<br/>', @error_messages));
+        $m->comp('settings.html', %ARGS, error_fields => \@error_fields);
+        return;
+    }
+    if (ref $params->{deflate} eq 'CODE') {
+        $ARGS{$setting} = $params->{deflate}->($ARGS{$setting});
+    }
+    push @columns, $setting;
+    push @values, $ARGS{$setting};
+}
+warn Dumper({ columns => \@columns, values => \@values });
+$dbh->trace(1);
+physdb::query('UPDATE moonproject.ta SET ' . join(',', map { "$_ = ?" } @columns) . ' WHERE uid = ?', @values, $session{uid});
+$m->redirect('settings.html');
+</%init>

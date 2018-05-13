@@ -1,0 +1,29 @@
+<%DOC>
+   Component: bump_modified.comp
+        Date: 2008.09.02
+      Author: clayton
+     Changed: 2008.09.02 by clayton
+
+Bumps the modified date up a post hierarchy via the parentids...
+Pass in the parent id to start with
+</%DOC>
+
+<%ARGS>
+  $parentid
+  $max_depth=>20
+</%ARGS>
+
+<%INIT>
+  my $get_parent = $dbh->prepare('SELECT parentid FROM classdata WHERE entryid=? LIMIT 1');
+  my $bump_modified = $dbh->prepare('UPDATE classdata SET modified_date = NOW() WHERE entryid=? LIMIT 1');
+  my $row;
+
+  $bump_modified->execute($parentid);
+  $get_parent->execute($parentid);
+  while (($row = $get_parent->fetchrow_hashref()) && $row->{'parentid'}) {
+    $bump_modified->execute($row->{'parentid'});
+    $get_parent->execute($row->{'parentid'});
+
+    if ($max_depth-- < 1) { return; }
+  }
+</%INIT>

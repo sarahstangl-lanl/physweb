@@ -1,0 +1,64 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: addevent.comp
+        Date: 2003.09.11
+      Author: allan
+     Changed: 2003.09.11 by allan
+
+Description ... 
+</%DOC>
+
+<%method recent>
+<%args>
+$host_id
+</%args>
+<%init>
+   my $where = "1=1";
+   my @where_args;
+   if($host_id) {
+      $where .= " AND host_id=?";
+      push @where_args, $host_id;
+
+   }
+   my $result = physdb::query("SELECT * FROM accounting.net_auditlog WHERE $where ORDER BY timestamp DESC LIMIT 5", @where_args);
+</%init>
+<%perl>
+return if($result->rows == 0);
+</%perl>
+<h3>Change History&nbsp;<div style="display:inline;vertical-align:top;font-size:10pt;font-weight:normal;">[<a href="/resources/admin/audits/hostaudits.html?search=WHERE net_auditlog.host_id=<% $host_id %>">more</a>]</div></h3>
+<table border=0 cellpadding="5" cellspacing="0" width="100%">
+<tr class="tablehead"><th>Timestamp</th><th>Change</th></tr>
+<%perl>
+   my $oddeven=0;
+   while(my $row = $result->fetchrow_hashref()) {
+      </%perl>
+      <tr class="<% ($oddeven ? "odd" : "even") %>">
+          <td valign="top" nowrap><% $row->{'timestamp'}%></td>
+%#          <td valign="top"><% $row->{'username'} %></td>
+          <td valign="top"><% $row->{'username'}|h%> <% $row->{'text'}|h%></td>
+      </tr>
+      <%perl>
+      $oddeven = $oddeven ? "0" : "1";
+   }
+</%perl>
+</table>
+</%method>
+
+<%method log>
+<%ARGS>
+$user=>$session{x500}
+$text=>''
+$host_id
+$uid=>$session{uid}
+</%ARGS>
+
+<%perl>
+my $address;
+$address = $r->connection->get_remote_host();
+my $sql = "INSERT INTO accounting.net_auditlog (timestamp, username, address, text,user_agent, uid, host_id) VALUES (now(),?,?,?,?,?,?)";
+
+if (defined($dbh)) {
+  physdb::query($sql, $user, $address, $text,$ENV{HTTP_USER_AGENT}, $uid, $host_id);
+}
+</%perl>
+</%method>

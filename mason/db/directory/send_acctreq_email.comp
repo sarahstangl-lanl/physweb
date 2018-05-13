@@ -1,0 +1,18 @@
+<%args>
+$directory
+</%args>
+<%init>
+use physdb::directory;
+my $d = new Directory(uid => $session{'uid'});
+my $email = $d->get("email");
+if(! $email) {
+    $email = $session{'x500'}."\@umn.edu";
+}
+
+$m->comp('/mason/send_mail.comp',
+    to      => "net\@physics.umn.edu",
+    subject => "Physics account creation request",
+    text    => "\n\nA physics account has been requested for " . $directory->get('last_name') . ', ' . $directory->get('first_name') . " (" . $directory->get('uid') . ") by " . $m->comp('/mason/db/directory/uid_to_displayname.comp', uid => $session{'uid'}) . "\n\nhttps://www.physics.umn.edu/resources/admin/people/edit_entry_form.html?uid=" . $directory->get('uid') . "&readonly=1",
+    from=>$email
+);
+</%init>

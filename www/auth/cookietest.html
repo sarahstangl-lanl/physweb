@@ -1,0 +1,95 @@
+
+<%DOC>
+   Component: cookie.html
+        Date: 2005.01.21
+      Author: allan
+     Changed: 2005.01.21 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+use CGI::Cookie;
+my %cookies = parse CGI::Cookie($r->headers_in->{'Cookie'});
+my $cookie1 = $cookies{'UMNPHYS_SESSION_ID'};
+my $cookie2 = $cookies{'UMNPHYS_PERSIST'};
+#my %cookies = CGI::Cookie->fetch($r);
+my @now = CORE::gmtime();
+my $time = strftime("%a, %d %h %Y %H:%M:%S GMT",@now);
+</%INIT>
+
+<%method title>Cookie Test</%method>
+
+Here are all the cookies we were sent:
+<br/>
+% for (keys %cookies) {
+%   print $cookies{$_}->name;
+ -> 
+%   print $cookies{$_}->value;
+<br/>
+% }
+
+% if (defined($cookie1) && defined($cookie2)) {
+<p>
+<b>We were able to set and retrieve our session cookies without problems.</b>
+<p>
+% } else {
+
+We are unable to log you in, as your browser is not accepting cookies from our web site. Please check your browser configuration and try again.
+<p>
+
+<h3>Date and time</h3>
+<table CELLSPACING="0" cellpadding="5">
+
+<script language="javascript" type="text/javascript">
+<!--
+  now = new Date();
+  offset = now.getTimezoneOffset();
+  sign = offset < 0 ? "before" : "after";
+  offset = Math.abs(offset);
+  offsetHour = Math.floor(offset / 60).toString();
+  offsetMin = offset % 60;
+  offsetMin = offsetMin < 10 ? "0" + offsetMin.toString() : offsetMin.toString();
+
+  document.write("<tr><td>");
+  document.write("The current time on your computer is");
+  document.write("</td><td>");
+  document.write(now.toLocaleString());
+  document.write("</td></tr>");
+
+  document.write("<tr><td>");
+  document.write("Your computer's timezone is set to be");
+  document.write("</td><td>");
+  document.write(offsetHour + ":" + offsetMin + " hours " + sign + " GMT");
+  document.write("</td></tr>");
+
+  document.write("<tr><td>");
+  document.write("The current GMT time on your computer is");
+  document.write("</td><td>");
+  document.write(now.toGMTString());
+  document.write("</td></tr>");
+//-->
+</script>
+
+<tr>
+  <td>The current GMT time according to our server is</td>
+  <td><% $time %></td>
+</tr>
+</table>
+<p>
+If these times differ by more than a few minutes, double check your time, date and timezone settings. If these settings are incorrect our server may not be able to set the necessary cookies.
+
+<p>
+
+<h3>Privacy settings</h3>
+
+<p>
+  The privacy settings on some recent browsers may prevent our site from storing your login cookie if the settings are too strict. Select a lower privacy setting until the cookies are set correctly.
+
+<p>
+<a href="cookietest.html">Try again...</a>
+
+% }

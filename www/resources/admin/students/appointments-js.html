@@ -1,0 +1,53 @@
+<%args>
+    $uid
+    $year
+    $semester
+    $save => undef
+    
+    $name => undef
+    $oldval => undef
+    $newval => undef
+</%args>
+
+<%flags>
+    inherit => undef
+</%flags>
+
+<%init>
+    my $auth = $m->comp('/mason/auth/auth_check_appointment.comp');
+    if (!$auth) { return; }
+
+    use physdb::appointment;
+    
+    my $appt = new Appointment('uid' => $uid, 'year' => $year, 'semester' => $semester);
+    
+    my %result;
+    $result{'result'} = 'error';
+    
+    # This is for edit in place
+    if ($save) {
+        # I've decided to simply skip certainty, since if they create the record here via any other field,
+        # then certainty will become out of date, and update attempts will fail. Could return the whole row
+        # for updates... But then you have the problem of multiple requests and such.
+        if (($name ne 'certainty') && ($oldval ne '') && ($oldval ne $appt->get($name))) {
+            # Prevent unhappy collisions
+            $result{'message'} = 'Unable to update due to collision. You should reload the page. (Someone else has likely edited since you loaded the page, so the value has changed from what you see.)';
+            $result{'debugging'} = 'Collision ohnoes! uid: ' . $uid . ' year: ' . $year . ' semester: ' . $semester . ' Name: ' . $name . ' Expecting: ' . $appt->get($name) . ' Found: ' . $oldval;
+            
+        } else {
+            $appt->set($name => $newval);
+            if ($appt->save()) {
+                $m->comp('/mason/db/students/auditlog.comp:log', text => $appt->changes_as_str(),
+                    appt_uid => $uid, appt_year => $year, appt_semester => $semester);
+                $result{'result'} = 'ok';
+            } else {
+                $result{'message'} = $appt->dumperrors();
+            }
+        }
+        
+        $m->clear_buffer();
+        print $m->comp('/mason/ajax/to_json.comp', \%result);
+        
+        return;
+    }
+</%init>

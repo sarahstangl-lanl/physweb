@@ -1,0 +1,533 @@
+<%doc>
+
+Review an application
+</%doc>
+<%args>
+$client_id=>undef
+$delfile=>undef
+$imsure=>undef
+$uploadfile=>undef
+$uploadtype=>undef
+$getfile=>undef
+$savereview=>undef
+$saveoffer=>undef
+$review_uid=>undef
+$review_score=>undef
+$review_comment=>undef
+</%args>
+
+<%init>
+    use tablesearch;
+    my $app = physdb::queryfirstrow("SELECT * FROM gradapp_application WHERE client_id=?", $client_id);
+    if(!defined $client_id) {
+        print "No client_id";
+        return;
+    }
+    my $manager = $m->comp("/mason/auth/auth_check_gradapp_mgr.comp");
+    my $sysadm = $m->comp("/mason/auth/auth_check_sysadm.comp");
+</%init>
+
+<%method race>
+    <%args>
+    $app
+    </%args>
+    <%init>
+        # Make 1 string from the race checkboxes
+        my @race;
+        foreach my $r (grep /^race_(.+)/, keys %$app) {
+            if($app->{$r}) {
+                push @race, $1;
+                last;
+            }
+        }
+        my $race = join(', ', @race);
+
+        print _h($race);
+        return $race;
+    </%init>
+</%method>
+
+<%method age>
+    <%args>
+    $app
+    </%args>
+    <%init>
+    return undef if($app->{dob} eq '' or !defined $app->{dob});
+    if($app->{dob} =~ /^(\d+)\/(\d+)\/(\d+)$/) {
+        my $dob_year = $3;
+        my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = CORE::localtime();
+       my $age = $year + 1900 - $dob_year;
+       print $age;
+       return "$age yo";
+    }
+    return undef;
+    </%init>
+</%method>
+
+<%method real_or_sr>
+    <%args>
+    $real
+    $sr
+    </%args>
+    <%perl>
+    #Show the real score if we have it. Otherwise show the self-reported score with a color/title indicating it isnt verified
+        if(defined $real && $real ne '') {
+            print $real 
+        }
+        else {
+            </%perl><span style="color: #d4d;" title="Self Reported"><% $sr|h%></span><%perl>
+        }
+    </%perl>
+</%method>
+
+<%method address>
+    <%doc>
+        Give it the app hashref and the type of address, and it'll pick out all the bits from the app and print them properly.
+    </%doc>
+    <%args>
+    $app
+    $addresstype
+    </%args>
+    <%perl>
+    my @addrlines;
+    for(my $i = 1; $i <= 3; $i++) {
+        if(exists $app->{$addresstype."_address_line_$i"} && defined $app->{$addresstype."_address_line_$i"} && $app->{$addresstype."_address_line_$i"} ne '') {
+            push @addrlines, $app->{$addresstype."_address_line_$i"};
+        }
+    }
+    my $cityline = '';
+    if(exists $app->{$addresstype."_address_city"} && defined $app->{$addresstype."_address_city"} && $app->{$addresstype."_address_city"} ne '') {
+        $cityline .= $app->{$addresstype."_address_city"};
+    }
+    if(exists $app->{$addresstype."_address_state"} && defined $app->{$addresstype."_address_state"} && $app->{$addresstype."_address_state"} ne '') {
+        $cityline .= ", " if($cityline ne '');
+        $cityline .= $app->{$addresstype."_address_state"};
+    }
+    if(exists $app->{$addresstype."_address_country"} && defined $app->{$addresstype."_address_country"} && $app->{$addresstype."_address_country"} ne '') {
+        $cityline .= " " if($cityline ne '');
+        $cityline .= $app->{$addresstype."_address_country"};
+    }
+    if(exists $app->{$addresstype."_address_postcode"} && defined $app->{$addresstype."_address_postcode"} && $app->{$addresstype."_address_postcode"} ne '') {
+        $cityline .= ", " if($cityline ne '');
+        $cityline .= $app->{$addresstype."_address_postcode"};
+    }
+
+    push @addrlines, $cityline unless($cityline eq '');
+    print join("<br />", map { _h($_)} @addrlines);
+    </%perl>
+</%method>
+
+<%method application>
+    <%args>
+    $app
+    </%args>
+    <table border=0 width="99%">
+        <tr>
+            <td colspan='3'>
+            <b><span style="font-size: 1.4em;"><% $app->{first_name} |h%> <% $app->{last_name} |h%></span></b>
+            </td>
+        </tr>
+        <tr style="background: #AAA;">
+            <th colspan="999">Applicant Info</th>
+        </tr>
+        <tr>
+            <td nowrap><b>Application created:</b> <% $app->{created}|h%></td>
+            <td nowrap><b>Modified:</b> <% $app->{modified}|h%></td>
+            <td nowrap><b>Completed:</b> <% $app->{complete}|h%></td>
+        </tr>
+        <tr>
+            <td><b>Age:</b> <& SELF:age, app=>$app&></td>
+            <td><b>Race:</b> <& SELF:race, app=>$app &></td>
+            <td><b>Gender:</b> <% $app->{gender}|h%></td>
+        </tr>
+        <tr>
+            <td nowrap><b>Citizenship:</b> <% $app->{citizenship_country}|h %></td>
+            <td nowrap><b>Residence:</b> <% $app->{residency_country}|h%></td>
+            <td nowrap><b>International:</b> <% $app->{international}?"Yes":"No" %></td>
+        </tr>
+        <!--<tr><th colspan="999" style="background: #aaa;">Addresses</th></tr>-->
+        <tr>
+            <td nowrap><b>Mailing Address:</b></td>
+            <td nowrap><b>Permanent Address:</b></td>
+            <td><b>Email:</b> <% $m->comp('/mason/encode_mailto.comp', email=>$app->{'email'}) %></td>
+        </tr> <tr valign="top">
+            <td nowrap style="padding-left: 2em;"><& SELF:address, addresstype=>"mailing", app=>$app &></td>
+            <td nowrap style="padding-left: 2em;"><& SELF:address, addresstype=>"permanent", app=>$app &></td>
+            <td><b>Phone:</b> <% $app->{phone} %></td>
+        </td> <tr>
+            <td><b>Program:</b> <% $app->{major} |h%></td>
+            <td><b>GPA (undergrad):</b> <% $app->{gpa_undergraduate} |h%></td>
+            <td><b>GPA (grad):</b> <% $app->{gpa_graduate} |h%></td>
+        </tr>
+        <tr><td colspan=99><b>Course GPAs:</b> <b>Analytical Mechanics:</b> <% $app->{gpa_analytical_mechanics} |h%>, 
+                                                       <b>Electrodynamics:</b> <% $app->{gpa_electrodynamics} |h%>, 
+                                                       <b>Quantum Mechanics:</b> <% $app->{gpa_quantum_mechanics} |h%>, 
+                                                       <b>Thermodynamics:</b> <% $app->{gpa_thermodynamics} |h%>
+                                                       </td></tr>
+        <tr>
+            <td><b>Applying for Term:</b> <% $app->{proposed_term_of_entry} |h%></td>
+            <td><b>Transcript:</b> <& SELF:attachment, client_id=>$app->{client_id}, type=>"transcript"&></td>
+        </tr>
+        <tr valign="top">
+%           if ($app->{major} !~/astro/i ) {
+            <td><b>Specialization (Physics):</b> 
+                   <div style="padding-left: 2em;">
+                   <% $app->{specialization}?("(old form: "._h($app->{specialization}).")<br/>"):'' %>
+                   1: <% $app->{specialization_1}|h%><br/>
+                   2: <% $app->{specialization_2}|h%><br/>
+                   3: <% $app->{specialization_3}|h%>
+                   </div>
+            </td>
+%           } else {
+            <td><b>Specialization (Astrophysics):</b>
+                   <div style="padding-left: 2em;">
+                   1: <% $app->{specialization_ast_1}|h%><br/>
+                   2: <% $app->{specialization_ast_2}|h%><br/>
+                   3: <% $app->{specialization_ast_3}|h%>
+                   </div>
+            </td>
+%           }
+        </tr>
+
+        <tr><th colspan="999" style="background: #aaa;">Graduate Record Examinations (GRE)</th></tr>
+        <tr>
+            <!-- sr = self-reported. We show sr unless we have the real one using this handy method -->
+            <td nowrap><b>Date:</b> <& SELF:real_or_sr, real=>$app->{gre_date}, sr=>$app->{gre_sr_date} &></td>
+            <td nowrap><b>Verbal:</b> <& SELF:real_or_sr, real=>$app->{gre_verbal_score}, sr=>$app->{gre_sr_verbal_score}&> (<& SELF:real_or_sr, real=>$app->{gre_verbal_percent}, sr=>$app->{gre_sr_verbal_percent}&>%)</td>
+            <td nowrap><b>Quantitative:</b> <& SELF:real_or_sr, real=>$app->{gre_quantitative_score}, sr=>$app->{gre_sr_quantitative_score}&> (<& SELF:real_or_sr, real=>$app->{gre_quantitative_percent}, sr=>$app->{gre_sr_quantitative_percent}&>%)</td>
+        </tr><tr>
+            <td><b>GRE Report:</b> <& SELF:attachment, client_id=>$app->{client_id}, type=>"gre"&></td>
+        <!--    <td nowrap><b>analytical:</b> <& SELF:real_or_sr, real=>$app->{gre_analytical_score}, sr=>$app->{gre_sr_analytical_score} &> (<& SELF:real_or_sr, real=>$app->{gre_analytical_percent}, sr=>$app->{gre_sr_analytical_percent}&>%)</td> Noone seems to have this set. is it real??--> 
+            <td nowrap><b>Analytical_writing:</b> <& SELF:real_or_sr, real=>$app->{gre_analytical_writing_score}, sr=>$app->{gre_sr_analytical_writing_score}&> (<& SELF:real_or_sr, real=>$app->{gre_analytical_writing_percent}, sr=>$app->{gre_sr_analytical_writing_percent}&>%)</td>
+            <td nowrap><b>GRE Subject <& SELF:real_or_sr, real=>$app->{gre_subject_name}, sr=>$app->{gre_sr_subject_name}&></b>: <& SELF:real_or_sr, real=>$app->{gre_subject_score}, sr=>$app->{gre_sr_subject_score}&>
+(<& SELF:real_or_sr, real=>$app->{gre_subject_percent}, sr=>$app->{gre_sr_subject_percent}&>%)
+            </td>
+        </tr>
+        <tr style="background: #aaa;"><th colspan="999">Test of English as a Foreign Language (TOEFL)</th></tr>
+       <tr>
+            <td nowrap><b>TOEFL date:</b> <& SELF:real_or_sr, real=>$app->{toefl_date}, sr=>$app->{toefl_sr_date}&></td>
+            <td nowrap><b>TOEFL reading:</b> <& SELF:real_or_sr, real=>$app->{toefl_reading_score}, sr=>$app->{toefl_sr_reading_score} &></td>
+            <td nowrap><b>TOEFL listening:</b> <& SELF:real_or_sr, real=>$app->{toefl_listening_score}, sr=>$app->{toefl_sr_listening_score} &></td>
+            <td nowrap><b>TOEFL speaking:</b> <& SELF:real_or_sr, real=>$app->{toefl_speaking_score}, sr=>$app->{toefl_sr_speaking_score} &></td>
+        </tr>
+        <tr>
+            <td nowrap><b>TOEFL Report:</b> <& SELF:attachment, client_id=>$app->{client_id}, type=>"toefl"&></td>
+            <td nowrap><b>TOEFL writing:</b> <& SELF:real_or_sr, real=>$app->{toefl_writing_score}, sr=>$app->{toefl_sr_writing_score}&></td>
+            <td nowrap><b>TOEFL essay:</b> <& SELF:real_or_sr, real=>$app->{toefl_essay_rating_twe_score}, sr=>$app->{toefl_sr_essay_rating_twe_score}&></td>
+            <td nowrap><b>TOEFL total:</b> <& SELF:real_or_sr, real=>$app->{toefl_total_score}, sr=>$app->{toefl_sr_total_score}&></td>
+        </tr>
+        <tr style="background: #AAA;"><th colspan="999">Previous Universities</th></tr>
+        <tr><td colspan="999">
+        <table>
+        <%perl>
+        for(my $i = 1; $i<=9;$i=$i+1) {
+            next unless($app->{"previous_college_".$i."_name"});
+            </%perl>
+                <tr>
+                    <td><b>Previous University:</b></td>
+                    <td colspan="2">
+                        <% $app->{"previous_college_".$i."_name"} |h%></b>, (<% $app->{"previous_college_".$i."_from"} |h%>-<% $app->{"previous_college_".$i."_to"} |h%>)
+                    </td>
+                    <td nowrap><b>Major:</b> <% $app->{"previous_college_".$i."_major"}|h%></td>
+                    <td nowrap><b>Degree:</b> <% $app->{"previous_college_".$i."_degree"}|h%>&nbsp;(<% $app->{"previous_college_".$i."_date"}|h%>)</td>
+                </tr><tr>
+                    <td></td>
+                    <td><% $app->{"previous_college_".$i."_city"} |h%>, <% $app->{"previous_college_".$i."_state"} |h%>, <% $app->{"previous_college_".$i."_country"} |h%></td>
+                </tr>
+            <%perl>
+        }
+        </%perl>
+        </table>
+        </td></tr>
+        <tr><th colspan="999" style="background: #AAA;">Recommendations</th></tr>
+
+        <tr><td colspan="999">
+            <table>
+                <%perl>
+                for(my $i = 1; $i <=3; $i++) {
+                    </%perl>
+                    <tr>
+                        <td><b>Recommendation <% $i|h%>:</b></td>
+                        <td colspan="2">
+                            <% $app->{'rec_'. $i. '_title'}|h%>
+                            <% $app->{'rec_'. $i. '_first_name'}|h%>
+                            <% $app->{'rec_'. $i. '_last_name'}|h%>
+                        </td>
+                        <td colspan="2">
+                            <i><% $app->{'rec_'. $i. '_employer'}|h%></i>
+                        </td>
+                        <td>
+                            <% $m->comp('/mason/encode_mailto.comp', email=>$app->{'rec_'. $i. '_email'})%>
+                        </td>
+                        <td>
+                            <& SELF:attachment, client_id=>$app->{client_id}, type=>"recommend$i" &>
+                        </td>
+                    </tr>
+                    <%perl>
+                }
+                </%perl>
+            </table>
+        </td></tr>
+  </table>
+</%method>
+
+<%method attachment>
+    <%doc>
+        Print icon (view/download) links to each document of the given type (usually only 1..)
+    </%doc>
+    <%args>
+        $client_id
+        $type
+    </%args>
+    <%perl>
+        my $ares = physdb::query("SELECT id, filename FROM gradapp_attachment WHERE client_id=? AND type=?", $client_id, $type);
+        while (my $attachment = $ares->fetchrow_hashref()) {
+            </%perl>
+                <a href="reviewapp.html?getfile=<%$attachment->{id}|u%>&amp;client_id=<%$client_id|u%>"><img src="/images/icon_pdf.gif" alt="Download" title="Download" /></a>
+            <%perl>
+        }
+    </%perl>
+</%method>
+
+<%method attachments>
+    <%args>
+        $client_id
+        $manager=>0
+    </%args>
+    <%init>
+    </%init>
+        <h2>All Attached Documents</h2>
+    <& "/mason/db/tablesearch.comp", 
+        table=>"gradapp_attachment",
+        field_list => [ 'id', 'filename', 'type', 'date as uploaded' ],
+        field_params => { 
+            id=>{ 
+                header_format => sub { return "Delete" },
+                hidden => ($manager ? 0 : 1),
+                data_format => sub { 
+                    my ($val, $self, $row) = @_;
+                    my $fileid = $row->{id};
+                    return "<a href=\"reviewapp.html?client_id=$client_id&amp;delfile=$fileid\"><img src=\"/images/delete_icon.png\" alt=\"Delete this file\" title=\"Delete this file\" /></a>";
+                },
+            },
+            filename => {
+                url=>"reviewapp.html?client_id=$client_id&amp;getfile=\$row{id}",
+            },
+        },
+        header_format=>'ucfirst_all',
+        hide_header=>1,
+        where=>['client_id=?', $client_id],
+    &>
+%   if ($manager) {
+    <h3>Add New Attached Document:</h3>
+    <form  enctype="multipart/form-data" method="post" action="reviewapp.html">
+        <input type="hidden" name="uploadfile" value="1">
+        <input type="hidden" name="client_id" value="<% $client_id|h%>">
+        <input type="file" size=40 name="file">
+        <select name="uploadtype">
+           <option value="other">other</option>
+           <option value="transcript">Transcript</option>
+           <option value="recommendation1">Recommendation Letter 1</option>
+           <option value="recommendation2">Recommendation Letter 2</option>
+           <option value="recommendation3">Recommendation Letter 3</option>
+           <option value="statement_intent">Statement of Intent</option>
+           <option value="statement_research">Statement of Research</option>
+           <option value="gre">GRE Report</option>
+           <option value="toefl">toefl Report</option>
+        </select>
+        <input type="submit" name="submit" value="Send">
+
+    </form>
+%   }
+</%method>
+
+<%method score>
+    <%args>
+    $name
+    $value
+    </%args>
+    <%init>
+        my %score_values = ( 
+                 "1"=>"Not O.K. for any program",
+                 "2"=>"O.K. for some other program",
+                 "3"=>"Maybe",
+                 "4"=>"TA Offer",
+                 "5"=>"Fellowship Offer",
+        );
+    </%init>
+    <%perl>
+    my $option='<select name="'._h($name).'">';
+    $option .= "<option value=\"\">-no score-</option>";
+    for(my $i = 5; $i >=1; $i--) {
+        my $selected = ($value == $i?" SELECTED ":"");
+        $option .= "<option $selected value=\"$i\">$i - " . _h($score_values{$i}) . "</option>";
+    }
+    $option .= '</select>';
+    print $option;
+    </%perl>
+</%method>
+
+
+
+<%method reviews>
+    <h2>Grad Committee Reviews</h2>
+    <%args>
+        $client_id
+        $manager=>0
+    </%args>
+    <%perl>
+    # figure out how many scores entered
+    my $scorecount = physdb::queryone("SELECT COUNT(score) FROM gradapp_review WHERE client_id=? AND score>0",$client_id);
+     my $ts = Tablesearch->new(
+            table=>"gradapp_review", 
+            joins=>[
+                 "directory"=>"directory.uid=gradapp_review.reviewer_uid",
+                 ],
+                 field_list => [ 
+                    'concat(directory.first_name,\' \', directory.last_name) as reviewer',
+                    'reviewer_uid',
+                    'score',
+                    'comment as comment'
+                ],
+            field_params => {
+                reviewer_uid=>{hidden=>1},
+                score => {
+                    data_format => sub {
+                        my ($val, $self, $row) = @_;
+                        my $str = '';
+                        if($manager || ($row->{reviewer_uid} == $session{'uid'}) ) {
+                            # this form is only active for managers
+                            $str .= '<form method="post" action="reviewapp.html">';
+                            $str .= '<input type="hidden" name="savereview" value="1" />';
+                            $str .= '<input type="hidden" name="client_id" value="'. _h($client_id). '" />';
+                            $str .= '<input type="hidden" name="review_uid" value="'._h($row->{reviewer_uid}).'" />';
+                            $str .= $m->scomp("SELF:score", name=>"review_score", value=>$val);
+                        }
+                        else {
+                            $str .= ($scorecount<2) ? "(scoring incomplete)" : $val;
+                        }
+                        return $str;
+                    },
+                },
+                comment=>{
+                    data_format => sub {
+                        my ($val, $self, $row) = @_;
+
+                        if($manager || ($row->{reviewer_uid} == $session{'uid'})) {
+                            # end of the form started above in "score"
+                            return '<textarea name="review_comment" rows="2" cols="50">'._h($val).'</textarea> <input type="submit" value="Save" /></form>';
+                        }
+                        else {
+                            return ($scorecount<2) ? "(scoring incomplete)" : $val;
+                        }
+                    },
+                },
+            },
+            hide_header=>1,
+            header_format=>'ucfirst_all',
+            where=>['client_id=?', $client_id],
+            );
+        $ts->display();
+    </%perl>
+</%method>
+
+<%method offer>
+    <h2>Offer status</h2>
+</%method>
+
+<%perl>
+if($uploadfile) {
+    #read in the file, save to database
+    #redirect to client_id
+    my $req = Apache2::Request->new($r);
+    my $upload = $req->upload('file');
+    my $tmpfile = $upload->tempname;
+    my $filename = $upload->filename;
+    my $mime_type = $upload->type;
+    my $fh = $upload->fh;
+    my $data = do { local $/; <$fh> };
+    my $datasize = $upload->size;
+    physdb::query("INSERT INTO gradapp_attachment (client_id, type, date, data, filename) values (?, ?, now(), ?, ?)", $client_id, $uploadtype, $data, $filename);
+    print "<h2>Success</h2> The upload of '$filename' has completed with $datasize bytes received. <a href=\"?client_id=$client_id\">Return to application review</a>";
+}
+elsif($delfile) {
+    if(!$imsure) {
+        </%perl>
+            <form method="POST" action="reviewapp.html">
+                <input type="hidden" name="client_id" value="<% $client_id|h%>">
+                <input type="hidden" name="delfile" value="<% $delfile|h%>">
+                <input type="hidden" name="imsure" value="1">
+                Are you SURE you want to delete this file? Note: There is NO undelete!<br />
+               Yes, <input type="submit" value="I'm Sure">
+            </form>
+        <%perl>
+    }
+    else {
+        physdb::query("DELETE FROM gradapp_attachment WHERE id=?", $delfile);
+        </%perl>
+        <h2>File Deleted</h2>
+        The file you requested to delete has been removed. <a href="reviewapp.html?client_id=<%$client_id|h%>">Return to Application Review</a>
+        <%perl>
+    }
+}
+elsif($getfile) {
+    my $filerow = physdb::queryfirstrow("SELECT filename, data FROM gradapp_attachment WHERE id=?", $getfile);
+    if($filerow) {
+        #Magical dump-a-file code scraped together from various parts of our website
+        $m->clear_buffer();
+        $r->content_type("application/x-pdf");
+        $r->headers_out->set('Content-Disposition' => "file; filename=\"". $filerow->{filename}. "\"");
+        print $filerow->{data};
+        $m->abort();
+        return;
+    }
+    else {
+        #TODO: should really 404 here?
+        print "<h2>Error</h2> did not find a file by that ID";
+        return;
+    }
+}
+elsif($savereview) {
+    if(!$review_uid) {
+        </%perl>
+            <h2>Problem</h2>
+            No review_uid. Please contact net@physics.umn.edu and report this as a bug.
+        <%perl>
+        return;
+    }
+    else {
+        #TODO: security - only $manager should be able to save a review where $review_uid != $session{uid}
+
+        #We actually only do updates but leaving the insert for now..
+        physdb::query("INSERT INTO gradapp_review (reviewer_uid, client_id, score, comment) values (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score=?, comment=?", $review_uid, $client_id, $review_score, $review_comment, $review_score, $review_comment);
+        # Log to audits
+        my $reviewer_name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$review_uid);
+        $m->comp('/mason/db/auditlog/addevent.comp', 
+            type=>"gradreview", 
+            text => "Saved grad application review for application number:$client_id - reviewer:$reviewer_name, score:$review_score, Comment: $review_comment ", 
+            directory_uid => $session{uid},
+            );
+        </%perl>
+        <h2>Review Saved</h2>
+        <a href="reviewapp.html?client_id=<%$client_id|u%>">Return to application review</a>
+        <%perl>
+        return;
+    }
+}
+elsif($saveoffer) {
+    # placeholder!
+}
+else {
+    # show an application with reviews, attachments, etc
+    $m->comp("SELF:application", app=>$app);
+    $m->comp("SELF:reviews", app=>$app, client_id=>$app->{client_id}, manager=>($manager||$sysadm));
+    if($manager) { 
+        $m->comp("SELF:offer", app=>$app, client_id=>$app->{client_id});
+    }
+    $m->comp("SELF:attachments", client_id=>$app->{client_id}, manager=>($manager||$sysadm));
+   # print "<!--";
+   # print _p(Dumper($app));
+   # print "--!>";
+
+}
+</%perl>

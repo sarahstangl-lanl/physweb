@@ -1,0 +1,17 @@
+<%doc>
+   Component: auth_check_visitor.comp
+        Date: 2/24/2010
+      Author: zerbe
+ Description: check if they should be editing visitor accounts, returns 0 or 1
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+return $m->comp('/mason/auth/auth_check.comp',auth_type=>'visitor_acc_adm');
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

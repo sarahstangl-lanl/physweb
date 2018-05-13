@@ -1,0 +1,245 @@
+<%doc>
+   Component: edit_story_form.html
+        Date: 9/10/2002
+      Author: allan
+ Description: edit a news story
+</%doc>
+
+<%args>
+$eventid=>'new'
+$type=>'news'
+$subtype=>''
+</%args>
+
+<%init>
+    my ($priority, $event_date, $post_date, $modified_date, $start_date, $kill_enable, $kill_date, $publish, $headline, $author, $summary, $text, $url, $frontpage);
+    my ($date, $time);
+    my $access = $m->comp('/mason/auth/auth_check_events.comp');
+    my $types = $m->comp('/mason/db/getvalues.comp', table=>'stories', column=>'type');
+    my $priorities = $m->comp('/mason/db/getvalues.comp', table=>'stories', column=>'priority');
+    my $subtypes;
+    $priorities =~ s/none,?//;
+    my $yesno = "Yes=Y, No=N";
+    
+    if (!$access) { $m->comp('/mason/redirect.comp',url=>"index.html"); }
+    
+    if (!grep {$_ eq $type} (split ',', $types)) {
+        print "Invalid type '$type' -- you may need to contact net\@physics.umn.edu";
+        return;
+    }
+
+    if ($eventid ne 'new') {
+        # Now fetch the entry
+        my $sql = 'SELECT type, subtype, priority, event_date, post_date, modified_date, start_date, kill_date, publish, headline, author, summary, text, url FROM stories WHERE eventid = ? LIMIT 1';
+        my $sth = $dbh->prepare($sql);
+        $sth->execute($eventid)
+            or die 'Unable to grab story: ' . $dbh->errstr;
+
+        my $row_ref = $sth->fetchrow_arrayref();
+        if (!$row_ref) {
+            print 'Unable to find the requested eventid ' . $m->interp->apply_escapes($eventid, 'h');
+            return;
+        }
+        ($type, $subtype, $priority, $event_date, $post_date, $modified_date, $start_date, $kill_date, $publish, $headline, $author, $summary, $text, $url) = @$row_ref;
+        ($date, $time)= split(' ',$event_date);
+        if(!$frontpage) {
+            if($priority eq "none") {
+                $frontpage = 'N';
+            } else {
+                $frontpage = 'Y';
+            }
+        }
+        $priority = 'medium' if($frontpage eq 'N');
+        $kill_enable = defined($kill_date);
+          
+    } else {
+        $type = 'news' unless $type;
+        $date = 'today';
+        $time = '00:00';
+        $start_date = 'today';
+        $kill_enable = 0;
+        $author = $session{'uid'};
+        $priority = 'medium';
+        $frontpage = 'Y';
+    }
+    
+    # Create a default date even if the kill_date is currently disabled
+    # (Otherwise you enable it and the date is the lowest possible rather than a sane value.)
+    if (!$kill_date) {
+        my @killdate = Add_Delta_Days(Today(),120);
+        $kill_date = join '-',@killdate;
+    }
+    
+    my $event_year_only = ($type eq 'alumni');
+    my %event_year_range = ($type eq 'alumni' ? (year_range=>[1900..(This_Year() + 6)]) : ());
+    
+    $subtypes = $m->comp('/mason/db/getsubtypes.comp', type=>$type);
+    unless($r->headers_in->{'Referer'} =~ /edit/) { $session{'story_edit_referer'} = $r->headers_in->{'Referer'} };
+</%init>
+
+<%method title>Edit Story</%method>
+
+<script language="javascript">
+function fpchange() {
+   p = document.getElementById("news_priority");
+   fp = document.getElementById("news_fp");
+   if(fp.value == "Y") {
+      p.disabled = false;
+   } else {
+      p.disabled = true;
+   }
+}
+function killchange() {
+       kill_enable = document.getElementById("kill_enable");
+       kill_year = document.getElementById("kill_year");
+       kill_month = document.getElementById("kill_month");
+       kill_day = document.getElementById("kill_day");
+       if(kill_enable.checked) {
+          kill_year.disabled = false;
+          kill_month.disabled = false;
+          kill_day.disabled = false;
+       } else {
+    	  kill_year.disabled = true;
+    	  kill_month.disabled = true;
+    	  kill_day.disabled = true;
+       }
+    }
+</script>
+<form enctype="multipart/form-data" method="POST" name="edit" action="edit_story.html">
+<input type=hidden name="eventid" value="<% $eventid %>">
+<table border=0 width="100%">
+
+<tr valign="top"><th colspan=3 bgcolor="#eeeeee" align="left">Meta Data</th></tr>
+% if ($post_date) {
+<tr valign="top"><td colspan=2><small>Posted <% $post_date %>, Modified <% $modified_date %></small></td></tr>
+% }
+
+<tr valign="top"><td>Headline</td><td colspan=2><input type=text name="headline" value="<% $headline|h %>" size=60></td></tr>
+<tr valign="top"><td>Type</td><td><% $type|h %></td></tr>
+
+<tr valign="top"><td>Posted By</td><td>
+%$m->out($m->comp('/mason/db/directory/user_menu.comp',menuname=>'author',selected=>$author, auth=>"events"));
+</td></tr>
+
+<input type="hidden" name="type" value="<% $type|h %>">
+% if($subtypes) {
+<tr valign="top"><td><% ucfirst($type)|h%>&nbsp;Type</td><td>
+%   $m->comp('/mason/form_selector.comp', name=>"subtype", selected=>$subtype, optionlist=>$subtypes);
+</td></tr>
+% }
+
+<tr valign="top"><td>Event&nbsp;Date</td><td>
+% if ($event_year_only) {
+<input type="hidden" name="month" value="0"><input type="hidden" name="day" value="1">
+% }
+<& /mason/date_selector.comp, format=>($event_year_only ? 'yyyy' : 'do-M-yyyy'), year=>'year', month=>'month', day=>'day', default=>$date, %event_year_range &>
+</td></tr>
+
+<tr valign="top"><td>Event&nbsp;Time</td><td>
+<& /mason/time_selector.comp, format=>'hh:mm', hour=>'hour', minute=>'minute', default=>$time &> (hour,minute)
+</td></tr>
+
+
+<tr valign="top"><th colspan=3 bgcolor="#eeeeee" align="left">Publishing Controls</th></tr>
+
+<tr valign="top"><td>Publish?</td><td>
+% $m->comp( '/mason/form_selector.comp', name=>'publish', selected=>$publish, optionlist=>$yesno);
+<& /mason/date_selector.comp, format=>'do-M-yyyy', year=>'start_year', month=>'start_month', day=>'start_day', default=>$start_date &>
+</td></tr>
+
+<tr valign="top"><td>Front Page?</td><td>
+% $m->comp( '/mason/form_selector.comp', name=>'frontpage', selected=>$frontpage, optionlist=>$yesno, id=>"news_fp", extra=>' onchange="fpchange()" ' );
+Priority
+% $m->comp( '/mason/form_selector.comp', name=>'priority', selected=>$priority, optionlist=>$priorities, id=>"news_priority");
+</td></tr>
+
+<tr valign="top"><td>Front Page Kill&nbsp;Date
+<input type="checkbox" id="kill_enable" name="kill_enable" value="1" <% ($kill_enable ? 'checked="checked"' : '') %> style="float: right" onchange="killchange()"></td><td>
+<& /mason/date_selector.comp, format=>'do-M-yyyy', year=>'kill_year', month=>'kill_month', day=>'kill_day', default=>$kill_date &>
+</td><td>
+<b>Note:</b> Please don't set a kill date unless absolutely necessary.</td>
+</tr>
+
+
+% my $summary_title = "Summary";
+% if($type eq "foyer") {
+%    $summary_title = "Foyer Story";
+% }
+<tr><th colspan=3 bgcolor="#eeeeee" align="left"><% $summary_title|h %> (<span id="summary_count">n</span> chars left)</th></tr>
+<tr><td colspan=3>
+<small>This summary will be used on the front page, and on the list of items, as a lead-in for the full story.<br/></small>
+<textarea id="summary_textarea" name="summary" cols=70 rows=4 wrap="virtual" onKeyDown="CountLeft('summary_textarea', 'summary_count', 600);" onKeyUp="CountLeft('summary_textarea', 'summary_count', 600);"><% $summary %></textarea>
+<script language="javascript">
+function CountLeft(textFieldId, countFieldId, max) {
+  count = document.getElementById(countFieldId);
+  textField = document.getElementById(textFieldId);
+  if(textField.value.length > max) {
+      textField.value = textField.value.substring(0, max);
+  }
+  else {
+      count.innerHTML = max - textField.value.length;
+  }
+  if(textField.value.length > (max - 10)) {
+    count.style.color = "#F00";
+  }
+  else {
+    count.style.color = "#000";
+  }
+  return false;
+}
+setTimeout("CountLeft('summary_textarea', 'summary_count', 600)", 100);
+</script>
+
+</td></tr>
+% if($type ne "foyer") {
+<tr><th colspan=3 bgcolor="#eeeeee" align="left">Story</th></tr>
+<tr><td colspan=3>
+<small>The editing window will flow your text automatically. Don't try to write HTML; the event display will perform formatting itself. <a href="http://zzz.physics.umn.edu/admin/private/web/wikiformat">Syntax Guide</a><br/></small>
+<textarea name="text" cols=70 rows=12 wrap="virtual"><% $text %></textarea>
+
+</td></tr>
+%}
+
+<tr valign="top"><td colspan="3">More information at http://<input type=text name="url" value="<% $url %>" size=70></td></tr>
+
+</table>
+<p>
+<input type="submit" value="Save Story">
+<input type="reset" value="Cancel Changes">
+</form>
+
+<table border=0 width="100%">
+<tr><th bgcolor="#eeeeee" align="left">Image Attachment</th></tr>
+<tr><td>
+% if ($eventid ne "new") {
+%   if($type eq "foyer") {
+%     $m->comp('/mason/db/images/insert_image_form.comp', category=>'stories', parentid=>$eventid, type=>"foyer", alttype=>"hidden", captiontype=>"hidden", credittype=>"hidden");
+%   }
+%   else {
+%     $m->comp('/mason/db/images/insert_image_form.comp', category=>'stories', parentid=>$eventid, type=>$type);
+%   }
+% } else {
+<i>an image can be attached after saving the story</i>
+% }
+</td></tr>
+</table>
+<script language="javascript">
+  fpchange();
+  killchange();
+</script>
+
+
+<p>
+% if ($eventid ne "new") {
+<form method="POST" action="delete_story.html">
+<input type=hidden name="eventid" value="<% $eventid %>">
+<table border=0 width="100%">
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Delete Item</th></tr>
+<tr><td colspan=2>
+To remove this item click this button <input type=submit value="Delete item">
+</td></tr>
+</table>
+</form>
+% }
+% # vim: set syntax=mason:

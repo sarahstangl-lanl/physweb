@@ -1,0 +1,32 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: uid_to_peoplefinder.comp
+        Date: 2008.06.02
+      Author: clayton
+     Changed: 2008.06.02 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $name
+  # We want to find inactive users for this component by default due to where/how it is used
+  $inactive=>1
+  $plugin => undef
+  $plugin_args => {}
+</%ARGS>
+
+<%INIT>
+  my $user = $m->comp('people_finder.comp', name => $name, inactive => $inactive, plugin => $plugin, plugin_args => $plugin_args);
+  if(!$user) { 
+    return undef;
+  }
+  if (my $row = $user->fetchrow_hashref) {
+    return $row->{'uid'};
+  }
+  return undef;
+</%INIT>		
+		
+<%filter>
+s/.//gos
+</%filter>

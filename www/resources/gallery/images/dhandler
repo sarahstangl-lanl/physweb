@@ -1,0 +1,86 @@
+<%doc>
+ This directory handles dumping of actual image files, with image mimetype.
+ It maps the GALLERY_ROOT from the uri and WEB_ROOT.
+</%doc>
+<%args>
+  $xsize => undef
+  $ysize => undef
+</%args>
+<%flags>
+  inherit => undef
+</%flags>
+<%init>
+  $m->clear_buffer;
+
+  use Imager;
+  use File::Type;
+  use File::Spec::Functions qw[:ALL];
+
+
+  # send_img(mimetype, imgdata, filename
+  my $send_img = sub {
+    my $mime_type = "image/$_[0]";
+    $r->content_type($mime_type);
+    $r->headers_out->unset('Content-Length');
+    $r->headers_out->set('Content-Disposition' => "filename=\"". $_[2]. "\"");
+    $m->clear_buffer;
+    $m->out($_[1]);
+    #$m->abort(200);
+    return;
+  };
+
+  # Set this to the filesystem path of the pictures
+  my $GALLERY_ROOT = "/home/www/docs/media/pictures";
+  # Set this to the url path to the images (.../gallery/images/)
+  my $WEB_ROOT = "/resources/gallery/images/";
+
+  my $image_path;
+  if( $r->uri =~ /$WEB_ROOT(.*)/ ) {
+     $image_path = $1;
+  }
+  else {
+    print "Image path not found";
+    $r->content_type("text/html");
+    $m->comp("/mason/404.comp");
+    return;
+  }
+  $image_path =~ s/.html$//g; 
+  my $file = $GALLERY_ROOT."/".$image_path;
+  if(! -f $file)  {
+    print "Image ". _h($file).  "not found";
+    $m->comp("/mason/404.comp");
+    return;
+  }
+  $file =~ s/\.html$//;
+  my ($image, $type) = split /\//, File::Type->checktype_filename($file);
+  $type = 'png' if $type eq 'x-png';
+
+  my $key = "$file|$xsize|$ysize";
+  if ( my $data = $m->cache->get( $key ) ) {
+    $send_img->($type, $data, (splitdir $file)[-1]);
+    return;
+  }
+  if( $image ne 'image' || ! exists $Imager::formats{$type}) {
+      print "DEBUG: aborting because $image isnt image or no format known\n<BR>";
+      return;
+  }
+  my $img  = Imager->new;
+  if ( $image eq 'image' && $img->open(file => $file, type => $type) ) {
+      if ( $xsize ) {
+        $img = $img->scale( xpixels => $xsize )
+          unless $img->getwidth < $xsize;
+      }
+      if ( $ysize ) {
+        $img = $img->scale( ypixels => $ysize )
+          unless $img->getheight < $ysize;
+      }
+
+      my $img_data;
+      $img->write(data => \$img_data, type => $type);
+      $m->cache->set( $key => $img_data );
+      $send_img->($type, $img_data, (splitdir $file)[-1]);
+      return;
+  }
+  warn "[$file] [$image/$type] " . $img->errstr;
+  $m->abort(500);
+</%init>

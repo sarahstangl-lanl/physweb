@@ -1,0 +1,99 @@
+<%flags>
+inherit => undef
+</%flags>
+<%init>
+
+$m->redirect('/') unless ($ARGS{computer_name} || $ARGS{primary_mac});
+
+# Get hostid
+(my $mac = $ARGS{primary_mac} || '') =~ s/://g;
+my $hostid = physdb::queryone("SELECT h.id FROM net_hosts h JOIN net_interfaces i ON h.id = i.host_id WHERE computer_name LIKE ? OR (hwa IS NOT NULL AND hwa <> '' AND hwa = ?)", $ARGS{computer_name}, $mac);
+
+die "Failed to find hostid for host $ARGS{computer_name} (MAC $mac)" unless ($hostid);
+
+my @runlog_set_values;
+
+# set_val(column_name, sqlfunction, value, only_insert
+#    if sqlfunction is defined, its copied un-quoted into the query (ie CURRENT_TIMESTAMP())
+#    otherwise value is used.
+my $set_val = sub {
+        my ($name, $sql_value, $value, $only_insert) = @_;
+        chomp($value) if $value;
+        push(@runlog_set_values, {
+                                   name => "$name",
+                                   sql_value => (defined($sql_value) ? $sql_value : '?'),
+                                   value => $value,
+                                   has_value => (scalar(@_) >= 3),
+                                   only_insert => $only_insert
+                                 });
+};
+
+if ($ARGS{'yum_update_failure'}) {
+    $set_val->('yum_failure', 'NOW()');
+}
+
+if ($ARGS{'yum_update_success'}) {
+    $set_val->('yum_success', 'NOW()');
+}
+
+if ($ARGS{'daily_job'}) {
+    $set_val->('last_dailyjob', 'NOW()');
+}
+
+$set_val->('source', undef, 'cfengine');
+$set_val->('rundate', 'NOW()');
+$set_val->('firstboot_date', undef, $ARGS{firstboot_date});
+$set_val->('cfinputs_version', undef, $ARGS{cfinputs_version});
+$set_val->('host_id', undef, $hostid);
+$set_val->('host', undef, $ARGS{host}, 0);
+$set_val->('os', undef, $ARGS{os});
+$set_val->('os_major', undef, $ARGS{os_major});
+$set_val->('os_minor', undef, $ARGS{os_minor});
+$set_val->('arch', undef, $ARGS{arch});
+$set_val->('uname', undef, $ARGS{uname});
+$set_val->('video', undef, $ARGS{video});
+$set_val->('xorgdriver', undef, $ARGS{xorgdriver});
+$set_val->('network', undef, $ARGS{network});
+$set_val->('phys_release', undef, $ARGS{phys_release});
+$set_val->('memory', undef, $ARGS{memory});
+$set_val->('cpu', undef, $ARGS{cpu});
+$set_val->('cpucount', undef, $ARGS{cpucount});
+$set_val->('system_make', undef, $ARGS{system_make});
+$set_val->('system_model', undef, $ARGS{system_model});
+$set_val->('system_serial', undef, $ARGS{system_serial});
+$set_val->('baseboard_make', undef, $ARGS{baseboard_make});
+$set_val->('baseboard_model', undef, $ARGS{baseboard_model});
+$set_val->('system_drive_size', undef, $ARGS{system_drive_size});
+$set_val->('dmiraw', undef, $ARGS{dmiraw});
+$set_val->('bios_version', undef, $ARGS{bios_version});
+$set_val->('bios_date', undef, $ARGS{bios_date});
+$set_val->('bmc_version', undef, $ARGS{bmc_version});
+$set_val->('ssh2_dsa', undef, $ARGS{ssh2_dsa});
+$set_val->('ssh2_rsa', undef, $ARGS{ssh2_rsa});
+$set_val->('kernel_on_disk', undef, $ARGS{kernel_on_disk});
+$set_val->('scheduled_restart', undef, $ARGS{scheduled_restart});
+$set_val->('cfengine_staging', undef, $ARGS{cfengine_staging});
+$set_val->('yum_errors', undef, $ARGS{yum_errors});
+$set_val->('primary_intf', undef, $ARGS{primary_intf});
+$set_val->('primary_mac', undef, $ARGS{primary_mac});
+$set_val->('primary_ip', 'INET_ATON(?)', $ARGS{primary_ip});
+$set_val->('http_host_ip', 'INET_ATON(?)', $r->connection->get_remote_host);
+
+# This preps all the bits we need for the query
+my @inserts = map { "`$_->{name}`" } @runlog_set_values;
+my @values = map { $_->{sql_value} } @runlog_set_values;
+my @updates = map { "`$_->{name}`" . '=' . $_->{sql_value} } (grep { !$_->{only_insert} } @runlog_set_values);
+my @args = map { $_->{value} } (grep { $_->{has_value} } @runlog_set_values);
+
+my $query = 'INSERT INTO `cfengine`.`runlog` (' . join(',', @inserts) . ') VALUES(' . join(',', @values) . ')
+                         ON DUPLICATE KEY UPDATE ' . join(',', @updates);
+
+my $sth = $dbh->prepare($query) or die "Can't prepare: $dbh->errstr";
+$sth->execute(@args, @args)
+    or die "can't execute the query: ".$sth->errstr;
+# now update the last_seen time in net_hosts...
+$query = 'UPDATE net_hosts SET last_seen=now(), last_seen_source=? WHERE id=?';
+$sth = $dbh->prepare($query) or die "Can't prepare: $dbh->errstr";
+$sth->execute("cfengine", $hostid)
+    or die "can't execute the query: ".$sth->errstr;
+</%init>

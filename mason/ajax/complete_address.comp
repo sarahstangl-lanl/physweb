@@ -1,0 +1,141 @@
+
+<%ARGS>
+  $id           => 'address_id'                     # HTML ID of completer input element
+  $dropdown_ids => [ ]                              # HTML ID(s) of extra completer argument(s)
+  $url          => '/include/complete_address.html' # URL to post query to
+  $paramName    => 'search'                         # Argument name for completer input value
+  $ddParamName  => ''                               # Argument name for extra completer values
+  $frequency    => 0.2
+  $address_id                                       # Current address_id or undef if none
+  $dropdown_title => 'Show addresses associated with customer',
+  $no_dropdown_button => 0                          # Prevents adding a dropdown button
+  $dd_min_width => undef                            # Minimum dropdown width
+  $after_update_js => undef                         # Additional javascript to execute after selection
+  $no_add_button => 0
+</%ARGS>
+
+<%INIT>
+  $m->comp('js.comp');
+  $m->comp('jsload.comp', file => 'input_hint.js');
+  $m->comp('jsload.comp', file => 'editablecompleter.js');
+  $dropdown_ids = [ $dropdown_ids ] unless (ref $dropdown_ids);
+</%INIT>
+<script type="text/javascript">
+/* <![CDATA[ */
+  completerElement = $('<% $id |h %>');
+  completerElement.value = "<% $m->comp('/mason/ajax/address_to_addressfinder.comp', escape_newlines => 1, address_id => $address_id) %>";
+  completerElement.observe('keypress', function (e) {
+      switch(e.keyCode) {
+        case Event.KEY_TAB:
+        case Event.KEY_RETURN:
+          Event.stop(e);
+      }
+      this.addressElement.value = '';
+  }.bind(completerElement));
+  addressElement = new Element('input', { id: completerElement.id + '_value', type: 'hidden', name: completerElement.name, value: '<% $address_id || '' |h %>' });
+  completerElement.validateMethod = function() {
+      if (this.value && this.value != this.title && !this.addressElement.value) {
+          this.errorMsg = "Invalid address. You must choose an address from the list.";
+          return false;
+      }
+      return true;
+  };
+  completerElement.addressElement = addressElement;
+  completerElement.name = completerElement.name + '_display';
+  completerElement.parentNode.appendChild(addressElement);
+  completerElement.ec = new EditableCompleter({
+            textArea: '<% $id |h %>',
+            dropdown: [ <% join(', ', map { "'$_'"; } @$dropdown_ids) %> ],
+            dropdownTitle: '<% $dropdown_title %>',
+            dropdownOffset: '3px',
+            url: '<% $url %>',
+            paramName: '<% $paramName %>',
+            ddParamName: '<% $ddParamName %>',
+            noDropdownButton: <% $no_dropdown_button %>,
+            ddMinWidth: <% $dd_min_width ? "'$dd_min_width'" : 'null' %>,
+            acOptions: {
+                frequency: <% $frequency %>,
+                select: null,
+                callback: function (element, entry) {
+                    return encodeURIComponent(this.paramName) + '=' + encodeURIComponent(element.value);
+                },
+                updateElement: function(selectedElement) {
+                    completer = $('<% $id |h %>').ec.completer;
+                    nodes = Element.collectTextNodesIgnoreClassAsArray(selectedElement, 'informal');
+                    completer.element.value = nodes.grep(/./).join("\n");
+                    completer.element.focus();
+                    if (completer.options.afterUpdateElement)
+                        completer.options.afterUpdateElement(completer.element, selectedElement);
+                },
+                afterUpdateElement: function(el, li) {
+                    el.addressElement.value = li.id;
+                    if (el.clearError)
+                        el.clearError();<% $after_update_js ? "
+                    $after_update_js" : '' %>
+                }
+            }
+  });
+% unless ($no_add_button) {
+  completerElement.addFormDiv = new Element('div').setStyle({ padding: '10px', border: '2px solid black', backgroundColor: '#ccc', display: 'none', zIndex: '10' });
+  completerElement.addFormDiv.appendChild(completerElement.addFormDiv.addFormContainer = new Element('div'));
+  addButton = new Element('img', { src: '/images/add.gif', alt: 'Add New Address', title: 'Add New Address' });
+  addLink = new Element('a', { href: '#' }).setStyle({ position: 'relative', top: '0px', left: '1px' });
+  closeButton = new Element('img', { src: "/images/close-icon.png", alt: "Close", title: "Close" }).setStyle({ cursor: 'pointer', position: 'absolute', top: '-15px', right: '-15px' });
+  closeButton.observe('click', function () { this.addFormDiv.hide() }.bind(completerElement));
+  addLink.observe('click', function(e) {
+      new Ajax.Request('address.html', {
+        method: 'get',
+        parameters: { ajax: 1 },
+        onSuccess: function(response) {
+          this.addFormDiv.addFormContainer.update(response.responseText);
+          viewportOffsets = document.viewport.getScrollOffsets();
+          viewportDims = document.viewport.getDimensions();
+          parentOffsets = this.addFormDiv.getOffsetParent().cumulativeOffset();
+          t = viewportOffsets.top + (viewportDims.height / 2) - (this.addFormDiv.getHeight() / 2) - parentOffsets.top + 'px';
+          left = viewportOffsets.left + (viewportDims.width / 2) - (this.addFormDiv.getWidth() / 2) - parentOffsets.left + 'px';
+          this.addFormDiv.setStyle({ position: 'absolute', display: 'inline', top: t, left: left });
+          this.addForm = this.addFormDiv.down('form');
+          this.addForm.observe('submit', this.addFormSubmit);
+        }.bind(this)
+      });
+  }.bind(completerElement));
+  addLink.appendChild(addButton);
+  completerElement.addFormDiv.insert({ top: closeButton });
+  completerElement.up('form').insert({ after: completerElement.addFormDiv });
+  completerElement.up().insert({ bottom: addLink });
+  completerElement.addFormSubmit = function(e) {
+      e.stop();
+      this.addForm.request({
+          parameters: { ajax: 1 },
+          onSuccess: function(response) {
+              try {
+                  json = response.responseText.evalJSON();
+                  new Ajax.Request('/include/complete_address.html', {
+                      method: 'get',
+                      parameters: { address_id: json.address_id },
+                      onSuccess: this.updateAddress,
+                  });
+              }
+              catch (e) {
+                  this.addForm.stopObserving('submit');
+                  this.addFormDiv.addFormContainer.update(response.responseText);
+                  this.addForm = this.addFormDiv.down('form');
+                  this.addForm.observe('submit', this.addFormSubmit);
+              }
+          }.bind(this)
+      });
+  }.bind(completerElement);
+  completerElement.updateAddress = function(response) {
+      account = new Element('div').update(response.responseText);
+      li = account.down('li');
+      this.ec.completer.options.updateElement(li);
+      this.removeClassName('hinted');
+      this.addFormDiv.hide();
+  }.bind(completerElement);
+% }
+  completerElement.ec.onClickRender = function() { this.completer.hasFocus = true; this.completer.getUpdatedChoices(); }
+  completerElement.writeAttribute('title', 'Company name or address');
+  completerElement.observe('click', completerElement.ec.onClickRender.bind(completerElement.ec));
+  hintInput(completerElement.id);
+/* ]]> */
+</script>

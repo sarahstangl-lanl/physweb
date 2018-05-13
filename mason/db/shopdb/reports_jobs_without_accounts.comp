@@ -1,0 +1,40 @@
+<%args>
+$schema
+$helper_methods
+</%args>
+<%init>
+</%init>
+<h2>Jobs without EFS Accounts</h2>
+<br/>
+<%perl>
+    my $dates = $m->comp('/mason/db/shopdb/date_range.comp');
+    my $start_date = $dates->{start_date};
+    my $end_date = $dates->{end_date};
+    my $date_filter = sub {
+        my $type = shift;
+        return ($dates->{url_args}->{date_filter} && $dates->{url_args}->{date_filter} eq 'Clear filter') ? ( ) : ($type . '_lines.charge_date' => { -between => [ $start_date->ymd, $end_date->ymd ] });
+    };
+    my $rs = $schema->resultset('Jobs')->with_directory_info->with_status_info->search(
+    {
+        -or => [ -and => [ 'material_lines.active' => 1, $date_filter->('material') ],
+                 -and => [ 'labor_lines.active' => 1, $date_filter->('labor') ] ],
+        'me.account_key' => undef,
+    },
+    {
+        join => [ qw/labor_lines material_lines/ ],
+        group_by => 'me.job_id',
+    });
+    my $ts = Tablesearch->new(
+        resultset => $rs,
+        columns => [ qw/job_id status customer_id pi_id project_name creation_date need_date finish_date modified_date/ ],
+        header_format => 'ucfirst_all',
+        field_params => {
+            job_id => $helper_methods->job_id,
+            customer_id => $helper_methods->customer_id,
+            pi_id => $helper_methods->pi_id,
+            project_name => $helper_methods->project_name,
+        },
+    );
+    $ts->display;
+</%perl>
+

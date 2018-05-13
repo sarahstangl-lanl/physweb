@@ -1,0 +1,88 @@
+<%doc>
+   Component: get_file
+        Date: 12/19/2002
+      Author: allan
+ Description:
+Edited: JZ 03/02/2010
+</%doc>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%args>
+$abort_code => 503
+$list => ''
+</%args>
+
+<%init>
+</%init>
+
+<%once>
+use File::stat;
+</%once>
+
+<%perl>
+my $filename = $m->dhandler_arg;
+if ($list eq 'true') {
+    #we want to list the directory contents
+    sub list($) {
+        my($path) = @_;
+        $path .= '/' if($path !~ /\/$/);
+
+        ## loop through the files contained in the directory
+        for my $eachFile (glob($path.'*')) {
+            if (($eachFile ne '.') || ($eachFile ne '..')){
+                ## if the file is a directory
+                if( -d $eachFile) {
+                    #list out directories
+                    my $st = stat($eachFile) or die "No $eachFile: $!";
+                    my $filetime = $st->mtime;
+                    my ($sec,$min,$thishour,$day,$month,$year,$wday,$yday,$isdst) = CORE::localtime($filetime);
+                    my $filedate = Date_to_Text($year+1900,$month+1,$day);
+                    $eachFile =~ s/\/home\/www\/downloads\///g;
+                    $eachFile =~ s/ /%20/g;
+                    print "<div class='hold-indent'><a href='javascript:ajaxlistdir(&quot;".$eachFile."&quot;);'>".$eachFile."</a>&nbsp;&nbsp;&nbsp;Directory&nbsp;&nbsp;&nbsp;".$filedate."<div class='hold-indent' id='hold-$eachFile' style='display: none;'>&nbsp;</div></div>";
+                } else {
+                    #what is the nature of this file?
+                    my $st = stat($eachFile) or die "No $eachFile: $!";
+                    my $filesize = int(($st->size)/1024/1024);
+                    my $filetime = $st->mtime;
+                    my ($sec,$min,$thishour,$day,$month,$year,$wday,$yday,$isdst) = CORE::localtime($filetime);
+                    my $filedate = Date_to_Text($year+1900,$month+1,$day);
+                    $eachFile =~ s/\/home\/www\/downloads\///g;
+                    $eachFile =~ s/ /%20/g;
+                    print "<div class='hold-indent'><a href=".$eachFile.">".$eachFile."</a>&nbsp;&nbsp;&nbsp;".$filesize." MB&nbsp;&nbsp;&nbsp;".$filedate."</div>";
+                }
+            }
+        }
+    }
+    list("/home/www/downloads/".$filename); #invoke the list
+}else {
+    #just push the file for download
+    if ($filename) {
+    $m->comp('/mason/db/auditlog/addevent.comp', type=>"downloads", text=>"Download file $filename");
+    my $uri = $r->uri;
+    my $directory = "/home/www/downloads";
+    my $file = $directory."/".$filename;
+    my @shortname_a = split(/\//, $filename);
+    my $shortname = $shortname_a[-1];
+    my $data;
+    my $access;
+    my $mimetype = "application/octet-stream";
+      if (-f $file) {
+        $r->content_type($mimetype);
+        $r->headers_out->unset('Content-Length');
+        $r->headers_out->set('Content-Disposition' => "file; filename=\"$shortname\""); #this pushes out the actual filename for download
+        $r->headers_out->set('Content-Length' => -s $file );
+        $m->autoflush(1);
+        $r->sendfile($file);
+        $m->autoflush(0);
+        return Apache2::Const::OK;
+      }
+    }
+    if (!$filename) {
+        print "Bad filename!";
+    }
+}
+</%perl>

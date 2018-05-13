@@ -1,0 +1,202 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: edit_entry.html
+        Date: 8/30/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$uid=>undef
+$physid=>''
+$last_name=>''
+$first_name=>''
+$x500=>''
+$emplid=>''
+$email=>''
+$emailforward=>''
+$www=>''
+$research_www=>''
+$room=>''
+$room_type=>''
+$room_building=>''
+$room_phone=>''
+$room2=>''
+$room2_type=>''
+$room2_building=>''
+$room2_phone=>''
+$address=>''
+$home_phone=>''
+$cell_phone=>''
+$pager_phone=>''
+$position=>''
+$ucard=>undef
+$doorpin=>undef
+$acctreq => undef
+$acctreq_last => undef
+$acctreq_physid => undef
+$sponsor => undef
+# $directory populated and passed in by autohandler from uid
+$directory => undef
+$reset_copycode => 0
+$recompute => undef
+</%args>
+
+<%init>
+use Net::LDAP;
+use Data::Dumper;
+use physdb::groups;
+use physdb::directory;
+use Scalar::Util 'blessed';
+
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+my $access = $m->comp('/mason/auth/auth_check_directory.comp');
+my $admin_access = $m->comp('/mason/auth/auth_check_sysadm.comp');
+
+unless ($access && $uid) {
+#    $m->redirect("index.html");
+    print "No access!";
+    return;
+}
+
+# This shouldn't be necessary but ensures autohandler passed valid directory object
+unless (blessed $directory && $directory->isa('Directory')) {
+    $directory = new Directory( uid => $uid );
+}
+
+# What group types can they edit?
+my @group_types = ('flags', 'facultytype', 'rgroup', 'overrides', 'attributes', 'sponsored');
+# there are no checkboxes for these anymore - only managed via groupmgmt pages...
+#if($admin_access) {
+#    push (@group_types, ('auth','workgroup'));
+#}
+
+# Build list of checked groups
+my %flags;
+foreach my $k (keys(%ARGS)) {
+    if ($k =~ /^group_(.+)$/) {
+        $flags{$1} = $ARGS{$k};
+    }
+}
+
+# Set type of account request based on if they have a physics id already recorded or not
+if ($acctreq) {
+    if ($directory->get('physid')) {
+        $acctreq = 'enable';
+    } else {
+        $acctreq = 'create';
+    }
+}
+
+</%init>
+
+<%method title>Directory update</%method>
+
+<%perl>
+
+# Store new values
+$directory->set(
+    last_name => $last_name,
+    first_name => $first_name,
+    x500 => $x500,
+    emplid => $emplid,
+    email => $email,
+    emailforward => $emailforward,
+    www => $www,
+    research_www => $research_www,
+    room => $room,
+    room_type => $room_type,
+    room_building => $room_building,
+    room_phone => $room_phone,
+    room2 => $room2,
+    room2_type => $room2_type,
+    room2_building => $room2_building,
+    room2_phone => $room2_phone,
+    address => $address,
+    home_phone => $home_phone,
+    cell_phone => $cell_phone,
+    pager_phone => $pager_phone,
+    position => $position,
+    ucard => $ucard,
+    ($admin_access ? (physid => $physid) : ( )),
+    sponsor => $m->comp("/mason/ajax/peoplefinder_to_uid.comp", name => $sponsor),
+);
+
+if ($acctreq) {
+    if($acctreq_physid =~ /@/) {
+        # Could not find a graceful way to change %{$m->request_args}
+        # to not have acctreq, acctreq_physid, acctreq_uid set
+        # So print a message that says 'Go back' and return
+        print "Do not request account names with '\@astro.umn.edu' or '\@physics.umn.edu'. Go back and submit the form again.";
+        return;
+    }
+    $directory->set(
+        acctreq => $acctreq,
+        acctreq_uid => $session{'uid'},
+        acctreq_physid => $acctreq_physid,
+    );
+}
+
+if ($admin_access && defined($doorpin)) {
+    $directory->set( doorpin => $doorpin, );
+}
+
+if($reset_copycode) {
+    $directory->set('copyid', undef);
+}
+
+# Save changes
+unless ($directory->save) {
+    #Error with form. Redirect back to the form with errors
+    my $saveerror = $directory->firsterror;
+    my ($error_key, $error_message) = $saveerror->first_column;
+    $m->redirect("edit_entry_form.html?" . _args( %{$m->request_args}, err_str => $error_message, err_key => $error_key, groupargs => 1 ));
+}
+
+# Log changes
+if ($uid eq "new") {
+    $directory->log_changes( prefix => "Created new entry: " );
+}
+else {
+    $directory->log_changes;
+}
+
+# Send email if new physics account request
+if ($directory->changes('acctreq')) {
+    $m->comp('/mason/db/directory/send_acctreq_email.comp', directory => $directory);
+}
+
+# Now we need to handle the mess of group memberships...
+
+# Fetch list of groups user has permission to change
+my @auth_groups = Groups->new->search('`type` ' . _in(@group_types), @group_types);
+
+# Step through each group they currently are in (that we have access to!), and remove from unchecked ones...
+foreach my $group ($directory->groups_array) {
+    if (!defined($flags{$group}) && grep { $_->get('name') eq $group } @auth_groups) {
+        if (!$directory->remove_group_membership($group)) {
+            print "Failed to remove from group $group<br/>";
+        }
+    }
+}
+
+# Step through checked groups, and add any they are not already a member in (only if we have access/the group is real)...
+foreach my $form_group (keys(%flags)) {
+    if (!$directory->in_group($form_group) && grep { $_->get('name') eq $form_group } @auth_groups) {
+        if (!$directory->add_group_membership($form_group)) {
+            print "failed to add to group $form_group<br/>";
+        }
+    }
+}
+
+# Having finished updating groups, now handle any resulting auto group updates...
+if ($recompute) {
+    $directory->update_auto_groups;
+    $directory->set('dw_position', $directory->generate_position);
+    $directory->save;
+    $directory->log_changes;
+}
+
+$m->redirect('index.html');
+</%perl>

@@ -1,0 +1,71 @@
+<%DOC>
+    vim:set syntax=mason:
+    Component: spam.html
+         Date: 2011.01.13
+       Author: mackey
+</%DOC>
+
+<%method title>Spam Filtering Log</%method>
+
+<p>
+This page shows messages which have been blocked or delayed by the mail greylisting system. GREY messages should arrive after the sending site retries, after a short delay.  Once a site has retried and delivered a message, it will be listed as WHITE. BLACK messages are from a source supposedly known to deliver spam messages.
+</p>
+<p>This does not yet list messages blocked or delayed for other reasons (spam, virus) but we are examining if this can be added.
+</p>
+<p>
+More information is available at <a href="http://zzz.physics.umn.edu/computing/accounts/email/spam">http://zzz.physics.umn.edu/computing/accounts/email/spam</a>
+</p>
+<%INIT>
+    use strict;
+    
+    $m->comp('/mason/auth/auth_block.comp');
+</%INIT>
+
+<%perl>
+    my $user = $session{'physid'};
+
+    $m->comp('/mason/db/tablesearch.comp',
+            field_list => [ 'MAX(date) as date', 'user', 'sender', 'count(distinct ip) as sendercount', 'group_concat(distinct INET_NTOA(ip)) AS ip', 'COUNT(sender) AS count', 'status' ],
+            debug => 0,
+            field_params => {
+                'user' => {
+                    name => 'To',
+                },
+                'sender' => {
+                    name => 'From',
+                },
+                'ip' => {
+                    name => 'Origin',
+                    data_format => sub { 
+                        my $value = shift;
+                        my $format = shift;
+                        my $row = shift;
+
+                        if($row->{'sendercount'} > 1) {
+                            my $first = (split(',', $value))[0];
+                            $value =~ s/,/, /g; # VIM FIGURE YOUR SHIT OUT/
+                            return "<span title=\"From ". $row->{'sendercount'} . " hosts: $value\">$first...</span>";
+                        }
+                        return $value;
+                   }
+                },
+                'status' => {
+                    name => 'Status',
+                    data_format => sub { return uc(shift);}
+                },
+                'date' => {
+                    name => "Most Recent",
+                },
+                'sendercount' => {
+                    hidden => 1,
+                }
+            },
+            excluded_search_fields => [ 'COUNT(sender)', 'MAX(date)', 'group_concat(distinct INET_NTOA(ip))', 'count(distinct ip)' ],
+            table => 'spamlog',
+            default_sort_field => 'date',
+            default_sort_dir   => 'desc',
+            header_format      => 'ucfirst',
+            where => "WHERE user LIKE '$user\@%'",
+            group_by => "GROUP BY sender,user,status",
+            );
+</%perl>

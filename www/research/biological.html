@@ -1,0 +1,38 @@
+<%method title>Biological Physics</%method>
+
+<%method pageheading>
+<& 'PARENT:pageheading' &>
+</%method>
+
+<%args>
+$featrow=>undef
+</%args>
+
+%#Uncomment (remove %#) to enable this when the research faculty stories are done
+<& "/mason/db/stories/feature.comp", type=>'facultyresearch', subtype=>'biological', style_prefix=>'rf', readmore_path=>'/research/', featrow=>$featrow&>
+
+%# note the new random.comp wrapper around the image.comp component...
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'bioimages/Biological4.jpg',alt=>'RNA with excess protein',caption=>'The ss RNA speeds up the self-assembly when the capsid proteins are at excess.' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'bioimages/BiologicalPhysics.jpg',alt=>'Research group member',caption=>'A member of Noireaux&#146;s research group in the lab.' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'bioimages/Joachim1.jpg',alt=>'cell assembling viral-like particles',caption=>'Image of a cell assembling viral-like particles.' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'bioimages/BiologicalMegMec.GIF',alt=>'Magnetic resonance image of brain',caption=>'This picture is a 3D magnetic resonance image of a subject who heard a sound 140 milliseconds ago.' &> </&>
+
+<& /mason/random.comp:execute, name=>'image' &>
+
+<h3>Physics of Biology</h3>
+<p>
+In biological physics, quantitative aspects and ideas and techniques of physics research are applied to biological problems.  Physics has been evolving in the direction of studying more complex systems, and in doing so, has begun to expand its subject area to include living systems.
+<p>  
+For example, Professor Joachim Mueller leads an experimental group who are studying the kinetic pathways that occur when proteins misassemble, a topic that has relevance in research on Alzheimer's disease.  His lab features a novel approach to fluorescence fluctuation spectroscopy (a process where a fluorescent compound is injected into a cell and studied under a microscope) with the innovation of a high pressure cell that allows spectroscopy over a broad range of pressures.
+<p>
+Vincent Noireaux, experimentalist in biophysics, studies in vivo and in vitro gene expression, artificial cell, cytoskeleton and artificial motility.
+<p>
+Another experimentalist, John Broadhurst, analyzes signal processing in the human brain with a non-invasive technique known as magneto-encephalography, which measures activity in the audio cortex.  
+<p>
+Theorist Boris Shklovskii is studying, among other things, charge inversion in DNA with a computer simulation of electrophoresis 
+(the migration of charged molecules such as proteins in an electrical field).   
+<p>
+<& profiles.comp, group=>'bio' &>
+<& profiles.comp, type=>'Researchers', flag=>'research || postdoc', group=>'bio' &>
+<& profiles.comp, type=>'Graduate Students', flag=>'physgrad || astgrad', group=>'bio' &>
+

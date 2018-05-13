@@ -1,0 +1,186 @@
+% my $self = $m->request_comp;
+% my $skel = $ARGS{'skel'} || $self->method_exists('skel');
+% my $noheader = $ARGS{'noheader'} || $self->method_exists('noheader');
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en" dir="ltr">
+<head>
+    <& SELF:initshared &>
+    <title><%perl> $m->out(HTML::Entities::encode($m->scomp("SELF:statusbar"))); </%perl> - Physics at Minnesota</title>
+    <!-- BEGIN METAINFO -->
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="description" content="School of Physics and Astronomy, University of Minnesota" />
+    <meta name="keywords" content="Physics Astronomy University Minnesota" />
+    <meta name="robot" content="index,follow" />
+    <link rel="stylesheet" href="/main.css" type="text/css" />
+    <link rel="stylesheet" href="/layout.css?dumbcache=random" type="text/css" />
+% if($skel) {
+    <link rel="stylesheet" href="/skel.css" type="text/css" />
+% }
+% if($ARGS{'refresh'} ) {
+    <meta http-equiv="refresh" content="<% $ARGS{'refresh'} |h %>">
+% }
+    <link rel="alternate" type="application/rss+xml" title="Physics and Astronomy Calendar RSS Feed" href="/rss/calendar/" />
+    <link rel="alternate" type="application/rss+xml" title="Physics and Astronomy News RSS Feed" href="/rss/news/" />
+    <link rel="alternate" type="application/rss+xml" title="Physics and Astronomy Outreach RSS Feed" href="/rss/outreach/" />
+    <link rel="alternate" type="application/rss+xml" title="Physics and Astronomy Publications RSS Feed" href="/rss/publications/" />
+% unless($skel) {
+    <& include/cse_umn_template/UMNheader.comp:head, printarg=>$ARGS{'print'} &>
+    <& include/cse_umn_template/CSEheader.comp:head, printarg=>$ARGS{'print'} &>
+% }
+% if($ARGS{'print'} ) { # A hack to let you view with the print stylesheet when not printing.
+    <link rel="stylesheet" href="/print.css" type="text/css" />
+% } else { 
+    <link rel="stylesheet" media="print" type="text/css" href="/print.css" />
+% }
+    <!-- END METAINFO -->
+    <%perl>
+    # If there is a "js" method defined by a child page, thats a signal to us to load the js library here:
+    if ($self->method_exists('js')) {
+      $m->comp('/mason/ajax/js.comp');
+    }
+    </%perl>
+    <& SELF:meta &>
+</head>
+
+<body <& SELF:body &>>
+% unless($skel) {
+<div id="background">
+    <& include/cse_umn_template/UMNheader.comp &>
+    <& include/cse_umn_template/CSEheader.comp &>
+    <& theme_phys.comp &>
+    <& theme_leftcol.comp &>
+% }
+    <div class="contentblock" id="contentblock">
+% unless ($noheader) {
+        <& SELF:pageheading &>
+% }
+        <div id="page">
+%           if($self->method_exists('titlemenu_side')) {
+%               $self->call_method('titlemenu_side');
+%           }
+            <!-- begin content from child -->
+            <% $m->call_next %>
+            <!-- end content from child -->
+            <& SELF:insert_related &>
+        </div> <!-- page -->
+% unless($skel) {
+        <& theme_footer.comp, mod_time=>$mod_time &>
+% }
+    </div> <!-- contentblock -->
+% unless($skel) {
+</div> <!-- background -->
+% }
+<!-- google Analytics:
+http://www.google.com/analytics -->
+% if ($r->subprocess_env('https')) {
+<script src="https://ssl.google-analytics.com/urchin.js" type="text/javascript">
+% } else {
+<script src="http://www.google-analytics.com/urchin.js" type="text/javascript">
+% }
+</script>
+<script type="text/javascript">
+        _uacct = "UA-1734548-1";
+        urchinTracker();
+</script>
+</body>
+</html>
+
+<%init>
+my $host = $ENV{'HTTP_HOST'};
+my $uri = $r->uri;
+my $this_uri = $host.$uri;
+my $uri_args = $r->args;
+my $path = $uri;
+while (chop($path) ne "/") {};
+my $column = substr($path."/column.html",1);
+
+my $file = $r->filename;
+my $st = stat($file);
+my $mod_time;
+if ($st) {
+  $mod_time = "Last modified: ".strftime("%e %B %Y", CORE::localtime($st->mtime));
+}
+if ($host =~ /^physics.umn.edu/) {
+    # redirect physics.umn.edu; preserve URI but not bother with args
+    # this is easier than using mod_rewrite!
+    $m->redirect("https://www.physics.umn.edu".$uri);
+}
+</%init>
+
+<%method meta> </%method>
+<%method body></%method>
+
+<%method title>
+</%method>
+
+<%method statusbar>
+<&SELF:title&>
+</%method>
+
+
+%# This is a kind of a hack...
+%# Some pages need the shared code to run early, so you can define this method in them, and way up top its called in the <head> section, thus causing shared to get spawened way early. yay. Example is the admin/students/dhandler 
+<%method initshared></%method>
+
+<%method related>
+</%method>
+
+<%method pageheading>
+<div id="whereami_container">
+<div id="whereami">
+    <& /mason/whereami.comp &>
+</div>
+</div>
+
+<%perl>
+my $self = $m->request_comp;
+if($self->method_exists('titlemenu_above')) {
+  $self->call_method('titlemenu_above');
+}
+</%perl>
+<div id="pagetitle">
+% my $title = $m->scomp("SELF:title");
+% my @title_components = split /\|/, $title;
+% my $count = 0;
+% foreach my $title_text (@title_components) {
+%   $count++;
+<h<% $count %> id="heading"><% $title_text|h %></h<% $count %>>
+% }
+</div>
+
+<%perl>
+if($self->method_exists('titlemenu_below')) {
+  $self->call_method('titlemenu_below');
+}
+</%perl>
+</%method>
+
+
+<%method login>
+<& /mason/auth/loginout.comp &>
+</%method>
+
+<%method insert_related>
+<%perl>
+my $related_links = $m->scomp("SELF:related");
+if (length($related_links) > 1) {
+    $m->out("<h2 class=\"smallgap\">Related Links</h2>");
+    $m->out($related_links);
+    $m->out("<p>");
+}
+</%perl>
+</%method>
+
+<%method searchform_google>
+<form method="get" action="http://www.google.com/u/umn">
+<b>Search this site</b><br />
+<input type="text" name="q" size="13" maxlength="255" value="<% $ARGS{'search'}%>" />
+<input type="image" src="/images/go_btn.gif" align="middle" name="Go" alt="Go" />
+<input type="hidden" name="hq" value="inurl:www.physics.umn.edu" />
+<p></p>
+</form>
+</%method>
+
+%#<!-- vim:set ts=4 sts=2 syntax=mason: -->
+<!-- science rules! -->

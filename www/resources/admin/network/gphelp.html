@@ -1,0 +1,82 @@
+<%flags>
+inherit=>undef
+</%flags>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1/xhtml1-transitional.dtd">
+<html>
+<head>
+<style type="text/css">
+div { font-family: "Lucida Grande",Lucida,Helvetica,Arial,sans-serif; font-size: 10pt; }
+a, a:visited { font-size: 9pt; text-decoration: none; color: #0000DD; }
+a:hover { text-decoration: underline; }
+#helpDiv { margin-top: 60px; } 
+#menuDiv { position: fixed; top:0; left:0; width: 100%; height: 60px; background-color: white; }
+#titleDiv { font-weight: bold; font-size: 14pt; padding: 10px 0 0 15px; }
+#links { padding: 7px 15px 0 0; float: right; font-size: 9pt; }
+#links a { padding-left: 5px; }
+h1 { font-size: 12pt; }
+</style>
+<title>
+Group Policy Management Help
+</title>
+</head>
+<body>
+<div id="menuDiv">
+<div id="links">
+<a href="#" onclick="window.close()">Close</a>
+</div>
+<div id="titleDiv">Group Policy Management Help
+</div>
+</div>
+<div id="helpDiv">
+<h1>Menu Buttons</h1>
+<table>
+<tr><td><img src="/images/plus.png" /></td><td>Expands all elements in the tree</td></tr>
+<tr><td><img src="/images/minus.png" /></td><td>Collapses all elements in the tree</td></tr>
+<tr><td><img src="/images/NewItem.gif" /></td><td>Creates a new item</td></tr>
+<tr><td><img src="/images/trashIconOver.png" /></td><td>Trash icon - drag elements here to remove</td></tr>
+<tr><td><img src="/images/trashIcon.png" /></td><td>Activated trash icon - the currently dragging element(s) will be removed if dropped</td></tr>
+<tr><td><img src="/images/delete_icon.png" /></td><td>Remove icon - click to remove currently selected element(s)</td></tr>
+<tr><td><img src="/images/undo.png" /></td><td>Disabled undo icon - no actions to currently undo</td></tr>
+<tr><td><img src="/images/undogray.png" /></td><td>Undo icon - Click to undo last action.  If multiple elements were involved in last action, the action will be undone for each element.</td></tr>
+</table>
+
+<h1>General Information</h1>
+<p>Click an element or the +/- sign next to it to expand/collapse it</p>
+<p>Double-click an element to rename it</p>
+<p>Drag elements over other elements and drop them to add them</p>
+<p>Multiple elements can be selected at once by dragging over an area</p>
+<p>Columns scroll automatically if you drag to their edges</p>
+<p>Italicized computers have no cluster assigned and have been added to the default cluster</p>
+
+<h1>Adding Elements</h1>
+<p>To add an element to another element, simply drag the element to the target element and drop it.  The target *should* turn blue if it will accept the item being dragged.</p>
+<p>Multiple elements can be selected at once by clicking in an area not occupied by an element and dragging the mouse over a group of elements.
+If there are elements that aren't visible, you can get to them by dragging the mouse to the edges of the column - the column should scroll automatically.</p>
+
+<h1>Renaming Elements</h1>
+<p>Many elements can be renamed by double-clicking on them.
+When finished editing the name, you can hit enter or tab or click away from the element.
+Currently computers and cluster cannot be renamed through this interface.</p>
+
+<h1>Removing Elements</h1>
+<p>To remove an element, simply drag and drop the item over one of the trash icons.  If the trash icon changes, the item being dragged can be deleted.
+<p>Just as with adding elements, multiple elements can be selected at once.
+When multiple non-root elements are selected, the trash icons will change to a red X, allowing you to remove the elements without having to drag them.
+Currently computers and cluster cannot be deleted through this interface.</p>
+
+<h1>Undo</h1>
+<p>In many cases the last remove action can be undone by clicking one of the undo buttons.
+If multiple elements were involved in the last action, the action will be undone for each element.  Only one level of undo is stored.
+Currently, removing the root nodes of any tree cannot be undone.</p>
+
+<h1>Logging</h1>
+<p>A log console can be opened to view any errors.
+If something appears to have gone amiss, try clicking the Console link to see if any messages have been printed.
+The link should change to red any time something is written to the log.
+Currently the log does not refresh automatically, but can be refreshed by clicking the Refresh button in the console or the Console link on the Management page.
+</p>
+
+</div>
+</body>
+</html>

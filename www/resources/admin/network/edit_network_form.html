@@ -1,0 +1,72 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: edit_network_form.html
+        Date: 2008.05.20
+      Author: clayton
+     Changed: 2008.05.20 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $id=>'new'
+</%ARGS>
+
+<%method title>Edit Network</%method>
+<%method js></%method>
+
+<%INIT>
+use physdb;
+
+  my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+  if(!$auth) {
+    print "Must be admin\n";
+    return;
+  }
+
+  $m->comp('/mason/network/common.comp');
+
+  my $network;
+
+  if ($id ne 'new') {
+    $network = physdb::queryfirstrow('SELECT description, INET_NTOA(net) AS net_ip, INET_NTOA(netmask) AS subnet_ip, (32 - BIT_COUNT(POWER(2, 32) - netmask - 1)) AS subnet_cidr, vlan, vlan_radius_numeric, dhcp_params, bigfix_policy FROM net_subnets WHERE id=? LIMIT 1', $id);
+  }
+
+</%INIT>		
+
+<h2>Network
+% if ($id ne 'new') {
+ <a href="edit_network.html?id=<% $id |u %>&delete=true" style="color: red;" onclick="return confirm('Do you really wish to delete this network?')"><img src="/images/delete.png" border="0" alt="DELETE" label="DELETE" title="DELETE this network"></a>
+% }
+</h2>
+
+<form action="edit_network.html">
+<input type="hidden" name="id" value="<% $id |u %>">
+<table border=0>
+<tr><td>Description:</td><td><% input_text('description', $network) %></td></tr>
+<tr><td>Network IP:</td><td><% input_text('net_ip', $network) %></td></tr>
+<tr><td>Subnet Mask:</td><td>
+<input type="radio" name="subnet" id="subneta" value="ip" CHECKED><label for="subneta"> Dotted Decimal </label><% input_text('subnet_ip', $network) %><br>
+<input type="radio" name="subnet" id="subnetb" value="cidr"><label for="subnetb"> CIDR </label><% input_text('subnet_cidr', $network, {'size'=>2}) %>
+<script type="text/javascript">
+  /*<[CDATA[*/
+  function selectOnClick(e, bind_item) {
+    this.checked = true;
+  }
+  try {
+    $('input_subnet_ip').observe('click', selectOnClick.bindAsEventListener($('subneta')));
+    $('input_subnet_cidr').observe('click', selectOnClick.bindAsEventListener($('subnetb')));
+    $('input_subnet_ip').observe('change', selectOnClick.bindAsEventListener($('subneta')));
+    $('input_subnet_cidr').observe('change', selectOnClick.bindAsEventListener($('subnetb')));
+  } catch (e) {}
+  /*]]>*/
+</script>
+
+</td></tr>
+<tr><td>VLAN Hint:</td><td><% input_text('vlan', $network) %></td></tr>
+<tr><td>VLAN Number:</td><td><% input_text('vlan_radius_numeric', $network, {'size'=>4}) %></td></tr>
+<tr valign="top"><td>DHCP options:</td><td><% input_textarea( 'dhcp_params', $network ) %></td></tr>
+<tr><td>Bigfix Policy</td><td><% input_text('bigfix_policy', $network) %> <small>Set to exempt to exclude from security compliance check</small</td></tr>
+</table>
+<input type="submit" value="Save">
+</form>

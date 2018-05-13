@@ -1,0 +1,59 @@
+<%doc>
+         vim: set syntax=mason:
+   Component: delete_entry.html
+        Date: 8/30/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$uid=>undef
+$confirm=>'0'
+# passed in by autohandler based on uid
+$directory=>undef
+</%args>
+
+<%init>
+
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+use Scalar::Util 'blessed';
+
+# This shouldn't be necessary but ensures autohandler passed valid directory object
+unless (blessed $directory && $directory->isa('Directory')) {
+    $directory = new Directory( uid => $uid );
+}
+
+my $auth = $m->comp('/mason/auth/auth_check_directory.comp');
+my $result;
+
+if (!$auth) {
+  $result = "Not authorized!";
+}
+elsif (!$confirm) {
+    $result = "Deletion not confirmed!";
+}
+elsif (!$uid) {
+    $result = "uid is required";
+}
+elsif (!$directory->{'loaded'}) {
+    $result = "Invalid uid $uid";
+}
+else {
+    if ($directory->delete->rows) {
+        $directory->log_changes(text => 'Delete ' . $directory->fullname . ' (' . $directory->get('uid') . ')');
+        $m->redirect('index.html');
+    }
+    else {
+        $result = 'Failed to delete entry: ' . $directory->dumperrors;
+    }
+}
+</%init>
+
+<%method title>Directory update failure</%method>
+
+<% $result %>
+
+<p>
+<a href="/directory/">Back to main directory<a>
+

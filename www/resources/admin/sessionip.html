@@ -1,0 +1,34 @@
+<%DOC>
+   Component: sessionip.html
+        Date: 9/8/10
+      Author: eric
+ 
+</%DOC>
+
+<%method title>Session IP</%method>
+
+<%init>
+use physdb;
+my $address = $r->connection->get_remote_host();
+
+if ($address !~ m/^128\.101.22[01].*/)
+{
+print "bad host $address";
+return;
+}
+
+$r->content_type('text/plain');
+
+my $query = physdb::query(' SELECT DISTINCT `address`
+FROM websession.sessions
+WHERE `address` IS NOT NULL');
+ while (my $network = $query->fetchrow_hashref()) {
+print "$network->{'address'}\n"; 
+}
+</%init>
+
+
+<%flags>
+inherit => undef
+</%flags>
+

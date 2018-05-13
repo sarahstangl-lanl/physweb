@@ -1,0 +1,26 @@
+<% $m->call_next %>
+<%method titlemenu_above>
+   <& /mason/titlemenu.comp:begin, type=>"above" &>
+   
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/index.html'  &>Overview</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/'  &>Physics Force</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/reu/'  &>REU</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/ret/'  &>RET</&>
+%#   <&| /mason/titlemenu.comp:item, link=>'/outreach/quarknet/'  &>QuarkNet</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/paces/'  &>PACES</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/soudan/'  &>Soudan Mine Tour</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+
+<%method whereamifilter>
+<%args>
+$partsref
+</%args>
+<%perl>
+
+my $new = [{original=>"outreach", display=>"Outreach"}];
+return @$new;
+</%perl>
+</%method>
+

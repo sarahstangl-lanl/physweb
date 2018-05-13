@@ -1,0 +1,283 @@
+<%doc>
+   vim: set syntax=mason:
+   Author: Rubin
+</%doc>
+<%method title>Network Traffic</%method>
+<%init>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+use physdb;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+if(!$auth) {
+    print "Must be admin\n";
+    return;
+}
+</%init>
+
+<%args>
+$magic => undef;
+$search => undef;
+$sort => "name";
+$sort_reverse => 0;
+</%args>
+<%perl>
+
+sub is_ip {
+    my $str = shift;
+    if ($str =~ /^([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)$/  
+       and $1 < 256 and $2 < 256 
+       and $3 < 256 and $5 < 256) {
+      return 1;
+    }
+    return 0;
+}
+
+sub is_hwa {
+    my $str = shift;
+    if ( $str =~  /^[A-Fa-f0-9]{12}$/
+         || $str =~ /^([A-Fa-f0-9]{2}[:-]){5}[A-Fa-f0-9]{2}$/ ) {
+        return 1;
+    }
+    return 0;
+}
+
+sub bare_hwa {
+    my $hwa = shift;
+    $hwa =~ s/[^0-9AFa-f]//g;
+    return lc($hwa);
+}
+
+# SQL Query
+my $hostlist_query =  <<"--end--";
+
+SELECT 
+   accounting.net_accounting.*,
+   net_hosts.computer_name,
+   net_hosts.id,
+   net_interfaces.id as interface_id, 
+   accounting.net_accounting.hwa,
+   net_interfaces.hwa AS hwa_reg,
+   net_rejectlist.mac AS rejected_mac,
+   directory.last_name,
+   directory.first_name,
+   directory.physid,
+   directory.x500,
+   directory.uid,
+   INET_NTOA(accounting.net_accounting.ip) AS ip
+
+FROM accounting.net_accounting
+
+LEFT OUTER JOIN net_interfaces ON net_interfaces.hwa=net_accounting.hwa
+
+LEFT OUTER JOIN net_hosts ON net_hosts.id=net_interfaces.host_id
+
+LEFT OUTER JOIN directory ON directory.uid=net_hosts.admin_uid
+
+LEFT OUTER JOIN net_rejectlist ON net_rejectlist.mac=net_accounting.hwa
+
+--end--
+# Build where block...
+my $where = "WHERE 1=1 ";
+my $limit = "";
+if($magic) {
+    if($magic =~ /^WHERE /) {
+       $where = $magic;
+    }
+    elsif(is_ip($magic)) {
+        # This slows things down. Is it worth it?
+        $where .= "     AND net_accounting.ip=INET_ATON('$magic') ";
+    }
+    elsif(is_hwa($magic)) {
+        my $hwa = bare_hwa($magic);
+        #print "DEBUG: looking for $hwa<BR>\n";
+        $where .= " AND net_accounting.hwa='$hwa' ";
+    }
+    else { # We dont know what it is, try a partial on everything ;)
+        $where .= " AND (";
+        $where .= "      net_hosts.computer_name LIKE '%${magic}%' ";
+        $where .= "      OR accounting.net_accounting.hwa LIKE '%${magic}%' ";
+        $where .= "      OR net_hosts.os='${magic}' ";
+        $where .= "      OR net_hosts.type='${magic}' ";
+        $where .= "      OR net_interfaces.vlan='${magic}' ";
+        $where .= "      OR directory.x500='${magic}' ";
+        $where .= "      OR directory.physid='${magic}' ";
+        $where .= "      OR directory.last_name='${magic}' ";
+        $where .= "      OR net_hosts.groupname='${magic}' ";
+        $where .= "      OR net_hosts.text LIKE '%${magic}%' ";
+        $where .= "      OR concat(net_hosts.building, ' ', net_hosts.room) LIKE '%${magic}%' ";
+        $where .= "     )";
+    }
+} elsif ($search) { # Add any canned searches to this list, and link them below
+    if($search eq 'unix') {
+      $where .= " AND ( (net_hosts.os='tru64'  OR net_hosts.os='solaris' OR net_hosts.os='unix' \
+                         OR net_hosts.os='freebsd' OR net_hosts.os='openbsd' \
+                        ) 
+                        AND net_hosts.groupname='sysadm'
+                       )
+                ";
+    }
+    elsif($search eq 'windows') {
+        $where .= " AND ( net_hosts.os='windows' AND net_hosts.groupname='sysadm') ";
+    }
+    elsif($search eq 'linuxservers') {
+        $where .= " AND ( net_hosts.os='linux' AND net_hosts.type='server' AND net_hosts.groupname='sysadm') ";
+    }
+    elsif($search eq 'linuxworkstations') {
+        $where .= " AND ( net_hosts.os='linux' AND net_hosts.type='workstation' AND net_hosts.groupname='sysadm') ";
+    }
+    elsif($search eq 'printers') {
+        $where .= " AND ( net_hosts.type='printer' AND net_hosts.groupname='sysadm') ";
+    }
+    elsif($search eq 'netdevices') {
+        $where .= " AND ( (   net_hosts.type='other' 
+                           OR net_hosts.type='fcswitch'
+                           OR net_hosts.type='eswitch'
+                           OR net_hosts.type='wap'
+                           OR net_hosts.type='raid'
+                           OR net_hosts.type='ups'
+                          ) AND net_hosts.groupname='sysadm') ";
+    }
+    else {
+       $where .= " AND 0=1";
+       $m->out("Unknown search '". $m->interp->apply_escapes($search, 'h'). "'\n<BR>");
+    }
+    $limit = " LIMIT 1000\n ";
+} else{ # no args, show recent
+    $limit = " LIMIT 20\n ";
+    $sort = "recent";
+    $where .= " AND accounting.net_accounting.timestamp > date_sub(now(), INTERVAL 3 DAY) ";
+}
+
+my %sort_orders = ( recent => "ORDER BY net_accounting.timestamp DESC",
+                    name => "ORDER BY net_hosts.computer_name",
+                    hwa  => "ORDER BY accounting.net_accounting.hwa ASC",
+                    ip   => "ORDER BY net_dns.ip ASC",
+                    physid => "ORDER BY directory.physid ASC",
+                    timestamp => "ORDER BY accounting.net_accounting.timestamp DESC",
+                   );
+
+my $order = $sort_orders{$sort};
+if(!$order) { print "Column selected for sorting is unknown (check sort arg)"; return; }
+
+if($sort_reverse) { # hacky?  :)
+    $order =~ s/ASC/-TEMP-/g;
+    $order =~ s/DESC/ASC/g;
+    $order =~ s/-TEMP-/DESC/g;
+} 
+
+# always sort by name if all else matches
+$order .= ", accounting.net_accounting.timestamp DESC "; 
+</%perl>
+
+<form method="GET" action="<% $m->base_comp->name() %>">
+<table border=0 cellpadding="5" cellspacing="0" width="100%">
+
+<tr><td colspan=2><input type="text" name="magic" value="<% $magic|h%>">
+    <input type="submit" value="Search">
+    <input type="reset" value="Reset">
+    </td><td colspan="3">
+<div class="embedmenu">
+<& "/mason/network/searchbox.comp:embedmenu", action=>"traffic.html" &>
+</div>
+<tr class="tablehead">
+%# name's must exist in %sort_orders, above!
+    <th><&| SELF:sortlink, name=>"name" &>Name</&></th>
+    <th><&| SELF:sortlink, name=>"hwa" &>HWA</&></th>
+    <th><&| SELF:sortlink, name=>"ip" &>IP</&></th>
+    <th><&| SELF:sortlink, name=>"physid" &>Owner</&></th>
+    <th><&| SELF:sortlink, name=>"timestamp" &>Timestamp</&></th>
+    <th><&| SELF:sortlink, name=>"rate" &>Rate</&></th>
+</tr>
+<%perl>
+
+my $hostresult = physdb::query("$hostlist_query $where $order $limit");
+my $oddeven = "even";
+
+# Sort some blocks in a way that makes human sense...
+my (@rows, @sorted_rows);
+while (my $row = $hostresult->fetchrow_hashref()) {
+    $row->{'name'} = $row->{'hostname'} ? "$row->{hostname}.$row->{domain}" : "($row->{computer_name})";
+    push @rows,($row);
+}
+if($sort eq 'name' ) {
+    if($sort_reverse) {
+        @sorted_rows = sort { ncmp($b->{$sort}, $a->{$sort}) } @rows;
+    }
+    else {
+        @sorted_rows = sort { ncmp($a->{$sort}, $b->{$sort}) } @rows;
+    }
+}
+else { # The rest of the fields sort fine by mysql, leave them alone
+    @sorted_rows = @rows;
+}
+
+# Display the list
+foreach my $row (@sorted_rows) {
+    $oddeven = ($oddeven eq "odd") ? "even" : "odd"; 
+    </%perl>
+        <tr class="<% $oddeven %>">
+           <td nowrap>
+            <%perl>if($row->{'id'}) { </%perl>
+<a href="host.html?id=<% $row->{'id'} %>">
+            <%perl>}</%perl>
+                  <% $row->{'name'} |h%>
+            <%perl>if($row->{'id'}) { </%perl>
+              </a>
+            <%perl>}</%perl>
+           </td>
+           <td nowrap><span style="font-family: monospace;<% (!defined($row->{'hwa_reg'}) ? 'font-style:italic;' : '') %>"><% $row->{'hwa'} |h %></span>
+               <%perl>
+               if (defined($row->{'rejected_mac'})){
+                    print "- [<a onclick='return confirm_delete(&nbsp;".$row->{'hwa'}."&nbsp;);' href='reject.html?mac=".$row->{'hwa'}."&delete=1' title='Toggle to Allowed'>Blocked</a>]";
+               } else {
+                    print "- [<a href='reject.html?mac=".$row->{'hwa'}."' title='Toggle to Blocked'>Allowed</a>]";
+               }
+               </%perl>
+           </td>
+           <td nowrap><% $row->{'ip'} |h %></td>
+           <td nowrap>
+              <%perl>if($row->{'uid'}) { </%perl>
+              <a href="../users/user.html?uid=<% ($row->{'uid'})|u%>&amp;physid=<%$row->{'physid'}|u%>&amp;x500=<%$row->{'x500'}|u%>">
+              <%perl>}</%perl>
+              <% "$row->{first_name} $row->{last_name}" |h%>
+              <%perl>if($row->{'physid'}) { </%perl>
+              </a>
+              <%perl>}</%perl>
+              </td>
+           <td nowrap><% $row->{'timestamp'}|h%></td>
+           <td><% $row->{'last_rate'} %></td>
+        </tr>
+    <%perl>
+}
+
+</%perl>
+</table>
+</form>
+
+<%method sortlink>
+<%args>
+$name
+$sort_reverse => 0
+</%args>
+<%perl>
+my %args = $m->request_args();
+my $sort_order = 0;
+my $sort_img = '';
+if($name eq $args{'sort'}) {
+  $sort_order = $args{'sort_reverse'} ? 0 : 1;
+  $sort_img = "<img src=\"/images/". ($args{'sort_reverse'} ? "s_asc.png" : "s_desc.png")."\" border=\"0\" />";
+}
+</%perl>
+<a href="?search=<% $args{'search'} |u%>&amp;magic=<% $args{'magic'} |u%>&amp;sort=<%$name |u%>&amp;sort_reverse=<% $sort_order %>"><% $m->content|h %> <% $sort_img%></a>
+</%method>
+
+<%method meta>
+<script type="text/javascript">
+function confirm_delete(mac) {
+  return confirm("Are you sure you want to delete " + mac + "?");
+}
+</script>
+</%method>
+

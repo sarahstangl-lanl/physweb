@@ -1,0 +1,46 @@
+<%doc>
+   Component: auth_register.comp
+        Date: 9/2/2002
+      Author: allan
+ Description: registers a login in the session hash
+</%doc>
+
+<%args>
+$x500=>undef
+$physid=>undef
+</%args>
+
+<%init>
+undef($session{'uid'});
+undef($session{'x500'});
+undef($session{'physid'});
+undef($session{'shibauth'});
+undef($session{'physauth'});
+undef($session{'display_name'});
+
+$session{'physauth'} = 1;
+
+my $uid;
+
+if (defined($x500)) {
+  $session{'x500'} = $x500;
+
+  my $query = $dbh->prepare('SELECT uid, physid FROM directory WHERE x500=? LIMIT 1');
+  $query->execute($x500);
+  if (my $result = $query->fetchrow_arrayref()) {
+    ($uid, $physid) = @$result;
+    $session{'physid'} = $physid;
+    $session{'uid'} = $uid;
+  }
+} elsif (defined($physid)) {
+  $session{'physid'} = lc $physid;
+
+  my $query = $dbh->prepare('SELECT uid, x500 FROM directory WHERE physid=? LIMIT 1');
+  $query->execute($physid);
+  if (my $result = $query->fetchrow_arrayref()) {
+    ($uid, $x500) = @$result;
+    $session{'x500'} = $x500;
+    $session{'uid'} = $uid;
+  }
+}
+</%init>

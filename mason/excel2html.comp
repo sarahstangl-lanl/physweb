@@ -1,0 +1,47 @@
+<%doc>
+   Component: excel2html.comp
+        Date: 8/8/2003
+      Author: allan
+ Description: convert Excel to HTML
+
+ Note, at present this needs a filename passed in,
+ rather than the file contents...
+</%doc>
+
+<%args>
+$excel=>''
+</%args>
+
+<%init>
+use Spreadsheet::ParseExcel;
+use OLE::Storage_Lite;
+
+my $oExcel = new Spreadsheet::ParseExcel;
+my $oBook = $oExcel->Parse($excel);
+my ($iR, $iC, $oWkS, $oWkC);
+my $thiscell;
+my $html;
+
+for (my $iSheet= 0; $iSheet < $oBook->{SheetCount} ; $iSheet++)
+ {
+ $oWkS = $oBook->{Worksheet}[$iSheet];
+ # first sheet...
+ $html .= "<table>\n";
+ for ($iR = $oWkS->{MinRow}; defined $oWkS->{MaxRow} && $iR <= $oWkS->{MaxRow} ; $iR++)
+ {
+  $html .= "<tr>\n";
+  for ($iC = $oWkS->{MinCol} ; defined $oWkS->{MaxCol} && $iC <= $oWkS->{MaxCol} ; $iC++)
+  {
+   $oWkC = $oWkS->{Cells}[$iR][$iC];
+   if($oWkC) {$thiscell = $oWkC->Value;} else {$thiscell = "";}
+   $html .= "<td>".$thiscell."</td>\n";
+  } # end of columns loop
+  $html .= "</tr>\n";
+ } # end of rows loop
+  $html .= "</table>\n";
+} # end of sheets loop
+</%init>
+
+<%perl>
+return $html;
+</%perl>

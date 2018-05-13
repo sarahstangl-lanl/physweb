@@ -1,0 +1,39 @@
+<%DOC>
+   Component: uid_to_displayemail.comp
+        Date: 2008.08.20
+      Author: clayton
+     Changed: 2008.08.20 by clayton
+
+Description ... 
+</%DOC>
+
+<%args>
+$uid=>$session{'uid'}
+</%args>
+
+<%init>
+  die "Missing uid" if !$uid;
+  my $email = $m->cache->get($uid);
+  if (!defined($email) && ($uid) && defined($dbh)) {
+    my $sth = $dbh->prepare('SELECT email FROM directory WHERE uid = ? LIMIT 1');
+    $sth->execute($uid);
+    if (my $row_ref = $sth->fetchrow_arrayref()) {
+      ($email) = @$row_ref;
+    }
+    if (!$email) {
+      $email = $m->comp('uid_to_x500.comp', uid=>$uid);
+      if ($email) {
+        $email .= '@umn.edu';
+      } else {
+        $email = $m->comp('uid_to_physid.comp', uid=>$uid);
+        if ($email) { $email .= '@physics.umn.edu'; }
+      }
+    }
+    $m->cache->set($uid,$email,($email ? '5 min' : '1 min'));
+  }
+  return $email;
+</%init>
+
+<%filter>
+s/.//go
+</%filter>

@@ -1,0 +1,67 @@
+<%doc>
+   Component: x500.comp
+        Date: 9/2/2002
+      Author: allan
+ Description:  validates x500 username/pw, returns 1 or 0
+</%doc>
+
+<%args>
+$user
+$pw
+$extret
+</%args>
+
+<%init>
+my $x500_server = "x500.tc.umn.edu";
+my $x500_port   = 87;
+my $x500_class  = "valid";
+my $proto = getprotobyname('tcp');
+my ($null, @addrs, $paddr, $oldfh, $response, $read, $sock, $write);
+my $buf = "";
+my $return;
+my $status = "no status";
+my $extreturn;
+
+  # note: we don't pull these out of here for a reason:
+  # when x.500 servers go up and down, their A records are removed
+  # or added to the DNS.  thus, we should do a fresh lookup for
+  # every verify.
+
+  # actually, a little bit of caching might be reasonable for success/
+  # failure of individual username/password pairs, just not for X.500
+  # IP addresses.
+
+  if (!($sock = IO::Socket::SSL->new(PeerAddr => $x500_server, PeerPort => $x500_port, Proto => 'tcp', SSL_use_cert => 0, SSL_verify_mode => 0x0))) {
+    $status="unable to connect to ".$x500_server;
+    $extreturn = 'CONNFAIL';
+  } else {
+    $write = "$x500_class\t$user\t$pw\n";
+    $sock->write($write,length($write));
+    $read = $sock->read($response, 2);
+    $sock->close();
+    chomp $response;
+    if ($response =~ /^OK/) {
+      # success!
+      $return=1;
+      $status="login ok";
+    } elsif ($response =~ /^NO/) {
+      # authoritative no
+      $return=0;
+      $status="login failure: ".$response;
+    }
+  }
+  # tried all servers and failed... make a note of it
+
+#if ($pw eq "testing!!") {
+#  $return=1;
+#  $status = "testing backdoor!";
+#}
+
+$m->comp('/mason/db/auditlog/addevent.comp', type=>"login", user=>$user, text=>$status);
+
+$$extret = $extreturn;
+</%init>
+
+<%perl>
+    return $return;
+</%perl>

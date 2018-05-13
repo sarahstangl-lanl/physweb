@@ -1,0 +1,129 @@
+<%args>
+    $ts
+    %auths
+</%args>
+
+<%method title>Statistics</%method>
+
+<%init>
+    if (!$auths{'appointment'} && !$auths{'progreport'}) { $m->redirect('index.html'); }
+
+    my %stats;
+    my %stats_by_cat;
+    
+    my %value_map = (
+        '1/8' => 0.5,
+        '1/4' => 0.5,
+        '3/8' => 1,
+        '1/2' => 1,
+    );
+        
+    my @certainties = (
+        'final',
+        'semifinal',
+        'uncertain'    
+    );
+    
+    my %table;
+    $ts->{no_limit} = 1;
+    $ts->{include_hidden} = 1;
+    $ts->dump(\%table);
+    
+    # Should really do a grouping query for this, but I am a horrible person...
+    
+    foreach my $row (@{$table{'data'}}) {
+        my $i;
+        my %vars = map { $table{'header'}[$i++]{'name'} => $_ } @$row;
+        
+        $stats{'ta_amt'}{$vars{'ta_amt'}}++;
+        $stats{'ra_amt'}{$vars{'ra_amt'}}++;
+        $stats{'fellowship'}{$vars{'fellowship'}}++;
+        
+        $stats_by_cat{'ta_amt'}{$vars{'ta_amt'}}{$vars{'certainty'}}++;
+        $stats_by_cat{'ra_amt'}{$vars{'ra_amt'}}{$vars{'certainty'}}++;
+        $stats_by_cat{'fellowship'}{$vars{'fellowship'}}{$vars{'certainty'}}++;
+    }
+    
+    sub val_or_zero {
+        my $val = shift;
+        return ($val ? $val : 0);
+    }
+    
+    my $print_cat = sub {
+        my $name = shift;
+        my $total_count = 0;
+        my $total_value = 0;
+        my %cat_counts;
+        my %cat_totals;
+        
+        print '<table><tr><th>Value</th><th>Count</th><th>Totals</th>';
+        
+        foreach my $certainty (@certainties) {
+            print '<th>' . ucfirst($certainty) . ' Count</th>';
+            print '<th>' . ucfirst($certainty) . ' Total</th>';
+        }
+        
+        print '</tr>';
+        
+        foreach my $val (keys %{$stats{$name}}) {
+            if (!$val) { next; }
+            
+            my $value = $stats{$name}{$val} * $value_map{$val};
+        
+            print '<tr><td>';
+            if ($val ne '') {
+                print $m->interp->apply_escapes($val, 'h');
+            } else {
+                print '<i>none</i>';
+            }
+            
+            print '</td><td>';
+            
+            print $m->interp->apply_escapes($stats{$name}{$val}, 'h');
+            print '</td><td style="border-right: 1px solid black">';
+            print $m->interp->apply_escapes($value, 'h');
+            print '</td>';
+            
+            foreach my $certainty (@certainties) {
+                print '<td>';
+                print $m->interp->apply_escapes(val_or_zero($stats_by_cat{$name}{$val}{$certainty}), 'h');
+                print '</td><td>';
+                print $m->interp->apply_escapes(val_or_zero($stats_by_cat{$name}{$val}{$certainty}) * $value_map{$val}, 'h');
+                print '</td>';
+                $cat_counts{$certainty} += $stats_by_cat{$name}{$val}{$certainty};
+                $cat_totals{$certainty} += $stats_by_cat{$name}{$val}{$certainty} * $value_map{$val};
+            }
+            
+            print '</tr>';
+            
+            $total_count += $stats{$name}{$val};
+            $total_value += $value;
+        }
+        
+        print '<tr><td><b>total</b></td>';
+        print '<td>' . $total_count . '</td><td>' . $total_value . '</td>';
+        foreach my $certainty (@certainties) {
+            print '<td>' . val_or_zero($cat_counts{$certainty}) . '</td>';
+            print '<td>' . val_or_zero($cat_totals{$certainty}) . '</td>';
+        }
+        print '</tr>';
+        
+        print '</table>';
+    };
+</%init>
+
+<h3>TA</h3>
+% $print_cat->('ta_amt');
+
+<h3>RA</h3>
+% $print_cat->('ra_amt');
+
+<h3>Fellowship</h3>
+% $print_cat->('fellowship');
+
+<br/><small>
+Value Mapping: 
+
+% my $first = 1;
+% foreach my $key (keys %value_map) { print((!$first ? ', ' : '') . $key . ' -> ' . $value_map{$key}); $first = 0; }
+</small>

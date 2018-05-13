@@ -1,0 +1,22 @@
+<%doc>
+   Component: auth_check_profile.comp
+        Date: 9/2/2002
+      Author: allan
+ Description: checks if the user has access to edit the profile of $uid, returns 0 or 1
+              NOTE the uid arg is the profile ID to check
+</%doc>
+
+<%args>
+$uid
+</%args>
+
+<%init>
+my $auth = $m->comp('/mason/auth/auth_check.comp', auth_type => [ 'profiles', 'directory', 'sysadm' ]); #everyone with dir should also be able to edit profiles...
+my $user = $session{'uid'};
+if (  (length($user)>0) && ($user eq $uid)  ) {
+   $auth=1;
+}
+</%init>
+<%perl>
+return $auth;
+</%perl>

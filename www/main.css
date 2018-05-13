@@ -1,0 +1,721 @@
+a:link, a:visited {
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+a.selected {
+  text-decoration: underline;
+}
+.contentblock a:link, .contentblock a:visited {
+    color: #009;
+}
+.contentblock a:hover {
+    color: #00D;
+}
+tr.odd {
+   background-color: #EEE;
+}
+td.odd {
+   background-color: #EEE;
+}
+
+tr.new {
+   background-color: #EEF;
+}
+
+tr.tablehead, .tablehead {  /* EG, name, position, phone in people */
+    background: #999;
+    text-align: left;
+}
+
+tr.tablehead2, .tablehead2 { /* EG, the alphabet links in people */
+    background: #CCC;
+}
+
+th.tableheader { /* tablesearch headers */
+    text-align:left;
+}
+td.tableitem { /* tablsearch row tds */
+    vertical-align: top;
+}
+
+.tablesearch_section_header { background-color: #DDF; font-style: italic; }
+.tablesearch_section_footer { background-color: #FFF; font-style: italic; }
+.tablesearch_section_header TD { border: 1px groove #99F; }
+.tablesearch_section_footer TD { border-bottom: 2px dotted black; }
+
+table.net-registration td {
+    border-bottom: 1px dashed #AAA;
+}
+
+table.net-interfaces td {
+    border-bottom: 1px dashed #AAA;
+}
+
+div#people_menu h2 {
+   display: inline;
+   padding-left: 1em;
+   padding-right: 1em;
+}
+
+/* featured items */
+img.feature {
+  margin: 0;
+  padding: 0;  /* left/right Gets overridden by feature.comp's html */
+  float: left; /* Gets overridden by feature.comp's html */
+}
+div.feature {
+  background: #400;
+  margin: 0;
+  padding: 0;
+  font-size: small;
+  color: #cf9c34;
+  margin-bottom: 1em;
+}
+div.featureheadertext h2{
+  color: white;
+  margin-bottom: 1em !important;
+}
+div.featureheadertext {
+  padding: 10px;
+  padding-top: 5px;
+}
+div.featurelinkbox {
+  text-align: right;
+  padding-right: 10px;
+}
+
+/* News / feature / event / etc database */
+div.story {
+  clear: both;
+}
+
+div.story div.story_info {
+   font-size: 0.8em;
+   float: right;
+   text-align: right;
+   padding-right: 1em;
+   clear: right;
+}
+div.story span.story_thumb {
+  float: left;
+  padding-right: 1em;
+  padding-top: 1em;
+}
+div.story div.edit_story {
+  display: inline;
+}
+
+div.story_pagelinks {
+  float: right;
+  font-size: 0.8em;
+}
+
+/* Class pages */
+
+table.classitem {
+    clear: both;
+}
+
+div.classheading {
+    float: right;
+    border: 1px solid black /*#99F*/;
+    margin: 0;
+    padding: 0.5em 1em 0.5em 1em;
+    background: #ffd;
+}
+
+div.classheading .info {
+   font-size: 80%;
+   color: #777;
+}
+
+div.classheading ul.classheading {
+   list-style-type: none;
+   padding: 0;
+   margin: 0;
+}
+
+div.classheading ul.classheading .selected {
+  font-weight: bold;
+}
+
+h4.courses {
+   padding-top: 0;
+   margin-top: 0;
+   clear: none;
+}
+
+#page table.killedpost {
+  color: #888;
+}
+
+#page table.draftpost th {
+  background-color: #F9F3D4;
+}
+
+#page table.classitem td.emptytag {
+    width: 2em;
+}
+
+#page table.classitem td.itemtag {
+    color: black;
+    font-family: Avant Garde;
+    font-weight: bold;
+    background-color: #F9F3D4;
+    width: 3em;
+    overflow: hidden;
+    -moz-border-radius-bottomleft:15px;
+    -moz-border-radius-bottomright:0;
+    -moz-border-radius-topleft:15px;
+    -moz-border-radius-topright:0;
+}
+
+#page table.classitem td.itemtag img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+}
+
+#page table.classitem ul {
+    list-style: none;
+}
+
+#page div.class_wiki h1 {
+   font-size: 140%;
+   font-weight: bold;
+}
+#page div.class_wiki h2 {
+   font-size: 130%;
+   font-weight: bold;
+}
+#page div.class_wiki h3 {
+   font-size: 120%;
+   font-weight: bold;
+}
+#page div.class_wiki h4 {
+   font-size: 110%;
+   font-weight: bold;
+}
+#page div.class_wiki h5 {
+   font-size: 100%;
+   font-weight: bold;
+}
+#page div.class_wiki h6 {
+   font-size: 110%;
+   font-weight: bold;
+}
+
+#page div.researchwikitext, #page div.wikitext {
+   display: inline !important;
+}
+#page div.wikitext h1 {
+   font-size: 12pt;
+   font-weight: bold;
+}
+#page div.wikitext h2 {
+   font-size: 10pt;
+   font-weight: bold;
+}
+#page div.wikitext h3 {
+   font-size: 10pt;
+   font-weight: bold;
+   font-style: italic;
+}
+#page div.wikitext h4 {
+   font-size: 9pt;
+   font-weight: bold;
+}
+#page div.wikitext h5 {
+   font-size: 8pt;
+   font-weight: bold;
+}
+
+/* magicrows */
+
+table.rowmagic td {
+   -moz-user-select: none;
+   -khtml-user-select: none;
+    user-select: none;
+}
+
+table.rowmagic tr.odd:hover td,
+table.rowmagic tr.even:hover td,
+table.rowmagic tr.magic:hover td {
+    background:   #FFCC33/*#CCFFCC*/;
+    color:   #000000;
+}
+
+/* search box in admin users tool */
+.adminusersearchbox {
+  /*border: 1px solid black;
+  background-color: #eee;*/
+  clear: both;
+  /*
+  margin-left: 2em;
+  margin-right: 2em;
+  margin-bottom: 0.2em;
+  */
+}
+
+/* featured color bar story */
+table.feature {
+    background: #400;
+    padding:0;
+    margin:0;
+    border: none;
+}
+table.feature td {
+    padding:0;
+    margin:0;
+}
+img.featImage {
+  padding: 0; margin: 0;
+}
+div.featText {
+  background: #400;
+  padding: 0.5em;
+  padding-bottom: 0;
+  font-size: small;
+  color: #cf9c34;
+  line-height: 16px;
+}
+div.featHeadline h2{
+  color: white;
+  padding:0;
+  margin:0;
+  padding-top:0;
+  margin-top:0;
+  padding-top: 10px;
+  line-height: 28px;
+}
+
+div.featHeadline {
+    padding-top:0;
+    margin-top:0;
+}
+
+div.featText, div.featHeadline {
+    margin:0;
+    padding: 0;
+    padding-left: 0.5em;
+}
+
+div.featLinkBox {
+  text-align: right;
+  padding:0;
+  margin:0;
+  padding-right: 10px;
+  padding-bottom: 0.5em;
+}
+
+div.featNavBox {
+  color: white;
+  float: right;
+  padding-right: 1em;
+}
+div.featNavBox a:link,
+div.featNavBox a:visited,
+div.featNavBox a:active
+{
+  color: white;
+  font-size: 1.4em;
+  margin-left: 2px;
+  margin-right: 2px;
+}
+
+div.featText a:link,
+div.featText a:visited,
+div.ffeaturelinkbox a:link.featLink,
+div.ffeaturelinkbox a:visited.featLink,
+div.feature a:hover, /* ?? */
+a:link.featLink,
+a:visited.featLink,
+a:hover.featLink
+{
+ color: white;
+}
+
+/* FormBuilder stuffs for /mason/db/form.comp */
+div.fb_form_container {
+    background: #e9e9e9;
+    border-radius: 15px;
+    padding: 0.5em 2em;
+    margin-top: 1.0em;
+    margin-right: 1em;
+    width: auto;
+    max-width: 70em;
+    border: 2px solid #999;
+}
+
+div#page div.fb_form_container p:before {
+    content: "(";
+}
+div#page div.fb_form_container p:after {
+    content: ")";
+}
+
+form.fb_form tr {
+    border: 1px solid black;
+}
+form.fb_form td.fb_label {
+   width: 20em;
+   min-width: 20em;
+   font-weight: 600;
+   text-align: right;
+   padding-right: 1em;
+   vertical-align: top;
+   /*text-transform: capitalize; */
+}
+
+form.fb_form td.fb_label:after {
+    /* content: ":"; */
+}
+form.fb_form td.fb_field {
+   /*width: 100%;*/
+   /*vertical-align: bottom; */
+   vertical-align: top;
+   padding-bottom: 0.5em;
+}
+
+form.fb_form span.fb_comment {
+    clear: left;
+    display: block;
+}
+
+form.fb_form label.fb_option {
+    font-size: 1.1em;
+}
+
+form.fb_form td.fb_field textarea,
+form.fb_form td.fb_field input.fb_text {
+    text-align: left;
+    /*width: 100%;*/
+    width: 30em;
+}
+.fb_required {
+    font-weight: 600;
+    /*color: #400;*/
+   /* line-height: 13px; */
+}
+.fb_required:after {
+    content: " *";
+    color: red;
+    font-weight: bold;
+}
+.fb_invalid {
+    font-weight: bold;
+    background: #F55;
+}
+.fb_invalid:before {
+    content: url(/images/a_ar_right_black.gif);
+    font-weight: bold;
+}
+.fb_message {
+    font-weight: bold;
+    color: #F55;
+    /* line-height: 13px; */
+}
+
+/* InPlaceEditor.js */
+.inplaceeditable {
+    border-bottom: 1px dotted black;
+}
+.inplaceeditable-empty {
+    color: #AAA;
+    font-style: italic;
+}
+
+textarea.hinted {color:#aaa;}
+input.hinted {color:#aaa;}
+
+/* For /mason/ajax/editor_toolbar.comp */
+
+button.toolbutton
+{
+    background-color: #ffffff;
+    padding-top: 0px;
+    padding-right: 0px;
+    padding-bottom: 0px;
+    padding-left: 0px;
+    margin-top: 0pt;
+    margin-right: 1px;
+    margin-bottom: 0pt;
+    margin-left: 0pt;
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-left-width: 1px;
+    border-top-style: solid;
+    border-right-style: solid;
+    border-bottom-style: solid;
+    border-left-style: solid;
+    border-top-color: #000000;
+    border-right-color: #000000;
+    border-bottom-color: #000000;
+    border-left-color: #000000;
+    cursor: pointer;
+}
+
+html > body button.toolbutton
+{
+    background-color: #ffffff;
+    background-image: url(/images/wiki_toolbar/buttonshadow.png);
+    background-repeat: repeat-x;
+    background-attachment: scroll;
+    background-x-position: center;
+    background-y-position: bottom;
+}
+
+#toolbar.disabled button.toolbutton
+{
+    border-color: #666;
+}
+
+#toolbar.disabled button.toolbutton img {
+    opacity: 0.4;
+}
+
+/* For /mason/ajax/image_manager.comp */
+
+.imagepick {
+  padding: 4px;
+  float: left;
+}
+
+.imagepick:hover {
+  background-color: #eeeeee;
+}
+
+.imagepick div {
+  border: 2px solid white;
+}
+
+.imagepick div:hover {
+  border: 2px solid grey;
+}
+
+/*
+** Complete People/Accounts CSS
+*/
+
+div.auto_complete {
+  position:absolute;
+  width:250px;
+  background-color:white;
+  border:1px solid #888;
+  margin:0px;
+  padding:0px;
+  z-index: 200;
+}
+ul.contacts, ul.customers, ul.accounts, ul.jobs, ul.addresses {
+  list-style-type: none;
+  margin:0px;
+  padding:0px;
+}
+ul.customers, ul.accounts, ul.jobs, ul.addresses {
+  cursor: pointer;
+}
+ul.contacts li.selected, ul.customers li.selected, ul.jobs li.selected, ul.accounts li.selected { background-color: #ffb; }
+li.contact, li.customer, li.account, li.job, li.addresses {
+  list-style-type: none;
+  display:block;
+  margin:0;
+  padding:2px;
+  min-height:2em;
+}
+li.account {
+  height:55px;
+}
+li.contact div.image {
+  float:left;
+  width:32px;
+  height:32px;
+  margin-right:8px;
+}
+li.contact div.name {
+  font-weight:bold;
+  font-size:12px;
+  line-height:1.2em;
+}
+li.contact div.email {
+  font-size:10px;
+  color:#888;
+}
+li.customer div.name, li.account div.name, li.job div.name, li.address div.company {
+  font-weight:bold;
+/*  font-size:12px; */
+  line-height:1.3em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+li.customer div.email, li.account td, li.job span.contact, li.address span.lines {
+/*  font-size:10px;
+  color:#888; */
+}
+/*
+** Editable Drop-Down
+*/
+
+div.editabledrop {
+  position:absolute;
+  width:250px;
+  max-height:200px;
+  overflow-y: auto;
+  background-color:white;
+  border:1px solid #888;
+  margin:0px;
+  padding:0px;
+  z-index: 200;
+}
+div.editabledrop ul  {
+  list-style-type: none;
+  margin:0px;
+  padding:0px;
+  width:100%;
+}
+div.editabledrop ul li.selected { background-color: #ffb; }
+div.editabledrop li {
+  list-style-type: none;
+  display:block;
+  margin:0;
+  padding:2px;
+  padding-right: 15px;
+}
+
+/* RowEditor */
+
+.roweditor-editing {
+    background-color: rgb(225, 202, 47) !important
+}
+
+.roweditor-checkbox { margin: 1px 4px 0 4px; }
+
+/* shopdb */
+
+.shopdb-readonly {
+    background-color: #EEE
+}
+
+.shopdb-job-search .button {
+    border: 1px solid black;
+    font-size: 12px;
+    padding: 0 3px 1px 3px;
+}
+
+.shopdb-job-search .button:hover {
+    background-color: #FEFEFE;
+}
+
+#shopdb-page { position: relative; min-width: 600px; padding-left: 325px; padding-bottom: 25px; }
+#shopdb-header, #shopdb-footer { margin-left: -325px; }
+#shopdb-job-info-pane { max-width: 325px; min-width: 325px; width: 325px; left: 0; margin-left: -325px; }
+#shopdb-job-charge-lines { width: 100%; }
+#shopdb-footer { clear: both; }
+.shopdb-column { position: relative; float: left; }
+.shopdb-section-header {
+    font-size: 1.4em;
+    border: 2px groove black;
+    padding: 5px;
+    margin-bottom: 3px;
+    text-align: left;
+    display: block;
+}
+.shopdb-section {
+    margin: 5px 12px 10px 3px;
+}
+.shopdb-job-info-pane-table { width: 300px; min-width: 300px; max-width: 300px; }
+.shopdb-job-info-pane-table TH { text-align: right; vertical-align: top; max-width: 120px; min-width: 120px; width: 120px; padding-right: 8px; }
+.shopdb-job-info-pane-table TD { word-wrap: break-word; max-width: 173px; min-width: 173px; width: 173px; }
+#shopdb-job-details { padding-left: 0; }
+#shopdb-job-details-edit {
+    background-color: #EEE;
+    position: absolute;
+    padding: 5px 25px 5px 25px;
+/*    -moz-border-radius: 15px;*/
+    border: 2px solid black;
+    z-index: 1;
+    display: none;
+}
+/*#shopdb-job-details-edit-table TBODY > TR > TD > TABLE > TBODY > TR > TD:first-child { min-width: 125px; }*/
+#shopdb-job-details-close-icon {
+    position: absolute;
+    top: -15px;
+    right: -15px;
+    cursor: pointer;
+}
+#shopdb-job-summary { }
+.shopdb-job-summary-table TD:last-child { padding-right: 15px; }
+.shopdb-job-summary-table TH { text-align: right; vertical-align: top; white-space: nowrap; padding: 3px 8px 3px 20px; }
+.shopdb-job-summary-table TD { text-align: right; padding-left: 5px; }
+#shopdb-job-labor-lines { }
+#shopdb-job-material-lines { }
+div.error_message, span.error_message { color: red; }
+
+/* Scheduler-specific CSS */
+tr.schedulerOdd {
+    background-color: #EEEEEE;
+}
+tr.schedulerEven {
+    background-color: #FFFFFF;
+}
+td.schedulerLabel {
+    width: 8em;
+}
+td.schedulerX500 {
+    width: 15em;
+    text-align: center;
+}
+td.schedulerLocation {
+    width: 10em;
+}
+td.schedulerPhone {
+    width: 10em;
+}
+td.schedulerComment {
+    width: 20em;
+}
+table.efs_chartstring {
+    width: 260px;
+}
+table.efs_chartstring th {
+    font-size: 13px;
+    text-align: left;
+    min-width: 0;
+    max-width: auto;
+    width: auto;
+}
+table.efs_chartstring td {
+    font-size: 13px;
+    text-align: left;
+    min-width: 0;
+    max-width: auto;
+    width: auto;
+}
+table.efs_chartstring td.efs_fund {
+    width: 55px;
+}
+table.efs_chartstring td.efs_deptid {
+    width: 55px;
+}
+table.efs_chartstring td.efs_prgm {
+    width: 75px;
+}
+table.efs_chartstring td.efs_proj {
+    width: 75px;
+}
+table.efs_chartstring td.efs_emplid {
+    width: 80px;
+}
+table.efs_chartstring td.efs_cf1 {
+    width: 90px;
+}
+table.efs_chartstring td.efs_cf2 {
+    width: 90px;
+}
+table.shopdb-job-info-pane-table table.efs_chartstring tr {
+    line-height: 0.9em;
+}

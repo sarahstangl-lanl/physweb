@@ -1,0 +1,69 @@
+<%DOC>
+   Component: audits.html
+        Date: 2008.07.30
+      Author: nick
+     Changed: 2008.07.30 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp');
+my $manager = $m->comp("/mason/auth/auth_check_gradapp_mgr.comp");
+unless ($manager) {
+    print "You do not have access to this page. You must be a manager of the gradapp group.";
+    return;
+}
+</%INIT>		
+
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+             table               => 'auditlog',
+             joins               => [
+                                        directory => 'directory.uid = auditlog.directory_uid',
+                                    ],
+             field_list          => [
+                        'timestamp',
+                        'user', 
+                        'concat(directory.last_name, \', \', directory.first_name) as Actor',
+                        'directory_uid',
+                        'text', 
+                        ],
+             field_params        => {
+                                      'timestamp'  => {
+                                            name => 'Time',
+                                            'nowrap' => 1,
+                                      },
+                                      'user'       => {
+                                            name => "Advisor",
+                                      },
+                                      'text'       => {
+                                            name => "Log",
+                                            'data_format' => sub { 
+                                                    my ($text) = @_; 
+                                                    $text = $m->interp->apply_escapes($text); 
+                                                    $text =~ s/\n/<br>/g; 
+                                                    return $text; 
+                                            },
+                                      },
+                                      'actor'   => {
+                                            'nowrap'=> 1,
+                                            'data_format' => sub {
+                                                my ($value, $foo, $row) = @_;
+                                                return "<a href=\"report_form.html?uid=".$row->{'directory_uid'}."\">$value</a>";
+                                            },
+                                      },
+                                      'directory_uid' => {
+                                            'hidden' => 1,
+                                      },
+                                    },
+             header_format       => 'ucfirst',
+             default_sort_field  => 'timestamp',
+             default_sort_dir    => 'desc',
+             #filter_field        => 'user',
+             where => ['type = \'gradreview\''],
+        );
+</%perl>

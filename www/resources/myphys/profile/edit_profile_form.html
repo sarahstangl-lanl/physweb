@@ -1,0 +1,106 @@
+<%doc>
+         vim: set syntax=mason:
+   Component: edit_profile_form.html
+        Date: 8/30/2002
+      Author: allan
+ Description: edit a profile
+</%doc>
+
+<%args>
+$uid=>''
+</%args>
+
+<%init>
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+my $access = $m->comp('/mason/auth/auth_check_profile.comp', uid=>$uid);
+if($uid && $uid ne $session{'uid'}) {
+    if(!$access) {
+        # passed in a uid but don't have auth!
+        $m->redirect("/resources/myphys/");
+    }
+} 
+else {
+   $uid = $session{'uid'};
+}
+
+if(!$uid) {
+    $m->redirect("/resources/myphys/");
+}
+
+# Fetch directory info (name, and stuff the user can edit)
+my $sql = "SELECT last_name, first_name, physid, x500, email,  www, address, home_phone FROM directory WHERE uid = ? LIMIT 1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($uid);
+
+my $row_ref = $sth->fetchrow_arrayref;
+my ($lastname, $firstname, $physid, $x500, $email, $www, $address, $home_phone) = @$row_ref;
+
+# now fetch the profile info...
+
+$sql = "SELECT bio, education, collaborators, positions, honors, memberships, service, summary, filename, mime_type FROM profiles WHERE uid = ? LIMIT 1";
+$sth = $dbh->prepare($sql);
+$sth->execute($uid);
+
+my $profile_row = $sth->fetchrow_arrayref;
+my ($bio, $education, $collaborators, $positions, $honors, $memberships, $service, $summary, $filename, $mime_type);
+if (defined($profile_row)) {
+  ($bio, $education, $collaborators, $positions, $honors, $memberships, $service, $summary, $filename, $mime_type) = @$profile_row;
+}
+
+</%init>
+
+<h2 title>Edit Biographical Information</h2>
+<%method login></%method>
+
+%# if (!$access) {$m->comp('/mason/redirect.comp',url=>"/resources/myphys/");}
+
+<h3><% $firstname|h %> <% $lastname|h %></h3>
+
+<table border=0>
+
+<tr><th bgcolor="#eeeeee" align="left">Photo</th></tr>
+<tr><td><small>Please provide a small-ish photo, size not more than about 250x300 pixels, in jpeg, gif or png format.<br/>The photo should be of yourself; please don't upload joke photos, avatars, etc.</small></td></tr>
+<tr><td>
+% $m->comp('/mason/db/images/insert_image_form.comp', category=>'profiles', parentid=>$uid, alttype=>'hidden', captiontype=>'hidden', credittype=>'hidden');
+</td></tr>
+
+<tr><td>
+<form enctype="multipart/form-data" method="POST" action="edit_profile.html?foo=bar_body">
+<input type=hidden name="uid" value="<% $uid %>">
+<input type=hidden name="physid" value="<% $physid %>">
+</td></tr>
+
+<tr><th bgcolor="#eeeeee" align="left">About Me</th></tr>
+<tr><td><small>This should be a brief biographical introduction, written for the general reader</small></td></tr>
+<tr><td>
+<textarea name="bio" cols="70" rows="10" wrap="virtual"><% $bio |h%></textarea>
+</td></tr>
+
+<tr><th bgcolor="#eeeeee" align="left">Education</th></tr>
+<tr><td><small>A list of one item per line</small></td></tr>
+<tr><td>
+<textarea name="education" cols="70" rows="3" wrap="virtual"><% $education |h %></textarea>
+</td></tr>
+
+<tr><th bgcolor="#eeeeee" align="left">Curriculum Vitae</th></tr>
+<tr valign="top"><td>
+File Upload (PDF format): <input type=file name="filedata" size=40>
+% if ($filename) {
+<br />
+Current file: <% $filename|h %>, of type <% $mime_type|h %>
+% }
+
+</td></tr>
+<tr><th bgcolor="#eeeeee" align="left">Override Advisees and Collaborators</th></tr>
+<tr><td><small>A list of one person per line. Leave blank to use automatically generated list.</small></td></tr>
+<tr><td>
+<textarea name="collaborators" cols="70" rows="3" wrap="virtual"><% $collaborators|h %></textarea>
+</td></tr>
+
+<tr><td>
+<input type=submit value="Update the profile"> 
+<input type=reset value="Undo any changes">
+</form>
+</td></tr>
+</table>

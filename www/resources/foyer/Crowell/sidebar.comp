@@ -1,0 +1,16 @@
+<%doc>
+vim:set syntax=mason:
+</%doc>
+<%method backgroundcolor>#99CCFF</%method>
+    <h1>Crowell Research Group</h1>
+    <!--<h2>Physics and Nanotechnology Building</h2>-->
+    Professor Paul Crowell  and his group examine the role of non-equilibrium effects in spin transport in hybrid ferromagnet/semiconductor structures.
+    The materials development for this work is carried out in collaboration with Chris Palmstrom’s group at UCSB, who is a collaborator in the University
+    of Minnesota MRSEC.  In recent years, Professor Crowell’s group succeeded in fabricating simple devices that can be used to test theories of spin transport across interfaces as well as of spin dynamics in the presence of spin-orbit and hyperfine interactions.  Similar questions, particularly about the role of interfaces, appear in studies of spin transport in all-metalic heterostructures, a research project 
+
+
+    <div id="sideiconblock" style="position: absolute; top: 750px; right:0px; text-align: center; width: 100%;">
+     
+      
+    </div>
+

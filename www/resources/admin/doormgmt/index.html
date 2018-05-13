@@ -1,0 +1,224 @@
+
+<%DOC>
+   Component: index.html
+        Date: 2008.05.03
+      Author: nick
+     Changed: 2008.05.03 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  @selected => ()
+  $generate => undef
+  $mark_dirty => undef
+  $select_changed => 1
+</%ARGS>
+
+<%INIT>
+use tablesearch;
+use ToUplink;
+use physdb;
+use physdb::doorlocks;
+
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $manager_auth = $m->comp('/mason/auth/auth_check_door_mgr.comp');
+my $directory_auth = $m->comp('/mason/auth/auth_check_directory.comp');
+
+unless ($admin_auth || $manager_auth || $directory_auth) {
+    $m->comp('/mason/notice_box.comp', text => '', html => '<h2>You do not have permission to view doorlock information</h2>');
+    return;
+}
+
+my @msgs;
+
+if ($admin_auth && $generate) {
+
+    # Map door names to Doorlocks objects
+    if (@selected) {
+        @selected = Doorlocks->new->search("`door_id` " . _in(@selected), @selected);
+    }
+    # Else select all changed doors if select_changed
+    elsif ($select_changed) {
+        @selected = Doorlocks->new->search("`needs_programming` = 1");
+    }
+
+    if (@selected) {
+        my $uplink = ToUplink->new(selected => \@selected);
+        $uplink->create_index;
+        $uplink->create_lock_files;
+    }
+    else {
+        push (@msgs, 'No doors selected');
+    }
+}
+elsif ($mark_dirty) {
+    for my $door (@selected) {
+        my $doorlock = Doorlocks->new( door_id => $door );
+        unless ($doorlock->{'loaded'}) {
+            push (@msgs, "Invalid door_id " . $door);
+            last;
+        }
+        unless ($admin_auth || $doorlock->has_manager($session{'uid'})) {
+            push (@msgs, "You do not have permission to modify doorlock " . $doorlock->get('name'));
+            last;
+        }
+        $doorlock->set( needs_programming => 1 );
+        unless ($doorlock->save) {
+            push (@msgs, $doorlock->dumperrors);
+            last;
+        }
+        $doorlock->log_changes;
+    }
+}
+
+</%INIT>
+
+<%method title>Door Management</%method>
+
+% if (@msgs) {
+    <& '/mason/notice_box.comp', text => '', html => join ('<br/>', @msgs) &>
+% }
+
+<%perl>
+
+my $ts_args = {
+        table => 'doorlocks l',
+        field_list => [
+            '"" AS edit',
+            'l.door_id',
+            'name',
+            'type',
+            'COUNT(DISTINCT m.uid) AS members',
+            'GROUP_CONCAT(DISTINCT g.groupname ORDER BY g.groupname) AS groups',
+            'GROUP_CONCAT(DISTINCT CONCAT(d.uid, ":", d.last_name, ", ", d.first_name) ORDER BY d.last_name SEPARATOR "|") AS managers',
+            'program_date',
+            'IF(needs_programming, CONCAT("Stale by ", DATEDIFF(NOW(), needs_programming_date), " days"), "Up-to-date") AS status',
+            'generate_pin',
+            'unlocktime',
+            'unlockdays',
+            'locktime',
+            'lockdays',
+        ],
+        field_params => {
+            door_id => {
+                hidden => 1,
+            },
+            edit => {
+                name => '',
+                data_format => sub {
+                    my ($value, $disp, $row) = @_;
+                    return '<input type="checkbox" class="door_checkbox" name="selected" value="' . $row->{'door_id'} . '" />';
+                },
+            },
+            name => {
+                data_format => sub {
+                    my ($value, $disp, $row) = @_;
+                    return '<a href="edit_door_form.html?door_id=' . $row->{'door_id'} . '">' . $value . '</a>';
+                },
+            },
+            type => {
+                data_format => 'ucfirst',
+            },
+            groups => {
+                data_format => sub {
+                    return join(', ', map {
+                        '<a href="/resources/myphys/groupmgmt/group_edit.html?group=' . $_ . '">' . $_ . '</a>'
+                    } split(/,/, shift));
+                },
+            },
+            managers => {
+                data_format => sub {
+                    return join('<br />', map {
+                        my ($uid, $name) = split(/:/, $_);
+                        '<a href="/resources/admin/people/user.html?uid=' . $uid .'">' . $name . '</a>';
+                    } split(/\|/, shift || ''));
+                },
+            },
+            generate_pin => {
+                name => "Door PIN?",
+                data_format => sub {
+                    my ($value, $code, $row) = @_;
+                    return 'N/A' if ($row->{'type'} eq 'proximity');
+                    return $value ? 'Yes' : 'No';
+                },
+            },
+            unlocktime => {
+                name => 'Unlock Time',
+                data_format => sub {
+                    my ($value, $disp, $row) = @_;
+                    return '' unless ($value);
+                    return $value . ' ' . $row->{'unlockdays'};
+                },
+            },
+            unlockdays => {
+                hidden => 1,
+            },
+            locktime => {
+                name => 'Lock Time',
+                data_format => sub {
+                    my ($value, $disp, $row) = @_;
+                    return '' unless ($value);
+                    return $value . ' ' . $row->{'lockdays'};
+                },
+            },
+            lockdays =>{
+                hidden => 1,
+            },
+        },
+        filter_field => 'type',
+        filter_values => [
+            [ 'magstripe' => 'Magstripe' ],
+            [ 'proximity' => 'Proximity' ],
+        ],
+        joins => [
+            'doorgroups g' => 'g.door_id = l.door_id',
+            'groupmembers m' => 'g.groupname = m.groupname OR m.groupname = "sysadm"',
+            'doormanagers n' => 'n.door_id = l.door_id',
+            'directory d' => 'd.uid = n.uid',
+        ],
+        group_by => 'GROUP BY l.door_id',
+        header_format => 'ucfirst_all',
+        default_sort_field => 'name',
+        no_limit => 1,
+#        debug => 1,
+};
+
+# Restrict list to managed doorlocks if not admin
+unless ($admin_auth) {
+    $ts_args->{where} = [ 'n.uid = ?', $session{'uid'} ];
+}
+
+# Display table
+Tablesearch->new(%$ts_args)->display;
+
+</%perl>
+
+<div style="padding: 10px;"><form action="index.html" id="new_form" method="POST" style="display:inline;">
+<a href="" onclick="return setCheckboxes(this, true)">Check All</a>&nbsp;|
+<a href="" onclick="return setCheckboxes(this, false)">Clear All</a>&nbsp;|
+<a href="" onclick="return mark_dirty()">Mark selected dirty</a>&nbsp;|
+<a href="" onclick="return generate()">Test file generation</a>
+</form></div>
+
+<%method js></%method>
+<script language="Javascript">
+    form = $('new_form');
+    function setCheckboxes(link, checked) {
+        $$('.door_checkbox').each(function(cb) { cb.checked = checked });
+        link.blur();
+        return false;
+    }
+    function mark_dirty() {
+        form.appendChild(new Element('input', { type: 'hidden', name: 'mark_dirty', value: 1 }));
+        $$('.door_checkbox').each(function (cb) { form.appendChild(cb.cloneNode(false).hide()) });
+        form.submit();
+        return false;
+    }
+    function generate() {
+        form.appendChild(new Element('input', { type: 'hidden', name: 'generate', value: 1 }));
+        $$('.door_checkbox').each(function (cb) { form.appendChild(cb.cloneNode(false).hide()) });
+        form.submit();
+        return false;
+    }
+</script>

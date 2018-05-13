@@ -1,0 +1,73 @@
+/*
+-------------------------------------------
+College of Science and Engineering Branding
+-------------------------------------------
+*/
+
+#CSEHeader {
+	display: block;
+	height: 35px;
+	background: url(cse_bg.png);
+	border-bottom: 1px solid #cb9901;
+	clear: both;
+}
+
+#CSEHeader p,#CSEHeader ol, #CSEHeader ul {font-size:97%;margin:0 0 .5em 0;}
+
+
+
+
+#CSEHeader a {color:#7a0019;}
+#CSEHeader a:link {color:#7a0019;}
+#CSEHeader a:visited {color:#7a0019;}
+#CSEHeader a:hover {color:#666699;}
+#CSEHeader a:active {color:#7a0019;}
+
+#CSEHeader ul {
+	float:left;
+	margin:0;
+	padding:0;
+}
+
+#CSEHeader li {
+	list-style:none;
+}
+
+#CSELogo {
+	margin: 0 0 0 10px;
+	height: 35px;
+	width: 300px;
+	float:left;
+	display:inline;
+	text-indent:-5000px;
+	background: url(cse_logo.png) no-repeat left;
+}
+
+#CSELinks {
+	display:block;
+	float:right;
+	padding: 0 10px 0 0;
+	font-size: 10px;
+	font-weight: normal;
+	
+}
+
+#CSELinks ul li {
+	list-style:none;
+	display:inline;
+	margin: 0 5px 0 0;
+	padding: 0 5px 0 0;
+	line-height: 35px;
+	border-right: 2px solid #d7a602;
+}
+
+#CSELinks ul li.last {
+	list-style:none;
+	display:inline;
+	margin:0;
+	padding: 0;
+	line-height: 35px;
+	border:none;
+}
+
+

@@ -1,0 +1,44 @@
+<%doc>
+         vim: set syntax=mason:
+   Component: delete_image.html
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$imageid
+$ajax => 0
+</%args>
+
+<%init>
+return if($m->comp('/mason/db/dbcheck.comp', noretry=>1));
+
+my $referer = $r->headers_in->{'Referer'};
+my $result;
+# quick basic authentication check...
+my $internal_user = $m->comp('/mason/auth/auth_check_internal.comp');
+if ($ajax && !$internal_user) { print 'NOAUTH'; return; }
+if (!$internal_user) {$m->redirect($referer);}
+
+if ($imageid) {
+  my $sql = "DELETE FROM images WHERE imageid=?";
+  my $sth = $dbh->prepare($sql);
+  my $successful_delete = $sth->execute($imageid);
+  if ($successful_delete) {
+    if ($ajax) {
+      print 'DONE'; return;
+    }
+    $m->redirect($referer);
+  } else {
+    $result = "Couldn't delete: ".$DBI::errstr;
+  }
+}
+</%init>
+
+<%method title>Image Delete Failed</%method>
+% if ($ajax) {
+FAILED <% $result %>
+% } else {
+<p>
+<% $result %>
+% }

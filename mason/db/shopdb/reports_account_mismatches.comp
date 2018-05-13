@@ -1,0 +1,54 @@
+<%args>
+$schema
+$helper_methods
+</%args>
+<%init>
+</%init>
+<h2>Jobs with Possible EFS Account Discrepancies</h2>
+<br/>
+<%perl>
+    my $dates = $m->comp('/mason/db/shopdb/date_range.comp');
+    my $start_date = $dates->{start_date};
+    my $end_date = $dates->{end_date};
+    my $date_filter = sub {
+        my $type = shift;
+        return ($dates->{url_args}->{date_filter} && $dates->{url_args}->{date_filter} eq 'Clear filter') ? ( ) : ($type . '_lines.charge_date' => { -between => [ $start_date->ymd, $end_date->ymd ] });
+    };
+    my $rs = $schema->resultset('Jobs')->search(
+    (
+        -and => [
+            -or => [
+                { 'material_lines.active' => 1, $date_filter->('material') },
+                { 'labor_lines.active' => 1, $date_filter->('labor') }
+            ],
+            -or => [
+                { 'me.account_key' => [ 'UMFIN;1026;11140;20247;;;;1000009786', 'UMFIN;1026;12155;20247;;;;' ], -not_bool => 'me.external' },
+                { 'me.account_key' => { -not_in => [ 'UMFIN;1026;11140;20247;;;;1000009786', 'UMFIN;1026;12155;20247;;;;' ] }, -bool => 'me.external' }
+            ],
+        ],
+    ),
+    {
+        '+select' => [ 'account.descr50' ],
+        '+as' => [ 'efs_account' ],
+        join => [ qw/labor_lines material_lines account/ ],
+        group_by => 'me.job_id',
+    });
+    my $ts = Tablesearch->new(
+        resultset => $rs,
+        columns => [ qw/job_id project_name account_key efs_account creation_date external/ ],
+        field_params => {
+            external => $helper_methods->checkbox,
+            project_name => $helper_methods->project_name,
+            job_id => $helper_methods->job_id,
+            efs_account => $helper_methods->account,
+            account_key => $helper_methods->account_key,
+        },
+        extra_url_args => [ grep { $_ !~ /^mismatch_/ } keys %ARGS ],
+        prefix => 'mismatch_',
+        header_format => 'ucfirst_all',
+        debug => 0,
+    );
+    $ts->display;
+</%perl>
+
+

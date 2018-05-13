@@ -1,0 +1,11 @@
+<%args>
+    $uid => $session{'uid'}
+    $year
+    $semester
+</%args>
+
+<%method title>TA Scheduling</%method>
+
+%# tascheduling/index.html still does auth checking, so okay that we don't do it here
+% if (!$uid) { $m->redirect('index.html'); }
+% $m->comp('/www/resources/myphys/grad/tascheduling/index.html', admin_year => $year, admin_semester => $semester, admin_schedule => $uid);

@@ -1,0 +1,125 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: backups.html
+   ~~NOSITEMAP~~
+</%DOC>
+
+<%ARGS>
+$user=>$session{'x500'};
+$sort=>'dhcp_flag'
+$view=>''
+$message=>''
+</%ARGS>
+
+<%INIT>
+use physdb;
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+# we will do backups for faculty, staff, research staff (postdocs),
+# and grad students.
+my $backup_ok = $m->comp('/mason/auth/check_groups.comp', allow=>['physfac', 'astrofac', 'staff', 'research', 'postdoc',  'physgrad', 'astgrad'], type=>'flags');
+my $uri = $r->uri;
+
+my $uid = $m->comp('/mason/auth/current_uid.comp');
+
+</%INIT>		
+
+<%method title>Network Backup Registration</%method>
+
+% if ($backup_ok) {
+
+<h4>Your registered devices</h4>
+
+    To request backup service for a Windows or Mac computer, first read our page <a
+    href="http://zzz.physics.umn.edu/computing/network/backups">describing the
+    backup service</a>. Once you are ready, install the Retrospect client (from the
+    <a href="/resources/computing/download/">downloads page</a>), and click on
+    "Request Backup" to fill out the backup request form.  <p>
+    <small>
+    This list of computers is taken from your <a href="myhosts.html">network
+    registrations</a>. If you don't see your computer in the list, it may be
+    registered under the wrong name or user - 
+    <a href="http://zzz.physics.umn.edu/computing/contact">let us know</a> 
+    and we will help correct it.</small> <p>
+    <%perl>
+    if ($auth) { 
+        </%perl>
+            <small>
+            <%perl>  if ($view eq "all") { </%perl>
+              <a href="<% $uri %>?view=default">View My Clients</a>
+            <%perl>  } else {</%perl>
+              <a href="<% $uri %>?view=all">View All Backup Clients</a>
+            <%perl>  }</%perl>
+            </small>
+            <br>
+        <%perl> 
+    }
+    my $query = <<"--end--";
+SELECT 
+   net_hosts.*, 
+   net_interfaces.id as interface_id, 
+   net_interfaces.hwa, 
+   net_dns.id as dns_id, 
+   net_dns.hostname, 
+   net_dns.domain,
+   inet_NTOA(net_dns.ip) as ip,
+   directory.last_name,
+   directory.first_name,
+   directory.physid,
+   directory.x500,
+   datediff(net_hosts.expires, curdate()) as exptime
+
+FROM net_hosts 
+
+LEFT OUTER JOIN net_interfaces 
+  ON net_interfaces.host_id=net_hosts.id
+
+LEFT OUTER JOIN net_dns
+  ON net_dns.interface_id=net_interfaces.id
+
+LEFT OUTER JOIN directory
+  ON net_hosts.admin_uid=directory.uid
+--end--
+    my @query_args;
+    my $where;
+    if ($auth && $view eq "all") {
+      $where = " WHERE backuppass>''";
+    } else {
+      $where = " WHERE directory.uid=?"; push @query_args, $uid;
+    }
+
+    my $hostresult = physdb::query("$query $where", @query_args);
+    </%perl>
+    <table border=0 cellpadding="5" cellspacing="0" width="100%">
+    <tr class="tablehead">
+      <th>Name</th>
+      <th>Admin</th>
+      <th>OS</th>
+      <th>Type</th>
+      <th>Backup Status</th>
+    </tr>
+    <%perl>
+    my $oddeven = "odd";
+    while(my $row = $hostresult->fetchrow_hashref()) {
+      $oddeven = ($oddeven eq "odd") ? "even" : "odd";
+      </%perl>
+        <tr class="<% $oddeven %>">
+          <td nowrap><% $row->{'computer_name'} %></td>
+          <td nowrap><% "$row->{first_name} $row->{last_name}" %></td>
+          <td nowrap><% $row->{'os'} %></td>
+          <td nowrap><% $row->{'type'} %></td>
+          <td nowrap><% ($row->{'backuppass'} ne '') ? "Yes" : "No - <a href=\"edit_backup_form.html?hostid=$row->{'id'}\">Request Backup</a>"  %></td>
+        </tr>
+      <%perl>
+    }
+    </%perl>
+    </table>
+
+<%perl>
+} else {
+    </%perl>
+    <h4>Sorry</h4>
+
+    Sorry, at this time, we are only accepting backup requests from faculty and staff.
+    <%perl>
+}
+</%perl>

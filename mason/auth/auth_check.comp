@@ -1,0 +1,55 @@
+<%doc>
+   Component: auth_check.comp
+        Date: 9/2/2002
+      Author: allan
+ Description: checks if the user is has access, returns 0 or 1
+              optional auth_type parameter checks for specific group membership
+              auth_type can be scalar or arrayref
+              eg:
+                $m->comp('/mason/auth/auth_check.comp', auth_type => [ 'sysadm', 'directory' ])
+</%doc>
+
+<%args>
+    $auth_type  => ''
+    $uid        => $session{'uid'}
+    $ignore_unknown => 0
+</%args>
+
+<%init>
+    use physdb;
+
+    my $auth = 0;
+    my $return = 0;
+    
+    if ((defined($dbh)) && ($m->comp('/mason/auth/loggedin.comp'))) {
+        if (!$auth_type) {
+            $return = 1;
+        } else {
+            # Ensure $auth_type is arrayref
+            $auth_type = [ $auth_type ] unless (ref $auth_type eq 'ARRAY');
+            # Add sysadm to $auth_type
+            push(@$auth_type, 'sysadm');
+            # Verify groups exist
+            my $sql = "
+                SELECT GROUP_CONCAT(a.name SEPARATOR ', ') as missing_groups
+                FROM (" . join (' UNION ', map { "SELECT '$_' as name" } @$auth_type) . ") a
+                LEFT JOIN groups g ON g.name = a.name
+                WHERE g.name IS NULL
+            ";
+            my $sth = physdb::query($sql);
+            if (my $row = $sth->fetchrow_hashref) {
+                if ($row->{missing_groups}) {
+                    die "auth_check.comp called with non-existent group(s): $row->{missing_groups}" unless $ignore_unknown;
+                }
+            }
+            # Fetch results
+            $sth = physdb::query("SELECT count(*) FROM groupmembers JOIN directory ON directory.uid = groupmembers.uid JOIN groups on groups.name=groupmembers.groupname WHERE directory.uid = ? AND groupmembers.groupname " . _in(@$auth_type) . " AND directory.inactive = 0", $uid, @$auth_type);
+            ($return) = @{$sth->fetchrow_arrayref};
+        }
+    }
+    return $return ? 1 : 0;
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

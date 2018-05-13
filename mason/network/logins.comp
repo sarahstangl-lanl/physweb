@@ -1,0 +1,59 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: logins.comp
+        Date: 2008.04.02
+      Author: rubin
+     Changed: 2008.04.02 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$host_id=>''
+</%ARGS>
+
+<%INIT>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+
+my $rows = physdb::query("
+          SELECT login_accounting.physid, login_accounting.timestamp, 
+                 directory.first_name, directory.last_name, 
+                 login_accounting.event, login_accounting.from,
+                 login_accounting.uid as login_uid,
+                 directory.x500
+
+            FROM accounting.login_accounting
+
+            LEFT OUTER JOIN directory
+              ON directory.uid=accounting.login_accounting.uid
+
+            WHERE host_id=?
+              AND login_accounting.physid <> 'root'
+
+            ORDER BY timestamp DESC LIMIT 10
+            ", $host_id);
+</%INIT>
+<%perl>
+if($rows) {
+    </%perl>
+    <h3>Logins&nbsp;<div style="display:inline;vertical-align:top;font-size:10pt;font-weight:normal;">[<a href="/resources/admin/audits/loginaudits.html?search=<% $host_id %>">more</a>]</div></h3>
+    <table border=0 cellpadding=0 cellspacing=1>
+    <%perl>
+    my $oddeven = 0;
+    while(my $row = $rows->fetchrow_hashref()) {
+        $oddeven = $oddeven ? 0 : 1;
+        </%perl>
+        <tr class="<% $oddeven ? "odd" : "even" %>">
+        <td><% "$row->{'from'}/$row->{'event'}"%></td>
+        <td> by <a href="/resources/admin/people/user.html?uid=<% $row->{'login_uid'} || '' |u %>&physid=<% $row->{'physid'} || '' |u %>&x500=<% $row->{'x500'} || '' |u %>"><% $row->{"physid"} || '' |h %> (<% $row->{"first_name"}  || '' |h %> <% $row->{"last_name"} || '' |h %>)</a></td>
+        <td> <% "at $row->{timestamp}" %></td>
+        </tr>
+        <%perl>
+    }
+    </%perl>
+    </table>
+    <%perl>
+}
+</%perl>

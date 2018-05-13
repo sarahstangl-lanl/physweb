@@ -1,0 +1,38 @@
+<%args>
+    $search => ''
+    $customer_uid => undef
+    $customer_id => undef
+    $address_id => undef
+</%args>
+<%flags>
+    inherit=>undef
+</%flags>
+<%init>
+    my $query;
+    if (defined $address_id) {
+        $query = $m->comp('/mason/ajax/address_finder.comp', address_id => $address_id);
+    }
+    elsif (defined $customer_uid || defined $customer_id) {
+        $customer_uid = [ $customer_uid ] unless (ref $customer_uid);
+        $customer_id = [ $customer_id ] unless (ref $customer_id);
+        $query = $m->comp('/mason/ajax/address_finder.comp', customer_uid => $customer_uid, customer_id => $customer_id);
+    }
+    elsif ($search) {
+        $query = $m->comp('/mason/ajax/address_finder.comp', search => $search);
+    }
+</%init>
+<ul class="addresses">
+% if ($query) {
+% if ($query->rows) {
+% while (my $result = $query->fetchrow_hashref()) {
+<li id="<% $$result{'address_id'} |h %>" class="address">
+% if ($$result{'company'}) {
+<div class="company"><% join('', map { "<div>$_</div>" } grep { /./ } split /[\r\n]+/, $$result{'company'}) %></div>
+% }
+<div class="lines"><% join('', map { "<div>$_</div>" } grep { /./ } split /[\r\n]+/, $$result{'lines'}) %></div>
+</li>
+% } }
+% else {
+<li id="" class="address"><span class="informal"><div class="name" style="font-style: italic">No matches found</div></span></li>
+% } }
+</ul>

@@ -1,0 +1,12 @@
+<%args>
+$errmsg => undef
+</%args>
+<%init>
+if ($errmsg) {
+    $m->comp('/mason/notice_box.comp', type => 'error', text => $errmsg);
+}
+elsif ($session{'moonproject_gradesid'}) {
+    warn "redirecting to observations.html";
+    $m->redirect('observations.html');
+}
+</%init>

@@ -1,0 +1,24 @@
+<%args>
+    $customer_id
+    $directory_uid => undef
+</%args>
+
+<%init>
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $customer = $schema->resultset('Customers')->find($customer_id);
+    
+    if ($customer) {
+    	$directory_uid = $customer->directory_uid();
+    	
+		if (!$directory_uid) {
+			# External customer
+            return 'TODO: External customer';
+        }
+    }
+    
+    if ($directory_uid) {
+	    return $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid => $directory_uid);
+    }
+    
+    return '';
+</%init>

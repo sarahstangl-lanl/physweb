@@ -1,0 +1,135 @@
+<%DOC>
+   Component: classlist.html
+        Date: 2009.01.22
+      Author: nick
+     Changed: 2009.01.22 by nick
+
+Description ...
+</%DOC>
+
+<%ARGS>
+$classid=>undef
+$add=>undef
+$add_people_completer=>undef;
+$add_classid=>undef
+$delete=>undef
+$delete_uid=>undef;
+$delete_memberof=>undef;
+</%ARGS>
+<%init>
+    $m->redirect('index.html') if(!defined($classid));
+    return if $m->comp('/mason/db/dbcheck.comp');
+    my $auth = $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, always_include_tas=>1);
+    if(!$auth || $auth eq 'TA') {
+        print "Access denied";
+        return;
+    }
+
+    my $tauid = undef;
+    $tauid = $session{'uid'} if($auth eq 'ta');
+    ## Grab the common base to work from
+    my $ts_tas = $m->comp('/mason/db/classes/studentlist.comp:tas', classid=>$classid);
+
+    push @{$ts_tas->{field_list}}, 'members.uid';
+    push @{$ts_tas->{field_list}}, 'members.memberof';
+    push @{$ts_tas->{field_list}}, 'members.auto_added';
+    push @{$ts_tas->{field_list}}, '\'x\' as `delete`';
+    $ts_tas->{field_params} = { 
+         'delete' =>  {
+            data_format => sub {
+                my ($val, $coderef, $row) = @_;
+                my $uid = $row->{uid};
+                my $memberof = $row->{memberof};
+                my $str;
+                $str .= '<form method="POST" action="talist.html">';
+                $str .= '<input type="hidden" name="delete_uid" value="'.$uid.'" />';
+                $str .= '<input type="hidden" name="delete_memberof" value="'.$memberof.'" />';
+                $str .= '<input type="hidden" name="delete" value="1" />';
+                if($row->{auto_added}) {
+                    $str .= '<input type="submit" value="Imported From Peoplesoft" disabled />';
+                }
+                else {
+                    $str .= '<input type="submit" value="Remove TA from this section" />';
+                }
+                $str .= '</form>';
+                return $str;
+            },
+        },
+        auto_added => { hidden => 1, },
+        uid => { hidden => 1, },
+        memberof => { hidden => 1, },
+        'email' => {
+            data_format => sub {
+                my ($field_value, $coderef, $row) = @_;
+                return $field_value if ($ARGS{'excel'} == 1);
+                return "<a href=\"mailto:". _u($field_value). "\">". _h($field_value). "</a>";
+            },
+        },
+
+    };
+
+    #print Dumper(\%INC);
+    if($add) {
+        #print _p(Dumper(\%ARGS));
+        my $add_uid = $m->comp("/mason/ajax/peoplefinder_to_uid.comp", name=>$add_people_completer);
+        if(!$add_uid || !$add_classid) {
+            print "ERROR: uid or classid not included";
+            return;
+        }
+
+        # TODO: make sure add_classid is $classid or a child class of $classid. 
+        my $sth = physdb::query("INSERT IGNORE INTO members (type, uid, memberof, auto_added) VALUES (?, ?, ?, ?)  ", 'TA', $add_uid, $add_classid, 0);
+        if(!$sth->rows()) {
+            print "<span style=\"color: red;\">Error adding the TA! (They may already be in the list).</span> $add_uid";
+        }
+        else {
+            # Success
+            print "<span style=\"color: green;\">TA Added successfully</span>";
+            $m->comp("/mason/db/auditlog/addevent.comp", type=>'class', text=>"Added uid $add_uid as a TA in classid $add_classid", directory_uid=>$add_uid);
+        }
+    }
+    elsif($delete) {
+        #print _p("DEBUG: Deleting a TA\n");
+        #print _p(Dumper(\%ARGS));
+
+        if(!$delete_uid || !$delete_memberof) {
+            print "No uid or memberof to delete";
+            return;
+        }
+        my $sth = physdb::query("DELETE FROM members WHERE uid=? AND memberof=? AND type='TA' AND auto_added=0", $delete_uid, $delete_memberof);
+        if(!$sth->rows()) {
+            print "<span style=\"color: red;\">Error removing the TA</span>";
+        }
+        else {
+            print "<span style=\"color: green;\">Removed TA</span>";
+            $m->comp("/mason/db/auditlog/addevent.comp", type=>'class', text=>"Deleted uid $delete_uid as a TA in classid $delete_memberof", directory_uid=>$delete_uid);
+        }
+    }
+
+</%init>
+
+
+<h2>Edit TA List</h2>
+<div style="width:90%;">
+<%perl>
+    $ts_tas->display();
+</%perl>
+</div>
+<h2>Add a TA</h2>
+<form method="POST" action="talist.html">
+    <input type="text" id="add_people_completer" name="add_people_completer" value="">
+    <& "/mason/ajax/complete_people.comp", id => 'add_people_completer', name => 'add_people_completer', div_id=>'add_people_completer_magic' &>
+    <select name="add_classid">
+       <option value="<% $classid |h%>">Lecture</option>
+       <%perl>
+        my $section_ts = $m->comp("/mason/db/classes/studentlist.comp:sections", classid=>$classid);
+        my $section_search = physdb::query( $section_ts->sql());
+        while(my $row = $section_search->fetchrow_hashref()) {
+            </%perl><option value="<% $row->{classid}|h %>">Lab Section <% $row->{section} |h%></option><%perl>
+        }
+        </%perl>
+    </select>
+    <input type="submit" name="add" value="Add">
+</form>
+If "Allow TAs to Edit Classpage" is checked under Class Properties, TAs added to the <b>lecture</b> section will have access to edit class properties and postings, similar to instructors.
+

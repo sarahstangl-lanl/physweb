@@ -1,0 +1,62 @@
+
+<%DOC>
+   Component: viewashtml.comp
+        Date: 2008.09.15
+      Author: nick
+     Changed: 2008.09.15 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id
+</%ARGS>
+
+<%INIT>
+use Text::WikiText;
+
+my ($mimetype,$title,$filename,$html);
+my $sql = "SELECT attach_mimetype FROM classdata WHERE entryid = ?";
+if (defined($dbh)) {
+  my $sth = $dbh->prepare($sql);
+  die $sth->errstr unless $sth->execute($id);
+  my $db_row = $sth->fetchrow_arrayref;
+  if (defined($db_row)) {
+    ($mimetype) = @$db_row;
+  }
+}
+if($mimetype =~ /application\/msword/) {
+ ($title,$filename,$html) = $m->comp('/mason/word2html.comp',id=>$id,ret_title=>1,ret_filename=>1);
+}
+
+#$html =~ s/\/([^|\n]*?)\//\<i\>$1\<\/i\>/g; #italicize (| added for /'s in table cells)
+#$html =~ s/\_(.*?)\_/\<u\>$1\<\/u\>/g; #underline
+#$html =~ s/\n/\<br\>/g; #newline
+
+#$html =~ s/(\<br\>)\|/$1\<table\>|/;
+#$html =~ s/(\<br\>[^|]*)\|/$1\<tr\>\<td\>/g;
+#$html =~ s/\|(\<br\>)/\<\/td\>\<\/tr\>$1/g;
+#$html =~ s/\|/\<\/td\>\<td\>/g;
+#$html =~ s/\/tr(.*?)$/\/tr\/table$1/;
+
+#$html = $m->comp('/mason/format_wikitext.comp', text=>$html);
+
+$html =~ s/\|/++\n\|/; #add header line to tables
+$html = Text::WikiText->new->convert($html);
+$html =~ s/ /\&nbsp\;/g; #whitespace
+$html =~ s/p\>\s+\<p/p\>\<p/g; #strip extra line breaks between paragraphs
+$html =~ s/\<p\>\<\/p\>//g; #strip empty paragraphs
+$html =~ s/\<strike\>|\<\/strike\>//g;
+#$html =~ s/\<strike\>|\<\/strike\>|\<i\>|\<\/i\>|\<em\>|\<\/em\>//g;
+#$html =~ s/\*(.*?)\*/\<b\>$1\<\/b\>/g; #bold
+$html =~ s/\[*pic\]|\[pic\]*|\bpic\b//g;
+#print "<div style=\"font-family:monospace;\">$html</div>";
+</%INIT>
+% if($title) {
+<p><div style="font-size:12pt;font-weight:bold;display:inline;"><% $title %></div>
+% if($filename) {
+&nbsp;<div style="font:12pt;display:inline;">[<a href="downloads/<% $id |u %>-<% $filename |u %>"><% $filename |h %></a>]</div></p>
+% }}
+<pre>
+<% $html %>
+</pre>

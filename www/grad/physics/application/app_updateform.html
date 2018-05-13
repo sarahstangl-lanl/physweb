@@ -1,0 +1,49 @@
+
+<%DOC>
+   Component: app_updateform.html
+        Date: 2005.12.06
+      Author: allan
+     Changed: 2005.12.06 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id => $session{'gradappid'}
+</%ARGS>
+
+<%INIT>
+my ($email, $updates);
+
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) {
+    $id = $session{'gradappid'};
+}
+
+if (!$id) { $m->redirect('index.html?notloggedin=1'); }
+
+my ($sql, $sth, $success, $row_ref);
+
+$sql = "SELECT email, updates FROM grad.gradapp WHERE id=?";
+$sth = $dbh->prepare($sql);
+$sth->execute($id)
+  or die 'Unable to update: ' . $dbh->errstr;
+
+if ($row_ref = $sth->fetchrow_arrayref()) {
+    ($email, $updates) = @$row_ref;
+}
+
+</%INIT>		
+	
+<%method title>Add updates to application</%method>
+	
+<form method="POST" name="edit" action="app_updatesave.html">
+
+<table border=0 width="100%">
+<tr valign="top"><th align="left">Comments or updates for <% $email |h %></th></tr>
+<tr valign="top"><td>
+<textarea name="updates" cols=60 rows=15><% $updates |h %></textarea>
+</td></tr>
+</table>
+<input type="submit" value="Save updates">
+</form>

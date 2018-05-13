@@ -1,0 +1,76 @@
+<%doc>
+   Component: upload_image.html
+        Date: 9/4/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$entryid=>undef
+$parentid=>undef
+$classid=>undef
+$image=>undef
+$caption=>''
+$max_x=>'1000'
+$max_y=>'1500'
+$redirect_type=>'index'
+</%args>
+
+<%init>
+  $m->comp('/mason/auth/auth_block_editclass.comp',classid=>$classid, itemid=>($parentid ? $parentid : $entryid));
+  return if $m->comp('/mason/db/dbcheck.comp', noretry=>1);
+  if (! (defined $classid) || $classid eq "") { $m-> redirect('index.html'); }
+  if (!$entryid) {$m->redirect('classerror.html');}
+  $m->comp('/mason/auth/auth_block_editclass.comp', classid=>$classid, itemid=>($parentid ? $parentid : $entryid));
+  my $req = Apache2::Request->new($r);
+  my $upload = $req->upload('image');
+  my $filename = $upload->filename;
+  my $successful_insert;
+  my $result;
+  my $mime_type;
+  my ($sql,$sth);
+
+  my $priority = $m->comp('/mason/db/classes/postplacement_do.comp', classid=>$classid, parentid=>$parentid, entryid=>$entryid, item_type=>undef);
+
+  if ($filename) {
+    my $mime_type = $upload->type;
+    my $fh = $upload->fh;
+    if ( $mime_type =~ /^image/ ) {
+      my $data = do { local $/; <$fh> };
+
+      my ($size_x,$size_y,$type) = imgsize (\$data);
+
+      if ((($max_x > 0) && ($size_x > $max_x)) || (($max_y > 0) && ($size_y > $max_y))) {
+
+        $result = "Image ($size_x x $size_y) is larger than the limit for this page ($max_x x $max_y)";
+      } else {
+        $sql = "REPLACE INTO classdata ";
+        $sql .= "(entryid, parentid, classid, published, attach_name, entry_type, attach_data, attach_mimetype, attach_text, priority, post_date, modified_date) ";
+        $sql .= "VALUES(?,?,?,?,?,?,?,?,?,?,now(),now()) ";
+        $sth = $dbh->prepare($sql);
+        $successful_insert = $sth->execute($entryid, $parentid, $classid, 1, $filename, "image", $data, $mime_type, $caption, $priority);
+      }
+    } else {
+      $result = "Unusual error";
+    }
+  } else {
+    # this is if no file specified but caption changed
+    $sql = "UPDATE classdata ";
+    $sql .= "SET published=?, attach_text=?, priority=?, modified_date=now() ";
+    $sql .= "WHERE entryid=? ";
+    $sth = $dbh->prepare($sql);
+    $successful_insert = $sth->execute(1, $caption, $priority, $entryid);
+  }
+
+  if ($successful_insert) {
+    $m->comp('/mason/db/classes/bump_modified.comp', parentid=>$parentid);
+    $m->comp('/mason/redirect.comp', url=>$m->comp('/mason/db/classes/make_classlink.comp', classid=>$classid, fullurl=>1, type=>$redirect_type));
+  } else {
+    $result = "Error: ".$DBI::errstr;
+    $result .= "\n<p>$filename $mime_type";
+  }
+</%init>
+
+<%method title>Image Upload</%method>
+<p>
+<% $result %>

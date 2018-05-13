@@ -1,0 +1,46 @@
+<%doc>
+   Component: insert_image.comp
+        Date: 9/4/2002
+      Author: allan
+ Description: inserts HTML to retrieve an image
+</%doc>
+
+<%args>
+$entryid
+$parentid=>''
+$edit=>'1'
+$auth=>0
+$base_type=>'index'
+</%args>
+
+<%init>
+my ($classid,$image,$caption);
+my ($size_x,$size_y,$type);
+my $sql = "SELECT classid, attach_data, attach_text FROM classdata WHERE entryid = ?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($entryid);
+my $image_row = $sth->fetchrow_arrayref;
+if (defined($image_row)) {
+  ($classid,$image,$caption) = @$image_row;
+  ($size_x,$size_y,$type) = imgsize(\$image);
+}
+</%init>
+
+% if ($type) {
+<table width="<% $size_x %>">
+<tr>
+<td rowspan=3 class="emptytag"></td>
+
+<td>
+<img src="/classes/getimage.html?id=<% $entryid %>" alt="" width="<% $size_x %>" height="<% $size_y %>">
+</td></tr>
+<tr><td bgcolor="#dddddd">
+<% $caption %>
+</td></tr>
+% if ($auth && $edit) {
+<tr><td align="right"><small>
+<a href="/classes/edit_image_form.html?entryid=<% $entryid %>&amp;classid=<% $classid %>&amp;redirect_type=<% $base_type |u %>">[Change image]</a></small>
+</td></tr>
+% }
+</table>
+% }

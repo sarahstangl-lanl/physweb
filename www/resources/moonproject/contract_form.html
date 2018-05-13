@@ -1,0 +1,50 @@
+<%args>
+$student
+</%args>
+
+<%init>
+unless ($session{'moonproject_gradesid'}) {
+    warn "redirecting to index.html";
+    $m->redirect('index.html');
+}
+</%init>
+
+<form action="contract_submit.html" method="post">
+    <h1>Moon Project Student Contract</h1>
+    <h4>
+        Please read the following statements.<br>
+        You must accept the entire agreement prior to using the Moon Project system. Click 'YES' to
+        accept each statement, then click 'I ACCEPT' to continue.
+    </h4>
+    <br/>
+    <table align="center" width="800" cellspacing="0" cellpadding="3">
+        <tr>
+            <td>I will not use/borrow/copy observations from my friend or computer.</td>
+            <td nowrap>
+                <input type="radio" name="clause1" value="yes">YES
+                <input type="radio" name="clause1" value="no" checked>NO
+            </td>
+        </tr>
+        <tr>
+            <td>I will not randomly type in answers and haphazardly modify the fields with the hopes of getting something right.</td>
+            <td nowrap>
+                <input type="radio" name="clause2" value="yes">YES
+                <input type="radio" name="clause2" value="no" checked>NO
+            </td>
+        </tr>
+        <tr>
+            <td>I will abide by the University Code of Conduct set forth by the Regents of the University of Minnesota.</td>
+            <td nowrap>
+                <input type="radio" name="clause3" value="yes">YES
+                <input type="radio" name="clause3" value="no" checked>NO
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2" align="center" nowrap>
+                <br>
+                <input type="submit" name="accept" value="I ACCEPT">
+                <input type="submit" name="decline" value="I DECLINE">
+            </td>
+        </tr>
+    </table>
+</form>

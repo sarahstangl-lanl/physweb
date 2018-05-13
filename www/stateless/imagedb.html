@@ -1,0 +1,42 @@
+<%doc>
+   Component: get.html
+        Date: 9/4/2002
+      Author: allan
+ Description: retrieve an image from the image database
+</%doc>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%args>
+$id=>undef
+$type=>'image'
+$purge=>''
+</%args>
+
+<%init>
+# mason cache doesnt seem to cache mime type
+#if (!$purge) {
+#  return if $m->cache_self(expire_in => '30 sec', key => $type.$id);
+#}
+return unless (defined($dbh));
+return unless($id);
+if ($type ne "image") {$type = "thumbnail";}
+my $sql = "SELECT name, mime_type, $type FROM images WHERE imageid = ? LIMIT 1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($id);
+my $image_row = $sth->fetchrow_arrayref;
+my ($name, $mime_type, $image);
+if (defined($image_row)) {
+  #$m->out("DEBUG: $mime_type");
+  ($name, $mime_type, $image) = @$image_row;
+  $r->content_type($mime_type);
+  $r->headers_out->unset('Content-Length');
+  # IE fix for ignored mime-type? causes prompt for download in other browsers though...
+  #$r->headers_out->set('Content-Disposition' => "file; filename=\"$name\"");
+  $m->clear_buffer;
+  $m->out($image);
+}
+</%init>
+%# vim:set syntax=mason:

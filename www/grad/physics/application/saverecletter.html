@@ -1,0 +1,84 @@
+
+<%DOC>
+   Component: saverecletter.html
+        Date: 2005.10.03
+      Author: allan
+     Changed: 2005.10.03 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$email=>undef
+$pin=>undef
+$file=>undef
+</%ARGS>
+
+<%INIT>
+$email =~ s/\s//g;
+my $message = "Sorry, we can't find your email/PIN combination in our records.";
+my $sql = "SELECT id, email, fname, lname, recemail1, recemail2, recemail3 FROM grad.gradapp WHERE pin=? AND (recemail1=? OR recemail2=? OR recemail3=?)";
+my $sth = $dbh->prepare($sql);
+my $update = $sth->execute($pin,$email,$email,$email)
+    or die 'Unable to grab app: ' . $dbh->errstr;
+
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+    my ($id, $appemail, $fname, $lname, $recemail1, $recemail2, $recemail3) = @$row_ref;
+    
+    # strip out any whitespace...
+    $recemail1 =~ s/\s//g;
+    $recemail2 =~ s/\s//g;
+    $recemail3 =~ s/\s//g;
+    
+    # decide if this is rec1,2 or 3...
+    my $recno = 0;
+    if (lc($email) eq lc($recemail3)) { $recno=3; }
+    if (lc($email) eq lc($recemail2)) { $recno=2; }
+    if (lc($email) eq lc($recemail1)) { $recno=1; }
+    
+    if ($recno) {
+        $message = "OK, found you -  $fname $lname requested the recommendation";
+        my $req = Apache2::Request->new($r);
+        my $upload = $req->upload('file');
+        my $recfname = $upload->filename;
+        if (defined($upload->info->{"Content-Type"})) {
+            my $mime_type = $upload->info->{"Content-Type"};
+            my $fh = $upload->fh;
+            my $data = do { local $/; <$fh> };
+            my $datasize = $upload->size;
+            if ($datasize) {
+                $sql = "UPDATE grad.gradapp SET recdata$recno=?, recdate$recno=now(), rectype$recno=?, recfname$recno=? WHERE id=?";
+                $sth = $dbh->prepare($sql);
+                $update = $sth->execute($data, $mime_type, $recfname, $id)
+                    or die 'Unable to update entry: ' . $dbh->errstr;
+                
+                # send email to applicant
+                $message = "We received a recommendation letter for you from ".$email;
+                $m->comp('/mason/send_mail.comp', to=>$appemail, subject=>"Letter of Recommendation Received", from=>'grad@physics.umn.edu', text=>$message);
+                $message = "Thank you - we stored your recommendation letter '$recfname' for $fname $lname.";
+                
+                # also send email as confirmation
+                $m->comp('/mason/send_mail.comp', to=>$email, subject=>"Letter of Recommendation Received", from=>'grad@physics.umn.edu', text=>$message);
+                $m->comp('logevent.mhtml',text=>$email." uploaded recletter $recfname for ".$appemail);
+            } else {
+                $message = "Sorry, for some reason the file we received from you contained no data.";
+                $m->comp('logevent.mhtml', text=>$email." failed recletter upload (no data) for ".$appemail);
+            }
+        } else {
+            $message = "Sorry, we couldn't find a Content-Type header for the file you are uploading.  Please try again or email grad\@physics.umn.edu for help.";
+            $m->comp('logevent.mhtml', text=>$email." failed recletter upload (no content-type) for ".$appemail);
+        }
+    }
+# we don't have a message for this case: when the sql query suceeded,
+# but we couldn't identify the recno - shouldn't happen!
+} else {
+    # email/pin not found...
+    $message = "Sorry, we can't find your email/PIN combination in our records.";
+    $m->comp('logevent.mhtml',text=>$email." and PIN ".$pin." not found in recletter database");
+}
+</%INIT>		
+
+<%method title>Upload Recommendation Letter</%method>
+	
+<% $message |h %>
+

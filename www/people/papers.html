@@ -1,0 +1,57 @@
+<%doc>
+   Component: papers.html
+        Date: 9/13/2002
+      Author: allan
+ Description:
+ ~~NOSITEMAP~~
+</%doc>
+
+<%args>
+$paperid=>''
+</%args>
+
+<%init>
+my ($uid, $title, $authors, $journal, $abstract, $paper_url);
+my ($papers_ref, $papers_rowref, $no_papers, @papers_row);
+my $sql;
+my $displayed_url;
+my $query;
+my $limit;
+
+if ($paperid) {
+  $sql = "SELECT uid, title, authors, journal, abstract, url FROM papers WHERE paperid='$paperid'";
+  @papers_row = $m->comp('/mason/db/getresults.comp', conn=>$dbh, query=>$sql,  type=>'list');
+} else {
+   $sql = "SELECT uid, title, authors, journal, abstract, url FROM papers $query LIMIT $limit";
+   @papers_row = $m->comp('/mason/db/getresults.comp', conn=>$dbh, query=>$sql,  type=>'array');
+}
+</%init>
+
+<%method title>Publications</%method>
+
+
+% if ($paperid) {
+%   ($uid, $title, $authors, $journal, $abstract, $paper_url) = @papers_row;
+% if ($uid) {
+%  my $name = $m->comp('/mason/db/directory/uid_to_name.comp',uid=>$uid);
+%  if ($name) {
+     <h3><% $name %></h3>
+%  }
+% }
+
+
+%   $displayed_url = $paper_url;
+%   if (length($paper_url)>78) {$displayed_url=substr($paper_url,0,75)." ...";}
+%   if ($title) {
+      <b><% $title %></b><br/><% $authors %>, <i><% $journal %></i>
+      <p>
+%     if ($paper_url) {
+      <small>Download from <a href="<% $paper_url %>"><% $displayed_url %></a></small><p>
+%     }
+%     if (length($abstract)>10) {
+      <b>Abstract</b><p><% $abstract %>
+%     }
+%   }
+% } else {
+Nothing here yet!
+% }

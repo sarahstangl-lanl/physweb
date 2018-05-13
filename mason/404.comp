@@ -1,0 +1,37 @@
+<%doc>
+   Component: dhandler
+        Date: 9/4/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+    $r->content_type('text/html');
+    ## this was breaking because header_out it is deprecated (or removed?) from Apache2::Request... use $r->status instead
+    ## $r->header_out('Status'=> 404);
+    $r->status(404);
+</%init>
+
+<%method title>Page not found</%method>
+
+<h2>Sorry!</h2>
+<p>The page you requested doesn't exist at this location.  It may have moved, or the link you followed may be incorrect. This is known as Error 404.</p>
+
+<h3>Search</h3>
+You can try finding the page you need by searching for it here:
+% # This mess guesses at the pages filename or parent directory and pushes it into the search box
+% # to try and make finding the missing page easier on the user.
+% $r->uri =~ /.*\/([^\/.]+)/;
+% my $pagename = $1;
+% if($pagename eq "index") {
+%   $r->uri =~ /.*\/([^\/.]+)\//;
+%   $pagename = $1;
+% }
+% $pagename =~ s/_/ /g;
+<& /mason/searchform_google.comp, search=>$pagename &>
+
+<h3>Browse</h3>
+<p>Alternatively, you can browse our <a href="/sitemap.html">site map</a>, and try finding the document there.</p>

@@ -1,0 +1,122 @@
+
+<%DOC>
+   Component: edit_file_form.html
+        Date: 2003.08.04
+      Author: allan
+     Changed: 2003.08.04 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$entryid=>'new'
+$parentid=>'0'
+$item_type=>''
+$redirect_type=>'index'
+$classid=>undef
+</%ARGS>
+
+<%INIT>
+return if $m->comp('/mason/db/dbcheck.comp');
+
+if (!$classid) {$m->redirect('classerror.html');}
+
+$m->comp('/mason/auth/auth_block_editclass.comp',classid=>$classid, itemid=>($parentid ? $parentid : $entryid));
+# set up classdata variables
+my ($entry_type, $post_date, $modified_date, $priority, $attach_name, $attach_text);
+
+if ($entryid ne "new") {
+
+  # Now fetch the entry
+  my $sql = "SELECT parentid, item_type, post_date, modified_date, priority, attach_name, entry_type, attach_text FROM classdata WHERE entryid = ? LIMIT 1";
+  my $sth = $dbh->prepare($sql);
+  $sth->execute($entryid);
+
+  my $row_ref = $sth->fetchrow_arrayref;
+  if($row_ref) {
+  ($parentid, $item_type, $post_date, $modified_date, $priority, $attach_name, $entry_type, $attach_text) = @$row_ref;
+  }
+  else {
+    #Course query returned nothing, give a 404 error.
+    $m->comp("/mason/404.comp");
+    return;
+  }
+} else {
+  $priority = "100";
+  $item_type="image";
+}
+
+</%INIT>		
+		
+<%method title>Edit File Attachment</%method>
+<small>
+% $m->comp('/mason/db/classes/insert_helplink.comp');
+</small><p>
+Use this form to attach files such as Excel, Powerpoint or PDF documents to items [or sub-items] in your classpage. Note, this feature probably won't work so well to upload HTML or text documents.
+<p>
+<b>The maximum file size is 64MB.</b>
+<p>
+You can change the caption, sort priority or type of an existing file by entering new values while leaving the "file to upload" field blank.
+
+
+
+<form enctype="multipart/form-data" method="POST" name="edit" action="edit_file.html">
+
+<input type=hidden name="entryid" value="<% $entryid |u %>">
+<input type=hidden name="classid" value="<% $classid |u %>">
+<input type=hidden name="parentid" value="<% $parentid |u %>">
+<input type=hidden name="redirect_type" value="<% $redirect_type |u %>">
+<table border=0 width="100%">
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">File Information</th></tr>
+
+
+
+
+<tr valign="top"><td colspan=2>
+
+% $m->comp('/mason/db/classes/insert_file.comp',entryid=>$entryid,edit=>'0');
+
+</td></tr>
+
+<tr valign="top"><td>Placement:</td><td><& '/mason/db/classes/postplacement_control.comp', classid=>$classid, parentid=>$parentid, entryid=>$entryid, item_type=>$item_type &>
+</td></tr>
+<tr valign="top"><td>Description:</td><td><input type=text name="caption" value="<% $attach_text %>" size=50>
+</td></tr>
+<tr valign="top"><td>Upload new file:</td><td>
+<input type="file" size=25 name="image">
+% if ($entryid ne "new") {
+<i>(Leave blank to retain current file)</i>
+% }
+</td></tr>
+% if ($entryid ne "new") {
+<tr valign="top"><td>Change mime type:</td><td>
+% $m->comp('/mason/form_selector.comp', name=>'mime', selected=>'no change', optionlist=>'no change,application/pdf,application/msword,application/vnd.ms-powerpoint,application/vnd.ms-excel,image/jpeg,image/gif,image/png');
+</td></tr>
+% }
+
+<tr><td>
+<input type="submit" value="Update Item">
+<input type="reset" value="Cancel Changes">
+</td></tr>
+
+
+</form>
+
+% if ($entryid ne "new") {
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">
+Delete File
+</th></tr>
+<tr valign="top"><td colspan=2>
+<form method="POST" action="delete_classitem.html">
+<input type=hidden name="classid" value="<% $classid |u %>">
+<input type=hidden name="parentid" value="<% $parentid |u %>">
+<input type=hidden name="redirect_type" value="<% $redirect_type |u %>">
+<input type=hidden name="entryid" value="<% $entryid %>">
+To remove this item from the database - <input type=submit value="Delete File"><br>
+<input type="checkbox" name="confirm">&nbsp;Check this box to confirm deletion.
+</form>
+</td></tr>
+<p>
+% }
+
+</table>

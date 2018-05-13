@@ -1,0 +1,40 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: switch.comp
+        Date: 2008.04.02
+      Author: rubin
+     Changed: 2008.04.02 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$hwa=>''
+</%ARGS>
+
+<%INIT>
+use Data::Dumper;
+use Sort::Naturally;
+use bigfix;
+
+my $computer = bigfix::computer($hwa);
+
+</%INIT>
+<table border=0 cellpadding=0 cellspacing=1>
+<%perl>
+if($computer) {
+    my $oddeven = 0;
+    foreach my $k (keys %$computer) {
+       $oddeven = $oddeven ? 0 : 1;
+        </%perl>
+        <tr class="<% $oddeven ? "odd" : "even" %>">
+            <th style="text-align: left;"><% $k|h %></th><td> <% $computer->{$k}|h%></td>
+        </tr>
+        <%perl>
+    }
+}
+else {
+    </%perl><tr class="odd">None</tr><%perl>
+}
+</%perl>
+</table>

@@ -1,0 +1,39 @@
+
+<%DOC>
+   Component: app_updatesave.html
+        Date: 2005.12.06
+      Author: allan
+     Changed: 2005.12.06 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id => undef
+$updates=>''
+</%ARGS>
+
+<%INIT>
+my $message;
+
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) {
+    $id = $session{'gradappid'};
+}
+
+if (!$id) { $m->redirect('index.html?notloggedin=1'); }
+
+my ($sql, $sth, $success, $row_ref);
+$sql = "UPDATE grad.gradapp SET updates=?, last_modified=NOW() WHERE id=?";
+$sth = $dbh->prepare($sql);
+$sth->execute($updates, $id)
+  or die 'Unable to update: ' . $dbh->errstr;
+
+$m->comp('logevent.mhtml', text=>$id." edited the updates field.");
+$m->redirect('viewapp.html?id=' . $m->interp->apply_escapes($id, 'u'));
+
+</%INIT>		
+		
+<%method title>Update failed</%method>
+
+<% $message %>

@@ -1,0 +1,41 @@
+<%doc>
+   Component: autohandler
+        Date: 9/11/2002
+      Author: allan
+ Description: check access to software downloads area
+</%doc>
+
+<%args>
+$filename=>''
+</%args>
+
+<%init>
+# Have user login first if not already
+$m->comp('/mason/auth/auth_block.comp');
+
+my $uri = $r->uri;
+my $directory = "/home/www/downloads";
+my $file = $directory."/".$filename;
+my $data;
+my $access;
+my $mimetype = "application/octet-stream";
+my $email_net = $m->comp('/mason/encode_mailto.comp', email=>'net@physics.umn.edu');
+my $email_directory = $m->comp('/mason/encode_mailto.comp', email=>'directory@physics.umn.edu');
+
+$access = $m->comp('/mason/auth/check_groups.comp', allow=>['research', 'underg', 'physgrad', 'astgrad', 'staff', 'physfac','astfac', 'adjunct', 'physta', 'emeritus', 'postdoc', 'swdownload']);
+</%init>
+
+% if ($access) {
+%   $m->call_next;
+% } 
+% else {
+
+<%method subtitle>Access denied</%method>
+
+This area is only accessible to authorized internal users of the Physics Department. To access the downloads you must also be identified in our directory as Physics faculty, staff or graduate student.
+<p>
+If you are denied, but believe you should have access, check your <a href="/people/">department directory entry</a> to see if all information is correct. Send any directory questions or corrections to <% $email_directory %>, or <a href="http://zzz.physics.umn.edu/computing/contact">contact us</a> with your name and X.500 username (<i>not your password!</i>) if directory information appears correct and you continue to have problems.
+
+% my $uid = $m->comp('/mason/auth/current_uid.comp');
+UID: <% $uid %>
+% }

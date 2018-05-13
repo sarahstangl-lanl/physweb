@@ -1,0 +1,282 @@
+<%method title><% $title %></%method>
+
+<%args>
+    $job_id => undef
+    $parent_job_id => undef;
+</%args>
+
+<%shared>
+    my ($title, $msg);
+    my %args = $m->request_args;
+
+    # Build shopdb-auth hash in $session{'shopdb-auth'}
+    $m->comp('/mason/db/shopdb/build_auth.comp');
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+    my $auth_args = $session{'shopdb-auth'};
+    my $shop_person = $auth_args->{'foreman'} || $auth_args->{machinist_id};
+
+    # Jobs ResultSource object
+    my $jobs_source = $schema->source('Jobs');
+
+    # Find job item based on job_id arg and prefetch all type 'single' (has_one/might_have/belongs_to) relationship data
+    my $job_item = $args{job_id} ? do {
+            my @prefetch;
+            for my $relationship ($jobs_source->relationships) {
+                my $rel_info = $jobs_source->relationship_info($relationship);
+                next unless $rel_info->{attrs}->{accessor} eq 'single';
+                push(@prefetch, exists($rel_info->{attrs}->{prefetch}) ? { $relationship => $rel_info->{attrs}->{prefetch} } : $relationship);
+            }
+            $schema->resultset('Jobs')->find(
+                { job_id => $args{'job_id'} },
+                { prefetch => \@prefetch },
+            );
+        } : undef;
+
+    # Find parent job item based on parent_job_id arg
+    my $parent_job_item = $args{parent_job_id} ? $schema->resultset('Jobs')->find({ job_id => $args{'parent_job_id'} }) : undef;
+
+    # Determine page title/error message
+    if (!defined($args{'job_id'})) {
+        if (defined $args{'parent_job_id'} && $args{'parent_job_id'} ne '') {
+            if (!$parent_job_item) {
+                $msg = "Invalid parent job id " . $args{'parent_job_id'};
+                $title = 'New Job';
+            }
+            else {
+                $title = 'New Child Job for Job #' . $parent_job_item->job_id . ': ' . $parent_job_item->project_name;
+            }
+        }
+        else {
+            $title = 'Shop Dashboard';
+        }
+    } else {
+        if (!$job_item) {
+            $title = 'Shop Jobs';
+            $msg = "Invalid job id " . $args{'job_id'};
+        }
+        else {
+            $title = 'Shop Jobs: Job #' . ($job_item->parent_job_id || $job_item->job_id) . ': ' . $job_item->project_name;
+        }
+    }
+</%shared>
+
+<%method titlemenu_below>
+% if ($job_item) {
+<& '/mason/db/shopdb/job_menu.comp', job_item => $job_item &>
+% } else {
+<& 'autohandler:titlemenu_below' &>
+% }
+</%method>
+
+<%init>
+#    $ENV{NYTPROF} = 'start=no:file=/tmp/nytprof.jobs.html.out';
+#    use Devel::NYTProf::Apache;
+#    DB::enable_profile();
+    use ShopDb::Form::Job;
+    use tablesearch;
+
+    # Prevent unauthorized access
+    if ($job_item && !$m->comp('/mason/db/shopdb/check_job_auth.comp', job_item => $job_item)) {
+        print "You are not authorized to view this job";
+        return;
+    }
+
+    # Prefetch job_item has_many/many_to_many relationship data
+    if ($job_item) {
+        for my $rel (qw/child_jobs job_assignments job_attachments/) {
+            my @rel_items = $job_item->$rel->all;
+            $job_item->related_resultset($rel)->set_cache([ @rel_items ]);
+        }
+    }
+
+    # Field list to store default form values
+    my $field_list = [ ];
+
+    # Initilize new or find existing customer resultsource to use as default customer value
+    # If internal to physics (has uid), find existing or initialize new customer based on uid
+    # Else, initialize new customer based on info from umn.edu ldap
+    # New customers are not created until job is created (see new vs create in DBIx::Class::ResultSet)
+    # Jobs created from job entry PCs or entered by shop personnel have no default customer
+    my $customer;
+    unless ($shop_person || $auth_args->{'job_entry_pc'}) {
+        if ($auth_args->{'uid'}) {
+            $customer = $schema->resultset('Customers')->find_or_new({ 'directory_uid' => $auth_args->{'uid'} }, { prefetch => ['directory'] });
+        }
+        else {
+            my $ldap_entry = $m->comp('/mason/ldap_lookup.comp:getuser', server => 'ldap.umn.edu', x500 => $auth_args->{'x500'});
+            unless ($ldap_entry) {
+                print "Failed to retrieve user info from ldap.umn.edu";
+                return;
+            }
+            my $directory_entry = $schema->resultset('DirectoryEntry')->new({
+                    last_name => $ldap_entry->get_value('sn') || '',
+                    first_name => $ldap_entry->get_value('givenName') || '',
+                    work_phone => $ldap_entry->get_value('telephoneNumber') || '',
+                    email => $ldap_entry->get_value('umndisplaymail') || $ldap_entry->get_value('mail') || ($auth_args->{'x500'} . '@umn.edu'),
+                    x500 => $auth_args->{'x500'},
+                    create_date => \'NOW()',
+                    modified_date => \'NOW()',
+            });
+            $customer = $directory_entry->new_related('customer', { });
+        }
+
+        # Add customer and contact number to default form values
+        push(@$field_list,
+            '+customer' => { default => $customer },
+            '+contact_number' => { default => $customer->directory->work_phone },
+        );
+    }
+
+    # Copy parent job values over to new job form default values
+    if ($parent_job_item) {
+        $field_list = [ ];
+        # Copy parent job item values over to child job
+        for (qw/customer pi customer_po_num account_key external need_date/) {
+            push(@$field_list, "+$_" => { default => $parent_job_item->$_ });
+        }
+        my @time = localtime();
+        push(@$field_list, '+parent_job_id' => { default => $parent_job_item->job_id });
+        push(@$field_list, '+approved_date' => { default => strftime('%Y-%m-%d', @time) });
+    }
+
+    # Common args to pass to display/edit forms
+    my $form_args = {
+            item => $job_item,
+            schema => $schema,
+            auth_args => $auth_args,
+            field_list => $field_list,
+            # Enable help messages for customers
+            show_help => $shop_person ? 0 : 1,
+    };
+
+    # Create new form for displaying job details
+    my $display_form = ShopDb::Form::Job->new(
+        %$form_args,
+    );
+
+    # As long as args haven't been submitted (via POST), use same form for edit and display
+    my $edit_form = $display_form;
+
+    # If args have been submitted, create new form for edits so that the display form shows current
+    # values instead of submitted values (comes in to play when there are errors in the submitted values)
+    if ($r->method eq 'POST') {
+        $edit_form = ShopDb::Form::Job->new(
+                %$form_args,
+                item => $schema->resultset('Jobs')->find({ job_id => $args{'job_id'} }),
+        );
+        # Submit (process) form
+        $edit_form->process(params => \%ARGS);
+    }
+
+    # If edit was successful, replace forms and $job_item with updated item or reload page if new job
+    my $edit_form_was_valid = $edit_form->is_valid;
+    if ($edit_form_was_valid) {
+        if (!$job_id) {
+            $m->redirect('job.html?job_id=' . $edit_form->item->job_id);
+        }
+        else {
+            $display_form = $edit_form = ShopDb::Form::Job->new(
+                    %$form_args,
+                    item => $schema->resultset('Jobs')->find({ job_id => $args{'job_id'} }),
+            );
+            $job_item = $edit_form->item;
+        }
+    }
+
+    # Check for possible warning conditions
+    if ($job_item && (my $account = $job_item->account)) {
+        if ($account->disabled) {
+            $msg = "The EFS account associated with this job has been marked as 'Do not use'. Please choose a different account.";
+        }
+    }
+
+</%init>
+% if (defined $msg) {
+<h4 style="color:red;"><% $msg |h %></h4><br/>
+% }
+
+<script src="/include/shopdb_job.js" type="text/javascript"></script>
+<script type="text/javascript">
+this.job = new ShopDbJob(<% $job_id %>);
+
+%# Show edit form if there were errors
+% if ($r->method eq 'POST' && !$edit_form_was_valid) {
+Event.observe(window, 'dom:loaded', job.toggleEditForm.bind(job));
+% }
+
+</script>
+
+% if ($job_item && $shop_person) {
+
+<div id="shopdb-page">
+<div id="shopdb-job-info-pane" class="shopdb-column">
+<div id="shopdb-job-details" class="shopdb-section">
+<span class="shopdb-section-header">Job Details</span>
+
+% $m->comp('/mason/db/shopdb/job_details.comp', job_item => $job_item, edit_form => $edit_form, display_form => $display_form);
+
+</div> <!-- end shopdb-job-details -->
+</div> <!-- end shopdb-job-info-pane -->
+
+<div id="shopdb-job-charge-lines" class="shopdb-column">
+% if ($auth_args->{'foreman'} || $auth_args->{'accounting'}) {
+<div id="shopdb-job-summary" class="shopdb-section">
+<span class="shopdb-section-header">Job Summary</span>
+<%perl>
+my @summary_columns = $m->comp('job_summary.html', job_item => $job_item);
+my $columns = {
+    (map { $_->{column} => $_ } @summary_columns),
+};
+</%perl>
+<table width="100%" cellpadding="3" cellspacing="0" class="shopdb-job-summary-table">
+<tr class="odd">
+% for my $column ((map { "${_}total_projected_cost" } ('ll_', 'ml_', '')), 'total_projected_charge_hours') {
+<th><% $columns->{$column}->{name} |h %></th><td><% $columns->{$column}->{currency} ? '$' : '' %></td><td id="summary_<% $column %>"><% $columns->{$column}->{value} %></td>
+% }
+</tr>
+<tr class="even">
+% for my $column ((map { "${_}total_extended_cost" } ('ll_', 'ml_', '')), 'total_charge_hours') {
+<th><% $columns->{$column}->{name} |h %></th><td><% $columns->{$column}->{currency} ? '$' : '' %></td><td id="summary_<% $column %>"><% $columns->{$column}->{value} %></td>
+% }
+</tr>
+</table>
+</div> <!-- end shopdb-job-summary -->
+% }
+<div id="shopdb-job-labor-lines" class="shopdb-section">
+<span class="shopdb-section-header">Labor Lines</span>
+
+% $m->comp('charge_lines.html', type => 'labor', job_item => $job_item);
+
+</div> <!-- end shopdb-job-labor-lines -->
+
+<div id="shopdb-job-material-lines" class="shopdb-section">
+<span class="shopdb-section-header">Material Lines</span>
+
+% $m->comp('charge_lines.html', type => 'material', job_item => $job_item);
+
+</div> <!-- end shopdb-job-material-lines -->
+<div id="shopdb-job-comments" class="shopdb-section">
+<span class="shopdb-section-header">Job Comments</span>
+
+% $m->comp('job_comments.html', job_item => $job_item);
+
+</div> <!-- end shopdb-job-comments -->
+<div id="shopdb-job-audits" class="shopdb-section">
+<span class="shopdb-section-header">Job Audit Trail</span>
+
+% $m->comp('job_audits.html', job_item => $job_item);
+
+</div> <!-- end shopdb-job-comments -->
+</div> <!-- end shopdb-job-charge-lines -->
+<div id="shopdb-footer">
+
+</div> <!-- end shopdb-footer -->
+</div> <!-- end shopdb-page -->
+% } else {
+<h2>Job Details</h2>
+<br />
+%   print $edit_form->render();
+% }
+%# DB::finish_profile();

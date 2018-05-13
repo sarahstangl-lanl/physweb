@@ -1,0 +1,15 @@
+This component deals with the ubiquious HTML2Mail problem: A web user fills
+out a form (giving away details and request information) and submits the form.
+The component will analyse the fields, do some sanity checks and fires off
+an email.
+
+This component also does sanity checks on the fields, provides indirection
+and defaults and some template mechanism for more flexibility. All is controlled
+via fields in the form.
+
+See the mailform.mc component itself for more documentation.
+
+Copyright (c) rho@telecoma.net 
+
+All rights reserved. This program is free software; you can redistribute it 
+and/or modify it under the same terms as Mason itself.

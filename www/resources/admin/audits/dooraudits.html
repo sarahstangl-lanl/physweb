@@ -1,0 +1,107 @@
+
+<%DOC>
+   Component: dooraudits.html
+        Date: 2008.06.10
+      Author: nick
+     Changed: 2008.06.10 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$door => '';
+</%ARGS>
+
+<%INIT>
+
+my $msg = '';
+my $query = '';
+
+$m->comp('/mason/auth/auth_block.comp');
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $groupmgr = $m->comp('/mason/auth/auth_check_group_mgr.comp');
+my $current_uid = $m->comp('/mason/auth/current_uid.comp');
+if(!$admin_auth && !$groupmgr) {
+  print "<H2>You do not have permission to view this page</H2>";
+  return;
+}
+
+if($admin_auth) {
+$m->comp('/mason/db/tablesearch.comp',
+            table              => 'dooraudits',
+            joins              => [
+                                     'doorlocks' => "dooraudits.door = doorlocks.door_id",
+                                     'directory' => "dooraudits.uid = directory.uid",
+                                  ],
+            field_list         => [
+                                     'doorlocks.name as door',
+                                     'dooraudits.uid as uid',
+                                     'dooraudits.pinid as pinid',
+                                     'CONCAT(directory.last_name,", ",directory.first_name,IF(dooraudits.pinid IS NOT NULL," <small>(temporary PIN)</small>","")) as name',
+                                     'dooraudits.date as timestamp'
+                                  ],
+            field_params       => {
+                                     'name' => {
+                                                  'empty_value'    => 'Door PIN',
+                                                  'url'            => '/resources/admin/people/user.html?uid=$row{uid}',
+                                                  'data_format'    => sub { return shift; },
+                                                  'nourl_on_empty' => 1
+                                               },
+                                     'uid'  => {
+                                                  hidden => 1 
+                                               },
+                                     'pinid'  => {
+                                                  hidden => 1 
+                                               }
+
+                                  },
+            default_sort_field => 'timestamp',
+            default_sort_dir   => 'desc',
+            header_format      => 'ucfirst',
+            filter_field       => 'dooraudits.door',
+            filter_name_field  => 'doorlocks.name',
+            filter_join        => 'JOIN doorlocks ON dooraudits.door = doorlocks.door_id'
+        );
+}
+
+else {
+
+print "<p><form onchange='this.submit();' action='dooraudits.html'>\n<select name='door'>\n<option value=''>Choose a door</option>";
+
+$query = $dbh->prepare("SELECT doorlocks.name,doorlocks.door_id FROM groupmembers JOIN doorlocks ON groupmembers.groupname = doorlocks.name WHERE groupmembers.manager = 1 AND groupmembers.uid = ?");
+$query->execute($current_uid);
+
+while(my ($doorname,$doornum) = $query->fetchrow_array()) {
+  print "<option value='$doorname'".($doorname eq $door ? " selected" : "").">$doorname</option>";
+}
+
+print "</select><input type=\"submit\" value=\"Get audits\"></form></p><p>";
+
+if($door) {
+  $query = $dbh->prepare("SELECT door_id FROM doorlocks WHERE name = ?");
+  $query->execute($door);
+  if($query->rows()) {
+    my ($door_num) = $query->fetchrow_array();
+    $query = $dbh->prepare("SELECT dooraudits.uid,CONCAT(directory.last_name,', ',directory.first_name) AS displayname, dooraudits.date FROM dooraudits LEFT JOIN directory ON dooraudits.uid = directory.uid WHERE dooraudits.door = ? ORDER BY dooraudits.date DESC");
+    $query->execute($door_num);
+    if($query->rows()) {
+      my $even = 0;
+      print "<table><tr class=\"tablehead2\"><th>Name</th><th>Date</th></tr>";
+      while(my ($uid,$name,$date) = $query->fetchrow_array()) {
+         print "<tr class=".($even ? 'even' : 'odd')."><td style=\"padding-right:5px\">".($uid eq 'doorpin' ? "Door PIN" : "<a href=\"/people/edit_entry_form.html?uid=$uid&readonly=1\">$name</a>")."</td><td>$date</td></tr>";
+         $even = ($even ? 0 : 1)
+      }
+      print "</table>";
+    } else {
+      $msg = "No results for $door";
+    }
+  } else {
+    $msg = "There is no door matching $door";
+  }
+}
+}
+</%INIT>		
+		
+<%method title>Door Audits</%method>
+
+% print $msg ? "<H4>$msg</H4>" : "";

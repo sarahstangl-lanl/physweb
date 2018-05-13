@@ -1,0 +1,146 @@
+<%method skel></%method>
+
+<%shared>
+    # Build shopdb-auth hash in $session{'shopdb-auth'}
+    $m->comp('/mason/db/shopdb/build_auth.comp');
+
+    # ShopDB auth hash
+    my $auth_args = $session{'shopdb-auth'};
+
+    # Global admin
+    my $admin = $auth_args->{admin};
+
+    # Forced prod instance users
+    my @prod_users = (qw/mjjensen jones018 levei001 nelse003 erick013 gilas002 edge0026 pwilson/);
+
+    # Enable storage debugging
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    $schema->storage->debug(0);
+
+</%shared>
+
+<%method titlemenu_above>
+% my $on_dashboard = ($r->uri =~ /(index|job|machinist|customer|address|account)\.html$/ && ! grep { $_ eq "$1_id" } $m->request_args);
+    <& /mason/titlemenu.comp:begin, type=>"above"&>
+    <&| /mason/titlemenu.comp:item, selected => $on_dashboard, link => '/resources/shopdb/index.html' &>Dashboard</&>
+% if ($admin || $auth_args->{foreman} || $auth_args->{'accounting'}) {
+    <&| /mason/titlemenu.comp:item, link => '/resources/shopdb/billing.html' &>Billing</&>
+% }
+    <&| /mason/titlemenu.comp:item, selected => (!$on_dashboard && $r->uri =~ /accounts?\.html$/) ? 1 : 0, link => '/resources/shopdb/accounts.html' &>Accounts</&>
+    <&| /mason/titlemenu.comp:item, selected => (!$on_dashboard && $r->uri =~ /address(es)?\.html$/) ? 1 : 0, link => '/resources/shopdb/addresses.html' &>Addresses</&>
+    <&| /mason/titlemenu.comp:item, selected => (!$on_dashboard && $r->uri =~ /attachments?\.html$/) ? 1 : 0, link => '/resources/shopdb/attachments.html' &>Attachments</&>
+% if ($admin || $auth_args->{foreman} || $auth_args->{machinist_id}) {
+    <&| /mason/titlemenu.comp:item, selected => (!$on_dashboard && $r->uri =~ /customer(?:_type)?s?\.html$/) ? 1 : 0, link => '/resources/shopdb/customers.html' &>Customers</&>
+% }
+% if ($admin || $auth_args->{foreman} || $auth_args->{'accounting'}) {
+    <&| /mason/titlemenu.comp:item, selected => (!$on_dashboard && $r->uri =~ /invoices?\.html$/) ? 1 : 0, link => '/resources/shopdb/invoices.html' &>Invoices</&>
+% }
+    <&| /mason/titlemenu.comp:item, selected => (!$on_dashboard && $r->uri =~ /(job|estimate|shipping)s?\.html$/) ? 1 : 0, link => '/resources/shopdb/jobs.html' &>Jobs</&>
+% if ($admin || $auth_args->{foreman}) {
+    <&| /mason/titlemenu.comp:item, selected => (!$on_dashboard && $r->uri =~ /machinists?\.html$/) ? 1 : 0, link => '/resources/shopdb/machinists.html' &>Machinists</&>
+    <&| /mason/titlemenu.comp:item, selected => (!$on_dashboard && $r->uri =~ /audit_entries?\.html$/) ? 1 : 0, link => '/resources/shopdb/audit_entries.html' &>Audits</&>
+% }
+% if ($admin) {
+    <&| /mason/titlemenu.comp:item, link => '/resources/shopdb/settings.html' &>Settings</&>
+% }
+% if ($admin || $auth_args->{foreman} || $auth_args->{machinist_id}) {
+    <&| /mason/titlemenu.comp:item, selected => (!$on_dashboard && $r->uri =~ /time_off\.html$/) ? 1 : 0, link => '/resources/shopdb/time_off.html' &>Time Off</&>
+% }
+% if ($admin || $auth_args->{foreman} || grep { $_ eq $session{x500}} @prod_users) {
+    <li class="shopdb_instance">&nbsp;</li>
+    <li class="shopdb_instance<% $session{shopdb_instance} eq 'webdb_test' ? ' titlemenu_current' : '' %>"><a href="?<% _args(%{$m->request_args || {}}, instance => 'webdb_test') %>">Dev</a></li>
+    <li class="shopdb_instance<% $session{shopdb_instance} eq 'webdb' ? ' titlemenu_current' : '' %>"><a href="?<% _args(%{$m->request_args || {}}, instance => 'webdb') %>">Prod</a></li>
+    <li class="shopdb_instance" id="shopdb_instance_text">Instance</li>
+<style type="text/css">
+#shopdb_instance_text {
+    font-size: 0.9em !important;
+    float: right !important;
+    padding: 1px 3px 0 0 !important;
+    margin:0 0 -1px 0 !important;
+    font-weight: bold;
+}
+.shopdb_instance {
+    float: right !important;
+}
+.shopdb_instance A { display: inline !important; }
+#shopdb_generate_ts { font-size: 9pt; }
+</style>
+% }
+    <& /mason/titlemenu.comp:end &>
+</%method>
+
+<%method titlemenu_below>
+% if ($r->uri =~ /(index|job|machinist|customer|address|account)\.html$/ && ! grep { $_ eq "$1_id" } $m->request_args) {
+    <& /mason/titlemenu.comp:begin, type=>"below"&>
+    <&| /mason/titlemenu.comp:item, link => '/resources/shopdb/index.html' &>Overview</&>
+    <&| /mason/titlemenu.comp:item, link => '/resources/shopdb/account.html' &>New Account</&>
+    <&| /mason/titlemenu.comp:item, link => '/resources/shopdb/address.html' &>New Address</&>
+    <&| /mason/titlemenu.comp:item, link => '/resources/shopdb/customer.html' &>New Customer</&>
+    <&| /mason/titlemenu.comp:item, link => '/resources/shopdb/job.html' &>New Job</&>
+% if ($admin || $auth_args->{foreman}) {
+    <&| /mason/titlemenu.comp:item, link => '/resources/shopdb/machinist.html' &>New Machinist</&>
+% }
+    <& /mason/titlemenu.comp:end &>
+% }
+</%method>
+<%method title>Shop Dashboard</%method>
+% $m->comp('/mason/ajax/js.comp');
+
+%# Ensure console.log requests don't cause errors
+<script type="text/javascript">
+if(typeof(window.console) != 'object') {
+    var console = new Object();
+/*
+    console.consoleDiv = new Element('div').setStyle({ fontSize: '10px', position: 'fixed', right: 0, top: 0, width: '400px', height: '400px', overflow: 'auto' });
+    console.logNum = 1;
+    document.body.appendChild(console.consoleDiv);
+    console.log = function() {
+        logDiv = new Element('div').setStyle({ backgroundColor: '#CCC' });
+        logDiv.appendChild(new Element('span').update(this.logNum++ + ': '));
+        $A(arguments).each(function (arg) {
+            argSpan = new Element('span').setStyle({ padding: '3px' });
+            if (typeof(arg) == 'object') {
+                if (Object.isElement(arg))
+                    argSpan.appendChild(new Element('span').update('Element ' + arg.id));
+                else
+                    Object.keys(arg).each(function (key) {
+                        if (typeof(arg[key]) != 'function')
+                            argSpan.appendChild(new Element('span').setStyle({ padding: '3px' }).update(key + ': ' + arg[key]));;
+                    });
+            }
+            else
+                argSpan.update(arg);
+            logDiv.appendChild(argSpan);
+        });
+        this.consoleDiv.appendChild(logDiv);
+        this.consoleDiv.scrollTop = this.consoleDiv.scrollHeight;
+    }
+*/
+    // Disable console logging
+    console.log = function() { }
+}
+</script>
+<div style="text-align: right; position: absolute; right: 5px; top: 23px;">
+<script language="JavaScript">
+function gotoJob() {
+    console.log('gotoJob');
+    window.location = "job.html?job_id=" + $('jobsearch').value
+    return false;
+}
+</script>
+<form onsubmit="return gotoJob()"><input style="width: 175px;" id="jobsearch" name="search"/>&nbsp;<input type="submit" value="Go"/></form>
+<div style="padding-top: 2px">Logged in as <% $auth_args->{'display_name'} |h %>
+% if ($auth_args->{'su_from_uid'}) {
+|&nbsp;<a href="?reload-auth=1">Reload auth</a>
+% } elsif ($auth_args->{'foreman'} || $admin) {
+|&nbsp;<a href="change_user.html">Change user</a>
+% }
+</div></div>
+% $m->comp('/mason/ajax/complete_job.comp', id => 'jobsearch', job_id => undef, no_dropdown_button => 1, after_update_js => 'window.location = "job.html?job_id=" + li.id;', sort_order => 'DESC', limit => 0);
+
+<% $m->call_next %>
+
+%#<pre>
+%#% use Data::Dumper;
+%#% print Dumper(\%session);
+%#</pre>

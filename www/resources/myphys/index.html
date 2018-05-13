@@ -1,0 +1,315 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: index.html
+        Date: 2008.04.02
+      Author: clayton
+     Changed: 2008.04.02 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$msg => undef;
+</%ARGS>
+
+<%INIT>
+    use physdb::directory;
+    use Data::Dumper;
+    
+    my $directory;
+    if($session{'uid'}) {
+        $directory = new Directory( uid => $session{'uid'} );
+    }
+
+    my $sth;
+    my %classes = ();
+    my %next_classes = ();
+
+    my $year = $m->comp('/mason/this_year.comp');
+    my $quarter = $m->comp('/mason/this_quarter.comp');
+    my ($next_year, $next_quarter) = $m->comp('/mason/next_quarter.comp');
+
+    my $get_classes = sub {
+        my ($year, $quarter, $classes) = @_;
+        my @sql_args;
+        my $sql = '';
+    
+        #Check if student, instructor or maintainer of any classes
+        if($session{'x500'}) {
+            $sql = "SELECT webdbcl.classid, webdbcl.name, webdbcl.section, webdbcl.title, webdbcl.year, webdbcl.quarter
+                        FROM grades.classlist as gcl
+                        JOIN webdb.classlist as webdbcl ON (webdbcl.classid = gcl.classid)
+                        JOIN grades.users AS users ON (gcl.userid = users.id)
+                        WHERE users.x500 = ? AND (webdbcl.year = ? AND webdbcl.quarter = ?) AND webdbcl.parent IS NULL";
+            push(@sql_args,$session{'x500'});
+            push(@sql_args,$year);
+            push(@sql_args,$quarter);
+            if($session{'uid'}) {
+                $sql .= " UNION DISTINCT ";
+            }
+        }
+        if($session{'uid'}) {
+            $sql .= "SELECT classid, name, section, title, year, quarter
+                        FROM classlist
+                        WHERE (classlist.year = ? AND classlist.quarter = ?) AND (classlist.maintainer = ?) AND parent IS NULL";
+            $sql .= " UNION DISTINCT ";
+            $sql .= "SELECT cl.classid, cl.name, cl.section, cl.title, cl.year, cl.quarter
+                        FROM members
+                        JOIN classlist AS cl ON (members.memberof = cl.classid)
+                        WHERE members.uid = ? AND (cl.year = ? AND cl.quarter = ?) AND (members.type = 'instructor' OR members.type = 'TA') AND cl.parent IS NULL";
+            push(@sql_args,$year);
+            push(@sql_args,$quarter);
+            push(@sql_args,$session{'uid'});
+            push(@sql_args,$session{'uid'});
+            push(@sql_args,$year);
+            push(@sql_args,$quarter);
+        }
+        $sth = $dbh->prepare($sql) or die "Couldn't prepare '$sql': ".$sth->errstr;
+        $sth->execute(@sql_args) or die "Couldn't execute '$sql': ".$sth->errstr;
+        while (my $row = $sth->fetchrow_hashref) {
+            $$classes{$$row{'name'} . ($$row{'section'} ? '.' . $$row{'section'} : '')} = $row;
+        }
+    };
+
+    if($session{'x500'} || $session{'uid'}) {
+        $get_classes->($year, $quarter, \%classes);
+        $get_classes->($next_year, $next_quarter, \%next_classes);
+    }
+
+    my $sysadm = $m->comp('/mason/auth/auth_check.comp', auth_type=>'sysadm');
+    my $faculty = $m->comp('/mason/auth/auth_check.comp', auth_type=>'physfac');
+    my $gradfac = $m->comp('/mason/auth/auth_check.comp', auth_type=>'physgrfac');
+    my $staff = $m->comp('/mason/auth/auth_check.comp', auth_type=>'staff');
+
+
+    my $grad = $m->comp('/mason/auth/check_groups.comp', allow => ['physgrad','astgrad']);
+    my $undergrad = $m->comp('/mason/auth/check_groups.comp', allow => ['underg']);
+
+    my $gradapp = $m->comp('/mason/auth/check_groups.comp', allow => ['gradapp', 'sysadm']);
+    my $auth_faculty = $m->comp("/mason/auth/check_groups.comp", allow => ['spafac', 'sysadm', 'web']);
+
+    my $appointment;
+    my $show_appointment = $m->comp({ store => \$appointment }, '/mason/db/students/appointment.comp');
+    my $auth_internal = $m->comp('/mason/auth/auth_check_internal.comp');
+    my $ugman = $faculty || $staff;
+    my $gradoffice = $m->comp('/mason/auth/auth_check.comp', auth_type=>'gradoffice');
+    my $gradmgt = ($faculty || $gradfac || $gradoffice || $gradapp );
+
+    my $has_mailquota = physdb::queryone("SELECT count(uid) FROM userquotas WHERE path LIKE 'e-mailbox%' AND uid=?", $session{'uid'});
+    my $has_physmail =  ($has_mailquota > 0 || ($directory && defined $directory->get('mailreq')));
+
+
+    ##DEBUG DEBUG DEBUG
+   # $has_physmail = 0;
+</%INIT>
+
+<%method title>MyPhys Overview</%method>
+
+<%method meta>
+<style type="text/css">
+.myphysitem, .myphysitem2 {
+  font-size: 10pt;
+  padding: 5px 5px 5px 9px;
+}
+.myphysitem2 {
+  padding-left: 17px;
+}
+.myphyssectionheader {
+  width:100%;
+  border: 1px outset black;
+  font-size:12pt;
+  padding:4px 0 6px 5px;
+  margin-bottom: 10px;
+}
+div#myphysboxes {
+  margin: 0; padding: 0;
+  width: 100%;
+  line-height: 1.2em;
+}
+div.myphyssection {
+  padding: 0 1px 0 0;
+  margin: 0.6em 3.5em 1em 1em;
+}
+div.myphyscolumn {
+  float: left;
+  width: 32%;
+}
+</style>
+</%method>
+
+% if($msg) {
+<div class="myphysmsg" style="font-weight: bold; color: green;"><% $msg |h %></div>
+% }
+
+<h2>Welcome, <% $m->comp('/mason/db/directory/current_user.comp', try_umn => 1) %>.</h2><p>
+
+<div id="myphysboxes">
+  <div class="myphyscolumn">
+	<div class="myphyssection">
+    	<div class="myphyssectionheader">My Account</div>
+        <div class="myphysitem">Currently logged in via: <% $session{'shibauth'} ? 'X.500' : 'PhysID' %></div>
+        <div class="myphysitem">Your Physics Account: <% $session{'physid'} ? $session{'physid'} : '<i>None<br>(Is this an error? Tell <a href="mailto:directory@physics.umn.edu">directory@physics.umn.edu</a>)</i>' %></div>
+        <div class="myphysitem">Your UMN Internet ID: <% $session{'x500'} ? $session{'x500'} : '<i>None</i>' %></div>
+    <%perl> if($directory && $session{'physid'}) { </%perl>
+        <div class="myphysitem"><a href="physacct.html">Change Physics Account Password</a></div>
+    <%perl> } </%perl>
+    </div> <!-- column -->
+    <div class="myphyssection">
+        <div class="myphyssectionheader">My Directory Profile</div>
+        <%perl> if($directory) { </%perl>
+%#      <div class="myphysitem"><a href="/people/<% $session{'physid'} ? $session{'physid'} : $session{'x500'} %>" title="View your directory entry">My People Page</a></div>
+        <div class="myphysitem"><a href="profile/edit_dirinfo_form.html" title="Update your contact information">Edit Physics Directory Information</a></div>
+        <div class="myphysitem"><a href="profile/" title="Tell others about yourself">Edit My Profile</a></div>
+% if ($auth_internal) {
+        <div class="myphysitem"><a href="groupmgmt/" title="">Edit or View My Groups</a></div>
+% }
+
+        <%perl> } else {</%perl>
+        <div class="myphysitem">You are not listed in the directory. </div>
+        <%perl> } </%perl>
+    </div> <!-- column -->
+%   if ($auth_internal) {
+    <div class="myphyssection">
+        <div class="myphyssectionheader">My Employment</div>
+        <div class="myphysitem"><a href="timesheets.html">Print Timesheet</a></div>
+        <div class="myphysitem"><a href="http://hrss.umn.edu/">UMN Employee Self-Service</a></div>
+    </div> <!-- column -->
+
+    <div class="myphyssection">
+      <div class="myphyssectionheader">MyPhysFiles</div>
+      <div class="myphysitem"><a href="myfiles/">View or Upload MyPhysFiles</a></div>
+    </div> <!-- column -->
+
+%   if ($auth_faculty) {
+    <div class="myphyssection">
+      <div class="myphyssectionheader">Faculty Information</div>
+
+<!-- Jenny/Julie - put links for faculty here -->
+
+
+          <div class="myphysitem"><a href="http://zzz.physics.umn.edu/admin/private/facultysearch/home">Faculty Search Scheduling</a></div>
+          <div class="myphysitem"><a href="http://zzz.physics.umn.edu/admin/private/ug_scholarships/home">Undergraduate Scholarship Review</a> </div>
+          <div class="myphysitem"><a href="http://zzz.physics.umn.edu/admin/private/ta_award/home">TA Award Review</a> </div>
+          <div class="myphysitem"><a href="https://zzz.physics.umn.edu/admin/private/faculty/home">Faculty Meeting Minutes</a> </div>
+          <div class="myphysitem"><a href="http://zzz.physics.umn.edu/admin/committees/home">Department Committees Homepage</a> </div>
+
+
+<!-- end faculty info section -->
+
+
+
+    </div> <!-- column -->
+%   }
+
+%   }
+  </div>
+  <div class="myphyscolumn">
+    <div class="myphyssection">
+        <div class="myphyssectionheader">My Classes</div>
+%       if ($undergrad) {
+        <div class="myphysitem"><a href="/resources/myphys/ugadvising/report_form.html?uid=<% $session{uid}|u%>" title="">My Advising Report</a></div>
+%       }
+        <div class="myphysitem"><a href="/classes/view_scores.html" title="View your scores">My Scores</a></div>
+% if ($auth_faculty || $staff) {
+        <div class="myphysitem"><a href="https://zzz.physics.umn.edu/admin/classes/home" title="">Class Resource Wiki</a></div>
+% }
+% if ($m->comp('/mason/auth/auth_check_gradebook_upload.comp')) {
+        <div class="myphysitem"><a href="gradebooks/">Gradebook templates and uploads</a></div>
+% }
+
+<%perl>
+my $classlist = sub {
+    my $classes = shift;
+    print '<div class="myphysitem2">No classes found</div>' unless (scalar %$classes);
+    for my $class (sort(keys %$classes)) {
+        print '<div class="myphysitem2"><a href="' . $m->comp("/mason/db/classes/make_classlink.comp", fullurl=>1, classid=>$classes->{$class}->{'classid'}) . '" title="' . $classes->{$class}->{'title'} . '">' . $class . '</a></div>';
+    }
+};
+</%perl>
+
+        <div class="myphysitem"><b>Current Classes</b></div><%perl>$classlist->(\%classes);</%perl>
+        <div class="myphysitem"><b>Upcoming Classes</b></div><%perl>$classlist->(\%next_classes);</%perl>
+   </div> <!-- column -->
+% if ($ugman || $sysadm) {
+    <div class="myphyssection">
+        <div class="myphyssectionheader">Undergrad Advising</div>
+        <div class="myphysitem"><a href="/resources/myphys/ugadvising/" title="Undergrad Advising">Undergrad Advising System</a></div>
+        <div class="myphysitem"><a href="http://zzz.physics.umn.edu/admin/private/faculty_advising_handbook/home" title="Handbook">Faculty Undergraduate Advising Handbook</a></div>
+        <div class="myphysitem"><a href="http://zzz.physics.umn.edu/undergrad_program/handbook/home" title="Handbook">Undergraduate Student Handbook</a></div>
+        <div class="myphysitem"><a href="https://onestop2.umn.edu/darwin/login.do">APAS</a></div>
+    </div>
+% }
+% if ($gradmgt || $sysadm) {
+    <div class="myphyssection">
+        <div class="myphyssectionheader">Grad Management</div>
+        <div class="myphysitem"><a href="/resources/admin/students/" title="View my students">My Graduate Students</a></div>
+% if($gradapp || $sysadm) {
+        <div class="myphysitem"><a href="/resources/myphys/gradreview/" title="Graduate Application Review System">Grad Application Reviews</a></div>
+        <div class="myphysitem"><a href="/grad/physics/application/">Archived Grad Applications</a></div>
+% }
+    </div> <!-- column -->
+% }
+
+% if ($grad || $gradmgt || $sysadm) {
+    <div class="myphyssection">
+        <div class="myphyssectionheader">Graduate Program</div>
+        <div class="myphysitem"><a href="/resources/gradprogress/">Grad Progress Report Entry</a></div>
+        <div class="myphysitem"><a href="grad/tascheduling/">TA Schedule Entry</a></div>
+        <div class="myphysitem"><a href="/resources/forms/gradadvisorupdate.html">Grad Advisor Update</a></div>
+        <div class="myphysitem"><a href="/resources/forms/travel_grant_request.html">Grad Travel Grant Request</a></div>
+    </div> <!-- column -->
+% }
+
+
+% if ($show_appointment) {
+    <div class="myphyssection">
+        <div class="myphyssectionheader">Appointment Information</div>
+        <div class="myphysitem"><% $appointment %></div>
+    </div> <!-- column -->
+% }
+  </div>
+  <div class="myphyscolumn">
+% if($session{'uid'}) {
+    <div class="myphyssection">
+        <div class="myphyssectionheader">Computing</div>
+        <div class="myphysitem"><a href="network/">Network Registrations</a></div>
+        <div class="myphysitem"><a href="computing/systems.html?show=servers">Cluster, Server and Workstation Lists</a></div>
+        <div class="myphysitem"><a href="storage/index.html">Storage Quotas</a> and <a href="storage/backups.html">Backups</a></div>
+        <!-- div class="myphysitem"><a href="tickets.html">My Tickets</a></div-->
+        <div class="myphysitem"><a href="software/">Software Downloads</a></div>
+        <div class="myphysitem"><a href="http://monitor.physics.umn.edu/ganglia/">Ganglia systems monitor</a></div>
+        <div class="myphysitem"><a href="http://zzz.physics.umn.edu/computing/home">Computer Support Wiki Site</a></div>
+    </div> <!-- column -->
+    <div class="myphyssection">
+        <div class="myphyssectionheader">Email</div>
+        <div class="myphysitem"><a href="physacct_email.html">Physics Email Status &amp; Forwarding</a></div>
+        <!--<div class="myphysitem"><a href="physacct_email.html" title="Configure where we send email directed to <% $session{'physid'}|h%>@physics.umn.edu">Configure Physics Email Forwarding</a></div>-->
+        <div class="myphysitem"><a href="lists/index.html">Physics Mailing Lists</a></div>
+
+% #if they have a mailbox, show them mail delivery link. Otherwise show them request a mailbox link
+% if($has_physmail > 0) {
+            <div class="myphysitem"><a href="spam.html">View Rejected/Delayed Email Messages</a></div>
+% }
+    </div>
+    <div class="myphyssection">
+        <div class="myphyssectionheader">Print and Copy</div>
+        <div class="myphysitem"><a href="print/printers.html">View Physics &amp; Astronomy Printers</a></div>
+        <div class="myphysitem"><a href="print/copy.html">Copy Codes and Counters</a></div>
+    </div>
+
+% }
+     <div class="myphyssection">
+        <div class="myphyssectionheader">General Resources</div>
+        <div class="myphysitem"><a href="/resources/forms/AccessRequestForm.html">Key/card access request form</a></div>
+        <div class="myphysitem"><a href="http://groups.physics.umn.edu/demo/">Physics Lecture Demonstrations</a> and <a href="/resources/demoreq.html">Request Form</a></div>
+        <div class="myphysitem"><a href="http://zzz.physics.umn.edu/handbook/home">Physics Handbook (PAN facilities)</a></div>
+        <div class="myphysitem"><a href="https://sites.google.com/a/umn.edu/pan-conference-rooms/home">SPA Conference Room Calendars</a></div>
+        <div class="myphysitem"><a href="http://zzz.physics.umn.edu/student_shop/home">Physics Student Shop</a>
+            (and <a href="cameras/">Cameras</a>)
+        </div>
+        <div class="myphysitem"><a href="http://cse.umn.edu/research/cseshop/">CSE Machine Shop</a></div>
+        <div class="myphysitem"><a href="http://sciweb.lib.umn.edu/">Science and Engineering Library</a></div>
+    </div>
+
+  </div>
+</div>

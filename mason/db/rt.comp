@@ -1,0 +1,50 @@
+<%doc>
+   vim:set syntax=mason:
+</%doc>
+<%args>
+$search
+$sort => 'statusupdated'
+$sort_reverse => 0
+</%args>
+
+<%init>
+use supportdb;
+my @addresses = @$search;
+
+my $sql_base = "
+SELECT Tickets.*, Queues.Name as Queue
+FROM Users
+JOIN GroupMembers ON GroupMembers.MemberId=Users.id
+JOIN Groups ON Groups.id = GroupMembers.GroupId AND Domain='RT::Ticket-Role' AND Type='Requestor'
+JOIN Tickets ON Tickets.id = Groups.Instance
+JOIN Queues ON Queues.id = Tickets.Queue
+
+
+";
+
+my $sql_where = "WHERE Tickets.Status <> 'deleted' AND Tickets.EffectiveId = Tickets.id AND (1=0 ";
+my @sql_args;
+foreach my $address (@addresses) {
+   $sql_where .= " OR Users.EmailAddress = ?";
+   push @sql_args, $address;
+}
+$sql_where .= ")";
+my $sql_limit = "";
+my %sort_orders = ( lastupdated => "ORDER BY Tickets.LastUpdated DESC",
+                    created  => "ORDER BY Tickets.Created DESC",
+                    subject  => "ORDER BY Tickets.Subject ASC",
+                    status  =>  "ORDER BY Tickets.Status ASC",
+                    queue  =>  "ORDER BY Queues.Name ASC",
+                    statusupdated => "ORDER BY FIELD(Tickets.Status, 'new', 'open', 'waiting', 'pending', 'stalled', 'resolved', 'rejected'), Tickets.LastUpdated DESC"
+                    );
+
+
+my $sql_order = $sort_orders{$sort};
+if(!$sql_order) { die("Sorting by a keyword I don't know how to sort by ($sort)"); }
+
+
+my @tickets = supportdb::queryall("$sql_base $sql_where $sql_order $sql_limit", @sql_args);
+#$m->out("DEBUG: $sql_base $sql_where $sql_order $sql_limit");
+return \@tickets;
+
+</%init>

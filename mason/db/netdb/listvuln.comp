@@ -1,0 +1,54 @@
+
+<%DOC>
+   Component: listvuln.comp
+        Date: 2004.03.18
+      Author: allan
+     Changed: 2004.03.18 by allan
+
+lists vulnerabilities for a host...
+</%DOC>
+
+<%ARGS>
+$hostid
+</%ARGS>
+
+<%INIT>
+use Text::Wrapper;
+
+my $row_ref;
+my $self = $r->uri;
+my $x500 = $session{'x500'};
+
+my $fqdn;
+my $count;
+my $cpuinfo;
+my $edit;
+my ($sql,$sth);
+my $report;
+my $ack;
+$sql = "SELECT plugin, create_date, scan_date, notification_date, msg, notifications, ignored FROM vulnerabilities WHERE hostid=?";
+$sth = $dbh->prepare($sql);
+$sth->execute($hostid);
+
+my $wrapper = Text::Wrapper->new;
+
+$count = 0;
+while ($row_ref = $sth->fetchrow_arrayref) {
+  my ($plugin, $create_date, $scan_date, $notification_date, $msg, $notifications, $ignored) = @$row_ref;
+  $msg = $wrapper->wrap($msg);
+  $msg = "<pre>".$msg."</pre>";
+  #$msg = $m->comp('/mason/format_text.comp',text=>$msg);
+  #$msg =~ s/^<p>//gi;
+  if ($ignored) {
+    $ack = "<b>Detected: ".$scan_date."</b> - (ignore)";
+    } else {
+    $ack = "<form method=\"post\" action=\"vuln_ack.html\"><input type=hidden name=\"hostid\" value=".$hostid."><input type=hidden name=\"plugin\" value=".$plugin."><b>Detected: ".$scan_date."</b> - <input type=submit value=\"Ignore\"></form>";
+  }
+$report .= "<tr valign=\"top\"><td>".$ack."</td></tr><tr><td>".$msg."</td></tr>";
+}
+if ($report) {
+  $report = "<table border=0 width=\"100%\" cellspacing=0 cellpadding=2>".$report."</table>";
+}
+</%INIT>		
+
+% return $report;

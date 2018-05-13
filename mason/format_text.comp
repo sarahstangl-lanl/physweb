@@ -1,0 +1,31 @@
+<%doc>
+   Component: format_text.comp
+        Date: 9/10/2002
+      Author: allan
+ Description:  attempt to format a block of text for HTML
+</%doc>
+<%args>
+$text=>''
+$paras=>1
+$bullets=>1
+$numbers=>1
+$tables=>1
+$bold=>1
+$email=>1
+$urls=>1
+$meta=>1
+$underline=>1
+$replace_nls=>0
+</%args>
+<%init>
+  my $formatted;
+  $text =~ s/\r//g; 
+  # convert nonprintables to spaces, prevent text2html from barfing...
+  $text =~ tr [\176-\377] [\040-\040];
+  $text =~ tr [\016-\037] [\040-\040];
+  $text =~ tr [\001-\011] [\040-\040];
+  $text =~ tr [\013-\014] [\040-\040];
+  $text =~ s/\n+/\n\n/g if $replace_nls;
+  $text = text2html($text, paras=>$paras, bullets=>$bullets, numbers=>$numbers, tables=>$tables, bold=>$bold, email=>$email, urls=>$urls, metachars=>$meta, underline=>$underline);
+  return $text;
+</%init>

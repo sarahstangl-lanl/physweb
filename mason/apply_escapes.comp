@@ -1,0 +1,27 @@
+<%DOC>
+   Component: apply_escapes.comp
+        Date: 2008.10.08
+      Author: clayton
+     Changed: 2008.10.08 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+  my $in = $_[0];
+
+  if ((ref($in) eq 'ARRAY') || ref($in) eq 'HASH') {
+    for my $val (@$in) {
+      $val = $m->interp->apply_escapes($val, 'h');
+    }
+  }
+
+  return $in;
+</%INIT>		
+		
+<%filter>
+s/.//gos
+</%filter>

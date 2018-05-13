@@ -1,0 +1,44 @@
+<%args>
+    $search => ''
+    $uid => ''
+</%args>
+<%flags>
+    inherit=>undef
+</%flags>
+<%init>
+    my $query;
+    if (ref($uid)) {
+        $query = $m->comp('/mason/ajax/account_finder.comp', uid => $uid);
+    }
+    elsif ($search) {
+        $query = $m->comp('/mason/ajax/account_finder.comp', search => $search);
+    }
+    my @display_columns = (
+        { column => 'fund_code',    name => 'FUND',     width => '42' },
+        { column => 'deptid',       name => 'DEPTID',   width => '59' },
+        { column => 'program_code', name => 'PRGM',     width => '51' },
+        { column => 'project_id',   name => 'PROJ',     width => '70' },
+        { column => 'chartfield3',  name => 'EMPLID',   width => '70' },
+        { column => 'chartfield1',  name => 'CF1',      width => '105' },
+        { column => 'chartfield2',  name => 'CF2',      width => '105' },
+    );
+</%init>
+<ul class="accounts">
+% if ($query) {
+% if ($query->rows) {
+% while (my $result = $query->fetchrow_hashref()) {
+<li <% join(" ", map { 'efs_' . (lc $_->{'name'}) . '="' . ($$result{$_->{'column'}} || '') . '"' } @display_columns) %> efs_disabled="<% $$result{'disabled'} %>" id="<% $$result{'account_key'} |h %>" class="account"><div class="name"><% $$result{'descr50'} || $$result{'descr'} || "(no description)" |h %> <span style="color:red;" class="informal"><% $$result{'disabled'} ? '(DO NOT USE)' : '' %></span></div><span class="informal"><table><tr>
+% for (@display_columns) {
+<td class="efs_header" style="min-width: <% $_->{'width'} %>px"><% $_->{'name'} |h %></td>
+% }
+</tr><tr>
+% for (@display_columns) {
+<td class="efs_value"><% ($$result{$_->{'column'}} || '') |h %></td>
+% }
+</tr></table></span>
+</li>
+% } }
+% else {
+<li id="" class="account"><span class="informal"><div class="name" style="font-style: italic">No matches found</div></span></li>
+% } }
+</ul>

@@ -1,0 +1,21 @@
+<%method feature>
+% my $filename = $ARGS{'filename'};
+% my $imgy = $ARGS{'imgy'};
+% my $alt = $ARGS{'alt'};
+% my $imgsize = $ARGS{'imgsize'};
+% my $title = $ARGS{'title'};
+% my $text = $ARGS{'text'};
+% my $link = $ARGS{'link'};
+<div class="meet">
+
+    <img class="meet" src="<% $filename %>" alt="<% $alt %>" <% $imgsize %> style="float: left; padding-right: 1em;">
+
+    <div class="meetheadertext">
+% if ($title) {
+      <h3><% $title %></h3>
+% }
+    <% $m->content %>
+    </div>
+</div>
+</%method>
+%# vim: set syntax=mason:

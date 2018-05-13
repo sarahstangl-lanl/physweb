@@ -1,0 +1,43 @@
+<%doc>
+
+check_job_auth.comp
+
+Returns 'foreman', 'accounting', 'machinist', 'customer' or undef
+
+First matching auth type is returned. Auth types are ordered based on auth levels
+i.e., foreman > accounting > machinist > customer
+
+</%doc>
+
+<%args>
+$job_id=>undef
+$job_item=>undef
+# Set to 1 to only allow machinists assigned to job
+$restrict_to_assigned_machinists=>0
+</%args>
+
+<%init>
+
+# Ensure shopdb-auth hash been generated
+$m->comp('/mason/db/shopdb/build_auth.comp');
+
+my $auth_args = $session{'shopdb-auth'};
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+die 'job_id or job_item is required' unless ($job_id || $job_item);
+
+$job_item ||= $schema->resultset('Jobs')->find({ job_id => $job_id });
+
+die "Invalid job_id $job_id" unless $job_item;
+
+return 'foreman' if $auth_args->{'foreman'};
+return 'accounting' if $auth_args->{'accounting'};
+my @machinists = $job_item->machinists;
+return 'machinist' if (!$restrict_to_assigned_machinists && $auth_args->{'machinist_id'});
+return 'machinist' if (@machinists && grep { $_->get_column('machinist_id') eq $auth_args->{'machinist_id'} } @machinists);
+return 'customer' if (
+    ($job_item->customer_id && $job_item->customer_id eq $auth_args->{'customer_id'}) ||
+    ($job_item->pi_id && $job_item->pi_id eq $auth_args->{'customer_id'})
+);
+return undef;
+</%init>

@@ -1,0 +1,38 @@
+
+<%DOC>
+   Component: reviewapp.html
+        Date: 2005.08.10
+      Author: allan
+     Changed: 2005.08.10 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$email => undef
+$pass => ''
+</%ARGS>
+
+<%INIT>
+if (!$email) {
+    $m->redirect('index.html');
+}
+
+my $sql = "SELECT id, password FROM grad.gradapp WHERE email=?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($email);
+</%INIT>	
+
+<%perl>
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+    my ($id, $password) = @$row_ref;
+    if ($pass eq $password) {
+        $session{'gradappid'} = $id;
+        $m->redirect('appform.html');
+    } else {
+        print "Sorry, that password is incorrect. Did you forget it?";
+    }
+} else {
+    print "Sorry, can't find that email address";
+}
+</%perl>

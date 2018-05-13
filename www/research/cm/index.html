@@ -1,0 +1,47 @@
+<%doc>
+ vim: set syntax=mason:
+</%doc>
+<%method title>Condensed Matter</%method>
+
+<%method pageheading>
+<& 'PARENT:pageheading' &>
+</%method>
+
+<%args>
+$featrow=>undef
+</%args>
+
+%#Uncomment (remove %#) to enable this when the research faculty stories are done
+<& "/mason/db/stories/feature.comp", type=>'facultyresearch', subtype=>'cm', style_prefix=>'rf', readmore_path=>'/research/', featrow=>$featrow&>
+
+
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'cmimages/CMExperiment.jpg',alt=>'Asad Aboobaker',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'cmimages/CMExperiment2.jpg',alt=>'CDMS detector',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'cmimages/CMTheo1..jpg',alt=>'Magnetization graph',caption=>'a) Flower open magnetization and b vortex closed magnetization cross sections showing the direction of the magnetic moments.  b) shows complete magnetic flux closure and explains why the vortex state is nearly invisible to the MFM.' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'cmimages/CMTheo3.jpg',alt=>'Phase portrait',caption=>'Phase portrait of a phase transition in reaction-diffusion models.' &> </&>
+
+%# if you remove the comment from the front of below (%#), it ads another image to the list of ones randomly chosen.
+%#<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'lemmon.jpg',alt=>'Mt. Lemmon Observitory',credit=>'Just for TESTING!!',caption=>'This is an example of another block you can add...' &> </&>
+
+<& /mason/random.comp:execute, name=>'image' &>
+
+<h3>Physics of Matter</h3>
+
+<p>
+Condensed matter physics, and the closely associated discipline of
+materials physics, are the largest subfields in physics. Condensed matter research at Minnesota spans a range that includes the strange properties of electricity at nanoscales, to activities that may truly be
+considered "high science," understanding phenomena such as "superfluids," <sup>3</sup>He and <sup>4</sup>He. 
+<p>
+Condensed matter and materials physics have been the
+sources of numerous technologies important to daily life.  These include
+compound semiconductor electronics, magnetic and optical
+storage systems, liquid crystal displays, and semiconductor lasers.
+Among the many efforts at Minnesota aimed at future technology are the experiments in spintronics, which are attempting to solve problems associated with the coupling of a semiconductor and a ferromagnet.  Several of the condensed matter faculty members participate in the Materials Research Science and Engineering Center, a collaborative effort by the University that crosses departmental boundaries.
+<p>
+The condensed matter group at Minnesota investigates a wide range of experimental and theoretical problems in superconductivity and superfluidity, magnetism, mesoscopic physics, liquid crystals, semiconductors, surface physics and complexity.
+
+<p>
+<& ../profiles.comp, group=>'cm' &>
+<& ../profiles.comp, type=>'Researchers', flag=>'research || postdoc', group=>'cm' &>
+<& ../profiles.comp, type=>'Graduate Students', flag=>'physgrad || astgrad', group=>'cm' &>
+

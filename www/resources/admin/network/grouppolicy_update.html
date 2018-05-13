@@ -1,0 +1,253 @@
+<%flags>
+inherit => undef
+</%flags>
+
+<%args>
+$action => undef
+$type => undef
+$name => undef
+$id => undef
+$target => undef
+</%args>
+
+<%init>
+
+use feature "switch";
+use MIME::Base64;
+
+if (!$m->comp('/mason/auth/auth_check_sysadm.comp')) { return; }
+
+#Check for required parameters
+checkArgs(['action']) or return;
+
+#Type-to-table name hash
+my $tables = {
+    policy    => '`grouppolicy`.`policies`',
+    policyset => '`grouppolicy`.`policysets`',
+    cluster   => '`webdb`.`net_hosts`',
+    computer  => '`webdb`.`net_hosts`'
+};
+
+#Type-to-membertable name hash
+my $membertables = {
+    policy    => '`grouppolicy`.`policymembers`',
+    policyset => '`grouppolicy`.`policysetmembers`',
+    cluster   => '`webdb`.`net_hosts`'
+};
+
+#Type-to-select hash
+my $get_select_clauses = {
+    policy    => 'id, name',
+    policyset => 'id, name',
+    cluster   => 'DISTINCT cluster, cluster',
+    computer  => 'id, computer_name'
+};
+
+#Type-to-where hash
+my $get_where_clauses = {
+    policy    => "1 = 1",
+    policyset => "1 = 1",
+    cluster   => "(computer_name LIKE 'phys-%' OR computer_name LIKE 'labnet-%' OR computer_name LIKE 'ph-%') AND cluster <> ''",
+    computer  => "computer_name LIKE 'phys-%' OR computer_name LIKE 'labnet-%' OR computer_name LIKE 'ph-%'"
+};
+
+#Type-to-item select hash
+my $getitem_select_clauses = {
+    policy    => '*',
+    policyset => '*',
+    cluster   => '"", cluster, id'
+};
+
+#Type-to-item where hash
+my $getitem_where_clauses = {
+    policy    => "1 = 1",
+    policyset => "1 = 1",
+    cluster   => "(computer_name LIKE 'phys-%' OR computer_name LIKE 'labnet-%' OR computer_name LIKE 'ph-%') AND cluster <> ''",
+};
+
+my $DEFAULT_NAME = 'New $name';
+my ($sth, $query, $table);
+
+#Handle requested action
+given ($action) {
+    when ("add") {
+        checkArgs(['type','target','id']) or return;
+        given ($type) {
+            when (%$membertables) { $table = $membertables->{$type}; }
+            default { print "Invalid type $type"; return; }
+        }
+        (my $column = $id) =~ s/^(computer|cluster|policyset|policy).+$/$1id/;
+        (my $targetid = $target) =~ s/^(computer|cluster|policyset|policy)//;
+        (my $itemid = $id) =~ s/^(computer|cluster|policyset|policy)//;
+        if ($type eq 'cluster') {
+            $query = "UPDATE $table SET cluster = ? WHERE id = ?";
+#            print "Update: type: $type target: $target targetid: $targetid id: $id itemid: $itemid\nquery: $query" and return;
+        } else {
+            $query = "INSERT INTO $table (${type}id, $column) VALUES (?,?)";
+#            print "Add: type: $type target: $target targetid: $targetid id: $id itemid: $itemid\nquery: $query" and return;
+        }
+        $sth = $dbh->prepare($query) or print "Failed to prepare query '$query': ".$dbh->errstr and return;
+        $sth->execute($targetid, $itemid) or print "Failed to execute query '$query': ".$sth->errstr and return;
+        print "OK";
+    }
+    when ("remove") {
+        checkArgs(['type','target','id']) or return;
+        given ($type) {
+            when (%$membertables) { $table = $membertables->{$type}; }
+            default { print "Invalid type $type"; return; }
+        }
+        (my $column = $id) =~ s/^(computer|cluster|policyset|policy).+$/$1id/;
+        (my $targetid = $target) =~ s/^(computer|cluster|policyset|policy)//;
+        (my $itemid = $id) =~ s/^(computer|cluster|policyset|policy)//;
+        if ($type eq 'cluster') {
+            $query = "UPDATE $table SET cluster = '' WHERE cluster = ? AND id = ? LIMIT 1";
+#            print "Update: type: $type target: $target targetid: $targetid id: $id itemid: $itemid\nquery: $query" and return;
+        } else {
+            $query = "DELETE FROM $table WHERE ${type}id = ? AND $column = ? LIMIT 1";
+#            print "Delete: type: $type target: $target targetid: $targetid id: $id itemid: $itemid\nquery: $query" and return;
+        }
+        $sth = $dbh->prepare($query) or print "Failed to prepare query '$query': ".$dbh->errstr and return;
+        $sth->execute($targetid, $itemid) or print "Failed to execute query '$query': ".$sth->errstr and return;
+        print "OK";
+    }
+    when ("new") {
+        checkArgs(['type','name']) or return;
+        (my $newname = $DEFAULT_NAME) =~ s/(\$name)/$1/ee;
+        given ($type) {
+            when (%$tables) { $table = $tables->{$type}; }
+            default { print "Invalid type $type"; return; }
+        }
+        my $duplicate = 1;
+        my $num = 1;
+        while($duplicate) {
+            $query = "INSERT INTO $table (name) VALUES (?)";
+            $sth = $dbh->prepare($query) or print "Failed to prepare query '$query': ".$dbh->errstr and return;
+            if (!$sth->execute($newname)) {
+                if ($sth->errstr =~ /Duplicate/) {
+                    $newname =~ s/$num$//;
+                    $num = $num + 1;
+                    $newname .= $num;
+                } else { print "Failed to execute query '$query': ".$sth->errstr; return; }
+            } else { $duplicate = 0; }
+        }
+        $sth = $dbh->prepare("SELECT LAST_INSERT_ID() FROM $table") or print "Failed to prepare query '$query': ".$dbh->errstr and return;
+        $sth->execute() or print "Failed to execute query '$query': ".$sth->errstr and return;
+        print "OK:".$sth->fetchrow_array.":$newname";
+    }
+    when ("delete") {
+        checkArgs(['id']) or return;
+        ($type = $id) =~ s/\d+$//;
+        $id =~ s/^[^\d]+//;
+        given ($type) {
+            when (%$tables) { $table = $tables->{$type}; }
+            default { print "Invalid type $type"; return; }
+        }
+        if ($type eq 'policy') {
+            $query = "DELETE $table a, `grouppolicy`.`policystrings` b FROM $table a, `grouppolicy`.`policystrings` b WHERE a.id = b.policyid AND a.id = ?";
+        } else {
+            $query = "DELETE FROM $table WHERE id = ? LIMIT 1";
+        }
+#        print "Delete: query: $query" and return;
+        $sth = $dbh->prepare($query) or print "Failed to prepare query '$query': ".$dbh->errstr and return;
+        $sth->execute($id) or print "Failed to execute query '$query': ".$sth->errstr and return;
+        if ($sth->rows) { print "OK"; }
+        else { print "Query failed: \n$query\n$id"; }
+    }
+    when ("edit") {
+        checkArgs(['id','name']) or return;
+        (my $newtype = $id) =~ s/\d+$//;
+        (my $newid = $id) =~ s/^[^\d]+//;
+        given ($newtype) {
+            when (%$tables) { $table = $tables->{$newtype}; }
+            default { print "Couldn't parse type $type"; return; }
+        }
+        $query = "UPDATE $table SET name = ? WHERE id = ?";
+#        print "Edit: query: $query" and return;
+        $sth = $dbh->prepare($query) or print "Failed to prepare query '$query': ".$dbh->errstr and return;
+        $sth->execute($name,$newid) or print "Failed to execute query '$query': ".$sth->errstr and return;
+        print "OK";
+    }
+    when ("get") {
+        checkArgs(['type']) or return;
+        given ($type) {
+            when (%$tables) { $table = $tables->{$type}; }
+            default { print "Invalid type $type"; return; }
+        }
+        $query = "SELECT $get_select_clauses->{$type} FROM $table WHERE $get_where_clauses->{$type}";
+        $sth = $dbh->prepare($query) or print "Failed to prepare query '$query': ".$dbh->errstr and return;
+        $sth->execute() or print "Failed to execute query '$query': ".$sth->errstr and return;
+        print "OK\n";
+        while (my @row = $sth->fetchrow_array) {
+            print join(":",@row)."\n";
+        }
+    }
+    when ("getitems") {
+        checkArgs(['type']) or return;
+        given ($type) {
+            when (%$membertables) { $table = $membertables->{$type}; }
+            default { print "Invalid type $type"; return; }
+        }
+        $query = "SELECT $getitem_select_clauses->{$type} FROM $table WHERE $getitem_where_clauses->{$type}";
+        $sth = $dbh->prepare($query) or print "Failed to prepare query '$query': ".$dbh->errstr and return;
+        $sth->execute() or print "Failed to execute query '$query': ".$sth->errstr and return;
+        print "OK\n";
+        while (my @row = $sth->fetchrow_array) {
+            print join(":",@row)."\n";
+        }
+    }
+    when ("getregkeys") {
+        $query = "SELECT a.id, string FROM `grouppolicy`.`policies` a JOIN `grouppolicy`.`policystrings` b ON a.id = b.policyid";
+        $sth = $dbh->prepare($query) or print "Failed to prepare query '$query': ".$dbh->errstr and return;
+        $sth->execute() or print "Failed to execute query '$query': ".$sth->errstr and return;
+        print "OK\n";
+        while(my $row = $sth->fetchrow_hashref) {
+            print $row->{id}.":";
+            (my $decodedstring = decode_base64($row->{string})) =~ s/(\[|\0)\0//g;
+            my @policies = split(/\]\0/,$decodedstring);
+            foreach my $policy (@policies) {
+                my @stringparts = split(/;\0/,$policy,5);
+                $stringparts[0] =~ s/([\x20-\x7e])\x00/$1/g;
+                $stringparts[1] =~ s/([\x20-\x7e])\x00/$1/g;
+                my $type = ord(substr $stringparts[2], 0, 1) == 4 ? "DWORD" : "SZ";
+                my $name = $m->interp->apply_escapes("$stringparts[0]\\$stringparts[1]", 'u');
+                print "<li class=\"liClosed\" title=\"$name (REG_$type)\"><span class=\"bullet\">&nbsp;$name (REG_$type)</span>";
+                my $stringhtml = "";
+                for (my $i = 4; $i < scalar(@stringparts); $i++) {
+                    my $livalue = "";
+                    if ($stringparts[$i] =~ /^\x20\x00$/) {
+                        $livalue = "&lt;space&gt;";
+                    } elsif ($stringparts[$i] eq '') {
+                        $livalue = "&lt;empty&gt;";
+                    } else {
+                        for (my $j = 0; $j < length($stringparts[$i]); $j += 2) {
+                            my $value = unpack("s", substr $stringparts[$i], $j, 2);
+                            $livalue .= $type eq "SZ" ? chr($value) : sprintf("0x%04X (%i)", $value, $value);
+                        }
+                    }
+                    $livalue = $m->interp->apply_escapes($livalue, 'u');
+                    $stringhtml .= "<li class=\"liBullet\" title=\"$livalue\"><span class=\"bullet\">&nbsp;Value&#58;&nbsp;$livalue</span></li>";
+                }
+                if ($stringhtml ne "") {
+                    print "<ul>$stringhtml</ul>";
+                }
+                print "</li>";
+            }
+            print "\n";
+        }
+    }
+    default { print "Unknown type $type"; }
+}
+
+#Sub to check arguments
+sub checkArgs {
+    my $types = shift;
+    foreach my $type (@$types) {
+        if (!defined(${$m->request_args}{$type})) { print "Missing $type argument"; return 0; }
+    }
+    return 1;
+}
+</%init>
+
+<%filter>
+s/(^\s+|\s+$)//gos
+</%filter>

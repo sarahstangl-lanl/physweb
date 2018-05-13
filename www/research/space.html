@@ -1,0 +1,62 @@
+<%method title>Space and Planetary Physics</%method>
+
+%#<& /mason/image.comp, filename=>'Auroraweb.jpg', caption=>'Ultraviolet image of the aurora taken by the Polar satellite. UM physicists participate in analysis of data from the NASA satellite, Polar. ' &>
+
+<%method pageheading>
+<& 'PARENT:pageheading' &>
+</%method>
+
+<%args>
+$featrow=>undef
+</%args>
+
+%#Uncomment (remove %#) to enable this when the research faculty stories are done
+<& "/mason/db/stories/feature.comp", type=>'facultyresearch', subtype=>'space', style_prefix=>'rf', readmore_path=>'/research/', featrow=>$featrow&>
+
+%# note the new random.comp wrapper around the image.comp component...
+%#<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'cdmscryo.jpg',alt=>'CDMS Cryostat',credit=>'Courtesy CDMS',caption=>'A cryostat for CDMS.' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'spaceimages/EarthImage.jpg',alt=>'Asad Aboobaker',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'spaceimages/NorthernLights.jpg',alt=>'CDMS detector',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'spaceimages/OrbitPath.jpg',alt=>'EBEX balloon',caption=>'' &> </&>
+
+%# if you remove the comment from the front of below (%#), it ads another image to the list of ones randomly chosen.
+%#<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'lemmon.jpg',alt=>'Mt. Lemmon Observitory',credit=>'Just for TESTING!!',caption=>'This is an example of another block you can add...' &> </&>
+
+<& /mason/random.comp:execute, name=>'image' &>
+
+
+<h3>Physics of Space</h3>
+<p>
+Welcome to the Space and Planetary Physics Group at the University of Minnesota!
+
+<p>
+Space and Planetary Physics covers an extremely broad range from the upper reaches of the earth's atmosphere, to the other
+planets of our solar system, to cosmic rays incident on the earth from sources in our galaxy and possibly beyond.
+Faculty members active in space physics also maintain strong ties to work done in astrophysics, plasma physics, elementary particle
+physics, nuclear physics and atmospheric physics. 
+<p>
+
+Space research at the University of Minnesota includes a wide variety of theoretical and experimental projects. One direction of research, carried out by Professor Robert Pepin, is aimed at understanding the chemical evolution of the solar system as seen in the structure of meteorites and other small bodies of the solar system.  
+<p>
+Another major research project is the study of the physics of space plasmas. More than 99.9% of the matter in the universe is in a plasma state. The earth-sun system provides a unique opportunity to study the processes, such as particle acceleration and energy conversion,  that occur in plasmas.
+<p>
+Most experimental research in space plasma physics utilizes instrumentation on rockets and satellites. The University of Minnesota space physics group has been responsible for developing and building instrumentation and data analysis software for many NASA and ESA spacecraft, including Ulysses, Wind and Stereo, and for numerous rockets including Lightning Bolt. The group is also known for its electric field and plasma wave instrumentation.
+<p>
+
+The experimental space plasma group includes Professors Cynthia Cattell, and John Wygant, and Emeritus Professor Paul Kellogg. Professor Wygant's group has recently focused on particle acceleration due to electric fields in the Van Allen radiation belts, the dynamics of strong magnetic storms, and the discovery  that Alfven waves carry the energy to power the aurora. Professor Cattell's group studies nonlinear plasma waves and the physics of auroral particle acceleration. The group has found that electron holes (a nonlinear wave similar to a soliton) may provide dissipation needed to collisionless plasmas for processes such as reconnection. Professor Kellogg studies plasma waves in the solar wind and planetary magnetospheres, including Jupiter.
+<p>
+Robert Lysak leads theoretical efforts in space physics at Minnesota.  His group does theory and numerical modeling of auroral processes,
+magnetohydrodynamic (MHD) waves, and magnetic reconnection.  The space
+physics theory group has investigated the processes by which mass,
+momentum and energy are transferred from the solar wind to the
+magnetosphere and ionosphere by the propagation of MHD waves throughout
+the system.  These models have helped to explain the observations of
+Professor Wygant's group which show that Alfven waves, a type of MHD wave
+that is similar to a wave propagating on a string, can carry sufficient
+energy to power the aurora.
+ 
+<p>
+<& profiles.comp, group=>'spp' &>
+<& profiles.comp, type=>'Researchers', flag=>'research || postdoc', group=>'spp' &>
+<& profiles.comp, type=>'Graduate Students', flag=>'physgrad || astgrad', group=>'spp' &>
+

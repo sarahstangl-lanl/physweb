@@ -1,0 +1,21 @@
+<%method feature>
+% my $filename = $ARGS{'filename'};
+% my ($imgx,$imgy) = Image::Size::imgsize($filename);
+% my $alt = $ARGS{'alt'};
+% my $imgsize = $ARGS{'imgsize'};
+% my $title = $ARGS{'title'};
+% my $text = $ARGS{'text'};
+% my $link = $ARGS{'link'};
+<div class="alumfeature" style="height:<% $imgy %>px;">
+
+    <img class="alumfeature" src="<% $filename %>" alt="<% $alt %>" <% $imgsize %> style="float: left; padding-right: 1em;">
+
+    <div class="alumfeatureheadertext">
+% if ($title) {
+      <h3><% $title %></h3>
+% }
+    <% $m->content %>
+    </div>
+</div> <br clear="right" />
+</%method>
+%# vim: set syntax=mason:

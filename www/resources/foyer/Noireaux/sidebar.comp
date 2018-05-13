@@ -1,0 +1,20 @@
+<%doc>
+vim:set syntax=mason:
+</%doc>
+<%method backgroundcolor>#FFFF99</%method>
+    <h1>Artificial Cells</h1>
+    <!--<h2>Physics and Nanotechnology Building</h2>-->
+   
+The goal is to understand complex biophysical and biochemical systems by construction, and ultimately synthesize a minimal cell. <p>
+
+Professor Vincent Noireaux explores in vitro gene expression, the development of a cell-free transcription/translation molecular programming platform, and artificial cell systems.
+<p>
+At left: Execution of gene circuits in vitro models of gene regulation are used to understand regulation in gene isolation and to design synthetic gene circuits.
+
+
+
+    <div id="sideiconblock" style="position: absolute; top: 750px; right:0px; text-align: center; width: 100%;">
+     
+      
+    </div>
+

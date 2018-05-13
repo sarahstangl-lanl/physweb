@@ -1,0 +1,15 @@
+<% $m->call_next %>
+<%method titlemenu_side>
+   <& /mason/titlemenu.comp:begin, type=>"side" &>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/circus/index.html' &>Index</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/circus/waves.html' &>Waves and Sound</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/circus/airpressure.html' &>Air Pressure</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/circus/Bernoulli.html' &>Bernoulli Effects</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/circus/projectile.html' &>Projectile Motion</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/circus/collisions.html' &>Collisions</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/circus/inertia.html' &>Mass and Inertia</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+
+

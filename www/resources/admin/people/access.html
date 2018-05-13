@@ -1,0 +1,46 @@
+<%method title>Access</%method>
+<%init>
+    if (!$m->comp('/mason/auth/auth_check_directory.comp')) { return; }
+    $m->comp('/mason/ajax/js.comp');
+</%init>
+
+<%shared>
+    my $count = 0;
+</%shared>
+
+<%method .auth_test>
+<%init>
+    my ($auth_comp, $uid) = @_;
+    my $comp = $m->fetch_comp($auth_comp);
+    my $auth = $m->comp($comp, uid => $uid);
+    if (!$comp->method_exists('.name')) { return; }
+    my $color = ($auth ? '#67E46F' : '#FF7673');
+</%init>
+<tr>
+<td style="width: 1.5em; height: 1.5em; color: white; background-color: <% $color %>"></td>
+<td style="font-size: 1em;"><a href="#" onclick="Effect.BlindDown('access_description_<% $count %>')"><% $comp->call_method('.name') %></a></td>
+</tr><tr>
+<td></td><td>
+% if ($comp->method_exists('.description')) {
+<div style="display: none;" id="access_description_<% $count++ %>">
+<small>
+    <% $comp->scall_method('.description', uid => $uid) %>
+</small>
+</div>
+% }
+</td>
+</tr>
+</%method>
+
+<%args>
+    $uid
+</%args>
+
+<table style="padding: 0.5em">
+
+<& SELF:.auth_test, '/mason/auth/auth_check_gradebook_upload.comp', $uid &>
+<& SELF:.auth_test, '/mason/auth/auth_check_calendar.comp', $uid &>
+<& SELF:.auth_test, '/mason/auth/auth_check_ta_admin.comp', $uid &>
+
+
+</table>

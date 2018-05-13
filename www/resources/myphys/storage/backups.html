@@ -1,0 +1,46 @@
+<%doc>
+    vim: set syntax=mason:
+</%doc>
+
+<%args>
+</%args>
+<%init>
+use physdb;
+
+</%init>
+
+<%method title>My Group Backups</%method>
+
+<p>
+Status of scheduled unix cluster backups for my groups. Note this page only shows backups for group data, and not the status of regular system backups such as home directories and email, etc
+</p>
+<%perl>
+
+
+my $where1 .= "  groups.name in (SELECT groupname FROM groupmembers WHERE uid=?) "; 
+
+$m->comp('/mason/db/tablesearch.comp',
+            debug => 0,
+            table           => 'accounting.rdiff_status',
+            joins           =>  [
+                groups          =>  'rdiff_status.groupname = groups.name',
+            ],
+            field_list      =>  [
+                            'rdiff_status.groupname',
+                            'rdiff_status.host',
+                            'rdiff_status.path',
+                            'IF(rdiff_status.date_good >= rdiff_status.date_bad, "Success", "Fail") AS status',
+                            'IF(rdiff_status.date_good >= rdiff_status.date_bad, rdiff_status.date_good, rdiff_status.date_bad) AS date',
+            ],
+            field_params    =>  {
+            },
+            hide_search => 1,
+            hide_header => 1,
+            no_limit => 1,
+            header_format => 'ucfirst_all',
+            default_sort_field  =>  'host',
+            where               =>  [ $where1, $session{'uid'} ], 
+);
+
+</%perl>
+

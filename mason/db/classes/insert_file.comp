@@ -1,0 +1,66 @@
+<%doc>
+   Component: insert_file.comp
+        Date: 8/4/2003
+      Author: allan
+ Description: inserts HTML to retrieve a file
+
+Note - when creating the link to download the file,
+we add a "name=filename" parameter, which isn't
+needed, used purely to work around IE ignoring the
+mime-type.
+
+</%doc>
+
+<%args>
+$entryid
+$parentid=>''
+$edit=>'1'
+$auth=>0
+$uri_base=>''
+$base_type=>'index'
+</%args>
+
+<%init>
+my ($classid, $attach_name, $attach_mimetype, $attach_size, $attach_text, $priority, $modified_date);
+my ($size_x,$size_y,$type);
+my $sql = "SELECT classid, attach_name, attach_mimetype, attach_size, attach_text, priority, UNIX_TIMESTAMP(modified_date) FROM classdata WHERE entryid = ?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($entryid);
+my $image_row = $sth->fetchrow_arrayref;
+if (defined($image_row)) {
+  ($classid, $attach_name, $attach_mimetype, $attach_size, $attach_text, $priority, $modified_date) = @$image_row;
+}
+my $linktitle = (int($attach_size/1024))."&nbsp;Kbytes";
+if ($attach_mimetype) {$linktitle .= ", ".$attach_mimetype;}
+</%init>
+
+<table width="100%">
+<tr valign="top">
+<td class="emptytag"></td>
+<td>
+% $attach_text = $attach_name unless $attach_text;
+<a href="<% $uri_base %>downloads/<% $entryid %>-<% $attach_name %>" title="<% $linktitle %>"><% $attach_text %></a>
+% if (has_converter($attach_mimetype)) {
+    <small>| <a href="<% $uri_base %>view_item.html?item=<% $entryid %>" title="View as HTML">View as HTML</a></small>
+% } 
+% if ($auth && $edit) {
+    <small>
+    | <a href="/classes/edit_file_form.html?entryid=<% $entryid %>&amp;classid=<% $classid %>&amp;redirect_type=<% $base_type |u %>">change file</a>
+    </small>
+% }
+<small>| <a href="<% $uri_base %>downloads/<% $entryid %>-<% $attach_name %>?download=1" title="<% $linktitle %>">Download</a></small>
+
+</td><td align="right">
+<small><i>posted <% $m->comp('/mason/gmtunix_to_text.comp', $modified_date) %></i></small>
+</td></tr>
+</table>
+
+<%perl>
+sub has_converter {
+  my $ret = 0;
+  for (@_) {
+   $ret = (/msword/||$ret);
+  }
+  return $ret;
+}
+</%perl>

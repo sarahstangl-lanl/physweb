@@ -1,0 +1,7 @@
+<%args>
+$student
+$classids
+</%args>
+<%init>
+return physdb::queryone("SELECT COUNT(*) FROM classlist c JOIN grades.classlist l ON l.classid = c.classid WHERE c.classid " . _in(@$classids) . " AND l.userid = ?", @$classids, $student)
+</%init>

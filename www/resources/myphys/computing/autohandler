@@ -1,0 +1,13 @@
+<%init>
+$m->comp('/mason/auth/auth_block.comp', internal => 1);
+$m->call_next;
+</%init>
+<%method titlemenu_below>
+   <& /mason/titlemenu.comp:begin, type=>"below" &>
+    <&| /mason/titlemenu.comp:item, link=>'systems.html?show=servers'  &>Servers</&>
+  <&| /mason/titlemenu.comp:item, link=>'systems.html?show=linuxwks'  &>Linux workstations</&>
+   <&| /mason/titlemenu.comp:item, link=>'systems.html?show=windows'  &>Windows workstations</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+
+

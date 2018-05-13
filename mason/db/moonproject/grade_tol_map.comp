@@ -1,0 +1,23 @@
+<%init>
+return sub {
+    my $grade = shift;
+    my @grades = (qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP/);
+    die "Unknown grade $grade" unless (grep { $_ eq $grade } @grades);
+    my $map = {
+        SUB => 'tolObsToSubmitDiff',
+        OBS => 'tolObsToLastDiff',
+        CST => 'tolCST',
+        DAY => 'tolDayNumber',
+        PHN => 'tolPhaseNumber',
+        AVE => 'tolAverageFists',
+        MHF => 'tolMoonHAFists',
+        MHD => [ 'tolMoonHADate', 'tolMoonHADatePercent' ],
+        SHC => 'tolSunHACST',
+        EHA => 'tolElongHA',
+        EDT => 'tolElongDate',
+        UP => '',
+    };
+    my $tol = $map->{$grade};
+    return $tol;
+};
+</%init>

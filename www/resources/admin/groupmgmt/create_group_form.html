@@ -1,0 +1,30 @@
+<%args>
+$new_group => undef
+$new_group_desc => undef
+$new_group_type => ''
+$message => undef
+</%args>
+<%init>
+my $types = $m->comp('/mason/db/getvalues.comp', table => 'groups', column => 'type', sort => '1');
+</%init>
+
+% $m->comp('/mason/notice_box.comp', type => 'error', text => $message) if ($message);
+
+<div>
+<h4>Create New Group</h4>
+<form action="index.html" method="POST">
+<table>
+<tr><td align="right">Name:</td><td><input type="text" name="new_group" value="<% $new_group |h %>" size=25 maxlength=25></td></tr>
+<tr><td align="right">Description:</td><td><input type="text" name="new_group_desc" value="<% $new_group_desc |h %>" size=25></td></tr>
+<tr><td align="right">Type:</td><td>
+<select name="new_group_type">
+% foreach my $type (split(',', $types)) {
+<option value="<% $type |h %>"<% $type eq $new_group_type ? 'selected' : '' %>><% $type |h %></option>
+% }
+</select>
+</td></tr>
+<tr><td align="center" colspan="2"><input type="submit" value="Create"><input type="submit" name="add_and_edit" value="Create and edit"></td></tr>
+</table>
+</form>
+</div>
+

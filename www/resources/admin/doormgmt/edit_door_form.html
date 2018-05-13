@@ -1,0 +1,306 @@
+<%args>
+$door_id => undef
+</%args>
+
+<%init>
+unless ($m->comp('/mason/auth/auth_check_sysadm.comp') || $m->comp('/mason/auth/auth_check_door_mgr.comp', door_id => $door_id)) {
+    $m->redirect('index.html');
+}
+use physdb::door_timezones;
+my $tz_action = 'add';
+my $tz = DoorTimezones->new(door_id => $doorlock->get('door_id'), zone_bit => $ARGS{'zone_bit'});;
+# Overwrite timezone data with submitted values in case of error
+for my $column ($tz->columns) {
+    $tz->set($column => $ARGS{$column}) if (exists $ARGS{$column});
+}
+if (defined $ARGS{'zone_bit'}) {
+    if ($tz->{'loaded'}) {
+        $tz_action = 'edit';
+    }
+    else {
+        $ARGS{'message'} = 'Invalid zone_bit ' . $ARGS{'zone_bit'};
+        $tz->set('zone_bit', undef);
+    }
+}
+</%init>
+
+<%shared>
+$physdb::debug = 0;
+use physdb::doorlocks;
+my $doorlock = Doorlocks->new( door_id => $m->request_args->{'door_id'} );
+unless ($doorlock->{'loaded'}) {
+    $m->redirect('index.html?message=' . _u("Invalid door_id " . $m->request_args->{'door_id'}));
+}
+my @tz_colors = ( '#b58900', '#cb4b16', '#dc322f', '#d33682', '#6c71c4', '#268bd2', '#2aa198', '#859900' );
+</%shared>
+
+<%method title>Edit Doorlock <% $doorlock->get('name') |h %></%method>
+
+% $m->comp('/mason/notice_box.comp', text => $ARGS{'message'}) if ($ARGS{'message'});
+
+<table class="doorlock_table" cellpadding="3" cellspacing="0"><tr>
+
+%# Column 1
+
+<td style="padding-right:30px" valign="top">
+
+%# Door Parameters table
+
+<%perl>
+# Override database doorlock values with submitted in case of error from last submission
+for my $column ($doorlock->columns) {
+    $doorlock->set($column => $ARGS{$column}) if (exists($ARGS{$column}));
+}
+my $type = $doorlock->get('type');
+my $typestring = 'UCard' . ($type eq 'magstripe' ? '' : 'Prox');
+my $typecolumn = lc $typestring;
+</%perl>
+<script language="JavaScript">
+function toggleFields(select) {
+    if (select.options[select.selectedIndex].value == 'magstripe')
+        display = 'table-row';
+    else
+        display = 'none';
+    Array.prototype.forEach.call(document.getElementsByClassName('magstripe'), function (tr) { tr.setAttribute('style', 'display:' + display) });
+}
+</script>
+<h3 style="padding-bottom: 5px">Door Parameters</h3>
+<form action="edit_door.html" method="POST">
+<input type="hidden" name="door_id" value=<% $door_id |h %> />
+<table cellpadding="3" cellspacing="0" width="100%">
+<tr><td width="125">Name</td><td><input type="text" name="name" value="<% $doorlock->get('name') %>" /></td></tr>
+<tr><td width="125">Type</td><td><select id="doortype" onchange="toggleFields(this)" name="type"><option value="magstripe">Magstripe</option><option<% $type eq 'proximity' ? ' SELECTED' : '' %> value="proximity">Proximity</option></select></td></tr>
+<tr class="magstripe"><td width="125">Create door PIN?</td><td><select name="generate_pin"><option value="1">Yes</option><option<% $doorlock->get('generate_pin') ? '' : ' SELECTED'%> value="0">No</option></select></td></tr>
+<tr class="magstripe"><td>Unlock Time: </td><td><input type="text" name="unlocktime" size=10 value="<% $doorlock->get('unlocktime') %>" /> (HH:MM)</td></tr>
+<tr class="magstripe"><td>Unlock Days: </td><td><input type="text" name="unlockdays" size=10 value="<% $doorlock->get('unlockdays') %>" /> (MTuWThFSaSu)</td></tr>
+<tr class="magstripe"><td>Lock Time: </td><td><input type="text" name="locktime" size=10 value="<% $doorlock->get('locktime') %>" /> (HH:MM)</td></tr>
+<tr class="magstripe"><td>Lock Days: </td><td><input type="text" name="lockdays" size=10 value="<% $doorlock->get('lockdays') %>" /> (MTuWThFSaSu)</td></tr>
+<tr><td style="padding-top: 5px" colspan="2" align="right"><input type="submit" name="update" value="Update Door Parameters" /></td></tr>
+</table>
+</form>
+<script language="JavaScript">
+toggleFields(document.getElementById('doortype'));
+</script>
+
+%# Door Managers table
+
+<h3 style="padding-bottom: 5px">Door Managers</h3>
+<table cellpadding="3" cellspacing="0" width="100%">
+% for my $manager ($doorlock->managers) {
+    <tr><td width="150"><% $manager->fullname |h %></td><td><a href="edit_door.html?door_id=<% $doorlock->get('door_id') |u %>&action=remove_manager&manager=<% $manager->get('uid') |u %>" onclick="return confirm('Are you sure you want to remove <% $manager->fullname |h %>?');"><img style="padding-left:5px;" border="0" src="/images/delete.png" alt="Remove" title="Remove <% $manager->fullname |h %>"/></a></td></tr>
+% }
+</table>
+<form action="edit_door.html" method="POST">
+<input type="hidden" name="door_id" value="<% $doorlock->get('door_id') |h %>"/>
+<input type="hidden" name="action" value="add_manager"/>
+<table style="padding-top:10px;" cellpadding="3" cellspacing="0" width="100%">
+<tr><th align="left" colspan="2">Add Manager</th></tr>
+<tr><td><input size="24" type="text" name="manager" id="manager"></td><td align="right"><input type="submit" name="submit" value="Add Manager"></td></tr>
+</table>
+</form>
+<& "/mason/ajax/complete_people.comp", id => 'manager', name => 'manager', div_id=>'manager_magic' &>
+
+</td>
+
+%# Column 2
+
+<td valign="top" style="padding-right:30px">
+
+% if ($type eq 'magstripe') { # Door Timezones table
+
+<h3 style="padding-bottom: 5px">Door Timezones</h3>
+<table class="doortable" cellpadding="3" cellspacing="0" width="100%">
+<tr><th align="left" width="40">Edit</th><th align="left" width="50">Start Time</th><th align="left" width="50">End Time</th><th align="left" width="50">Days</th><th align="left" width="50">PIN Required?</th><th align="left" width="50">Spans Midnight?</th></tr>
+<%perl>
+if ($doorlock->timezones) {
+    for my $timezone ($doorlock->timezones) {
+        my $border = '10px solid ' . $tz_colors[$timezone->get('zone_bit')];
+        print '<tr class="tz' . $timezone->get('zone_bit') . '">';
+        my $edit_html = '<a href="?door_id=' . $doorlock->get('door_id') . '&zone_bit=' . $timezone->get('zone_bit') . '"><img border="0" src="/images/imgsel_edit.png" alt="Edit" title="Edit Timezone ' . $timezone->get('zone_bit') . '" /></a>';
+        $edit_html .= '<a href="edit_door.html?door_id=' . $doorlock->get('door_id') . '&action=remove_timezone&zone_bit=' . $timezone->get('zone_bit') . '" onclick="return confirm(\'Are you sure you want to remove Timezone ' . $timezone->get('zone_bit') . '?\');"><img style="padding-left:5px;" border="0" src="/images/delete.png" alt="Remove" title="Remove Timezone ' . $timezone->get('zone_bit') . '" /></a>';
+        print '<td >' . $edit_html . '</td>';
+        for my $column (qw/start_time end_time days/) {
+            print '<td>' . $timezone->get($column) . '</td>';
+        }
+        print '<td><input type="checkbox" DISABLED' . ($timezone->get('pin_req') ? ' CHECKED' : '') . ' /></td>';
+        print '<td style="border-right: ' . $border . '"><input type="checkbox" DISABLED' . ($timezone->get('spans_midnight') ? ' CHECKED' : '') . ' /></td>';
+        print "</tr>";
+        print "<tr><td colspan=\"6\"></td></tr>\n";
+    }
+}
+else {
+    print '<tr><td colspan="6">No Timezones</td></tr>';
+}
+</%perl>
+</table>
+<form action="edit_door.html" method="POST">
+<input type="hidden" name="door_id" value="<% $doorlock->get('door_id') |h %>"/>
+<input type="hidden" name="action" value="<% $tz_action |h %>_timezone"/>
+% if (defined $ARGS{'zone_bit'}) {
+    <input type="hidden" name="zone_bit" value="<% $tz->get('zone_bit') |h %>"/>
+% }
+<table style="padding-top:10px;" cellpadding="3" cellspacing="0" width="100%">
+<tr><th align="left" colspan="3"><% ucfirst $tz_action %> Timezone<% $tz_action eq 'edit' ? ' ' . $tz->get('zone_bit') : '' |h %></th></tr>
+<tr><td>Start Time</td><td><input value="<% $tz->get('start_time') || '' |h %>" type="text" name="start_time"></td><td>(HH:MM)</td></tr>
+<tr><td>End Time</td><td><input value="<% $tz->get('end_time') || '' |h %>" type="text" name="end_time"></td><td>(HH:MM)</td></tr>
+<tr><td>Days</td><td><input value="<% $tz->get('days') || '' |h %>" type="text" name="days"></td><td>(MTuWThFSaSu)</td></tr>
+<tr><td>PIN Required?</td><td><select name="pin_req"><option value="0">No</option><option value="1" <% $tz->get('pin_req') ? 'SELECTED' : '' %>>Yes</option></select></td><td></td></tr>
+<tr><td>Spans Midnight?</td><td><select name="spans_midnight"><option value="0">No</option><option value="1" <% $tz->get('spans_midnight') ? 'SELECTED' : '' %>>Yes</option></select></td><td></td></tr>
+<tr><td align="right" colspan="3">
+% if ($tz_action eq 'edit') {
+    <a href="?door_id=<% $doorlock->get('door_id') %>">Cancel</a>
+% }
+<input type="submit" name="submit" value="<% ucfirst $tz_action %> Timezone" /></td></tr>
+</table>
+</form>
+% }
+
+%# Door Groups table
+
+<h3 style="padding-bottom: 5px">Door Groups</h3>
+<form action="edit_door.html" method="POST">
+<input type="hidden" name="door_id" value="<% $doorlock->get('door_id') |h %>"/>
+<input type="hidden" name="action" value="edit_group"/>
+<table class="doortable" cellpadding="3" cellspacing="0" width="100%">
+<tr><th align="left" width="40">Edit</th><th align="left" width="100">Name</th><th align="left" width="75">Members</th>
+% if ($type eq 'magstripe') {
+<th align="left">Timezones</th></tr>
+% }
+<%perl>
+my $where_clause = '';
+if ($doorlock->groups) {
+    $where_clause = 'WHERE `name` NOT ' . _in($doorlock->group_names);
+    for my $group ($doorlock->groups) {
+        my @missing = grep { ! $_->get($typecolumn) } $group->active_group_members;
+        my $tz_html = '';
+        my $edit_html = '<a href="/resources/myphys/groupmgmt/group_edit.html?group=' . $group->get('name') . '" target="_blank"><img border="0" src="/images/imgsel_edit.png" alt="Edit" title="Edit ' . $group->get('name') . '" /></a>';
+        # Don't show delete for sysadm
+        unless ($group->get('name') eq 'sysadm') {
+            $tz_html = $m->scomp('.tz_html', group => $group->get('name'));
+            $edit_html .= '<a href="edit_door.html?door_id=' . $doorlock->get('door_id') . '&action=remove_group&group=' . $group->get('name') . '" onclick="return confirm(\'Are you sure you want to remove ' . $group->get('name') . '?\');"><img style="padding-left:5px;" border="0" src="/images/delete.png" alt="Remove" title="Remove ' . $group->get('name') . '" /></a>';
+        }
+        print '<tr><td>' . $edit_html . '</td>';
+        print '<td>' . $group->get('name') . (@missing ? ' <img style="position:absolute;padding-left:5px;margin-top:-1px;width:20px;" src="/images/warning.png" title="' . scalar(@missing) . ' Missing ' . $typestring . '(s)" />' : '') .'</td>';
+        print '<td>' . scalar($group->active_group_members) . '</td>';
+        print '<td>' . $tz_html . '</td>' if ($type eq 'magstripe');
+        print '</tr>';
+    }
+    print '<tr><td align="right" colspan="4"><input type="submit" name="submit" value="Update Group Timezones"/></td></tr>' if ($type eq 'magstripe');
+}
+else {
+    print '<tr><td colspan="4">No Groups</td></tr>';
+}
+</%perl>
+<%def .tz_html>
+<%args>
+$group
+</%args>
+<%init>
+my $door_group = DoorGroups->new(door_id => $doorlock->get('door_id'), groupname => $group);
+my $tz_mask = $door_group->get('zonemask') || 0;
+print '<table cellspacing="1" cellpadding="0"><tr>';
+for my $tz ($doorlock->timezones) {
+    my $checked = ($tz_mask & (128 >> $tz->get('zone_bit'))) ? ' CHECKED' : '';
+    print '<td style="background-color: '. $tz_colors[$tz->get('zone_bit')] . '"><input type="checkbox" name="group_' . $group . '_tz' . $tz->get('zone_bit') . '"' . $checked . '/></td>';
+}
+print '</tr></table>';
+</%init>
+</%def>
+</form>
+</table>
+<form action="edit_door.html">
+<input type="hidden" name="door_id" value="<% $doorlock->get('door_id') |h %>"/>
+<input type="hidden" name="action" value="add_group"/>
+<table style="padding-top:10px;" cellpadding="3" cellspacing="0" width="100%">
+<tr><th align="left" colspan="2">Add Group</th></tr>
+<tr><td><select name="group"><option value=""> -- Select a group -- </option>
+% for my $group (@{ physdb::queryarray("SELECT DISTINCT `name` FROM `groups` $where_clause ORDER BY `name`", $doorlock->group_names) }) {
+    <option value="<% $group |h %>"><% $group |h %></option>
+% }
+</td><td align="right"><input type="submit" name="submit" value="Add Group"></td></tr>
+</table>
+</form>
+
+</td>
+
+%# Column 3
+
+<td valign="top">
+
+%# Door Members table
+
+<h3 style="padding-bottom: 5px">Door Members</h3>
+<table id="scrollTable" cellpadding="3" cellspacing="0" width="100%">
+<thead class="fixedHeader">
+<tr><th>Name</th><th>Groups</th><th><% $typestring %></th></tr>
+</thead>
+<tbody class="scrollContent">
+% for my $member ($doorlock->members_sorted) {
+    <tr>
+        <td><% $member->display_name |h %></td>
+        <td><% join(', ', @{$member->{'door_groups'}}) |h %></td>
+        <td valign="top"><% _h($member->get($typecolumn)) || '<font color="red">Missing ' . $typestring . ' #</font>' %></td>
+    </tr>
+% }
+</tbody>
+</table>
+
+</td></tr></table>
+<br/>
+
+<%method meta>
+<style type="text/css">
+thead.fixedHeader tr {
+	display: block
+}
+thead.fixedHeader th {
+	text-align: left
+}
+tbody.scrollContent {
+	display: block;
+	height: 600px;
+	overflow: auto;
+	width: 100%
+}
+tbody.scrollContent td {
+    vertical-align: top
+}
+thead.fixedHeader th {
+	width: 175px
+}
+thead.fixedHeader th + th {
+	width: 125px
+}
+thead.fixedHeader th + th + th {
+	width: 176px
+}
+tbody.scrollContent td {
+	width: 175px
+}
+tbody.scrollContent td + td {
+	width: 125px
+}
+tbody.scrollContent td + td + td {
+	width: 160px
+}
+.doortable th { vertical-align: bottom }
+</style>
+</%method>
+
+<%def .checkbox>
+<%args>
+# lock or unlock
+$prefix
+# Day of week (0 = Monday, 1 = Tuesday, ...)
+$day_of_week
+</%args>
+<%perl>
+my @daystrings = (qw/M Tu W Th F Sa Su/);
+my @daynames = (qw/Monday Tuesday Wednesday Thursday Friday Saturday Sunday/);
+my $currentdaystring = $doorlock->get($prefix . 'days') || '';
+my $dayname = $daynames[$day_of_week];
+my $daystring = $daystrings[$day_of_week];
+</%perl>
+<input type="checkbox" id="dow_<% $prefix %>_<% $dayname %>" name="<% $prefix %>days" value="<% $daystring %>"<% ($currentdaystring =~ m/\Q$daystring\E/) ? ' CHECKED' : '' %>/>
+<label for="dow_<% $prefix %>_<% $dayname %>"><% $dayname %></label><br />
+</%def>

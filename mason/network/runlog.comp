@@ -1,0 +1,143 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: switch.comp
+        Date: 2008.04.02
+      Author: rubin
+     Changed: 2008.04.02 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+    $host_id=>''
+</%ARGS>
+
+<%INIT>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+use Parse::DMIDecode qw();
+use Parse::DMIDecode::Constants qw(@TYPES);
+
+
+my $rows = physdb::query("SELECT cfengine.runlog.*
+                            FROM net_interfaces
+                            LEFT JOIN net_dns ON (net_dns.interface_id = net_interfaces.id)
+                            JOIN cfengine.runlog ON ((net_dns.interface_id IS NOT NULL AND CONCAT(net_dns.hostname, '.', net_dns.domain) = cfengine.runlog.host) OR
+                                net_interfaces.host_id = cfengine.runlog.host_id)
+                            WHERE net_interfaces.host_id=?
+                            ORDER BY rundate DESC LIMIT 1", $host_id);
+</%INIT>
+
+<%method .print_row>
+<%args>
+    $row
+    $oddeven => 0
+</%args>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td style="padding-right: 10px">Source</td>
+        <td width="100%"> <% _h($row->{'source'} ) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td style="padding-right: 10px">Run&nbsp;Date</td>
+        <td width="100%"> <% _h($row->{'rundate'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td style="padding-right: 10px">Firstboot&nbsp;Date</td>
+        <td width="100%"> <% _h($row->{'firstboot_date'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>Name</td>
+	<td> <% _h($row->{'name'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>Revision</td>
+	<td> <% _h($row->{'cfinputs_version'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>Uname</td>
+        <td> <& '/mason/os_icon.comp', name => $row->{'uname'} &> <% _h($row->{'uname'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>Release</td>
+        <td> <% _h($row->{'phys_release'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>Arch</td>
+        <td> <% _h($row->{'arch'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>Video</td>
+        <td> <% _h($row->{'video'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>Network</td>
+        <td> <% _h($row->{'network'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>CPU</td>
+        <td> <% _h($row->{'cpucount'}) %> x <% _h($row->{'cpu'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>Memory</td>
+        <td> <% _h($row->{'memory'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>System</td>
+        <td> <% _h($row->{'system_make'}) %> <% _h($row->{'system_model'}) %> <% _h($row->{'system_serial'} ? '(' . $row->{'system_serial'} . ')' : '') %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>Warranty&nbsp;End</td>
+        <td> <% _h($row->{'warranty_end'}) %>
+%         if ($row->{'system_make'} =~/Dell/i) {
+          <a href="http://www.dell.com/support/troubleshooting/Index?t=warranty&servicetag=<% $row->{'system_serial'} %>">dell link</a>
+%         }
+        </td>
+    </tr>
+
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>BIOS</td>
+        <td> <% _h($row->{'bios_version'}) %><% ($row->{'bios_date'} ? ' - ' : '') %><% _h($row->{'bios_date'}) %></td>
+    </tr>
+    <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+        <td>Motherboard</td>
+        <td> <% _h($row->{'baseboard_make'}) %> <% _h($row->{'baseboard_model'}) %></td>
+    </tr>
+<%perl>
+    if($row->{'dmiraw'}) {
+        my $dmi = Parse::DMIDecode->new( nowarnings => 1);
+        $dmi->parse($row->{'dmiraw'});
+        for my $handle ($dmi->get_handles( group => "memory")) {
+          if($handle->keyword("memory-speed")) {
+            </%perl>
+            <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+                <td>Memory</td>
+                <td> <% _h($handle->keyword("memory-locator")) %>: <% _h($handle->keyword("memory-size")) %> <span title="<% _h($handle->keyword("memory-data-width")) %> <% _h($handle->keyword("memory-part-number")) %>"> (<% _h($handle->keyword("memory-type-detail")) %> <% _h($handle->keyword("memory-type")) %> <% _h($handle->keyword("memory-speed")) %>)</span></td>
+            </tr>
+            <%perl>
+          }
+        }
+        for my $handle ($dmi->get_handles( group => "slot")) {
+            </%perl>
+            <tr class="<% ($oddeven = !$oddeven) ? "odd" : "even" %>">
+                <td>Slot</td>
+                <td> <% _h($handle->keyword("slot-type")) %> (<% _h($handle->keyword("slot-current-usage")) %>)</td>
+            </tr>
+            <%perl>
+        }
+        #I'd like to do hard disks (sata/pata) ports too, but it seems some systems don't really report it decently :/
+    }
+</%perl>
+</%method>
+
+% if($rows) {
+    <h3>Runlog Report</h3>
+    <table border=0 style="width: 100%;">
+<%perl>
+    while(my $row = $rows->fetchrow_hashref()) {
+        $m->comp('SELF:.print_row', row => $row);
+    }
+</%perl>
+    </table>
+% }
+

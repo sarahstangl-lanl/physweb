@@ -1,0 +1,70 @@
+<%DOC>
+   Component: advisor.html
+        Date: 2006.03.23
+      Author: allan
+     Changed: 2006.03.23 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+    $uid
+    $comments=>undef
+    $advisor_support=>''
+    $dgs=>0
+</%ARGS>
+
+<%INIT>
+    my $dgs_auth = $m->comp('/mason/auth/auth_check.comp', auth_type=>'gradoffice');
+    
+    if ($dgs && !$dgs_auth) { $m->redirect('index.html'); }
+    
+    my  ($record_year, $advisor);
+    my $sql = "SELECT record_year, advisor FROM gradprogress WHERE uid=? ORDER BY record_year DESC LIMIT 1";
+    my $sth = $dbh->prepare($sql);
+    $sth->execute($uid)
+        or die 'Unable to grab report: ' . $dbh->errstr;
+    
+    if (my $row_ref = $sth->fetchrow_arrayref()) {
+        ($record_year, $advisor) = @$row_ref;
+    } else {
+        print 'Given report not found.';
+        return;
+    }
+    
+    # recheck it's the real advisor calling the page...
+    if (!$dgs && ($session{'uid'} ne $advisor)) { $m->redirect('index.html');}
+    
+    # Don't store if comment is entirely missing (not even empty)
+    if (!defined($comments)) {
+        print 'Comment is missing...';
+        return;    
+    }
+    
+    # ok, now we can update the record with the form submission...
+    my @exec_args;
+    $sql = 'UPDATE gradprogress SET ';
+    if ($dgs) {
+        $sql .= 'dgs_comments=?, dgs_update_time=now()';
+        push @exec_args, $comments;
+    } else {
+        $sql .= 'advisor_comments=?, advisor_support=?, advisor_update_time=now(), advisor_update_uid=?';
+        push @exec_args, $comments;
+        push @exec_args, $advisor_support;
+        push @exec_args, $session{'uid'};
+    }
+    
+    $sql .= ' WHERE uid=? AND record_year=?';
+    push @exec_args, $uid;
+    push @exec_args, $record_year;
+    $sth = $dbh->prepare($sql);
+    $sth->execute(@exec_args)
+        or die 'Unable to add comment: ' . $dbh->errstr;
+    my $name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$uid);
+</%INIT>		
+
+<%method title>Advisor comments</%method>
+	
+Thank you - your comments have been stored for <% $name |h %>. If you want to view the stored information, please <a href="progress.html?uid=<% $uid %>">click here</a>.
+<p>
+<a href="index.html">Back to index page</a>.

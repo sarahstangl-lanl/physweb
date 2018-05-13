@@ -1,0 +1,46 @@
+<%doc>
+   vim: set syntax=mason:
+   Compontent: dhandler
+         Date: 7/3/2007
+    Author: Alex
+    Description: pull up article by id.
+
+    This dhandler accepts 3 types of path entries:
+    1)  /200/article_name.html  -  display the details of a specific award using the story's id. (200)
+    2)  /grad.html or undergrad.html - show a list of grad or undergrad scholarships
+    3)  /anythingelse.html - show a list of students who were awarded the anythingelse scholarship.
+</%doc>
+
+<%args>
+$view=>''
+</%args>
+
+<%shared>
+  my $arg = $m->dhandler_arg;
+  $arg =~ /[^-a-zA-Z0-9_.]/go;
+  my $wantedid = $arg; 
+  $wantedid =~ s/.html//;
+  my $story;
+  my $type;
+  my $subtype = "";
+  $story = $wantedid;
+  my $auth = $m->comp('/mason/auth/auth_check_events.comp');
+  my $uri = $r->uri;
+  
+
+</%shared>
+
+
+<%init>
+
+$r->content_type("text/html");
+</%init>
+
+<%method title>Graduate Prizes and Fellowships</%method>
+<%perl>
+  # Just viewing a single story
+  if ($view =~ /normal/) { $auth=0; }
+  $m->comp("/mason/db/stories/story.comp", story=>$story, auth=>$auth);
+</%perl>
+%# vim: set syntax=mason: 
+

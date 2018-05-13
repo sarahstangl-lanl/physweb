@@ -1,0 +1,49 @@
+<%flags>
+inherit=>undef
+</%flags>
+
+<%args>
+$id
+$type=>'file'
+</%args>
+
+<%init>
+return if $m->comp('/mason/db/dbcheck.comp');
+my $uid = $session{'uid'};
+my $adminuser = $m->comp('/mason/auth/check_groups.comp', allow => ['deptoffice','sysadm']);
+my $sql = "SELECT uid, mimetype, filename, comment, message, data FROM myphysfiles WHERE id = ?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($id);
+my $rowref = $sth->fetchrow_arrayref;
+my ($owner, $mimetype, $filename, $comment, $message, $data);
+if (defined($rowref)) {
+  ($owner, $mimetype, $filename, $comment, $message, $data) = @$rowref;
+  if ($adminuser || ($owner == $uid)) {
+    $m->comp('/mason/db/auditlog/addevent.comp', type=>'myfiles_fetch', text=>"fetch $filename (id $id, $type)");
+    if ($type eq "file") {
+        $r->content_type($mimetype);
+        $r->headers_out->unset('Content-Length');
+        $r->headers_out->set('Content-Disposition' => "file; filename=\"$filename\"");
+        $r->headers_out->set('Content-Length' => length($data) );
+        $m->autoflush(1);
+        $m->clear_buffer;
+        $m->out($data);
+        return Apache2::Const::OK;
+  }
+  else {
+        #$m->call_next;
+  }
+  }
+  else {
+    die "No access to this file!";
+  }
+}
+</%init>
+<p>
+Message regarding file <% $filename %>
+
+% print "<br/>Description: $comment" if $comment;
+</p>
+<p>
+% print $m->comp('/mason/format_text.comp', text=>$message);
+</p>

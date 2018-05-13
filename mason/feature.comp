@@ -1,0 +1,60 @@
+<%doc>
+   Component: feature.comp
+        Date: 2/5/2002
+      Author: allan
+ Description: This puts up featured element with a photo on maroon with white header and yellow text.
+ the feature on the front page is done seperately for layout reasons
+</%doc>
+
+% my $imgsize;
+% if(!$imgx and !$imgy) {
+%     my $real_filename = $path."/".$filename;
+%     ($imgx,$imgy) = Image::Size::imgsize($real_filename);
+% }
+% if(!$imgx and !$imgy) {
+%   $imgsize="";
+% } else {
+%   $imgsize = "width=\"$imgx\" height=\"$imgy\"";
+% }
+% if ( $ua =~ /Mozilla\/4/i ) {}
+% my $imgpad = "right";
+% $imgpad = "left" if $align eq 'right';
+
+<div class="<%$class%>feature" style="min-height: <% $imgy %>px">
+    <img class="<%$class%>feature" src="<% $filename %>" alt="<% $alt %>" <% $imgsize %> style="float: <% $align %>; padding-<%$imgpad%>: 5px;" />
+
+    <div class="<%$class%>featureheadertext">
+%     if ($title) {
+          <h2 class="<%$class%>feature"><% $title %></h2>
+%     }
+      <% $summary %>
+      <% $text %>
+      <% $m->content %>
+    </div>
+% if ($link) {
+    <div class="<%$class%>featurelinkbox">[<a class="<%$class%>featurelink" href="<% $link %>"><% $linktext %></a>]</div>
+% }
+</div>
+
+<%args>
+$filename=>''
+$alt=>''
+$text=>''
+$title=>''
+$align=>'right'
+$link=>''
+$imgx=>0
+$imgy=>0
+$summary=>''
+$class=>''
+$linktext=>'Read More...'
+</%args>
+
+<%init>
+my $uri = $r->uri;
+my $path = $r->filename;
+while (chop($path) ne "/") {};
+my $ua = $r->headers_in->{'User-Agent'};
+</%init>
+
+<!-- vim: set syntax=mason: -->

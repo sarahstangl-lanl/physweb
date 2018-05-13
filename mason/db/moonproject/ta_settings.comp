@@ -1,0 +1,171 @@
+<%init>
+sub check_int {
+    my $value = shift;
+    return 'must be an integer.' unless ($value =~ /^\d+$/);
+    return 0;
+}
+sub check_float {
+    my $value = shift;
+    return 'must be a real number.' unless ($value =~ /^\d+(\.\d+)?$/);
+    return 0;
+}
+return [
+    tolObsToSubmitDiff => {
+        name => 'SUB',
+        type => 'int',
+        desc => 'Submission time tolerance',
+        help => 'Did the student submit their observations within X number of hours of taking them?
+<br>
+Tolerance is in hours.',
+        validate => \&check_int,
+        inflate => sub { warn 'SUB inflate'; return (shift) / 3600 },
+        deflate => sub { return (shift) * 3600 },
+    },
+    tolObsToLastDiff => {
+        name => 'OBS',
+        type => 'int',
+        desc => 'Observation period tolerance',
+        help => 'Did the student actually wait X amount of hours before taking another observation?
+<br>
+Tolerance is in hours.',
+        validate => \&check_int,
+        inflate => sub { warn 'OBS inflate'; return (shift) / 3600 },
+        deflate => sub { return (shift) * 3600 },
+    },
+    tolCST => {
+        name => 'CST',
+        type => 'float',
+        desc => 'Central Standard Time tolerance',
+        help => 'Did the student calculate their CST value correctly based on their Clock time?
+<Br>
+Tolerance is in hours.',
+        validate => \&check_float,
+    },
+    tolDayNumber => {
+        name => 'DAY',
+        type => 'float',
+        desc => 'Day number tolerance',
+        help => 'Did the student get the day number right?
+<br>
+Tolerance is in days.',
+        validate => \&check_float,
+    },
+    tolMoonHAFists => {
+        name => 'MHF',
+        type => 'float',
+        desc => 'Moon\'s HA from your fist calculation tolerance',
+        help => 'Did the student calculate their Moon\'s HA correctly based on their fist (hand) observation and their Degree per fist (hand)?
+<br>
+Tolerance is in degrees.',
+        validate => \&check_float,
+    },
+    tolMoonHADate => {
+        name => 'MHD',
+        type => 'float',
+        desc => 'Moon\'s Azimuthal Angle on that date tolerance',
+        help => 'How does the student\'s extrapolated Moon\'s Azimuthal Angle compare to the real value at that time?
+<br>
+If a student gets this value wrong, then the error box will tell them to come see us.
+<Br>
+Tolerance is in degrees.',
+        validate => \&check_float,
+    },
+    tolMoonHADatePercent => {
+        name => 'MHD%',
+        type => 'float',
+        desc => 'Moon\'s HA on that date percent tolerance',
+        help => 'Along with MHD above, specifies the tolerance as a percent of the actual Moon HA.<Br>
+i.e., abs(CalculatedMoonHA-TrueMoonHA) > (MHD + MHD%*(TrueMoonHA)/100)
+<Br>
+Tolerance is in real numbers.',
+        validate => \&check_float,
+    },
+    tolSunHACST => {
+        name => 'SHC',
+        type => 'float',
+        desc => 'Sun\'s HA calculation tolerance',
+        help => 'Did the student calculate their Sun\'s HA correctly?
+<br>
+Tolerance is in degrees.',
+        validate => \&check_float,
+    },
+    tolElongHA => {
+        name => 'EHA',
+        type => 'float',
+        desc => 'Elongation from Moon\'s HA and Sun\'s HA calculation tolerance',
+        help => 'Did the student calculate their Elongation correctly based on their value for Moon\'s HA and Sun\'s HA?
+<br>
+Tolerance is in degrees.',
+        validate => \&check_float,
+    },
+    tolElongDate => {
+        name => 'EDT',
+        type => 'float',
+        desc => 'Elongation on that date tolerance',
+        help => 'How does the student\'s extrapolated elongation compare to the real value on that day?
+<br>
+If a student gets this value wrong, then the error box will tell them to come see us.
+<Br>
+Tolerance is in degrees.',
+        validate => \&check_float,
+    },
+    tolPhaseNumber => {
+        name => 'PHN',
+        type => 'float',
+        desc => 'Phase number tolerance',
+        help => 'Does the student\'s phase sketch match the phase number? <a href="help_phase.html" target="_blank">Each phase sketch is assigned a number.</a> How close does this number come to the phase number?
+<br>
+
+
+Tolerance is in degrees.',
+        validate => \&check_float,
+    },
+    tolAverageFists => {
+        name => 'AVE',
+        type => 'float',
+        desc => 'Average from your fist calculation tolerance',
+        help => 'Did the student calculate their average correctly based on their fist (hand) observations?
+<br>
+
+
+
+
+Tolerance is in real numbers.',
+        validate => \&check_float,
+    },
+#    forceRegrading => {
+#        name => 'Force Regrading',
+#        type => 'radio',
+#        options => [ 'yes' => 'Yes', no => 'No' ],
+#        desc => 'Force regrade on changes',
+#        help => "Do you want the computer to reset all of your 'Accepts' and 'Needs Work' back to 'Unreviewed' when the following things happen:
+#<br>
+#1. You (the instructor) changes your tolerance values.
+#<br>
+#2. The student changes their fist/hand measurement.
+#<br>
+#The default setting is 'No'.",
+#    },
+    detailedObs => {
+        name => 'Detailed Observations',
+        type => 'radio',
+        options => [ 'yes' => 'Yes', no => 'No' ],
+        desc => 'Show detailed observations',
+        help => "Enables displaying extra internal calculations for student observations. Default setting is 'No'.",
+    },
+    sortStudentsBy => {
+        name => 'Student Sort Order',
+        type => 'select',
+        options => [ 'lastname' => 'Last Name', 'studentid' => 'Student ID' ],
+        desc => 'Default student sort order',
+        help => "The default sort order of the student list. The default sort order is 'Last Name'.",
+    },
+    showIntermediateGrades => {
+        name => 'Intermediate Grades',
+        type => 'radio',
+        options => [ 'yes' => 'Yes', 'no' => 'No' ],
+        desc => 'Show intermediate observation grades',
+        help => "Enables displaying the grades for each observation submission, not just the most recent version. Default setting is 'No'.",
+    },
+];
+</%init>

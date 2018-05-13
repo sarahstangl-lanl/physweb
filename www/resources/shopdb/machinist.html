@@ -1,0 +1,56 @@
+<%method title><% $title |h %></%method>
+
+<%shared>
+    my ($title, $machinist);
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my %args = $m->request_args;
+    $m->comp('/mason/db/shopdb/build_auth.comp');
+    # Only allow foreman
+    $m->redirect('index.html') unless ($session{'shopdb-auth'}{'foreman'});
+    if (!defined($args{'machinist_id'})) {
+        $title = 'Shop Dashboard';
+    }
+    else {
+        $machinist = $schema->resultset('Machinists')->with_directory_info->find({ machinist_id => $args{machinist_id} });
+        $m->redirect('index.html') unless ($machinist);
+        $title = 'Shop Machinists: ' . $machinist->get_column('display_name');
+    }
+</%shared>
+
+<%init>
+    use ShopDb::Schema;
+    use ShopDb::Form::Machinist;
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $machinist_form = ShopDb::Form::Machinist->new(
+        item_id     => $machinist_id,
+        schema      => $schema,
+        auth_args   => $session{'shopdb-auth'},
+        active      => [ ($machinist ? 'machinist_update' : 'machinist_add') ],
+    );
+
+    if ($r->method eq 'POST' && ($ARGS{'machinist_add'} || $ARGS{'machinist_update'})) {
+        $machinist_form->process(params => \%ARGS);
+    }
+
+    if ($machinist_form->is_valid) {
+        $m->redirect('machinists.html');
+    }
+</%init>
+
+<%args>
+    $machinist_id => undef
+</%args>
+
+
+<%perl>
+if ($machinist_id) {
+    $m->comp('index.html', machinist_id => $machinist_id, search_form => 0, %ARGS);
+}
+</%perl>
+
+<h2>Machinist Information</h2>
+<p>
+% print $machinist_form->render();
+</p>
+

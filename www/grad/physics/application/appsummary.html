@@ -1,0 +1,156 @@
+<%DOC>
+   Component: appsummary.html
+        Date: 2005.08.10
+      Author: allan
+     Changed: 2005.08.10 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id=>undef
+</%ARGS>
+
+<%shared>
+my ($email, $password, $pin, $fname, $mname, $lname, $gender, $homephone, $permphone, $address, $country, $citizen, $degree, $entrydate, $entryyear, $specialization, $degree1, $degree2, $gpa1, $gpa2, $degstart1, $degstart2, $degend1, $degend2, $amgrade, $edgrade, $qmgrade, $tdgrade, $greverb, $grequant, $greanal, $grephys, $toefl, $toefl_type, $personalobj, $personalexp, $personalpub, $personaladd, $recname1, $recemail1, $recpos1, $recinst1, $recname2, $recemail2, $recpos2, $recinst2, $recname3, $recemail3, $recpos3, $recinst3, $recdata1, $recdata2, $recdata3, $updates, $waiver, $confirm, $appdate, $review_supplemental);
+</%shared>
+
+<%INIT>
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth || !$id) {
+  $id = $session{gradappid};
+}
+
+my $sql = "SELECT email, password, pin, fname, mname, lname, gender, homephone, permphone,
+            address, country, citizen, degree, entrydate, entryyear, specialization,
+            degree1, degree2, gpa1, gpa2, degstart1, degstart2, degend1, degend2,
+            amgrade, edgrade, qmgrade, tdgrade, greverb, grequant, greanal, grephys,
+            toefl, toefl_type, personalobj, personalexp, personalpub, personaladd,
+            recname1, recemail1, recpos1, recinst1,
+            recname2, recemail2, recpos2, recinst2,
+            recname3, recemail3, recpos3, recinst3,
+            recdata1, recdata2, recdata3,
+            updates, waiver, confirm, appdate, review_supplemental
+        FROM grad.gradapp WHERE id=?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($id)
+    or die 'Unable to grab entry: ' . $dbh->errstr;
+
+my %row;
+
+if (my $row_ref = $sth->fetchrow_hashref()) {
+    %row = %$row_ref;
+} else {
+    $m->redirect('viewall.html');
+}
+</%INIT>		
+		
+<%method title>Physics Graduate Program</%method>
+
+<h4>
+Application for <% $row{'fname'} |h %> <% $row{'lname'} |h %>
+</h4>
+
+<small>
+<a href="viewapp.html?id=<% $id |u %>">View application</a> |
+<a href="review_list.html?id=<% $id |u %>">View or edit reviews</a>
+% if ($auth) {
+| <a href="edit_appform.html?id=<% $id |u %>">Edit application</a>
+| <a href="status_form.html?id=<% $id |u %>">Update status</a>
+% if ($row{'confirm'}) {
+| <a href="reopen.html?id=<% $id %>">Reopen application</a>
+% }
+% }
+</small>
+<p>
+
+<table border=1 width="100%">
+<tr valign="top">
+<td>
+<!-- start first column of information -->
+
+<table border=1>
+<tr><th colspan=2>Personal Information</th></tr>
+<tr><td>Name</td><td><% $row{'fname'} |h %> <% $row{'mname'} |h %> <% $row{'lname'} |h %></td></tr>
+<tr><td>Gender</td><td><% $row{'gender'} |h %></td></tr>
+<tr><td>Current phone</td><td><% $row{'homephone'} |h %></td></tr>
+<tr><td>Permanent phone</td><td><% $row{'permphone'} |h %></td></tr>
+<tr><td>Address</td><td><% $row{'address'} |h %></td></tr>
+<tr><td>Citizenship</td><td><% $row{'citizen'} |h %></td></tr>
+<tr><td>Email</td><td><% $row{'email'} |h %></td></tr>
+
+<tr><th colspan=2>Degree Objective</th></tr>
+<tr><td>Degree sought</td><td><% $row{'degree'} |h %></td></tr>
+<tr><td>Specializations</td><td><% $row{'specialization'} |h %></td></tr>
+</table>
+</td>
+
+<td>
+<!-- second column -->
+<table border=1>
+<tr><th></th><th>Bachelors</th><th>Masters</th></tr>
+<tr><td>School</td><td><% $row{'degree1'} |h %></td><td><% $row{'degree2'} |h %></td></tr>
+<tr><td>GPA</td><td><% $row{'gpa1'} |h %></td><td><% $row{'gpa2'} |h %></td></tr>
+<tr><td>Start</td><td><% $row{'degstart1'} |h %></td><td><% $row{'degstart2'} |h %></td></tr>
+<tr><td>End</td><td><% $row{'degend1'} |h %></td><td><% $row{'degend2'} |h %></td></tr>
+</table>
+
+<table border=1>
+<tr><th>Core Subjects</th><th>Grade</th></tr>
+<tr><td>Anal. Mech.</td><td><% $row{'amgrade'} |h %></td></tr>
+<tr><td>Electrodynamics</td><td><% $row{'edgrade'} |h %></td></tr>
+<tr><td>Quantum Mech.</td><td><% $row{'qmgrade'} |h %></td></tr>
+<tr><td>Thermodynamics &amp; SM</td><td><% $row{'tdgrade'} |h %></td></tr>
+<tr><th>GRE</th><th>%</th></tr>
+<tr><td>Verbal</td><td><% $row{'greverb'} |h %></td></tr>
+<tr><td>Quantitative</td><td><% $row{'grequant'} |h %></td></tr>
+<tr><td>Analytical</td><td><% $row{'greanal'} |h %></td></tr>
+<tr><td>Physics</td><td><% $row{'grephys'} |h %></td></tr>
+</table>
+</td>
+</tr>
+
+<tr><td colspan=2>
+
+<table width="100%" border=1>
+<tr><th colspan=4>Recommendation Letters</th></tr>
+<tr><td>Name</td><td>Email</td><td>Position</td><td>Institution</td></tr>
+% $m->comp('reclink.mhtml', id=>$id, recnumber=>1, recname=>$row{'recname1'}, recemail=>$row{'recemail1'}, recpos=>$row{'recpos1'}, recinst=>$row{'recinst1'}, recdata=>$row{'recdata1'});
+
+% $m->comp('reclink.mhtml', id=>$id, recnumber=>2, recname=>$row{'recname2'}, recemail=>$row{'recemail2'}, recpos=>$row{'recpos2'}, recinst=>$row{'recinst2'}, recdata=>$row{'recdata2'});
+
+% $m->comp('reclink.mhtml', id=>$id, recnumber=>3, recname=>$row{'recname3'}, recemail=>$row{'recemail3'}, recpos=>$row{'recpos3'}, recinst=>$row{'recinst3'}, recdata=>$row{'recdata3'});
+<table>
+
+<table border=1 width=100%>
+<tr><th colspan=3>Supplementary Materials</th></tr>
+% my ($uploadid, $mimetype, $description, $timestamp);
+% $sql = "SELECT uploadid, mimetype, description, timestamp FROM grad.uploads WHERE userid=?";
+% $sth = $dbh->prepare($sql);
+% $sth->execute($id) or die 'Unable to grab uploads: ' . $dbh->errstr;
+% while (my $row_ref = $sth->fetchrow_arrayref) {
+%  ($uploadid, $mimetype, $description, $timestamp) = @$row_ref;
+<tr>
+<td><a href="getfile.html?id=<% $uploadid |u %>"><% $description |h %></a></td>
+<td><% $mimetype |h %></td>
+<td>Received: <% substr($timestamp,0,10) |h %>
+</td></tr>
+% }
+</table>
+
+<table border=1 width=100%>
+<tr><th>Additional comments from applicant</th></tr>
+<tr><td>
+% print $m->comp('/mason/format_text.comp', meta=>0, text=>$row{'updates'});
+</td></tr>
+</table>
+
+<table border=1 width=100%>
+<tr><th>Final review comments</th></tr>
+<tr><td>
+% print $m->comp('/mason/format_text.comp', meta=>0, text=>$row{'review_supplemental'});
+</td></tr>
+</table>
+
+</td></tr>
+</table>

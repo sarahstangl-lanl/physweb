@@ -1,0 +1,37 @@
+
+<%DOC>
+   Component: test.html
+        Date: 2008.11.03
+      Author: nick
+     Changed: 2008.11.03 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$query => undef
+$start => 0
+</%ARGS>
+
+<%INIT>
+use Google::Data::JSON qw (gdata);
+use LWP::Simple;
+use Data::Dumper;
+my $response;
+if($query) {
+  $response = get 'http://ajax.googleapis.com/ajax/services/search/web?v=1.0&start='.$start.'&q=site:physics.umn.edu%20'.$query;
+  $response = gdata($response)->as_hash;
+  print "<pre>".Dumper($response)."</pre>";
+#  print scalar(@{$response->{'responseData'}->{'results'}});
+}
+</%INIT>		
+<p><form>Search query: <input type="text" name="query"><input type="submit" value="Search"></form>
+% if(defined($response)) { my $count = $start + 1;
+<h2>Results</h2><p>
+<table>
+% foreach my $result (@{$response->{'responseData'}->{'results'}}) {
+<tr><td><% $count %>. </td><td><a href="<% $result->{'url'} %>"><% $result->{'title'} %></a></td></tr>
+<tr><td></td><td><% $result->{'content'} %><p></td></tr>
+% $count++; }}
+</table>
+<a href="?query=<% $query|h %>&start=<% $start+4 %>">Next</a>

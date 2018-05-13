@@ -1,0 +1,75 @@
+
+<%DOC>
+   Component: review_list.html
+        Date: 2005.12.05
+      Author: allan
+     Changed: 2005.12.05 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id => undef
+</%ARGS>
+
+<%INIT>
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+my $auth_mgr = $m->comp('/mason/auth/auth_check_gradapp_mgr.comp');
+if (!$auth) { $m->redirect('index.html'); }
+if (!$id) {
+    $m->redirect('viewall.html');
+}
+
+my ($email, $reviewid, $fname, $mname, $lname, $score, $comments, $reviewer);
+my ($sql, $sth, $success);
+$sql = "SELECT email, fname, mname, lname FROM grad.gradapp WHERE id = ?";
+$sth = $dbh->prepare($sql);
+$success = $sth->execute($id) or die 'Unable to grab app: ' . $dbh->errstr;
+
+  
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+    ($email, $fname, $mname, $lname) = @$row_ref;
+} else {
+    $m->redirect('viewall.html');
+}
+</%INIT>		
+		
+<%method title>Application Review</%method>
+
+For <% $fname %> <% $mname %> <% $lname %> (<% $email %>).
+<br/>
+% if(!$auth_mgr) {
+This page only lists the contents of your own reviews.
+% }
+<p>
+<small>
+<a href="review_add.html?id=<% $id %>">Add review</a> |
+<a href="appsummary.html?email=<% $email |u %>">Return to summary</a>
+</small>
+
+<table width="100%">
+<tr align="left"><th>Reviewer</th><th>Score</th><th>Comments</th></tr>
+
+
+<%perl>
+$sql = "SELECT reviewid, reviewer, score, comments FROM grad.review WHERE appid=?";
+$sth = $dbh->prepare($sql);
+$sth->execute($id) or die 'Unable to grab reviews: ' . $dbh->errstr;
+my $count = 0;
+while (my $row_ref = $sth->fetchrow_arrayref()) {
+    ($reviewid, $reviewer, $score, $comments) = @$row_ref;
+    my $rname = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$reviewer);
+    $rname =~ s/ /&nbsp;/g;
+    print "<tr valign=top><td>$rname";
+    if ($reviewer eq $session{'uid'}) {
+        print "&nbsp;<a href=review_form.html?id=$id&amp;reviewid=$reviewid>[Edit]</a>";
+    } elsif(!$auth_mgr) {
+        $score = "--"; $comments = "--";
+    }
+    print "</td><td>$score</td><td>$comments</td></tr>";
+    $count +=1;
+}
+
+if (!$count) { print "<tr><td>No reviews found</td></tr>"; }
+</%perl>
+</table>

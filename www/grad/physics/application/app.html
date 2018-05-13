@@ -1,0 +1,273 @@
+<%DOC>
+   Component: app.html
+        Date: 2005.08.10
+      Author: allan
+     Changed: 2005.08.10 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id =>  $session{'gradappid'}
+$fname => undef
+$mname => undef
+$lname => undef
+$gender => undef
+$homephone => undef
+$permphone => undef
+$address => undef
+$country => undef
+$citizen => undef
+$degree => undef
+$entrydate => 'fall'
+$entryyear => undef
+$specialization => undef
+$degree1 => undef
+$degree2 => undef
+$gpa1 => undef
+$gpa2 => undef
+$degstartyear1 => undef
+$degstartyear2 => undef
+$degstartmonth1 => undef
+$degstartmonth2 => undef
+$degendyear1 => undef
+$degendyear2 => undef
+$degendmonth1 => undef
+$degendmonth2 => undef
+$amgrade => undef
+$edgrade => undef
+$qmgrade => undef
+$tdgrade => undef
+$greverb => undef
+$grequant => undef
+$greanal => undef
+$grephys => undef
+$toefl => undef
+$toefl_type => undef
+$personalobj => undef
+$personalexp => undef
+$personalpub => undef
+$personaladd => undef
+$recname1 => undef
+$recemail1 => undef
+$recpos1 => undef
+$recinst1 => undef
+$recname2 => undef
+$recemail2 => undef
+$recpos2 => undef
+$recinst2 => undef
+$recname3 => undef
+$recemail3 => undef
+$recpos3 => undef
+$recinst3 => undef
+$waiver => 'unset'
+$confirm => ''
+$submit => ''
+$appdate => undef
+$recsent_ignore => undef
+</%ARGS>
+
+<%INIT>
+unless ($r->headers_in->{'Referer'} =~ /appform\.html/) {
+  print "<h2>This page is not directly accessible</h2>"; return;
+}
+use Email::Valid;
+
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) { $id = $session{'gradappid'}; }
+if (!$id) { $m->redirect('index.html?notloggedin=1'); }
+
+if ($confirm) {$confirm=1;} else {$confirm=0;}
+my $original_confirm = $confirm;
+my $final = ($submit =~ /final/i);
+
+my $cc;
+my $thisyear = This_Year;
+my $problem;
+my $fatal = 0;
+
+if (!$auth) {
+    # now look for problems in the input data (input validation)
+    if (!$lname || !$fname) {
+        $problem .= "Name not complete (and we will not send any confirmation email to you until we have this information).";
+        $fatal = 1;
+    }
+    if (!$address) {
+        $problem .= "No address supplied (and we will not send any confirmation email to you until we have this information).";
+        $fatal = 1;
+    }
+    
+    if (!$country) {
+        $problem .= "No country of residence selected.";
+    }
+    if (!$citizen) {
+        $problem .= "No country of citizenship selected.";
+    }
+    if (!$entryyear) {
+        $problem .= "Year of Entry not given.";
+    }
+    if ((length($entryyear) != 4) || ($entryyear < $thisyear)) {
+        $problem .= "Invalid Year of Entry.";
+    }
+    if (!$personalobj) {
+        $problem .= "Personal Objectives are empty.";
+    }
+    if (!$degree1 || !$gpa1) {
+        $problem .= "Bachelors degree information incomplete.";
+    }
+    if (($greverb>100) || ($grequant>100) || ($greanal>100) || ($grephys>100)) {
+        $problem .= "GRE scores should be given as ranking in percent, not points.";
+    }
+    if (!$recname1 || !$recpos1 || !$recinst1) {
+        $problem .= "Recommendation #1 information incomplete.";
+    }
+    
+    $recemail1 =~ s/\s//g;
+    $recemail2 =~ s/\s//g;
+    $recemail3 =~ s/\s//g;
+    
+    if (!Email::Valid->address($recemail1)) {
+        $problem .= "Recommendation #1 email is invalid.";
+    }
+    if (!$recname2 || !$recpos2 || !$recinst2) {
+        $problem .= "Recommendation #2 information incomplete.";
+    }
+    if (!Email::Valid->address($recemail2)) {
+        $problem .= "Recommendation #2 email is invalid.";
+    }
+    if (!$recname3 || !$recpos3 || !$recinst3) {
+        $problem .= "Recommendation #3 information incomplete.";
+    }
+    if (!Email::Valid->address($recemail3)) {
+        $problem .= "Recommendation #3 email is invalid.";
+    }
+    
+    if ($recemail1 eq $recemail2) {
+        $problem .= "Recommendation #1 email is the same as #2.";
+    }
+    if ($recemail1 eq $recemail3) {
+        $problem .= "Recommendation #1 email is the same as #3.";
+    }
+    if ($recemail2 eq $recemail3) {
+        $problem .= "Recommendation #2 email is the same as #3.";
+    }
+    if ($waiver eq "unset") {
+        $problem .= "Must select choice for recommendation letter waiver.";
+    }
+    
+    if (!$confirm && $final) {
+        $problem .= "You must check the confirmation box in order to submit the final application.";
+    }
+    
+    if ($problem) {
+        $problem =~ s|\.|\.\n|g;
+        if ($final) {
+            $problem = "We cannot complete your application yet because of these problems:\n\n".$problem;
+        } else {
+            $problem = "The following items need to be completed before your application can be finalized:\n\n".$problem;
+        }
+        $final=0;
+    }
+} # end of adminedit test
+
+# can't be confirmed unless a final app.
+if (!$final) { $confirm = 0; }
+# (RT#8526) Unless authed, then keep the confirm...
+if ($auth) { $confirm = $original_confirm; }
+
+# perform the database update...
+my $sql = "SELECT email, pin, recsent FROM grad.gradapp WHERE id=?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($id)
+  or die 'Unable to check e-mail: ' . $dbh->errstr;
+
+my ($email, $pin, $recsent);
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+  ($email, $pin, $recsent) = @$row_ref;
+  $sql = "UPDATE grad.gradapp
+        SET fname=?, mname=?, lname=?, gender=?, homephone=?, permphone=?, address=?,
+            country=?, citizen=?, degree=?, entrydate=?, entryyear=?,
+            specialization=?, degree1=?, degree2=?, gpa1=?, gpa2=?,
+            degstart1=?, degstart2=?, degend1=?, degend2=?,
+            amgrade=?, edgrade=?, qmgrade=?, tdgrade=?,
+            greverb=?, grequant=?, greanal=?, grephys=?,
+            toefl=?, toefl_type=?,
+            personalobj=?, personalexp=?, personalpub=?, personaladd=?,
+            recname1=?, recemail1=?, recpos1=?, recinst1=?,
+            recname2=?, recemail2=?, recpos2=?, recinst2=?,
+            recname3=?, recemail3=?, recpos3=?, recinst3=?,
+            waiver=?, appdate=?, confirm=?, recsent=?,
+            last_modified=now(), timestamp=now()
+        WHERE id=?";
+  $sth = $dbh->prepare($sql)
+    or die 'Unable to update: ' . $dbh->errstr;
+  $sth->execute($fname,
+        $mname, $lname, $gender, $homephone, $permphone, $address,
+        $country, $citizen, $degree, $entrydate, $entryyear,
+        $specialization, $degree1, $degree2, $gpa1, $gpa2,
+        $degstartyear1."-".($degstartmonth1+1)."-01",
+        $degstartyear2."-".($degstartmonth2+1)."-01",
+        $degendyear1."-".($degendmonth1+1)."-01",
+        $degendyear2."-".($degendmonth2+1)."-01",
+        $amgrade, $edgrade, $qmgrade, $tdgrade,
+        $greverb, $grequant, $greanal, $grephys,
+        $toefl, $toefl_type,
+        $personalobj, $personalexp, $personalpub, $personaladd,
+        $recname1, $recemail1, $recpos1, $recinst1,
+        $recname2, $recemail2, $recpos2, $recinst2,
+        $recname3, $recemail3, $recpos3, $recinst3,
+        $waiver, $appdate, $confirm,
+        (($final || $recsent) ? 1 : 0),
+        $id)
+  or die 'Unable to update: ' . $dbh->errstr;
+  $m->comp('logevent.mhtml', text=>"updated app for $email, final=".$final);
+
+  # if we are admin, skip everything else...
+  if ($auth) { $m->redirect("viewapp.html?email=".$email); }
+</%INIT>
+	
+<%perl>
+  my $message = "Dear $fname\n\n";
+  if ($final) {
+    $cc = "grad\@physics.umn.edu";
+    my $recmessage;
+
+    if (!$recsent || $recsent_ignore) {
+      $recmessage = "We shall now continue the application process by sending email to $recemail1, $recemail2, and $recemail3 for recommendations.";
+
+      $m->comp('sendrecletter.html', email=>$recemail1, name=>$recname1, appname=>"$fname $lname", appemail=>$email, pin=>$pin, waiver=>$waiver);
+
+      $m->comp('sendrecletter.html', email=>$recemail2, name=>$recname2, appname=>"$fname $lname", appemail=>$email, pin=>$pin, waiver=>$waiver);
+
+      $m->comp('sendrecletter.html', email=>$recemail3, name=>$recname3, appname=>"$fname $lname", appemail=>$email, pin=>$pin, waiver=>$waiver);
+    } else {
+      $recmessage = "Our records indicate that email has already been sent to $recemail1, $recemail2, and $recemail3 for recommendations. If you believe this is in error and would like for the emails to be sent again, please reply to $cc.";
+    }
+
+    $message = <<MSGEND;
+Thank you for completing your application to the University of Minnesota Physics Graduate Program. $recmessage
+
+MSGEND
+
+  } else {
+    $message = <<MSGEND;
+Thank you for starting your application to the University of Minnesota Physics Graduate Program. Until you complete the application (by checking the "complete application" box), you can update your application at any time by logging in to the web page below using your email address and the password you selected.
+
+http://www.physics.umn.edu/grad/application/
+
+$problem
+MSGEND
+  }
+
+  $Text::Wrap::columns = 72;
+  $message = wrap('', '', $message);
+  $session{'gradappmsg'} = $message;
+  if (!$fatal) {
+    $m->comp('/mason/send_mail.comp', to=>$email, subject=>"Graduate Program Application ($email)", from=>'grad@physics.umn.edu', cc=>$cc, text=>$message);
+  }
+  $m->redirect('thankyou.html');
+} else {
+  print "Tried to update a nonexistent record";
+} # end of valid row_ref test
+	
+</%perl>

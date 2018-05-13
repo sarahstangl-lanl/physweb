@@ -1,0 +1,26 @@
+<%doc>
+    this_semester.comp
+    Returns name of current semester
+</%doc>
+<%args>
+    $now => undef
+</%args>
+<%init>
+    use Date::Calc::Object;
+    
+    if (!$now) { $now = Date::Calc->now(); }
+    
+    my $semester;
+    my ($start_summer) = $m->comp('/mason/quarter_date.comp', quarter => 'summer');
+    my ($start_fall) = $m->comp('/mason/quarter_date.comp', quarter => 'fall');
+    
+    if ($now < $start_summer) {
+        $semester = 'spring';
+    } elsif ($now < $start_fall) {
+        $semester = 'summer';
+    } else {
+        $semester = 'fall';
+    }
+    
+    return $semester;
+</%init>

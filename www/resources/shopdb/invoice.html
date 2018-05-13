@@ -1,0 +1,276 @@
+<%args>
+$job_id => undef
+$invoice_id => undef
+$action => undef
+@line_ids => ( )
+</%args>
+
+<%perl>
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    unless ($job_id || $invoice_id) {
+        print "Invalid arguments. Please go back to the requesting page and try again.";
+        return;
+    }
+    my $invoice_form;
+    if ($invoice_id) {
+        my $invoice = $schema->resultset('Invoices')->find({ invoice_id => $invoice_id });
+        unless ($invoice) {
+            print "Couldn't find invoice_id '" . _h($invoice_id) . "'";
+            return;
+        }
+        use ShopDb::Form::Invoice;
+        my $invoice_form = ShopDb::Form::Invoice->new(
+            item        => $invoice,
+            schema      => $schema,
+            auth_args   => $session{'shopdb-auth'},
+        );
+
+        if ($r->method eq 'POST') {
+            $invoice_form->process(params => \%ARGS);
+        }
+
+        if ($invoice_form->is_valid) {
+            # Do something with a saved, good form
+            $m->redirect('index.html');
+        }
+    }
+    else { # job_id
+
+        # Fetch job item
+        my $job_item = $schema->resultset('Jobs')->find({ job_id => $job_id });
+        unless ($job_item) {
+            print "Invalid job_id " . _h($job_id);
+            return;
+        }
+
+        # Check job auth
+        my $auth = $m->comp('/mason/db/shopdb/check_job_auth.comp', job_item => $job_item);
+        unless ($auth =~ /^(foreman|accounting)$/) {
+            print "You do not have permission to modify invoices for job #" . $job_item->id . ": " . $job_item->project_name;
+            return;
+        }
+
+        # Sub for formatting currency
+        my $to_currency = sub {
+            my $value = shift;
+            my $negative = $value < 0;
+            $value =~ s/^-//;
+            $value = sprintf("\$%0.2f", $value);
+            return $negative ? "($value)" : $value;
+        };
+
+        # Parse line_ids into charge lines and comments
+        my (@charge_line_ids, @comment_ids);
+        for my $line_id (@line_ids) {
+            $line_id =~ /Comment_(\d+)/ ? push(@comment_ids, $1) : push(@charge_line_ids, $line_id);
+        }
+
+        # Fetch tablesearch- and invoice-formatted data
+        my ($total, $charge_line_array, $charge_line_hash) = $m->comp('/mason/db/shopdb/unbilled_charge_lines.comp',
+            job_item => $job_item,
+            charge_lines => \@charge_line_ids,
+            no_filter => 1,
+        );
+
+        # Setup ts columns
+        my $columns = $m->comp('/mason/db/shopdb/charge_line_columns.comp');
+
+        # Figure out which column number is finalized
+        my $finalized_col = 0;
+        for my $col (@{$columns->{combined}}) {
+            last if ($col eq 'finalized');
+            $finalized_col++;
+        }
+
+        # Filter out unfinalized charge lines but provide warning if any found
+        my $exist_unfinalized = 0;
+        $charge_line_array = [ grep { if ($$_[$finalized_col]) { 1 } else { $exist_unfinalized = 1; 0 } } @$charge_line_array ];
+        $charge_line_hash = [ grep { $_->{finalized} } @$charge_line_hash ];
+
+        if ($action) {
+            if ($action eq 'preview') {
+                use File::Slurp;
+                use ShopDb::GenerateInvoice;
+                my @comment_lines = map { "${_}|||" } $schema->resultset('JobComments')->search({ job_comment_id => \@comment_ids })->get_column('comment')->all;
+                my $invoice = ShopDb::GenerateInvoice->new(
+                    job_item => $job_item,
+                    form_type => 'INVOICE',
+                    customer_address => $job_item->bill_address ? $job_item->bill_address->to_string : '',
+                    customer_po => $job_item->customer_po_num || '',
+                    form_lines => [ ( map { join('|', (
+                        $_->{type} . ': ' . $_->{description},
+                        $_->{charge_hours_quantity},
+                        $to_currency->($_->{labor_rate_unit_cost}),
+                        $to_currency->($_->{extended_cost}),
+                    )) } @$charge_line_hash ), @comment_lines ],
+                    total_due => sprintf("%.2f", $total),
+                );
+                my $filename = $invoice->generate;
+                my $content = read_file($filename);
+                $r->content_type('application/x-pdf');
+                $r->headers_out->add('Content-Length' => -s $filename);
+                $r->headers_out->add('Content-Disposition' => 'attachment; filename="Job ' . $job_item->id . ' Invoice.pdf"');
+                $m->clear_buffer;
+                $m->out($content);
+                $m->abort(200);
+            }
+        }
+        else {
+</%perl>
+<& '/mason/ajax/jsload.comp', file=>'RowEditor.js' &>
+<h2>Generate Invoice for Job #<% $job_item->id %>: <% $job_item->project_name %></h2>
+
+<br /><h4>Select Charge Lines to bill</h4>
+<% $exist_unfinalized ? '<div style="color:red;font-weight:bold">WARNING: There are unfinalized charge lines for this job.</div>' : '' %>
+<br />
+<%perl>
+            use tablesearch;
+            use JSON;
+
+            my $common_field_params = $m->comp('/mason/db/shopdb/billing_ts_params.comp');
+
+            my $auth_args = $session{'shopdb-auth'};
+
+            my $charge_lines_ts = new Tablesearch(
+                columns             => $columns->{combined},
+                data                => [ $columns->{combined}, @$charge_line_array ],
+                header_format       => 'ucfirst_all',
+                hide_search         => 1,
+                hide_header         => 1,
+                html_table_id       => "table_job_charge_lines",
+                field_params        => {
+                    %$common_field_params,
+                },
+                row_tagger          => sub {
+                    my ($row) = @_;
+                    return 'data-line_id="' . $row->{'line_id'} . '" data-type="' . $row->{'type'} . '"'; },
+                prefix              => 'charge_lines',
+                default_sort_field  => "charge_date",
+                extra_url_args      => [ 'job_id' ],
+                debug               => 0,
+            );
+            $charge_lines_ts->display;
+</%perl>
+<table cellspacing="0" cellpadding="3" width="100%"><tr>
+    <td><table cellpadding="3" cellspacing="0" style="padding-top: 5px"><tr>
+        <td valign="middle"><a href="#" id="check_all_job_charge_lines">Check all</a></td>
+        <td>|</td>
+        <td valign="middle"><a href="#" id="clear_all_job_charge_lines">Clear all</a></td>
+    </tr></table></td>
+</tr></table>
+
+<script type="text/javascript">
+$('table_job_charge_lines').roweditor = new RowEditor(
+    'table_job_charge_lines',
+    'charge_line_ajax.html',
+    <% to_json($columns->{combined}) %>,
+    {
+        checkAllID: 'check_all_job_charge_lines',
+        clearAllID: 'clear_all_job_charge_lines',
+        parameters: {
+        },
+        tdClassName: 'tableitem',
+        hiddenAttributes: $H({type: 'type', line_id: 'line_id'}),
+    }
+);
+</script>
+
+<h4>Select Comments to include</h4><br />
+<%perl>
+            my $comments_rs = $schema->resultset('JobComments')->with_creator_info->search({ job_id => $job_item->id }, { '+select' => \'\'\' AS edit', '+as' => 'edit' });
+            my $comments_ts = new Tablesearch(
+                prefix              => 'comments',
+                resultset           => $comments_rs,
+                columns             => [ qw/edit comment created_date creator creator_uid/ ],
+                field_params        => {
+                    'job_comment_id'    => {
+                        'hidden'            => 1,
+                    },
+                    'creator_uid'       => {
+                        'hidden'            => 1,
+                    },
+                    'edit'              => {
+                        'data_format'       => sub {
+                            my $class = "roweditor_checkbox";
+                            return "<span style=\"display:none\" class=\"$class\"></span>";
+                        },
+                        'html_class'        => 'roweditor_edit',
+                        'width'             => 55,
+                        'name'              => '',
+                        'nowrap'            => 1,
+                        'no_sort'           => 1,
+                    },
+                    'comment'           => {
+                        'width'             => 300,
+                    },
+                    'creator'           => {
+                        'name'              => 'Entered By',
+                    },
+                },
+                header_format       => 'ucfirst_all',
+                extra_url_args      => [ 'job_id' ],
+                row_tagger          => sub {
+                    my ($row) = @_;
+                    return 'data-line_id="' . $row->{'job_comment_id'} . '" data-type="Comment"'; },
+                html_table_id       => "table_job_comments",
+                hide_search         => 1,
+                hide_header         => 1,
+                no_limit            => 1,
+                no_calc_found_rows  => 1,
+                default_sort_field  => "job_comment_id",
+                default_sort_dir    => 'asc',
+                data_wrapper_form   => 1,
+            );
+            $comments_ts->display;
+</%perl>
+<table cellspacing="0" cellpadding="3" width="100%"><tr>
+    <td><table cellpadding="3" cellspacing="0" style="padding-top: 5px"><tr>
+        <td valign="middle"><a href="#" id="check_all_job_comments">Check all</a></td>
+        <td>|</td>
+        <td valign="middle"><a href="#" id="clear_all_job_comments">Clear all</a></td>
+    </tr></table></td>
+</tr></table>
+
+<script type="text/javascript">
+$('table_job_comments').roweditor = new RowEditor(
+    'table_job_comments',
+    'job_comment.html',
+    <% to_json($columns->{combined}) %>,
+    {
+        checkAllID: 'check_all_job_comments',
+        clearAllID: 'clear_all_job_comments',
+        parameters: {
+        },
+        tdClassName: 'tableitem',
+        hiddenAttributes: $H({type: 'type', line_id: 'line_id'}),
+    }
+);
+</script>
+
+</%perl>
+<script language="Javascript">
+function generatePreview() {
+    selectedLines = $('table_job_charge_lines').roweditor.getSelectedRows().concat($('table_job_comments').roweditor.getSelectedRows());
+    requestArgs = $H({
+        line_ids: selectedLines.collect(function(tr) { return tr.readAttribute('data-type') + '_' + tr.readAttribute('data-line_id') }),
+        job_id: <% $job_item->id %>,
+        action: 'preview'
+    });
+    window.location = '?' + requestArgs.toQueryString();
+}
+</script>
+% unless ($job_item->bill_address) {
+    <div style="color:red;font-weight:bold">WARNING: There is no billing address specified for this job.</div>
+% }
+<table cellspacing="0" cellpadding="3" width="100%"><tr>
+    <td><table cellpadding="3" cellspacing="0" style="padding-top: 5px"><tr>
+        <td valign="middle"><a onclick="generatePreview()" href="#">Preview Invoice</a></td>
+        <td>|</td>
+    </tr></table></td>
+</tr></table>
+
+<%perl>
+        }
+    }
+
+</%perl>

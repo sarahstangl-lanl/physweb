@@ -1,0 +1,27 @@
+<%args>
+$student
+$number => undef
+</%args>
+<%init>
+$m->redirect('index.html') unless ($number);
+my $last_observation = $m->comp('/mason/db/moonproject/get_observation.comp', student => $student, number => $number, type => 'last');
+my $first_observation = $m->comp('/mason/db/moonproject/get_observation.comp', student => $student, number => $number, type => 'first');
+unless ($last_observation) {
+    $m->comp('/mason/notice_box.comp', type => 'error', text => 'Invalid observation number ' . _h($number));
+    print '<a href="observations.html">Return to observations</a>';
+    return;
+}
+if ($last_observation->{taAccepted} eq 'rejected') {
+    $m->comp('/mason/notice_box.comp', type => 'error', text => 'Your TA has REJECTED this observation.  Further modifications will not be allowed.');
+    print '<a href="observations.html">Return to observations</a>';
+    return;
+}
+</%init>
+<h2>Modify Observation <% $number |h %></h2><br/>
+<div style="width: 670px">
+% $m->comp('/mason/db/moonproject/print_observation.comp', number => $number, with_grades => 0, with_header => 0, student => $student, ta => undef);
+</div>
+% if ($last_observation->attempts >= 5) {
+% $m->comp('/mason/notice_box.comp', type => 'error', text => 'You have made 5 or more modifications of this observation. If you are having problems with your calculations or your measurements, we strongly suggest you contact your TA or professor.');
+% }
+% $m->comp('/mason/db/moonproject/observation_form.comp', %$last_observation, %ARGS, timestamp => $first_observation->{timestamp});

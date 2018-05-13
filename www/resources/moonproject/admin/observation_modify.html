@@ -1,0 +1,85 @@
+<%args>
+$student => undef
+$classids => []
+</%args>
+<%init>
+$m->redirect('observations.html') unless ($student);
+unless ($m->comp('/mason/db/moonproject/is_ta.comp', student => $student->{gradesid}, classids => $classids)) {
+    print "You are not allowed to modify observations for student " . _h($student->{name});
+    return;
+}
+use Moonproject::Observation;
+my (@obsnums, @obsids, @observations);
+my $action;
+# Determine action and collect observations
+for my $key (keys %ARGS) {
+    if ($key =~ /^obsid(\d+)$/) {
+        push @obsnums, $1;
+    }
+    elsif ($key =~ /^(update|reject|needswork|accept|regrade)(.+)$/) {
+        $action = $1;
+        unless ($2 eq 'all') {
+            @obsnums = ($2);
+            last;
+        }
+    }
+}
+unless ($action) {
+    print "Missing required action parameter.";
+    return;
+}
+# Validate arguments
+for my $number (@obsnums) {
+    my $obsid = $ARGS{"obsid$number"};
+    unless ($obsid) {
+        print "Missing required obsid#NUM parameter.";
+        return;
+    }
+    my $observation = Moonproject::Observation->new(id => $obsid);
+    unless ($observation) {
+        print "Invalid observation id " . _h($obsid) . ". No work was performed.";
+        return;
+    }
+    unless ($m->comp('/mason/db/moonproject/is_ta.comp', student => $observation->{student}, classids => $classids)) {
+        print "You are not allowed to modify observations for student " . _h($observation->{student}) . ".";
+        return;
+    }
+    push @obsids, $obsid;
+    push @observations, $observation;
+}
+# Update observations
+if ($action eq 'accept') {
+    physdb::query("UPDATE moonproject.observation SET taAccepted = 'accepted' WHERE taAccepted = 'unset' AND id " . _in(@obsids), @obsids);
+}
+elsif ($action eq 'needswork') {
+    physdb::query("UPDATE moonproject.observation SET taAccepted = 'needswork' WHERE taAccepted = 'unset' AND id " . _in(@obsids), @obsids);
+}
+elsif ($action eq 'reject') {
+    physdb::query("UPDATE moonproject.observation SET taAccepted = 'rejected' WHERE taAccepted = 'unset' AND id " . _in(@obsids), @obsids);
+}
+elsif ($action eq 'regrade') {
+    for my $observation (@observations) {
+        $observation->regrade if ($ARGS{"regrade" . $observation->{number}} || $ARGS{"graded" . $observation->{number}} == 0);
+    }
+}
+else { # action eq 'update'
+    my $grade_obs = $dbh->prepare("UPDATE moonproject.observation SET taAccepted=?,taComments=? WHERE id=?");
+    my $comment_obs = $dbh->prepare("UPDATE moonproject.observation SET taComments=? WHERE id=?");
+    for my $number (@obsnums) {
+        if (exists $ARGS{"taAccepted${number}"}) {
+            $grade_obs->execute(map { $ARGS{"${_}${number}"} } (qw/taAccepted taComments obsid/)) or die "Failed to update observation: " . $grade_obs->errstr;
+        }
+        else {
+            $comment_obs->execute(map { $ARGS{"${_}${number}"} } (qw/taComments obsid/)) or die "Failed to update observation: " . $comment_obs->errstr;
+        }
+    }
+}
+# Redirect to specific observation if only one was modified
+if (@obsnums == 1) {
+    $m->redirect('observations.html?student=' . _u($student->{gradesid}) . '#obs' . (shift @obsnums));
+}
+elsif ($ARGS{'regradeall'}) {
+    $m->redirect('observations.html?student=' . _u($student->{gradesid}));
+}
+$m->redirect('student_list.html' . (exists $ARGS{studentfilter} ? '?studentfilter=' . _u($ARGS{studentfilter}) : ''));
+</%init>

@@ -1,0 +1,61 @@
+%# ~~NOSITEMAP~~
+<%doc>
+   vim: set syntax=mason:
+</%doc>
+
+<%args>
+$realname => ''
+$institution => ''
+$abstract => ''
+$email => ''
+$recipient => ''
+$subject => ''
+</%args>
+
+<%init>
+use Mail::Sendmail;
+use Email::Valid;
+</%init>
+
+<%perl>
+if (!$realname || !$institution || !$abstract) {
+    print '<h3>Application Error</h3>Please include a valid name, institution, and abstract';
+    print '<br /><a href="javascript:history.go(-1)">GO BACK</a>';
+    return;
+}
+if ( !$email || !(Email::Valid->address($email)) ) {
+    print '<h3>Application Error</h3>Please include a valid e-mail address';
+    print '<br /><a href="javascript:history.go(-1)">GO BACK</a>';
+    return;
+}
+
+# Email them the confirmation
+my $message = <<END;
+Below is the contents of your online application:
+
+Name: $realname
+Institution: $institution
+Email: $email
+Abstract: $abstract
+END
+
+my %mail = ( To      => $recipient,
+             Cc      => $email,
+             From    => $email,
+             Subject => $subject,
+             Message => $message,
+           );
+if(sendmail(%mail)) {
+    $m->redirect('thanks.html');
+}
+else {
+    if ($Mail::Sendmail::error =~ /Domain of sender address .* does not exist/) {
+        print '<h3>Application Error</h3>Please go back and include a <b>valid</b> e-mail address';
+        return;
+    }
+    else {
+        print("Failed to send mail: <b>" . $m->interp->apply_escapes("$Mail::Sendmail::error", 'h') . "</b>");
+        return;
+    }
+}
+</%perl>

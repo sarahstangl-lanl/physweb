@@ -1,0 +1,45 @@
+<%DOC>
+    vim:set syntax=mason:
+    Component: spam.html
+         Date: 2011.01.13
+       Author: mackey
+</%DOC>
+
+<%method title>Spam Greylisting Log</%method>
+
+<%INIT>
+    use strict;
+    
+    $m->comp('/mason/auth/auth_block.comp');
+</%INIT>
+
+<%perl>
+    my $user = $session{'physid'};
+
+    $m->comp('/mason/db/tablesearch.comp',
+            field_list => [ 'date', 'user', 'sender', 'INET_NTOA(ip) AS ip', 'status' ],
+            debug => 0,
+            field_params => {
+                'user' => {
+                    name => 'To',
+                },
+                'sender' => {
+                    name => 'From',
+                },
+                'ip' => {
+                    name => 'Origin',
+                },
+                'status' => {
+                    name => 'Status',
+                    data_format => sub { return uc(shift);}
+                },
+                'date' => {
+                    name => "Most Recent",
+                },
+            },
+            table => 'spamlog',
+            default_sort_field => 'date',
+            default_sort_dir   => 'desc',
+            header_format      => 'ucfirst',
+            );
+</%perl>

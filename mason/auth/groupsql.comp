@@ -1,0 +1,42 @@
+<%DOC>
+   Component: groupsql.comp
+        Date: 2008.03.28
+      Author: clayton
+     Changed: 2008.03.28 by clayton
+
+Takes a string of the form (group1 && !group2 || (group3 && group4)) and converts it to a sql join and where
+</%DOC>
+
+<%INIT>
+return "no dbh" if $m->comp('/mason/db/dbcheck.comp');
+
+my $str = shift;
+
+$str = '(' . $str . ')';
+
+my @tokens = split /[^\w_]+/, $str;
+my %uniqtokens = map { $_, 1 } @tokens;
+my $count = 0;
+my @joins;
+
+foreach my $key (keys %uniqtokens) {
+  if ($key eq '') { next; }
+  push @joins, 'LEFT JOIN webdb.groupmembers AS magicgroups' . $count .
+        ' ON (magicgroups' . $count . '.uid=directory.uid
+          AND magicgroups' . $count . '.groupname=' . $dbh->quote($key) . ')';
+  $uniqtokens{$key} = 'magicgroups' . $count;
+  $count += 1;
+}
+
+$str =~ s/(([^!\w]+?)(\w+))/$2$uniqtokens{$3}.groupname IS NOT NULL/g;
+$str =~ s/!(\w+)/$uniqtokens{$1}.groupname IS NULL/g;
+
+$str =~ s/&&/ AND /g;
+$str =~ s/\|\|/ OR /g;
+
+return ('join' => join("\n", @joins), 'where' => $str);
+</%INIT>
+		
+<%filter>
+s/.//gos
+</%filter>

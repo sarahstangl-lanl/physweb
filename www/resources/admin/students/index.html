@@ -1,0 +1,26 @@
+
+<%args>
+    $excel => 0
+    $ts
+    $filter_print
+</%args>
+
+<& '/mason/ajax/js.comp' &>
+<& '/mason/ajax/jsload.comp', file=>'event.simulate.js' &>
+<& '/mason/ajax/jsload.comp', file=>'InPlaceEditor.js' &>
+
+<br />
+<%perl>
+    # We rely on the autohandler and the various components to ensure the tablesearch has
+    # necessary access restricting filters applied and to block anyone who should not have access
+
+    #print $filter_print;
+
+    $ts->{excel} = $excel;
+    
+    if (!$excel) {
+        $ts->display();
+    } else {
+        $ts->excel('students-export');
+    }
+</%perl>

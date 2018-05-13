@@ -1,0 +1,103 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: edit_dirinfo_form.html
+        Date: 
+      Author: allan
+ Description: edit a personal directory info
+</%doc>
+
+<%args>
+$uid=>''
+</%args>
+
+<%init>
+use physdb;
+use physdb::directory;
+
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+# force them to log in if not already...
+$m->comp('/mason/auth/auth_block.comp', internal=>1);
+
+if (!$uid) {
+  $uid = $session{'uid'};
+}
+my $directory = new Directory( uid => $uid );
+
+die("directory didn't instantiate for $uid") unless $directory;
+
+my $access = $m->comp('/mason/auth/auth_check_profile.comp', uid=>$uid);
+
+my $buildings = physdb::queryallarray('SELECT BLDG_NO, BLDG_ABBR FROM dwsp_building WHERE FM_SUPPORT_STATUS="SUPPORTED" OR BLDG_ABBR="MCNAMARAC" ORDER BY BLDG_ABBR') or die ("unable to get building names");
+
+my @room_types = split ',', $m->comp("/mason/db/getvalues.comp", table=>"directory", column=>"room_type");
+
+# Bring in form tools
+$m->comp("/mason/formhandler.comp");
+
+</%init>
+
+<h2 title>Edit Directory Information</h2>
+
+<%method login></%method>
+
+%if (!$access) {$m->comp('/mason/redirect.comp',url=>"/resources/myphys/");}
+
+<h3><% $directory->fullname |h %></h3>
+
+<form method="POST" action="edit_dirinfo.html">
+<input type=hidden name="uid" value="<% $directory->get("uid") %>">
+% if($directory->get("physid")) {
+<input type=hidden name="physid" value="<% $directory->get("physid") %>">
+% } else {
+<input type=hidden name="physid" value="<% $directory->get("x500") %>">
+% }
+
+<%perl> if($ARGS{'err_message'}) { </%perl>
+  <div class="errorbox" style="font-size: large; color: red;">Problem: <% $ARGS{'err_message'} |h%></div>
+<%perl> } </%perl>
+<%perl> if($ARGS{'msg_str'}) { </%perl>
+    <div class="msgbox" style="font-size: large; color: green;"><% $ARGS{'msg_str'} |h%></div>
+<%perl> } </%perl>
+
+<p>
+Your home address, home phone, cell phone and pager information are kept private and not displayed except to authenticated departmental users. Your email address will be displayed in a way which should prevent harvesting by spam robots.
+</p>
+<table border=0>
+
+<tr valign="top"><td>Name</td><td nowrap>                   <% $directory->fullname() %></td></tr>
+<tr valign="top"><td>Display Email:</td><td nowrap>         <% fh_input_text("email", $directory, {size=>"50"}) %></td></tr>
+
+<tr valign="top"><td>(1) building, room and phone:</td><td nowrap>
+<% fh_input_select('room_type', \@room_types, $directory) %>
+<% fh_input_select("room_building",  $buildings, $directory ) %>
+<% fh_input_text("room", $directory, {size=>"15"}) %>
+<% fh_input_text("room_phone", $directory, {size=>"16"}) %>
+</td></tr>
+
+<tr valign="top"><td>(2) building, room and phone:</td><td nowrap>
+<% fh_input_select('room2_type', \@room_types, $directory) %>
+<% fh_input_select("room2_building",  $buildings, $directory ) %>
+<% fh_input_text("room2", $directory, {size=>"15"}) %>
+<% fh_input_text("room2_phone", $directory, {size=>"16"}) %>
+</td></tr>
+
+
+<tr valign="top"><td>Home Address:</td><td nowrap>          <% fh_input_text("address", $directory, {size=>"50"}) %></td></tr>
+<tr valign="top"><td>Home Phone:</td><td nowrap>            <% fh_input_text("home_phone", $directory, {size=>"50"}) %><br/><small>Please use all 10 digits (including area code), in the format XXX-XXX-XXXX.</small></td></tr>
+<tr valign="top"><td>Cell Phone:</td><td nowrap>            <% fh_input_text("cell_phone", $directory, {size=>"50"}) %></td></tr>
+<tr valign="top"><td>Pager:</td><td nowrap>                 <% fh_input_text("pager_phone", $directory, {size=>"50"}) %></td></tr>
+<tr valign="top"><td>Personal Web Page:</td><td nowrap>     <% fh_input_text("www", $directory, {size=>"50"}) %></td></tr>
+<tr valign="top"><td>Research Web Page:</td><td nowrap>                <% fh_input_text("research_www", $directory, {size=>"50"}) %></td></tr>
+<tr valign="top"><td>SSH Public Key(s): 
+<small>(One per line)<br>used for gitolite access</small>
+</td><td nowrap>                 <% fh_input_textarea("sshkeys", $directory, {cols=>"200", wrap=>"soft", style=>"width: 420px; overflow:auto;"}) %></td></tr>
+<tr valign="top"><td>Globus CILogon certificate:</td><td nowrap >                <% fh_input_text("cilogon", $directory, {size=>"50"}) %></td></tr>
+<!--<tr valign="top"><td>Ucard number:</td><td nowrap>          <% fh_input_text("ucard", $directory, {size=>"50"}) %></td></tr-->
+</table>
+
+<p>
+<input type=submit value="Update Directory"> 
+<input type=reset value="Undo any changes">
+</p>
+</form>

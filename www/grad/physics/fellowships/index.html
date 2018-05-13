@@ -1,0 +1,22 @@
+<%doc>
+    vim: set syntax=mason:
+
+</%doc>
+
+<%method title>Graduate Prizes and Fellowships</%method>
+
+<p>A number of Physics Department and/or Graduate School Fellowships are
+available.  These may be in addition to or instead of a Teaching
+Assistantship.  If you are interested in obtaining fellowship support
+please apply no later than December 15.  Nothing further is needed
+other than an early application following the normal procedures. We will
+nominate several of the early applicants based on the information
+provided in their application materials for these awards. Graduate
+School Fellowship candidates will need to submit a Graduate School
+application in January.  Decisions are expected in late February or
+early March.</p>
+
+<%perl>
+$m->comp("/mason/db/stories/storyblog.comp", type=>'grad_scholarship', auth=>0, posted=>0, menu=>0, altreadmore=>'Details & Award Winners', args=>{ year => 'all' });
+</%perl>
+

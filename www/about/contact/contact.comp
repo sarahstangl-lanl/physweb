@@ -1,0 +1,32 @@
+<table cellpadding=3 cellspacing=0>
+
+<%perl>
+    my ($line, $pos, $name, $room, $number, $email, $oddeven);
+    my @lines = split(/\n/, $m->scomp("direct_info.comp"));
+
+    foreach my $line (@lines) {
+        $line =~ s/\n//;
+        if ($line =~ /^\w*\#/) {
+            #attempt to ignore comments
+            next;
+        }
+        elsif ($line =~ /^\S/) {
+            $oddeven = 'odd';
+            print '<tr><th colspan=3 align="left"><br/><h3>' . $line . '</h3></th></tr>';
+        } else {
+            $line =~ s/^\s//; 
+            ($pos,$room,$number,$email) = split(/\|/,$line,4);
+            ($pos, $name) = split(/:/,$pos,2);
+        
+            if ($email) { $email = $m->comp('/mason/encode_mailto.comp', email=>$email); }
+            $oddeven = ($oddeven eq "odd")?"even":"odd";
+            print '<tr valign=top class="' . $oddeven . '">';
+            print '<td style="padding-right: 1.5em"><b>' . $pos . '</b>' . ($name ? '<br/>' . $name : '') . ($email ? '<br/>' . $email : '') . '</td>';
+            print '<td style="padding-right: 1.5em">' . $room . '</td>';
+            print '<td>' . $number . '</td></tr>';
+        }
+    }
+</%perl>
+
+</table>
+<!-- vim: set syntax=mason: -->

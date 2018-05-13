@@ -1,0 +1,99 @@
+<%args>
+$form_id=>undef
+$form_name=>undef
+</%args>
+
+<%perl>
+
+use physdb::form;
+use Data::Dumper;
+use POSIX;
+use Number::Bytes::Human qw(format_bytes);
+
+my $form;
+
+if($form_id) {
+    $form = new Form( id=>$form_id);
+    $form_name = $form->get("name");
+}
+elsif($form_name) {
+    $form = new Form( name=>$form_name);
+    $form_id = $form->get("id");
+}
+else {
+    print "Required arg form-id not specified<BR>\n";
+    return;
+}
+
+if(!$form && !$form->{loaded}) {
+    print "Error: Unable to find form";
+    return;
+}
+
+my $auth = $m->comp("/mason/auth/auth_check.comp", auth_type=>$form->get("auth"), ignore_unknown=>1);
+
+if(!$auth) { #If not authorized, check if they are in the webforms group
+    $auth = $m->comp('/mason/auth/auth_check.comp', auth_type=>'webforms');
+}
+
+if(!$auth) { #if still not authorized, tell them to go away
+    print "You do not have access to view the results from this form. You must be in ". $form->get("auth"). ". Please ask someone in the physics web group for assistance.<BR>\n";
+    return;
+}
+
+#my @fields = $form->fields;
+my @fields = @{physdb::queryarray("SELECT DISTINCT field_name FROM form_reply_fields WHERE form_reply_id IN (SELECT id FROM form_reply WHERE form_id=?)", $form_id)};
+
+my @joins;
+my @field_list;
+my $field_params;
+
+my $unique_id = undef;
+foreach my $form_field (@fields) {
+    #my $name = $form_field->get('name');
+    my $name = $form_field;
+    $name =~ /^[a-zA-Z0-9_-]+$/ or die("Possibly unsafe field name detected: '". _h($name). "'. Refusing to continue");
+    push @joins, ( "form_reply_fields `fr_$name`" => "`fr_$name`.field_name = '$name' AND `fr_$name`.form_reply_id=form_reply.id "  );
+    push @field_list, 
+         "`fr_$name`.value as `$name`", 
+         "OCTET_LENGTH(`fr_$name`.file_contents) as `pform_file_len_$name`",
+         "`fr_$name`.type as `pform_type_$name`";
+    $field_params->{lc("pform_file_len_$name")} = { hidden => 1 };
+    $field_params->{lc("pform_type_$name")} = { hidden => 1 }; 
+    $field_params->{lc("pform_name")} = { hidden => 1 }; 
+    $field_params->{lc("pform_reply_id")} = { hidden => 1 }; 
+    $field_params->{lc("pform_submitted")} = { label => "submitted" }; 
+    $field_params->{lc($name)} = { 
+        data_format => sub {
+            our ($val, $sr, $row, $ts) = @_;
+            # lets lowercase $name as its needed for the hash ref, and simpler to just do it here
+            $name=lc($name);
+            return $val unless $row->{"pform_type_$name"} eq 'file';
+            my $fn = "pform_file_len_$name";
+            my $size = $row->{+$fn};
+            $size = format_bytes($size);
+            return '(empty)' unless $val;
+            my $form_reply_id = $row->{pform_reply_id};
+            $val = "<a href=\"getfile.html?form_reply_id=$form_reply_id&field_name=$name\">"._h($val)."</a>";
+            return "$val ($size)";
+        },
+    },
+}
+
+$m->comp('/mason/db/tablesearch.comp',
+   table => 'form',                                 #Table to query
+   field_list => ['form.name as pform_name', 'form_reply.id as pform_reply_id', @field_list, 'form_reply.submitted as pform_submitted'],   #Columns to get out of the table
+   field_params => $field_params,
+   joins => [ "form_reply" => "form_reply.form_id=form.id", @joins ],
+   where => [ "form.id=? AND form_reply.id IS NOT NULL", $form_id ],
+   #header_format => 'ucfirst_all',                           #Capitalize headers of all words (or ucfirst for only first)
+   excel_link => 1,  #show excel export
+   limit => 50, #override default limit
+   hide_header => 0,
+   hide_search => 0,
+   extra_url_args => ['debug', 'form_name'],
+ 
+   );
+
+
+</%perl>

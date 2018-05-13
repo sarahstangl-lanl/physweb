@@ -1,0 +1,29 @@
+<%flags>
+inherit=>undef
+</%flags>
+<%INIT>
+
+use physdb;
+use physdb::doorlocks;
+
+my $authorized = $m->comp('/mason/auth/auth_check.comp', auth_type => 'deptoffice');
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $doormgr = $m->comp('/mason/auth/auth_check_door_mgr.comp');
+
+if (!$authorized && !$doormgr && !$admin_auth) { return; }
+
+my $query;
+if ($admin_auth || $authorized) {
+  $query = $dbh->prepare("SELECT a.door_id,a.name,a.pin,b.free_pins FROM doorlocks AS a JOIN (SELECT door_id, count(pin) AS free_pins FROM `doorpins` WHERE active = 1 AND uid IS NULL GROUP BY door_id) AS b ON a.door_id = b.door_id");
+  $query->execute() or die "Couldn't execute query: ".$query->errstr;
+} else {
+  $query = $dbh->prepare("SELECT a.door_id,a.name,a.pin,c.free_pins FROM doorlocks AS a JOIN doormanagers b ON a.door_id = b.door_id AND b.uid = ? LEFT JOIN (SELECT door_id, count(pin) AS free_pins FROM doorpins WHERE active = 1 AND uid IS NULL GROUP BY door_id) AS c ON a.door_id = c.door_id ORDER BY a.name");
+  $query->execute($session{uid}) or die "Couldn't execute query: ".$query->errstr;
+}
+print "<tr><th>Door Name</th><th>Door PIN</th><th>Free PINs</th></tr>\n";
+while(my ($door_num,$door,$pin,$free_pins) = $query->fetchrow_array()) {
+  print "<tr class=\"summarytr\"><td>$door</td>";
+  print "<td style=\"min-width:100px;cursor:default;\" ".($pin ? "onmouseover=\"this.innerHTML = '$pin';\" onmouseout=\"this.innerHTML = 'Hover to reveal';\">Hover to reveal" : ">")."</td>";
+  print "<td>$free_pins</a></td></tr>\n";
+}
+</%INIT>

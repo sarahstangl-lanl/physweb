@@ -1,0 +1,118 @@
+<%DOC>
+   Component: delete_grades_assignment.html
+        Date: 2008.08.22
+      Author: clayton
+     Changed: 2008.08.22 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+    $classid
+    $assnid => 0
+    $deleteall => 0
+    $confirm=>undef
+</%ARGS>
+
+<%INIT>
+    return if $m->comp('/mason/db/dbcheck.comp');
+
+    my $auth = $m->comp('/mason/auth/auth_check_classes.comp');
+
+    if (!$auth || (!defined($assnid) && !$deleteall)) {
+        $m->redir('index.html');
+    }
+</%INIT>
+
+<%method title>Delete Assignment from Online Scores</%method>		
+
+% if ($confirm) {
+
+<%perl>
+    my $delete_assn = sub {
+        my ($classid, $assnid) = @_;
+    
+        my $delete_assignment = $dbh->prepare('DELETE FROM grades.assignments WHERE classid=? AND id=? LIMIT 1');
+        $delete_assignment->execute($classid, $assnid) or die "Could not delete assignment: " . $delete_assignment->errstr;
+        
+        my $delete_assignment_grades = $dbh->prepare('DELETE FROM grades.grades WHERE assignmentid=?');
+        $delete_assignment_grades->execute($assnid) or die "Could not delete assignment grades: " . $delete_assignment_grades->errstr;
+    };
+    
+    if ($assnid) {
+        $delete_assn->($classid, $assnid);
+    } elsif ($deleteall) {
+        my $assignments = $dbh->prepare('SELECT id, name FROM grades.assignments WHERE legacy_email_flag=1 AND classid=?');
+        $assignments->execute($classid)
+            or die "Could not fetch assignments list: " . $assignments->errstr;
+
+        while (my $row = $assignments->fetchrow_hashref()) {
+            $delete_assn->($classid, $row->{'id'});
+        }
+    } else {
+        print '<h3>Failed to delete... did you forget to check the confirmation box?</h3>';
+    }
+</%perl>
+
+Assignment<% ($deleteall ? 's' : '') %> Deleted.
+<br><br>
+<a href="upload_scores.html?classid=<% $classid |u %>">Return to scores upload</a>.
+
+% } else {
+
+<%perl>
+    my $sth = $dbh->prepare('SELECT year, quarter, name, section FROM classlist WHERE classid=? LIMIT 1');
+    $sth->execute($classid) or die "Could not fetch class: " . $sth->errstr;
+    my ($semester, $classname, $section);
+    if (my $row = $sth->fetchrow_hashref()) {
+        $semester = ucfirst($row->{'quarter'}) . ' ' . $row->{'year'};
+        $classname = $row->{'name'};
+        $section = $row->{'section'};
+    } else {
+        die "Could not find class: $classid";
+    }
+
+    my ($name);
+    if (!$deleteall) {
+        my $assignment = $dbh->prepare('SELECT id, name FROM grades.assignments WHERE legacy_email_flag=1 AND classid=? AND id=? LIMIT 1');
+        $assignment->execute($classid, $assnid) or die "Could not fetch assignment: " . $assignment->errstr;
+
+        if (my $row = $assignment->fetchrow_hashref()) {
+            $name = $row->{'name'}
+        } else {
+            die "Could not find assignment: $assnid (in class $classid)";
+        }
+    }
+</%perl>
+
+<form method="POST" action="delete_grades_assignment.html?classid=<% $classid |u %>&amp;assnid=<% $assnid |u %>">
+<table>
+<tr>
+    <th bgcolor="#eeeeee" colspan="2" align="left">Selected Assignment</th>
+</tr>
+<tr>
+    <td>Class:</td>
+    <td><a href="<% $m->comp('/mason/db/classes/make_classlink.comp', classid=>$classid) %>"><% $classname |h %> (<% $semester |h %>)</a></td>
+</tr>
+<tr>
+    <td>Section:</td>
+    <td><% $section |h %></td>
+</tr>
+<tr>
+    <td>Assignment:</td>
+    <td>
+%   if (!$deleteall) {
+        <% $name |h %>
+%   } else {
+        <input type="checkbox" name="deleteall" value="1"><b>ALL</b> <small>(check to confirm)</small>
+%   }
+  </td>
+</tr>
+<tr>
+  <td align="left"><a href="upload_scores.html?classid=<% $classid |u %>">Go Back</a></td>
+  <td align="right"><input type="submit" name="confirm" value="Confirm Delete"></td>
+</tr>
+</table>
+</form>
+
+% }

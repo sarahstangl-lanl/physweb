@@ -1,0 +1,19 @@
+Dies ist eine Test mail
+
+All data fields
+
+% foreach my $arg (keys %ARGS) {
+   <%sprintf "%s : %s", $arg, $ARGS{$arg}%>
+% }
+
+Only data fields and prettified also
+
+% foreach my $arg (sort { $a <=> $b } grep (/^\d/, keys %ARGS)) {
+%   next unless $arg =~ /^\d+_([^_]+)/;
+    <%sprintf "%10s : %s", $1, $ARGS{$arg}%>
+% }
+
+
+<%method headers>
+% return { To => 'rho@bigpond.net.au' };
+</%method>

@@ -1,0 +1,28 @@
+<%doc>
+   Component: physid_to_uid.comp
+        Date: 9/6/2002
+      Author: allan
+ Description: returns directory uid of a physid
+</%doc>
+
+<%args>
+$physid=>''
+</%args>
+
+<%init>
+if ($physid && ($physid eq $session{'physid'})) {
+  return $session{'uid'};
+}
+
+my $uid = $m->cache->get($physid);
+if (!defined($uid) && defined($dbh)) {
+  my $sth = $dbh->prepare('SELECT uid FROM directory WHERE physid = ? LIMIT 1');
+  $sth->execute($physid);
+  my $row_ref = $sth->fetchrow_arrayref;
+  if (defined($row_ref)) {
+    ($uid) = @$row_ref;
+  }
+  $m->cache->set($physid,$uid,'5 min');
+}
+return $uid;
+</%init>

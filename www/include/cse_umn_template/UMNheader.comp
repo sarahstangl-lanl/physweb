@@ -1,0 +1,90 @@
+<%doc>
+vim:set syntax=mason:
+
+Yes, theres both a head and a header method in here. head is <head> section, header is the U's header html...
+</%doc>
+<%method head>
+<%args>
+$printarg=>0
+</%args>
+<!--BEGIN CSE BRANDING SCRIPTS Version 1.0 -->
+<!--<link rel="shortcut icon" href="http://www1.umn.edu/twincities/favicon.ico" type="image/x-icon" />-->
+<!--<link href="/include/cse_umn_template/lib/css/print.css" rel="stylesheet" type="text/css" media="print" />-->
+<link href="/include/cse_umn_template/lib/css/template.css" rel="stylesheet" type="text/css" media="screen" />
+<!--<script type="text/javascript" src="/include/cse_umn_template/lib/js/searchfield.js"></script>-->
+
+<!-- STYLE SHEETS TO FIX INTERNET EXPLORER INCONSISTENCIES -->
+
+<!--[if IE 6]>
+<style type="text/css" media="screen">
+@import url("/include/cse_umn_template/lib/css/IE6.css");
+</style>
+<![endif]-->
+<!--[if IE 7]>
+<style type="text/css" media="screen">
+@import url("/include/cse_umn_template/lib/css/IE7.css");
+</style>
+<![endif]-->
+
+<!--END CSE BRANDING SCRIPTS-->
+</%method>   
+
+<!--BEGIN WORDMARK AND UNIT IDENTIFICATION FOR PRINT -->
+<!--Use this code along with the print.css to retain the University's wordmark on your printed Web pages and to identify your unit -->
+<div class="leftprint">
+<img src="/include/cse_umn_template/assets/img/smMwdmk.gif" alt="University of Minnesota" width="216" height="55" hspace="10" align="left" />
+</div>
+<!--END WORDMARK AND UNIT IDENTIFICATION FOR PRINT -->
+
+<!-- * Skip Links * -->
+  <p id="skipLinks">
+        <a href="#main_nav">Main navigation</a> | 
+    <a href="#maincontent">Main content</a>
+  </p>
+
+<div id="header">
+
+ <!-- BEGIN CAMPUS LINKS -->
+    <div id="campus_links">
+        <p>Campuses: </p>
+        <ul>
+          <li><a href="http://www.umn.edu">Twin Cities</a></li>
+          <li><a href="http://www.crk.umn.edu">Crookston</a></li>
+          <li><a href="http://www.d.umn.edu">Duluth</a></li>
+          <li><a href="http://www.morris.umn.edu">Morris</a></li>
+          <li><a href="http://www.r.umn.edu">Rochester</a></li>
+          <li><a href="http://www.umn.edu/campuses.php">Other Locations</a></li>
+        </ul>
+    </div>
+    <!-- END CAMPUS LINKS -->
+      
+      
+    <!-- * BEGIN TEMPLATE HEADER (MAROON BAR)* -->
+    <div id="headerUofM">
+        
+      <div id="logo_uofm"><a href="http://www.umn.edu/">Go to the U of M home page</a></div>
+        
+
+ <!--BEGIN search div-->
+      <div id="search_area">
+         <div id="search_nav"><a href="http://onestop.umn.edu/" id="btn_onestop">OneStop</a> <a href="https://www.myu.umn.edu/" id="btn_myu">myU</a></div>
+         
+<div class="search"> 
+<form action="http://search.umn.edu/tc/" method="get" name="gsearch" id="gsearch" title="Search Physics &amp; Astronomy">
+<label for="search_field">Search Physics &amp; Astronomy</label>
+<input type="text" id="search_field" name="q" value=""  title="Search text"  />   
+<input class="search_btn" type="image" src="/include/cse_umn_template/assets/img/search_button.gif" alt="Submit Search" value="Search" />
+<input type="hidden" name="r" value="www.physics.umn.edu" />
+<input type="hidden" name="l" value="School of Physics &amp; Astronomy" />
+<input type="hidden" name="u" value="1" />
+</form>  
+</div> 
+         
+</div></div>
+<!-- end "search" area -->
+     
+</div>
+<!-- End search div -->
+
+<!--END UofM TEMPLATE HEADER-->
+

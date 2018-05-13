@@ -1,0 +1,51 @@
+
+<%DOC>
+   Component: recletter.html
+        Date: 2005.10.03
+      Author: allan
+     Changed: 2005.10.03 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$email=>''
+$pin=>''
+</%ARGS>
+
+<%INIT>
+</%INIT>		
+		
+<%method title>Upload Recommendation Letter</%method>
+
+We accept file uploads in Microsoft Word or Adobe PDF formats.
+<p>
+<i>Please make sure you don't use the wrong PIN below (if you have uploaded letters for any other applicants, your browser may have stored the earlier information).</i>
+<p>
+<form AutoComplete="off" enctype="multipart/form-data" method="POST" name="edit" action="saverecletter.html">
+<table border=0>
+<tr valign="top"><td>Email address:</td><td><input type=text name="email" value="<% $email |h %>" size=40></td></tr>
+<tr valign="top"><td>Password:</td><td><input type=password name="pin" value="<% $pin |h %>" size=4></td></tr>
+<tr valign="top"><td>File to upload:</td><td>
+<input type="file" size=40 name="file">
+</td></tr>
+
+</table>
+<p>
+<input type="submit" value="Upload Letter">
+</form>
+<p>
+Although electronic submission via the web is preferred, you may also send your letter as an email attachment to<tt>
+% $m->out($m->comp('/mason/encode_mailto.comp',email=>'grad@physics.umn.edu'));
+</tt>, or paper letters may be sent to us at:
+<p>
+Director of Graduate Studies in Physics<br/>
+School of Physics and Astronomy<br/>
+University of Minnesota<br/>
+116 Church Street SE<br/>
+Minneapolis MN 55455<br/>
+United States
+<p>
+<small>
+If you encounter problems with this web form, you can also let us know by using the "Contact webmaster" link at the bottom of this page. Please let us know what error message you received, and what web browser you are using. Thank you!
+</small>

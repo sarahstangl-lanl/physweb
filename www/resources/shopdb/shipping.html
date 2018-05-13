@@ -1,0 +1,305 @@
+<%args>
+$packing_slip_id => undef
+$packing_slip_line_id => undef
+$packing_slip_comment_id => undef
+$action => undef
+$ajax => undef
+</%args>
+<%method title><% $title %></%method>
+<%shared>
+    my ($title, $msg);
+
+    my %args = $m->request_args;
+    $m->comp('/mason/db/shopdb/build_auth.comp');
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+    my $auth_args = $session{'shopdb-auth'};
+
+    # Find job item based on job_id arg
+    my $job_item = $args{job_id} ? $schema->resultset('Jobs')->find( { job_id => $args{'job_id'} }) : undef;
+
+    # Determine page title/error message
+    if (!defined($args{'job_id'})) {
+        $title = 'Shop Jobs';
+        $msg = 'job_id argument required';
+    } else {
+        if (!$job_item) {
+            $title = 'Shop Jobs';
+            $msg = "Invalid job id " . $args{'job_id'};
+        }
+        else {
+            $title = 'Shop Jobs: Shipping for Job #' . $job_item->job_id . ': ' . $job_item->project_name;
+        }
+    }
+
+    # TODO Auth
+
+</%shared>
+
+<%method titlemenu_below>
+<& '/mason/db/shopdb/job_menu.comp', job_item => $job_item &>
+</%method>
+
+<%init>
+use ShopDb::Form::Job;
+use ShopDb::Form::PackingSlip;
+use ShopDb::Form::PackingSlipLine;
+use tablesearch;
+use JSON;
+
+if (defined $msg) {
+    print '<h2 style="color:red;">' . _h($msg) . '</h2>';
+    return;
+}
+
+my $job_form = ShopDb::Form::Job->new(
+        item => $job_item,
+        schema => $schema,
+        auth_args => $auth_args,
+);
+
+my $packing_slip = $job_item->find_or_new_related('packing_slips', { packing_slip_id => $packing_slip_id });
+
+$packing_slip->ship_address_id($job_item->ship_address_id) unless ($packing_slip->in_storage);
+
+if ($action && $action eq 'generate') {
+    unless ($packing_slip->in_storage) {
+        print _h("Invalid packing_slip_id $packing_slip_id");
+        return;
+    }
+    use File::Slurp;
+    use ShopDb::GenerateInvoice;
+    my $pdf = ShopDb::GenerateInvoice->new(
+        job_item => $job_item,
+        packed_by => $auth_args->{machinist_id} ? $schema->resultset('Machinists')->find($auth_args->{machinist_id})->shortname : '',
+        form_type => 'SHIPPING',
+        form_number => $packing_slip->id,
+        shipped_via => $packing_slip->ship_via,
+        shipping_reference => $packing_slip->ship_reference,
+        customer_po => $job_item->customer_po_num,
+        customer_address => $packing_slip->ship_address ? $packing_slip->ship_address->to_string : '',
+        form_lines => [ map { $_->is_comment ? join('|', $_->description, '', '') : join('|', $_->description, $_->quantity_backordered, $_->quantity_shipped) } $packing_slip->lines ],
+    );
+    my $filename = $pdf->generate;
+    my $content = read_file($filename);
+    $r->content_type('application/pdf');
+    $r->headers_out->add('Content-Length' => -s $filename);
+    #$r->headers_out->add('Content-Disposition' => 'inline; filename="Job #' . $job_item->id . ' Packing Slip #' . $packing_slip->id . '.pdf"');
+    $r->headers_out->add('Content-Disposition' => 'attachment; filename="Job #' . $job_item->id . ' Packing Slip #' . $packing_slip->id . '.pdf"');
+    $m->clear_buffer;
+    $m->out($content);
+    $m->abort(200);
+}
+
+my $slip_form = ShopDb::Form::PackingSlip->new(
+    job_item => $job_item,
+    item => $packing_slip,
+    auth_args => $auth_args,
+    schema => $schema,
+    field_list => {
+        '+ship_address' => { default => $job_item->ship_address_id },
+    },
+    active => [ $packing_slip->in_storage ? 'slip_update' : 'slip_add' ],
+);
+
+if ($r->method eq 'POST' && (exists $ARGS{'slip_add'} || exists $ARGS{'slip_update'})) {
+    if ($slip_form->process(params => \%ARGS)) {
+        $m->redirect('?job_id=' . $job_item->id . '&packing_slip_id=' . $packing_slip->id);
+    }
+}
+
+</%init>
+
+<%perl>
+use tablesearch;
+
+my $rs = $job_item->packing_slips->search(undef, {
+    order_by => { -asc => 'packing_slip_id' },
+    join => 'creator',
+    '+select' => [ \'\'\' as edit', \'CONCAT_WS(", ", creator.last_name, creator.first_name) AS creator' ],
+    '+as' => [ qw/edit creator/ ],
+});
+
+my $ts = new Tablesearch(
+    field_params => {
+        edit => {
+            name => '',
+            no_sort => 1,
+            width => 50,
+            data_format => sub {
+                my ($value, $disp, $row, $ts) = @_;
+                my $html = '<span style="position:absolute;margin-top:-2px;"><a href="?job_id=' . $job_item->id . '&packing_slip_id=' . $row->{packing_slip_id} . '"><img src="/images/b_edit.png" title="Edit" /></a>';
+                $html .= '&nbsp;<a href="?job_id=' . $job_item->id . '&packing_slip_id=' . $row->{packing_slip_id} . '&action=generate"><img src="/images/pdf.png" title="Generate PDF" /></a></span>';
+                return $html;
+            },
+        },
+        packing_slip_id => {
+            name => 'Packing Slip ID',
+        },
+    },
+    hide_search => 1,
+    no_limit => 1,
+    hide_header => 1,
+    resultset => $rs,
+    html_table_id => "table_packing_slips",
+    columns => [ qw/edit packing_slip_id ship_via ship_reference quantity_shipped ship_date creator/ ],
+    header_format => 'ucfirst_all',
+    prefix => 'slips',
+    ajax_url            => 'shipping.html',
+    ajax_parameters     => { job_id => $job_item->id, ajax => 1, action => 'refresh_slips' },
+);
+
+if ($ajax && $action eq 'refresh_slips') {
+    $m->clear_buffer;
+    $ts->display;
+    $m->abort;
+    return;
+}
+</%perl>
+<table width="100%"><tr>
+<td valign="top"><h2>Job Overview</h2>
+<div id="job_details">
+<%perl>
+
+if ($ajax && $action eq 'refresh_details') {
+    $m->clear_buffer;
+}
+$m->comp('/mason/db/shopdb/job_details.comp', job_item => $job_item, display_form => $job_form, edit_form => $job_form, read_only => 1);
+if ($ajax && $action eq 'refresh_details') {
+    $m->abort;
+    return;
+}
+</%perl>
+</div>
+<script language="JavaScript">
+function refreshInfo() {
+    document.slipstsform.submit();
+    new Ajax.Request('shipping.html', {
+        method: 'post',
+        parameters: { job_id: <% $job_item->id %>, action: 'refresh_details', ajax: 1 },
+        onSuccess: function(transport) {
+                $('job_details').update(transport.responseText);
+        },
+        onFailure: function () { alert("There was a failure refreshing the job details. Please refresh the page."); }
+    });
+}
+</script>
+</td><td valign="top"><h2>Packing Slips</h2>
+<table><tr><td>
+% $ts->display;
+</td></tr></table>
+% return unless ($auth_args->{machinist} || $auth_args->{foreman});
+<h2><% $packing_slip->in_storage ? 'Packing Slip #' . $packing_slip->id : 'Create Packing Slip' %></h2>
+<%perl>
+
+print $slip_form->render;
+
+if ($packing_slip->in_storage) {
+    $rs = $packing_slip->lines_rs(undef, {
+        order_by => { -asc => 'packing_slip_line_id' },
+        '+select' => [ \'\'\' as edit', \'IF(is_comment,"comment","line") AS type' ],
+        '+as' => [ qw/edit type/ ],
+    });
+    $ts = new Tablesearch(
+        field_params => {
+            edit => {
+                data_format => sub {
+                    my ($value, $disp, $row, $ts) = @_;
+                    my $class = "roweditor_edit roweditor_delete";
+                    return "<span style=\"display:none\" class=\"$class\"></span>";
+                },
+                'html_class'        => 'roweditor_$row{type}_edit',
+                'width'             => 55,
+                'name'              => '',
+                'nowrap'            => 1,
+                'no_sort'           => 1,
+            },
+            packing_slip_line_id => {
+                hidden => 1,
+            },
+            is_comment => {
+                hidden => 1,
+            },
+            description => {
+                width => 350,
+            },
+            quantity_backordered => {
+                name => 'Quantity<br/>Backordered',
+                width => 100,
+                data_format => sub { my ($value, $disp, $row, $ts) = @_; $row->{is_comment} ? '' : $value; },
+            },
+            quantity_shipped => {
+                name => 'Quantity<br/>Shipped',
+                width => 100,
+                data_format => sub { my ($value, $disp, $row, $ts) = @_; $row->{is_comment} ? '' : $value; },
+            },
+        },
+        hide_search => 1,
+        no_limit => 1,
+        hide_header => 1,
+        resultset => $rs,
+        row_tagger => sub { my ($row) = @_; return 'data-packing_slip_line_id="' . $row->{'packing_slip_line_id'} . '"'; },
+        html_table_id => "table_packing_slip_lines",
+        columns => [ qw/edit packing_slip_line_id description quantity_backordered quantity_shipped is_comment/ ],
+        header_format => 'ucfirst_all',
+    );
+</%perl>
+<& '/mason/ajax/jsload.comp', file=>'RowEditor.js' &>
+<h2>Packing Slip Lines</h2>
+<table><tr><td>
+% $ts->display;
+</td></tr></table>
+<table cellpadding="3" cellspacing="0" style="padding-top: 5px"><tr>
+    <td valign="middle"><a href="#" id="add_packing_slip_line">Add Packing Slip Line</a></td><td>|</td>
+    <td valign="middle"><a href="#" id="add_packing_slip_comment">Add Packing Slip Comment</a></td>
+</tr></table></td></tr></table>
+<script type="text/javascript">
+new RowEditor(
+    'table_packing_slip_lines',
+    'packing_slip.html',
+    <% to_json([qw/edit description quantity_backordered quantity_shipped/]) %>,
+    {
+        newID: 'add_packing_slip_line',
+        parameters: {
+            ajax: 1,
+            packing_slip_id: '<% $packing_slip->id %>'
+        },
+        deleteParameters: {
+            ajax: 1,
+            delete_packing_slip_line: true,
+        },
+        editColumnsSelector: '#table_packing_slip_lines td.roweditor_line_edit',
+        postSuccessCallback: refreshInfo,
+        tdClassName: 'tableitem',
+        hiddenAttributes: $H({
+            packing_slip_line_id: 'packing_slip_line_id'
+        })
+    }
+);
+new RowEditor(
+    'table_packing_slip_lines',
+    'packing_slip.html',
+    <% to_json([qw/edit description/]) %>,
+    {
+        newID: 'add_packing_slip_comment',
+        parameters: {
+            ajax: 1,
+            packing_slip_id: '<% $packing_slip->id %>',
+            is_comment: 1,
+        },
+        deleteParameters: {
+            ajax: 1,
+            delete_packing_slip_line: true,
+        },
+        editColumnsSelector: '#table_packing_slip_lines td.roweditor_comment_edit',
+        postSuccessCallback: refreshInfo,
+        tdClassName: 'tableitem',
+        hiddenAttributes: $H({
+            packing_slip_line_id: 'packing_slip_line_id'
+        })
+    }
+);
+</script>
+
+% }

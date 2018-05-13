@@ -1,0 +1,46 @@
+<%DOC>
+Component: moveiface_form.html
+     Date: 2010.08.06
+   Author: mackey
+      vim: set syntax=mason:
+
+Description: Form for moving interfaces between hosts
+</%DOC>
+
+<%ARGS>
+$id => 0
+</%ARGS>
+
+<%INIT>
+    use physdb;
+    my $hostresults = physdb::query("SELECT computer_name, id from net_hosts ORDER BY computer_name");
+    my $iface = physdb::queryfirstrow("SELECT hwa, vlan, host_id from net_interfaces WHERE id=?", $id);
+    my $ip = physdb::queryone("SELECT INET_NTOA(ip) from net_dns WHERE interface_id=?", $id);
+    my $current = physdb::queryone("SELECT computer_name from net_hosts WHERE id=?", $iface->{'host_id'});
+</%INIT>
+
+<%method title>Move Interface</%method>
+
+<form name="input" method="post" action="moveiface.html">
+<table width="500px">
+<tr><td>Mac Address: </td><td><% $iface->{'hwa'} %></td></tr>
+<tr><td>IP:</td><td><% $ip %></td></tr>
+<tr><td>VLAN:</td><td><% $iface->{'vlan'} %></td></tr>
+<tr><td>Current Host: </td><td><% $current %></td></tr>
+<tr><td>Target Host: </td>
+<td><select name="hostbox">
+<%perl>
+   while(my $host = $hostresults->fetchrow_hashref()) {
+       </%perl>
+       <option value="<% $host->{'id'} %>"> <% $host->{'computer_name'} %></option>
+       <%perl>
+   }
+</%perl>
+</select></td></tr>
+<tr><td><input type="submit" name="update" value="Update" /></td>
+<td><input type="submit" name="clear" value="Cancel" /></td></tr>
+</table>
+
+<input type="hidden" name="id" value=<% $id %> />
+<input type="hidden" name="old_host" value=<% $iface->{'host_id'} %> />
+</form>

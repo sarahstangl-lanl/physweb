@@ -1,0 +1,18 @@
+<%doc>
+    Example:
+        my %query = (%defaults, $m->comp('/mason/pathquery/get.comp'));
+</%doc>     
+
+<%init>
+    my $pathquery = $m->notes('pathquery');
+    
+    if ($pathquery) {
+        return %$pathquery;
+    } else {
+        return ();
+    }
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

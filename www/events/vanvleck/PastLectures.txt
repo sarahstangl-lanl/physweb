@@ -1,0 +1,99 @@
+<table width="100%" border="0">
+                    <tr>
+                      <th rowspan="2" scope="row"><p><img src="Cornell2013web.jpg" width="75" height="100" alt="johnellis"><br>
+                        <br>
+                      </p></th>
+                      <td width="25%"><div align="center"><strong>2013</strong></div></td>
+                      <td width="25%"><div align="center"><a href="2013.html">info</a></div></td>
+                      <td width="25%"><div align="center"><a href="https://umconnect.umn.edu/p52111255/">watch online</a></div></td>
+                    </tr>
+                    <tr>
+                      <td colspan="3"><span class="TableFont12"><span class="TableFont12"><span class="TableFont12">&quot;Why is Warm Glass Sticker Than Cold Glass?&quot;</span></span></span><br>		        <strong>Eric Cornell<br>
+                      </strong> University of Colorado at Boulder</td>
+                    </tr>
+                    <tr>
+                      <th rowspan="2" scope="row"><p><img src="johnellis1.jpg" width="75" height="100" alt="johnellis"></p></th>
+                      <td><div align="center"><strong>2012</strong></div></td>
+                      <td><div align="center"><a href="2012.html">info</a></div></td>
+                      <td><div align="center"><a href="https://umconnect.umn.edu/p88518292/">watch online</a></div></td>
+                    </tr>
+                    <tr>
+                      <td colspan="3"><p align="left"><span class="TableFont12">&quot;Answering Gauguin's Questions with the LHC: Where do we come from? <br>
+                        What are we? Where are we going?&quot;</span><br>
+                        <strong>John Ellis</strong><br>
+                      Kings College London and CERN</p></td>
+                    </tr>
+                    <tr>
+                      <th width="25%" rowspan="2" scope="row"><p><img src="2011/photos/roger_blandford_thumb.jpg" width="75" height="100" alt=""></p></th>
+                      <td><div align="center"><strong>2011</strong></div></td>
+                      <td><div align="center"><a href="2011.html">info</a></div></td>
+                      <td><div align="center"><a href="https://umconnect.umn.edu/p64312526/">watch online</a></div></td>
+                    </tr>
+                    <tr>
+                      <td colspan="3"><p align="left"><span class="TableFont12">&quot;The Dark Side of the Universe&quot;</span><br>
+                        <strong>Roger Blandford<br>
+                          </strong> Kavli Institute, Stanford University, SLAC</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th width="25%" rowspan="3" scope="row"><p><img src="2010/images/mermin_thumb.jpg" width="75" height="88" alt="david mermin"></p></th>
+                    </tr>
+                    <tr> 
+                      <td><div align="center"><strong>2010</strong></div></td>
+                      <td><div align="center"><a href="2010.html">info</a></div></td>
+                      <td><div align="center"><a href="https://umconnect.umn.edu/p21439731/" target="_blank">watch online </a></div></td>
+                    </tr>
+                    <tr>
+                      <td colspan="3"><p align="left"><span class="TableFont12">&quot;Spooky Actions at a Distance?&quot;</span><br>
+                        <strong>David Mermin<br>
+                          </strong>Cornell University</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th width="25%" rowspan="2" scope="row"><img src="2009/THUMBPhotoHelenQuinn2008.jpg" alt="quinn thumb" width="75" height="100"></th>
+                      <td><div align="center"><strong>2009</strong></div></td>
+                      <td><div align="center"><a href="2009.html">info</a></div></td>
+                      <td><div align="center"><a href="https://umconnect.umn.edu/p16547467/" target="_blank">watch online </a></div></td>
+                    </tr>
+                    <tr>
+                      <td colspan="3"><p align="left"><span class="TableFont12">&quot;Wandering planets, falling apples, curving spaces, whirling stars:<br>
+                        How unraveling the mysteries of gravity have taught us about the Universe&quot;</span><br>
+                        <strong>Helen Quinn<br>
+                          </strong>
+                        Stanford University,SLAC</p>
+                      </td>
+                    </tr><tr>
+                      <th width="25%" rowspan="2" scope="row"><img src="2008/jimpeeblesthumb.gif" alt="peeblesthumb" width="75" height="100"></th>
+                      <td><div align="center"><strong>2008</strong></div></td>
+                      <td><div align="center"><a href="2008.html">info</a></div></td>
+                      <td><div align="center"><a href="https://umconnect.umn.edu/p82335239/" target="_blank">watch online </a></div></td>
+                      </tr>
+                    <tr>
+                      <td colspan="3"><p align="left"><span class="TableFont12">&quot;Finding the Big Bang&quot;</span><br>
+                        <strong>P. James E. Peebles<br>
+                          </strong>Princeton University</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th rowspan="2" scope="row"><img src="2007/kadanoff_thumb.gif" alt="Photo of Leo Kadanoff" width="75" height="100"></th>
+                      <td><div align="center"><strong>2007</strong></div></td>
+                      <td><div align="center"><a href="2007.html">info</a></div></td>
+                      <td><div align="center"><a href="https://umconnect.umn.edu/p72267057/" target="_blank">watch online</a> </div></td>
+                    </tr>
+                    <tr>
+                      <td colspan="3"><div align="left"><span class="TableFont12">"Making a Splash; Breaking a Neck: The Development of Complexity in Physical Systems&quot; </span><br>
+                        <strong>Leo P. Kadanoff</strong><br>
+                      University of Chicago</div></td>
+                    </tr>
+                    <tr>
+                      <th rowspan="3" scope="row"><img src="2006/wilczek_thumb.gif" alt="Photo of Frank Wilczek" width="75" height="100"></th>
+                      <td><div align="center"><strong>2006</strong></div></td>
+                      <td><div align="center"><a href="2006.html">info</a></div></td>
+                      <td><div align="center"></div></td>
+                    </tr>
+                    <tr>
+                      <td colspan="3"><div align="left"><span class="TableFont12">&quot;The Origin of Mass and Feebleness of Gravity&quot; </span><br>
+                        <strong>Frank Wilczek</strong><br>
+                      Massachussetts Insitute of Technology </div></td>
+                    </tr>
+                  </table>

@@ -1,0 +1,139 @@
+<%doc>
+   Component: a test of feature.comp using tables
+        Date: 9/10/2002
+      Author: allan
+ Description: produces news items for front page
+</%doc>
+
+<%args>
+$limit=>'1'
+$imgy=>'300'
+$subtype=>undef
+$style_prefix=>'ff'
+$require_images=>1
+$type
+$readmore_path=>'/about/news/'
+</%args>
+
+<%init>
+use physdb;
+
+use physdb;
+# this apparently doesnt handle argument changes!? (ie, subtype)
+#return if $m->cache_self(expire_in => '30 sec');
+
+my %args = $m->request_args();
+my $featrow = $args{'featrow'};
+
+my @sql_args;
+
+my ($eventid, $event_date, $post_date, $modified_date, $start_date, $kill_date, $headline, $author, $summary, $text, $caption, $url);
+my $sql_count = "SELECT count(*) ";
+my $sql_select = "SELECT eventid, event_date, post_date, modified_date, start_date, kill_date, headline, summary, text, url,
+                         images.imageid, images.size_x, images.size_y, images.alt ";
+my $sql_from = "    FROM stories
+         LEFT OUTER JOIN images ON images.parentid=stories.eventid AND images.category='stories'  ";
+
+my $sql_where = " WHERE type=? AND start_date <= now() AND (kill_date >= now() OR kill_date IS NULL) ";
+push @sql_args, $type;
+if($subtype) {
+ $sql_where .= " AND subtype=? ";
+ push @sql_args, $subtype;
+}
+if($require_images) {
+  $sql_where .= " AND images.parentid IS NOT NULL ";
+}
+my $count = 0;
+if(defined($dbh)) {
+   $count = physdb::queryone("$sql_count $sql_from $sql_where", @sql_args);
+}
+
+if(!defined $featrow || $featrow !~ /^\d+$/) { 
+  $featrow = int(rand $count);
+}
+
+if($featrow >= $count) {
+   $featrow = 0;
+}
+if($featrow < 0) {
+   $featrow = $count-1;
+}
+my $sql_order = " ORDER BY priority DESC, post_date DESC LIMIT ?,1 ";
+push @sql_args, $featrow;
+
+</%init>
+
+<%perl>
+if (defined($dbh)) {
+    my $row = physdb::queryfirstrow("$sql_select $sql_from $sql_where $sql_order", @sql_args);
+    if(!$row) {
+        $m->out($dbh->errstr);
+        return; #Dont print anything if no articles were available
+    }
+        my $linktitle = $row->{'headline'};
+        $linktitle =~ s/[^-a-zA-Z0-9_]/_/go;
+        $summary = $m->comp('/mason/format_wikitext.comp', text=>$row->{'summary'});
+        </%perl>
+          <table class="feature <% $style_prefix %>Feature" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td rowspan="2" valign="bottom" class="featImage">
+              <img class="featImage" 
+                  src="/stateless/imagedb.html?id=<% $row->{'imageid'} %>&amp;name=feature.jpg" 
+                  alt="<% $row->{'alt'} %>" 
+               height="<% $row->{'size_y'} %>" width="<% $row->{'size_x'} %>"  /></td>
+            <td valign="top" class="featText" width="100%">
+                <div class="featNavBox">
+                   <a href="?featrow=<% ($featrow-1) |u%>" title="Previous feature">&lt;</a>
+                   <a href="?featrow=<% ($featrow+1) |u %>" title="Next feature">&gt;</a>
+                </div>
+                <div class="featHeadline">
+                    <%perl>if ($row->{'headline'}) { </%perl>
+                      <%perl>if($row->{'text'}) { </%perl>
+                         <h2><a href="<% $readmore_path %><% $row->{'eventid'} %>/<% $linktitle %>.html" class="featLink"><% $row->{'headline'} %></a></h2>
+                      <%perl>} else {</%perl>
+                         <h2><% $row->{'headline'} %></h2>
+                      <%perl>}</%perl>
+                    <%perl>}</%perl>
+                </div> <!-- headline -->
+                <div class="featText">
+                   <% $summary %>
+                </div>
+            </td>
+          </tr>
+          <tr><td nowrap="nowrap">
+                <%perl>if($row->{'text'}) {</%perl>
+                   <div class="featLinkBox">
+                     <a class="featLink" 
+                         href="<% $readmore_path %><% $row->{'eventid'} %>/<% $linktitle %>.html">Read More &raquo;</a>
+                   </div> <!-- featurelinkbox -->
+                <%perl>}</%perl>
+                <%perl>if($row->{'text'}) {</%perl>
+                <%perl>}</%perl>
+            </td></tr>
+          </table>
+
+        <%perl>
+#    }
+} 
+else { # fake some content so the front page doesnt look bare...
+   </%perl>
+          <table class="feature <% $style_prefix %>Feature" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td rowspan="2" valign="bottom" class="featImage">
+              <img class="featImage" 
+                  src="/images/Physicsface3.jpg" 
+                  alt="Physics Building" 
+               height="228" width="330"  /></td>
+            <td valign="top" class="featText" width="100%">
+                <div class="featHeadline">
+        <h2><a href="/" class="featLink">Physics at The University of Minnesota</a></h2>
+                </div> <!-- headline -->
+                <div class="featText">
+        The website is currently in database maintenance mode, so some features are unavailable. We apologise for any inconvenience.
+                </div>
+            </td>
+          </tr>
+          </table>
+   <%perl>
+}
+</%perl>

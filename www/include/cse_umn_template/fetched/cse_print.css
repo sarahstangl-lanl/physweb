@@ -1,0 +1,37 @@
+/*
+--------------------------------
+Institute of Technology Branding
+--------------------------------
+*/
+
+#CSEHeader {
+	height:45px;
+	background: none;
+}
+
+#CSEHeader ul {
+	margin:0;
+	padding:0;
+}
+
+#CSEHeader li {
+	list-style:none;
+}
+
+#CSELogo {
+	display: block;
+	text-indent: 0;
+	background: none;
+	font-size: 20px;
+	
+}
+
+#CSELogo {
+	color: #000000;
+	text-decoration: none;
+}
+
+#CSELinks {
+	display: none;
+}
+

@@ -1,0 +1,480 @@
+<%init>
+my $config = $m->comp('/mason/db/moonproject/config.comp'); #loads some of the limits from config
+my $dir_params = sub {
+    my $name = shift;
+    return (
+        type => 'select',
+        required => 1,
+        options => [
+            east => '(-) East',
+            west => '(+) West',
+        ],
+        validate => sub {
+            my $value = shift;
+            return 0 if (! defined $value || $value eq '');
+            return 'must be either East or West.' unless ($value =~ /^(east|west)$/);
+            return 0;
+        },
+        confirm_format => sub {
+            return '';
+        },
+        inflate => sub {
+            my ($value, $args) = @_;
+            (my $value_name = $name) =~ s/dir//i;
+            return '' unless ($args->{$value_name});
+            return ($args->{$value_name} < 0 ? 'east' : 'west');
+        },
+    );
+};
+my $ha_params = sub {
+    my $name = shift;
+    return (
+        type => 'text',
+        required => 0,
+        size => 6,
+        validate => sub {
+            my $value = shift;
+            return 0 if (! defined $value || $value eq '');
+            return 'must be a positive number between ' . $config->{"${name}HA_min"} . ' and ' . $config->{"${name}HA_max"} . '. (Use East/West option to designate sign.)' unless ($value =~ /^[0-9]+(\.[0-9]+)?$/ && $value >= $config->{"${name}HA_min"} && $value <= $config->{"${name}HA_max"});
+            return 0;
+        },
+        confirm_format => sub {
+            my ($value, $params, $args) = @_;
+            return '' unless ($value ne '');
+            return $args->{"${name}HAdir"} eq 'east' ? '-' . $value . ' (E)' : $value . ' (W)';
+        },
+        data_format => sub {
+            my $value = shift;
+            return '' unless (defined $value);
+            return $value . ($value =~ /^-/ ? " (E)" : " (W)");
+        },
+        header_width => '77px',
+        width => 50,
+        nowrap => 1,
+        deflate => sub { my ($value, $args) = @_; return $args->{"${name}HAdir"} eq 'east' ? '-' . $value : $value; },
+        inflate => sub { my $value = shift; return $value ? abs($value) : $value; },
+    );
+};
+return [
+    timestamp => {
+        name => 'Submission Date',
+        type => 'plaintext',
+        required => 0,
+        validate => sub {
+            my ($value, $error_fields, $params, $args) = @_;
+            return 0 unless ($value);
+            my $original_observation = $m->comp('/mason/db/moonproject/get_observation.comp', number => $args->{number}, type => 'first');
+            $args->{timestamp} = $original_observation->{timestamp};
+            return 0;
+        },
+    },
+    number => {
+        type => 'hidden',
+        required => 0,
+        validate => sub {
+            my ($value, $error_fields, $params, $args) = @_;
+            # Verify that number refers to an existing observation number if supplied
+            if ($value) {
+                return 'does not refer to an existing observation.' unless ($m->comp('/mason/db/moonproject/get_observation.comp', number => $value));
+            }
+            # Otherwise get next observation number on confirm
+            elsif ($args->{confirm}) {
+                my $number = physdb::queryone("SELECT number FROM moonproject.observation WHERE student = ? AND term = ? AND year = ? ORDER BY number DESC", $session{'moonproject_gradesid'}, $session{'moonproject_term'}, $session{'moonproject_year'}) || 0;
+                $args->{number} = $number + 1;
+            }
+            return 0;
+        },
+        name => 'Observation Number',
+        secondary_sort_field => 'timestamp',
+        data_format => sub {
+            my ($value, $code, $row, $ts) = @_;
+            if (!exists $ts->{tmp}->{last_observation} || $ts->{tmp}->{last_observation}->{number} != $value) {
+                return $value;
+            }
+            return '';
+        },
+    },
+    dateMonth => {
+        type => 'text',
+        required => 1,
+        size => 1,
+        validate => sub {
+            my $value = shift;
+            return 'must be between 1 and 12.' unless ($value =~ /^\d+$/ && $value > 0 && $value < 13);
+            return 0;
+        },
+        name => 'Observation Date Month',
+    },
+    dateDay => {
+        type => 'text',
+        required => 1,
+        size => 1,
+        validate => sub {
+            my $value = shift;
+            return 'must be between 1 and 31.' unless ($value =~ /^\d+$/ && $value > 0 && $value <= 31);
+            return 0;
+        },
+        name => 'Observation Date Day',
+    },
+    dateYear => {
+        type => 'text',
+        required => 1,
+        size => 2,
+        validate => sub {
+            my $value = shift;
+            return 'must be a four-digit year.' unless ($value =~ /^\d+$/ && length($value) == 4);
+            return 0;
+        },
+        name => 'Observation Date Year',
+    },
+    dateHrs => {
+        type => 'text',
+        required => 1,
+        size => 1,
+        validate => sub {
+            my $value = shift;
+            return 'must be between 1 and 12.' unless ($value =~ /^\d+$/ && $value > 0 && $value < 13);
+            return 0;
+        },
+        name => 'Observation Date Hours',
+    },
+    dateMins => {
+        type => 'text',
+        required => 1,
+        size => 1,
+        validate => sub {
+            my $value = shift;
+            return 'must be between 0 and 59.' unless ($value =~ /^\d+$/ && $value >= 0 && $value < 60);
+            return 0;
+        },
+        name => 'Observation Date Minutes',
+    },
+    dateAM => {
+        type => 'select',
+        required => 1,
+        options => [
+            am => 'AM',
+            pm => 'PM',
+        ],
+        validate => sub {
+            my $value = shift;
+            return 'must be either AM or PM.' unless ($value =~ /^(am|pm)$/);
+            return 0;
+        },
+        name => 'Observation Date AM/PM',
+    },
+    cstTime => {
+        type => 'text',
+        required => 0,
+        size => 3,
+        validate => sub {
+            my $value = shift;
+            return 'must be between ' . $config->{cst_min} . ' and ' . $config->{cst_max} . '.' unless ($value =~ /^[0-9]+(\.[0-9]+)?$/ && $value >= $config->{cst_min} && $value <= $config->{cst_max});
+            return 0;
+        },
+        name => 'Decimal CST (24hr)',
+        #header_width => '71px',
+        width => 71,
+    },
+    #phaseSketch => {
+     #   type => 'select',
+      #  required => 1,
+       # options => [
+      #      map { $_->{name} => $_->{name} } @{$config->{sketches}},
+      #  ],
+      #  validate => sub {
+      #      my $value = shift;
+      #      return 'must be selected from the list.' unless ($value =~ /^[A-P]$/);
+      #      return 0;
+      # },
+      #  name => 'Phase Sketch',
+      #  confirm_format => sub {
+      #      my ($value, $params) = @_;
+      #      return '<img src="' . $config->{sketches}->[ord($value)-ord('A')]->{src} . '" border="0" />';
+      #  },
+      #  data_format => sub {
+      #      my ($value, $code, $row, $ts) = @_;
+      #      return '<img src="' . $config->{sketches}->[$value]->{src} . '" border="0" />';
+      #  },
+      #  deflate => sub {
+      #      # Convert from A-P to 0-15
+      #      my $value = shift;
+      #      return ord($value) - ord('A');
+      #  },
+      #  inflate => sub {
+      #      # Convert from 0-15 to A-P
+      #      my $value = shift;
+      #      return chr($value + ord('A'));
+      #  },
+      #  header_width => '80px',
+    #},
+    phaseNumber => {
+        type => 'text',
+        required => 1,
+        size => 2,
+        validate => sub {
+            my $value = shift;
+            return 'must be between ' . $config->{phaseNumber_min} . ' and ' . $config->{phaseNumber_max} . '.' unless ($value =~ /^[0-9]+(\.[0-9]+)?$/ && $value >= $config->{phaseNumber_min} && $value <= $config->{phaseNumber_max});
+            return 0;
+        },
+        name => 'Phase Number',
+        header_width => '55px',
+    },
+    
+    fistsDir => {
+        name => 'Fists Direction',
+        $dir_params->('fistsDir'),
+    },
+    fists => {
+        type => 'text',
+        required => 1,
+        size => 7,
+        validate => sub {
+            my $value = shift;
+            return 'must be a positive number. (Use East/West option to designate sign.)' unless ($value =~ /^[.0-9]+$/);
+            return 'must have at least 1 significant figure after the decimal' unless ($value =~ /^[0-9]*\.[0-9]+$/);
+            return 0;
+        },
+        name => 'Fist Count #1',
+        confirm_format => sub {
+            my ($value, $params, $args) = @_;
+            return $args->{fistsDir} eq 'east' ? '-' . $value . ' (E)' : $value . ' (W)';
+        },
+        data_format => sub {
+            my $value = shift;
+            return $value . ($value =~ /^-/ ? " (E)" : " (W)");
+        },
+        deflate => sub { my ($value, $args) = @_; return $args->{fistsDir} eq 'east' ? '-' . $value : $value; },
+        inflate => sub { return abs(shift); },
+        header_width => '77px',
+        width => 50,
+        nowrap => 1,
+    },
+	fistsDir2 => {
+        name => 'Fist #2 Direction',
+        $dir_params->('fistsDir2'),
+    },
+	fists2 => {
+        type => 'text',
+        required => 1,
+        size => 7,
+        validate => sub {
+            my $value = shift;
+            return 'must be a positive number. (Use East/West option to designate sign.)' unless ($value =~ /^[.0-9]+$/);
+            return 'must have at least 1 significant figure after the decimal' unless ($value =~ /^[0-9]*\.[0-9]+$/);
+            return 0;
+        },
+        name => 'Fist Count #2',
+        confirm_format => sub {
+            my ($value, $params, $args) = @_;
+            return $args->{fistsDir2} eq 'east' ? '-' . $value . ' (E)' : $value . ' (W)';
+        },
+        data_format => sub {
+            my $value = shift;
+            return $value . ($value =~ /^-/ ? " (E)" : " (W)");
+        },
+        deflate => sub { my ($value, $args) = @_; return $args->{fistsDir2} eq 'east' ? '-' . $value : $value; },
+        inflate => sub { return abs(shift); },
+        header_width => '77px',
+        width => 50,
+        nowrap => 1,
+    },
+    fistsDir3 => {
+        name => 'Fist #3 Direction',
+        $dir_params->('fistsDir3'),
+    },
+    fists3 => {
+        type => 'text',
+        required => 1,
+        size => 7,
+        validate => sub {
+            my ($value, $error_fields, $params, $args) = @_;
+            return ": You must have three independant measurements for the three fists counts." if $args->{fists} eq $args->{fists2} and $args->{fists2} eq $args->{fists3};
+            return 'must be a positive number. (Use East/West option to designate sign.)' unless ($value =~ /^[.0-9]+$/);
+            return 'must have at least 1 significant figure after the decimal' unless ($value =~ /^[0-9]*\.[0-9]+$/);
+            return 0;
+        },
+        name => 'Fist Count #3',
+        confirm_format => sub {
+            my ($value, $params, $args) = @_;
+            return $args->{fistsDir3} eq 'east' ? '-' . $value . ' (E)' : $value . ' (W)';
+        },
+        data_format => sub {
+            my $value = shift;
+            return $value . ($value =~ /^-/ ? " (E)" : " (W)");
+        },
+        deflate => sub { my ($value, $args) = @_; return $args->{fistsDir3} eq 'east' ? '-' . $value : $value; },
+        inflate => sub { return abs(shift); },
+        header_width => '77px',
+        width => 50,
+        nowrap => 1,
+    },
+    aveFistDir => {
+        name => 'Average Fist Direction',
+        $dir_params->('aveFistDir'),
+        required => 1,
+    },
+    aveFist => {
+        type => 'text',
+        size => 7,
+        required => 1,
+        validate => sub {
+            my $value = shift;
+            return 'must be a positive number. (Use East/West option to designate sign.)' unless ($value =~ /^[.0-9]+$/);
+            return 'must have at least 1 significant figure after the decimal' unless ($value =~ /^[0-9]*\.[0-9]+$/);
+            return 0;
+        },
+        name => 'Average Fist Count',
+        confirm_format => sub {
+            my ($value, $params, $args) = @_;
+            return $args->{aveFistDir} eq 'east' ? '-' . $value . ' (E)' : $value . ' (W)';
+        },
+        data_format => sub {
+            my $value = shift;
+            return $value . ($value =~ /^-/ ? " (E)" : " (W)");
+        },
+        deflate => sub { my ($value, $args) = @_; return $args->{aveFistDir} eq 'east' ? '-' . $value : $value; },
+        inflate => sub { return abs(shift); },
+        header_width => '77px',
+        width => 50,
+        nowrap => 1,
+    },
+    cloud => {
+        type => 'select',
+        required => 1,
+        name => 'Cloud Cover',
+        options => [
+        0 => 'Clear',
+        1 => 'Partially Cloudy',
+        2 => 'Cloudy',
+        ],
+    },    
+    moonHAdir => {
+        name => 'Moon HA Direction',
+        $dir_params->('moonHAdir'),
+        required => 0,
+    },
+    moonHA => {
+        name => 'Moon HA',
+        $ha_params->('moon'),
+        required => 0,
+        size => 7,
+    },
+    dayNumber => {
+        type => 'text',
+        required => 0,
+        size => 2,
+        validate => sub {
+            my $value = shift;
+            return 0 if (! defined $value || $value eq '');
+            return 'must be between ' . $config->{dayNumber_min} . ' and ' . $config->{dayNumber_max} . '.' unless ($value =~ /^[0-9]+(\.[0-9]+)?$/ && $value >= $config->{dayNumber_min} && $value <= $config->{dayNumber_max});
+            return 0;
+        },
+        name => 'Day Number',
+        header_width => '55px',
+    },
+    sunHAdir => {
+        name => 'Sun HA Direction',
+        $dir_params->('sunHAdir'),
+        required => 0,
+    },
+    sunHA => {
+        name => 'Sun HA',
+        $ha_params->('sun'),
+        size => 7,
+    },
+    elongation => {
+        type => 'text',
+        required => 0,
+        size => 2,
+        validate => sub {
+            my $value = shift;
+            return 0 if (! defined $value || $value eq '');
+            return 'must be between ' . $config->{elongation_min} . ' and ' . $config->{elongation_max} . '.' unless ($value =~ /^[0-9]+(\.[0-9]+)?$/ && $value >= $config->{elongation_min} && $value <= $config->{elongation_max});
+            return 0;
+        },
+        name => 'Moon Elongation',
+        header_width => '71px',
+    },
+    studentComments => {
+        type => 'textarea',
+        required => 0,
+        attrs => {
+            style => 'width:100%;',
+            cols => 2,
+        },
+        validate => sub { return 0; },
+        transform => sub { my $value = shift; $value =~ s/(^\s+|\s+$)//g; return $value; },
+        name => 'Student Comments',
+        width => '150',
+    },
+    taComments => {
+        type => 'textarea',
+        required => 0,
+        attrs => {
+            style => 'width:100%;',
+            cols => 2,
+        },
+        validate => sub { return 0; },
+        transform => sub { my $value = shift; return unless $value; $value =~ s/(^\s+|\s+$)//g; return $value; },
+        name => 'TA Comments',
+        width => '150',
+    },
+    date => {
+        name => 'Observation Date',
+        validate => sub {
+            my ($value, $error_fields, $params, $args) = @_;
+            warn "args";
+            warn Dumper($args);
+            # Don't check date if there was already a problem with a date subfield
+            return 0 if (grep { exists $error_fields->{$_} } @{$params->{error_fields}});
+            my $strp = DateTime::Format::Strptime->new(pattern => '%F %r', time_zone => 'America/Chicago');
+            my $timestring = sprintf "%d-%02d-%02d %d:%02d:00 %s", $args->{dateYear}, $args->{dateMonth}, $args->{dateDay}, $args->{dateHrs}, $args->{dateMins}, uc($args->{dateAM});
+            warn $timestring;
+            # Check for valid datetime
+            if (my $dt = $strp->parse_datetime($timestring)) {
+                # Store MySQL datetime string
+                $args->{date} = DateTime::Format::MySQL->format_datetime($dt);
+                # Store dt object
+                $args->{dt} = $dt;
+                # Check for date in future
+                my $now = DateTime->now(time_zone => 'America/Chicago');
+                return 'cannot be in the future.' if (DateTime->compare($dt, $now) > 0);
+                # Check for existing observation of same date
+                return 'matches an existing observation. You cannot submit more than one observation with the same date and time.'
+                    if (physdb::queryfirstrow("SELECT * FROM moonproject.observation WHERE current AND student = ? AND number <> ? AND term = ? AND year = ? AND date = ?", $session{'moonproject_gradesid'}, $args->{number}, $args->{term}, $args->{year}, $args->{date}));
+                # Check for observation date after original submission date
+                if ($args->{number} && (my $observation = $m->comp('/mason/db/moonproject/get_observation.comp', number => $args->{number}, type => 'first'))) {
+                    my $submission_date_dt = DateTime::Format::MySQL->parse_timestamp($observation->{timestamp})->set_time_zone('America/Chicago');
+                    return 'cannot be after original submission date.'
+                        if (DateTime->compare($submission_date_dt, $dt) == -1);
+                }
+            }
+            else {
+                return 'is an invalid date.';
+            }
+            return 0;
+        },
+        inflate => sub {
+            my ($value, $args) = @_;
+            return '' unless ($value);
+            my $dt = DateTime::Format::MySQL->parse_datetime($value)->set_time_zone('America/Chicago');
+            # Set individual fields from datetime
+            $args->{dateMonth} = $dt->month;
+            $args->{dateDay} = $dt->day;
+            $args->{dateYear} = $dt->year;
+            $args->{dateHrs} = $dt->hour_12;
+            $args->{dateMins} = sprintf '%02d', $dt->minute;
+            $args->{dateAM} = lc $dt->am_or_pm;
+            $args->{dt} = $dt;
+            return $value;
+        },
+        error_fields => [ 'dateMonth', 'dateDay', 'dateYear', 'dateHrs', 'dateMins', 'dateAM' ],
+        header_width => '141px',
+    },
+    time => {
+        name => 'Observation Clock Time',
+        header_width => '128px',
+    },
+];
+</%init>

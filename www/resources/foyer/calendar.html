@@ -1,0 +1,34 @@
+<%doc>
+vim:set syntax=mason:
+</%doc>
+<%args>
+</%args>
+
+<%perl>
+my $calContent;
+$calContent = $m->scomp("/mason/db/frontpagecal.comp", limit=>3, today_only=>0, linkmore=>0, details=>1);
+
+if(length($calContent) > 70) {
+    # Got something back from cal component, so dump it out
+    $m->out($calContent);
+}
+else {
+    # No calendar content--  print something else?
+    my ($sec,$min,$hour,$day,$month,$year,$wday,$yday,$isdst) = CORE::localtime(time);
+
+    $month++;
+    $year += 1900;
+    my $date = sprintf("%s, %s %s", Day_of_Week_to_Text(Day_of_Week($year,$month,$day)), Month_to_Text($month), English_Ordinal($day));
+    $m->out("<div class=\"fpcalendar\">\n");
+    $m->out("<div class=\"fpcal_day\">\n");
+    $m->out("<div class=\"fpcal_day_title\">$date</div><div>\n");
+
+    </%perl>
+    <div class="fpcal_nothing">
+    no (more) events scheduled today.
+    </div>
+    <%perl>
+}
+
+</%perl>
+

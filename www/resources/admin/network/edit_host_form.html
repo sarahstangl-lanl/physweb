@@ -1,0 +1,328 @@
+<%doc>
+   vim: set syntax=mason:
+   Author: Rubin
+</%doc>
+
+<%args>
+$id => 'new'
+$copy => 0
+</%args>
+<%shared>
+</%shared>
+
+<%method title>Editing Host</%method>
+
+<%method js></%method>
+<%method meta>
+<script src="/include/usergroups.js" type="text/javascript"></script>
+<script src="/include/editablecompleter.js" type="text/javascript"></script>
+</%method>
+<%init>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+use physdb;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+if(!$auth) {
+    print "Must be admin\n";
+    return;
+}
+
+
+my $host_defaults;
+my $host;
+my $interfaces;
+
+if($copy) {
+    $host = physdb::queryfirstrow($hostlist_query, $copy);
+    if(!$host) {
+        $m->out("Unable to find host id $id\n");
+        return;
+    }
+    $host->{'people_finder'} = $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid=>$host->{'admin_uid'});
+    $id = $host->{'id'} = 'new';
+    $host->{'computer_name'} .= '_copy';
+    $interfaces = physdb::query($interfacelist_query_copy, $copy);
+} 
+elsif($id ne "new") {
+    $host = physdb::queryfirstrow($hostlist_query, $id);
+    if(!$host) {
+        $m->out("Unable to find host id $id\n");
+        return;
+    }
+    $host->{'people_finder'} = $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid=>$host->{'admin_uid'});
+    $interfaces = physdb::query($interfacelist_query, $id);
+}
+else { #new non-copy entry
+    $host->{'id'} = 'new';
+}
+sub choose_value {
+   while(my $val = shift) {
+      if (defined $$val) {
+        return $$val;
+      }
+   }
+}
+
+# Load up common functions
+$m->comp("/mason/network/common.comp");
+
+#NOTE- all of this query is overwritten by the newer group selector javascript code...
+my $groups = physdb::query("SELECT name, description, type FROM groups WHERE type REGEXP '(^rgroup|^labgroup|^workgroup)' ORDER BY type, description");
+my @groups;
+while(my $group = $groups->fetchrow_hashref()) {
+    my $description = $group->{'description'};
+    my $len = length($description);
+    while($len++ < 30) {
+      $description .= "&nbsp;";
+    }
+    $description .= "($group->{type})";
+    push @groups, [$group->{'name'}, $description];
+}
+unshift @groups, ['', 'Personal Registration'];
+
+</%init>
+
+<%shared>
+#use lib "/local/site/scripts/";
+#use physdb;
+#physdb::use_dbh($dbh);
+
+my $hostlist_query =  "SELECT net_hosts.* FROM net_hosts WHERE id=?";
+my $interfacelist_query = "SELECT * FROM net_interfaces WHERE host_id=?";
+my $interfacelist_query_copy = "SELECT id as copy_id, 'new' as id, hwa, vlan FROM net_interfaces WHERE host_id=?";
+my $dnslist_query = "SELECT *, INET_NTOA(ip) as ip FROM net_dns WHERE interface_id=?";
+my $dnslist_query_copy = "SELECT id as copy_id, 'new' as id, interface_id, INET_NTOA(ip) as ip, hostname, domain, dhcp_type, nagios_template, flag_update_dns FROM net_dns WHERE interface_id=?";
+
+
+my $vlans = physdb::queryarray('SELECT DISTINCT vlan FROM net_subnets') or die ("unable to extract distinct vlan names");
+my $blockrt = physdb::queryarray('SELECT DISTINCT blockrt FROM net_interfaces') or die ("unable to retrieve blockrt");
+my @oses = split ',', $m->comp("/mason/db/getvalues.comp", table=>"net_hosts", column=>"os");
+my @computer_types = split ',', $m->comp("/mason/db/getvalues.comp", table=>"net_hosts", column=>"type");
+my @cpu_families = split ',', $m->comp("/mason/db/getvalues.comp", table=>"net_hosts", column=>"cpu_family");
+my @domains = split ',', $m->comp("/mason/db/getvalues.comp", table=>"net_dns", column=>"domain");
+my @dhcp_types = split ',', $m->comp("/mason/db/getvalues.comp", table=>"net_dns", column=>"dhcp_type");
+
+my $groupowners = physdb::queryallarray("SELECT DISTINCT name,description FROM groups WHERE type IN ('workgroup','labgroup','rgroup','netgroup') ORDER BY description, name") or die ("groupowners query failed");
+my $existing_domains = physdb::queryarray('SELECT DISTINCT domain FROM net_dns ORDER BY domain') or die ("domainlist query failed");
+
+my $existing_nagios = physdb::queryarray('SELECT DISTINCT nagios_template FROM net_dns ORDER BY nagios_template') or die ("nagios query failed");
+my $existing_clusters = physdb::queryarray('SELECT DISTINCT cluster FROM net_hosts ORDER BY cluster') or die("cluster query failed");
+my $existing_security_status = physdb::queryarray(' SELECT DISTINCT security_status FROM net_hosts ORDER BY security_status') or die("Security status query failed");
+my $existing_condor_templates = physdb::queryarray('SELECT DISTINCT condor_template FROM net_hosts ORDER BY condor_template') or die("condor_template query failed");
+
+my $iface_index=0;
+
+</%shared>
+
+<%perl> if($ARGS{'err_str'}) { </%perl>
+  <div class="errorbox" style="font-size: large; color: red;">Error, host not saved!: <% $ARGS{'err_str'} |h%></div>
+<%perl> } </%perl>
+<%perl> if($ARGS{'msg_str'}) { </%perl>
+  <div class="msgbox" style="font-size: large; color: green;"><% $ARGS{'msg_str'} |h%></div>
+<%perl> } </%perl>
+
+<%perl> if($host->{'id'} eq 'new') { </%perl>
+<h2>New Host:</h2>
+<%perl> } else { </%perl>
+<h2>Editing Host <% $host->{'computer_name'} %>:</h2>
+<%perl> } </%perl>
+<form method="POST" action="edit_host.html">
+    <table border=0 style="width: 100%;">
+    <tr><td valign="top">
+        <h3>Registration
+        <%perl> if($host->{'id'} ne 'new') { </%perl>
+           <a href="host.html?id=<% $host->{'id'}|u%>"><img src="/images/imgsel_view.png" border=0 alt="VIEW" label="VIEW" title="View this host"></a>
+           <a href="edit_host_form.html?copy=<% $host->{'id'}|u%>"><img src="/images/imgsel_copy.png" border=0 alt="COPY" label="COPY" title="Make a copy of this host"></a>
+           <a href="delete_form.html?host_id=<% $host->{'id'} |u %>" style="color: red;"><img src="/images/delete.png" border="0" alt="DELETE" label="DELETE" title="DELETE this host and all attached interfaces and IPs"></a>
+        <%perl> } </%perl>
+        </h3>
+        <table border=0 style="width: 100%;">
+        <input type="hidden" name="id" value="<% $host->{"id"} %>">
+        <input type="hidden" name="copy" value="<% $copy %>">
+        <tr><td>Name:</td>          <td><% input_text('computer_name', $host, {'size'=>35}) %></td></tr>
+        <tr><td>Admin:</td>         <td><% input_text('people_finder', $host, {'size'=>35}) %>
+                                        <& "/mason/ajax/complete_people.comp", id => 'input_people_finder', name => 'people_finder', div_id=>'input_people_finder_magic' &>
+                                        </td></tr>
+        <tr><td>Group (admin):</td>         <td><% input_select('groupname', $host, \@groups, {style => 'width: 25em'}) %></td></tr>
+        <script type="text/javascript">
+            /*<[CDATA[*/
+                var ugc        = new UserGroups('input_people_finder', 'groupname', '/include/complete_group.html');
+            /*]]>*/
+        </script>
+        </td></tr>
+        <tr><td>Group (own):</td>         <td><% input_select("group_owner", $host, $groupowners)%></td></tr>
+        </td></tr>
+        <tr><td>Cluster:</td>           <td><% input_text('cluster', $host, {'size'=>'10'} ) %>
+        <& '/mason/ajax/editabledropdown.comp', id=>"input_cluster", entries=>$existing_clusters  &>
+        </td></tr>
+        <tr><td>Condor Template:</td>   <td><% input_text('condor_template', $host, {'size'=>'10'} ) %>
+        <& '/mason/ajax/editabledropdown.comp', id=>"input_condor_template", entries=>$existing_condor_templates  &>
+        <tr><td>CFEngine Staging Repo:</td>   <td><% input_text('cfengine_repo', $host, {'size'=>'10'} ) %>
+        <tr><td>Sysadm Staging Repo:</td>   <td><% input_text('sysadm_repo', $host, {'size'=>'10'} ) %>
+<!--
+        <tr><td>Security Status:</td><td><% input_text('security_status', $host, {'size'=>'20'} ) %>
+        <& '/mason/ajax/editabledropdown.comp', id=>"input_security_status", entries=>$existing_security_status  &>
+        <tr><td title="Date noncompliance disable countdown starts. Host will disable 14 days after this">Noncompliance Date:</td><td><% input_text('noncompliant_date', $host, {'size'=>'10'} ) %>(yyyy-mm-dd)
+-->
+        </table>
+        <h3>Interfaces</h3>
+           <%perl>
+           if($interfaces) {
+               while(my $interface = $interfaces->fetchrow_hashref()) {
+                   $m->comp("SELF:interface", interface=>$interface, copy=>$copy);
+               }
+           }
+           </%perl><div id="new_interface"><%perl>
+           $m->comp("SELF:interface", interface=>undef, copy=>undef); # an empty block for adding a new one
+           </%perl></div>
+           <script language="javascript">
+             e = document.getElementById("new_interface");
+             e.style.display = "none";
+             function show_new_interface() {
+                e = document.getElementById("new_interface");
+                e.style.display = "block";
+                l = document.getElementById("new_interface_link");
+                l.style.display = "none";
+             }
+             document.write('<div id="new_interface_link" style="float: right; padding-right: 3em;"><a href="" onclick="show_new_interface(); return false;">Add another interface</a></div>');
+           </script>
+        <div style="clear:both;">Comment: (note, users can see this!)</div>
+        <% input_textarea( 'text', $host, {'style'=>'Width: 90%;'} ) %>
+    </td><td valign="top" width="45%">
+        <h3>Inventory Details</h3>
+        <table border=0 style="width: 100%;">
+          <tr><td colspan="2">Purpose:</td>        <td><% input_text('purpose', $host) %></td></tr>
+          <tr><td colspan="2">Location:</td>      <td><% input_text('building', $host, {'size'=>5}) %> room <% input_text('room', $host, {'size'=>6}) %></td></tr>
+          <tr><td colspan="2">Model (blank for auto):</td>          <td><% input_text('model', $host) %></td></tr>
+          <tr><td colspan="2">Type:</td>           <td nowrap><% input_select('os', $host, \@oses, {'length'=>'8'}) %> <% input_select('type', $host, \@computer_types, {'length'=>'8'}) %></td></tr>
+          <tr><td colspan="2">Serial&nbsp;No:</td>      <td><% input_text('serial_number', $host) %></td></tr>
+          <tr><td colspan="2">Service&nbsp;Tag:</td>    <td><% input_text('service_tag', $host) %></td></tr>
+          <tr><td colspan="2">Service Account:</td>     <td><% input_text('service_account', $host) %></td></tr>
+          <tr><td valign="top">Flags:</td>  <td colspan="2" style="xxxtext-align: right;">
+                                          Notifications:<% input_checkbox('flag_notifications', $host) %><br />
+                                          OITCritical:<% input_checkbox('flag_oitcritical', $host) %><br />
+                                          Expired:<% input_checkbox('flag_expired', $host)%>
+                                          Disabled:<% input_checkbox('flag_disabled', $host)%><br />
+                                          Noncompliant:<% input_checkbox('flag_noncompliant', $host)%><br />
+                                      </td></tr>
+        </table>
+        <& "/mason/network/runlog.comp", host_id=>$host->{'id'} &>
+    </td></tr>
+    </table>
+    <div><input type="submit" value="Save"> <a href="hosts.html?last_search=true">Cancel</a></div>
+</form>
+
+% if($host->{'id'} ne "new") {
+<& "/mason/network/auditlog.comp:recent", host_id=>$host->{'id'} &>
+% }
+
+% #<pre><% "\n\n\n\n\n\n------ DEBUGGING INFO -----\n". Dumper($host) . "" |h%></pre>
+
+<%method interface>
+    <%args>
+        $interface
+        $copy
+    </%args>
+    <%perl>
+       my $iface_id = (defined $interface->{'id'} ? $interface->{'id'} : "new");
+       my $ilist;
+       $iface_index++;
+       foreach my $key (keys %$interface) {
+          $ilist->{"i_${iface_index}_$key"} = $interface->{$key};
+       }
+    </%perl>
+    <a href="moveiface_form.html?id=<% $iface_id %>">Move This Interface</a>
+    <table>
+    <input type="hidden" name="i_<% $iface_index %>_id" value="<% $iface_id %>">
+    <tr><td>HWA:</td>    <td nowrap><% input_text("i_${iface_index}_hwa", $ilist, {'size'=>12}) %></td>
+        <td>&nbsp;&nbsp;VLAN:</td>   <td><% input_select("i_${iface_index}_vlan", $ilist, $vlans)%></td>
+        <%perl> if($iface_id ne 'new') { </%perl>
+        <td nowrap><a href="delete_form.html?interface_id=<% $iface_id %>" style="color: red;">
+            <img src="/images/delete.png" border="0" alt="DELETE" label="DELETE" title="Delete this interface and all attached IPs"></a></td>
+        <%perl> } </%perl>
+        <td width="00%">&nbsp;</td>
+	<td>
+		 BlockRT:<% input_text("i_${iface_index}_blockrt", $ilist,{'size'=>8})%>
+	</td>
+    </tr>
+    <tr><td></td><td colspan=6>
+       <table border=0 >
+    <%perl>
+        # Get all dns entries associated with interface
+        my $dnslist;
+        if($copy) {
+           $dnslist = physdb::query($dnslist_query_copy, $interface->{'copy_id'}) or die ("dns query failed");
+        }
+        else {
+           $dnslist = physdb::query($dnslist_query, $interface->{'id'}) or die ("dns query failed");
+        }
+        my $last = 1;
+        my $oddeven = "odd"; 
+        my $dns_index = 0;
+        while(($last && (my $dns = $dnslist->fetchrow_hashref)) || $last--) {
+            $dns_index++;
+            $oddeven = $last ? (($oddeven eq "odd") ? "even" : "odd" ) :  "new";
+            my $dns_id = (defined $dns->{'id'} ? $dns->{'id'} : "new");
+            my $dlist;
+            foreach my $key (keys %$dns) {
+               $dlist->{"d_${iface_index}_${dns_index}_$key"} = $dns->{$key};
+            }
+            </%perl>
+               <tr class="<%$oddeven%>">
+                   <input type="hidden" name="d_<% $iface_index %>_<% $dns_index %>_id" value="<% $dns_id %>">
+                   <input type="hidden" name="d_<% $iface_index %>_<% $dns_index %>_interface_id" value="<% $iface_id %>">
+                   <input type="hidden" name="d_<% $iface_index %>_<% $dns_index %>_interface_form" value="<% $iface_index %>">
+                   <td nowrap>DNS:<% input_text("d_${iface_index}_${dns_index}_hostname", $dlist, {'size'=>20, 'style'=>'text-align: right;'}) %>.<% input_text("d_${iface_index}_${dns_index}_domain", $dlist, {'size'=>'15'} )%><& '/mason/ajax/editabledropdown.comp', id=>"input_d_${iface_index}_${dns_index}_domain", entries=>$existing_domains &>
+                   IP:<% input_text("d_${iface_index}_${dns_index}_ip", $dlist, {'size'=>15}) %>
+
+        <script type="text/javascript">
+            /*<[CDATA[*/
+              new EditableCompleter({
+                  textArea: 'input_d_<% $iface_index %>_<% $dns_index %>_ip',
+                  dropdown: 'i_<% $iface_index %>_vlan',
+                  url: 'complete_ips.html',
+                  paramName: 'ippart'
+              });
+            /*]]>*/
+        </script>
+
+
+                   <%perl> if($dns_id ne 'new') { </%perl>
+                   <a href="delete_form.html?dns_id=<% $dns_id %>" style="color: red;">
+                     <img src="/images/delete.png" border="0" alt="DELETE" label="DELETE" title="Delete this IP">
+                   </a>
+                   <%perl> } </%perl>
+                   </td>
+               </tr>
+               <tr class="<%$oddeven%>">
+                    <td nowrap>
+                    Aliases:<% input_text("d_${iface_index}_${dns_index}_aliases", $dlist, {'size'=>50})%></td>
+               </tr>
+               <tr class="<%$oddeven%>">
+                   <td nowrap>
+                   Nagios:<% input_text("d_${iface_index}_${dns_index}_nagios_template", $dlist, {'size'=>'20'} )%>
+                   <& '/mason/ajax/editabledropdown.comp', id=>"input_d_${iface_index}_${dns_index}_nagios_template", entries=>$existing_nagios &>
+                   &nbsp;&nbsp;DHCP: <% input_select("d_${iface_index}_${dns_index}_dhcp_type", $dlist, \@dhcp_types) %>
+               </tr>
+               <tr class="<%$oddeven%>">
+                   <td>
+                       <table cellpadding="0" cellspacing="0">
+                           <tr>
+                               <td valign="top" style="padding: 3px 5px 0 0;">Extra DHCP Config</td>
+                               <td><% input_textarea( "d_${iface_index}_${dns_index}_dhcp_params", $dlist, { rows => 2, cols => 50 } ) %></td>
+                           </tr>
+                       </table>
+                   </td>
+               </tr>
+               <tr><td height="10"></td></tr>
+            <%perl>
+        }
+    </%perl>
+    </table>
+    </td><tr><td>&nbsp;</td></tr>
+    </table>
+</%method>
+
+

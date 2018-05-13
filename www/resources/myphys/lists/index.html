@@ -1,0 +1,71 @@
+<%DOC>
+   Component: mailinglists.html
+        Date: 2008.12.01
+      Author: clayton
+     Changed: 2008.12.01 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $subscriber_update=>undef
+</%ARGS>
+
+<%method subtitle>Mailing Lists</%method>
+<p>
+This page lists the mailing lists to which you are subscribed (including those to which you may be automatically subscribed, such as physics-all). You can set below whether you want to receive mail from each list.
+</p>
+<p>Customize your lists membership or subscribe to additional lists at <a href="http://lists.physics.umn.edu/">lists.physics.umn.edu</a>.</p>
+<%INIT>
+  use supportdb;
+
+  if (!$session{'physid'} && !$session{'x500'}) {
+  print '<p><b>Unable find either your Physics ID or Internet ID (X.500). If you believe this is in error, please contact directory@physics.umn.edu.</b></p>';
+    return;
+  }
+
+  if ($subscriber_update) {
+    my %hARGS = $m->request_args();
+
+    for my $in (keys %hARGS) {
+      if ($in =~ /^subscriber_(\d+)$/) {
+        my $id = $1;
+        my $subscribe = $hARGS{'subscriber_' . $id . '_subscribe'};
+        my $reception_mode = (!$subscribe ? 'nomail' : $hARGS{'subscriber_' . $id . '_subscribe'});
+        my $list = $hARGS{'subscriber_' . $id . '_list'};
+        my $user = $hARGS{'subscriber_' . $id . '_user'};
+        if (($session{'physid'} && ($user =~ /^$session{'physid'}\@(astro|physics).umn.edu/)) ||
+            ($session{'x500'} && ($user =~ /^$session{'x500'}\@umn.edu/))) {
+          supportdb::query('UPDATE sympa.subscriber_table SET reception_subscriber=? WHERE list_subscriber=? AND user_subscriber=?',
+            $reception_mode, $list, $user);
+        }
+      }
+    }
+  }
+
+  my @mailinglists = supportdb::queryall('SELECT list_subscriber, user_subscriber, reception_subscriber FROM sympa.subscriber_table WHERE user_subscriber = ? OR user_subscriber = ? OR user_subscriber = ? ORDER BY list_subscriber', $session{'physid'} . '@astro.umn.edu', $session{'physid'} . '@physics.umn.edu', $session{'x500'} . '@umn.edu');
+</%INIT>
+
+<form method="post" action="?">
+<table>
+    <tr><th align="left">List Name</th><th>Receive Mail</th><th>Email</th></tr>
+% my $id = 0;
+% foreach my $list (@mailinglists) {
+% $id++;
+% my $subscribed = ($list->{'reception_subscriber'} ne 'nomail');
+% my $checked = ($subscribed ? ' checked="checked"' : '');
+% my $value = ((!$subscribed || ($list->{'reception_subscriber'} eq '')) ? 'mail' : $list->{'reception_subscriber'});
+<input type="hidden" name="subscriber_<% $id %>" value="1">
+<input type="hidden" name="subscriber_<% $id %>_list" value="<% $list->{'list_subscriber'} |h %>">
+<input type="hidden" name="subscriber_<% $id %>_user" value="<% $list->{'user_subscriber'} |h %>">
+<tr>
+  <td><label for="mailinglist_cb_<% $id %>"><% $list->{'list_subscriber'} |h %></label></td>
+  <td align="center"><input type="checkbox" id="mailinglist_cb_<% $id %>" name="subscriber_<% $id %>_subscribe" value="<% $value %>" <% $checked %>></td>
+  <td><% $list->{'user_subscriber'} |h %></td>
+</tr>
+% }
+<tr><td colspan="2" align="right"><input type="submit" name="subscriber_update" value="Update Settings"></td></tr>
+</table>
+</form>
+
+

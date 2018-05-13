@@ -1,0 +1,21 @@
+<%doc>
+   Component: auth_check_gradapp.comp
+        Date: 9/2/2002
+      Author: allan
+ Description: checks if the user is manager of grad apps
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+my $count = 0;
+my $sql = "SELECT count(*) FROM groupmembers WHERE uid=? AND groupname='gradapp' AND manager=1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($session{'uid'}) or die "Couldn't execute SQL: ".$sth->errstr;
+my $result = $sth->fetchrow_arrayref;
+if (defined($result)) {
+  $count = $$result[0];
+}
+return $count > 0;
+</%init>

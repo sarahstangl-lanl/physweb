@@ -1,0 +1,31 @@
+<%init>
+
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+my @job_entry_pcs = $schema->resultset('ShopDbSettings')->search({ name => 'job_entry_pc' });
+unless (@job_entry_pcs) {
+    return 0;
+    warn "No job entry machines defined in ShopDB settings. Create a 'job_entry_pc' setting with a valid IP address as the value";
+}
+my $host_address = $r->connection->get_remote_host();
+my $found_job_entry_pc = 0;
+warn "job_entry_pc_check.comp: Found host address $host_address";
+for my $pc (@job_entry_pcs) {
+    my $address = $pc->get_column('value');
+    warn "job_entry_pc_check.comp: Checking job_entry_pc address $address";
+    if ($host_address eq $address) {
+        warn "job_entry_pc_check.comp: Found match at address $address";
+        $found_job_entry_pc = 1;
+        last;
+    }
+}
+# Temporarily allow job_entry_pc override
+if (defined($m->request_args->{'auth-job_entry_pc'})) {
+    $found_job_entry_pc = $m->request_args->{'auth-job_entry_pc'};
+}
+if ($found_job_entry_pc) {
+    warn "job_entry_pc_check.comp: Found job_entry_pc";
+    return 1;
+}
+return 0;
+
+</%init>

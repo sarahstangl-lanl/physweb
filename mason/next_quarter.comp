@@ -1,0 +1,23 @@
+<%args>
+    $year => $m->comp('/mason/this_year.comp');
+    $semester => $m->comp('/mason/this_quarter.comp');
+</%args>
+<%once>
+    my %map = ('spring' => 1, 'summer' => 2, 'fall' => 3);
+    my %reverse_map = map { $map{$_} => $_ } (keys %map); 
+</%once>
+<%init>   
+    my $next_year = $year;
+    my $next_semester = $map{$semester};
+    
+    $next_semester++;
+    
+    if ($next_semester > 3) {
+        $next_year++;
+        $next_semester = 1;
+    }
+    
+    $next_semester = $reverse_map{$next_semester};
+
+    return ($next_year, $next_semester);
+</%init>

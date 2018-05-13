@@ -1,0 +1,39 @@
+<%ARGS>
+$input
+</%ARGS>
+<%INIT>
+use Encode;
+return if $m->cache_self(key => encode("UTF-8",$input), expires_in => '10 minutes');
+use IPC::Run qw[run];
+my $docroot = $r->document_root;
+my $imagedir = $docroot."/texvc";
+mkdir($imagedir,0775);
+my $tex = $input;
+# usage is "texvc <temp directory> <output directory> <TeX code> <encoding>"
+# ... we set output directory to /dev/null as we don't use the png files
+my $texvc = '/usr/local/bin/texvc';
+my ($success, $error_code, $full_buf, $stdout_buf, $stderr_buf);
+if ($texvc) {
+  my ($in, $out, $err);
+  run [$texvc, "/tmp", $imagedir, $input, "iso-8859-1"], '>', \$tex, '2>', \$err;
+
+  # should really parse the output as defined by
+  # http://svn.wikimedia.org/viewvc/mediawiki/trunk/phase3/math/README?view=markup
+  # and output mathml code if there is no HTML output
+  if (length($tex)<2) {
+    $tex = $input;
+  } else {
+    if ( $tex =~ /^\+/ ) {
+      # only got an image, could maybe call l2p here instead
+      $tex = substr($tex,1,32);
+      $tex="<img src=\"/texvc/$tex.png\" alt=\"$input\">";
+    } else {
+      # dump status char and md5
+      $tex = substr($tex, 33);
+      # dump anything after a null
+      $tex =~ s/\000.*//;
+    }
+  }
+}
+</%INIT>
+<% $tex %>

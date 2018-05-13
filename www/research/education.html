@@ -1,0 +1,51 @@
+<%method title>Physics Education Research</%method>
+
+%#<& /mason/image.comp, filename=>'PE2.jpg', caption=>'Charles Henderson, Paul Knutson and Vince Kuo, at the weekly physics education seminar.' &>
+
+<%method pageheading>
+<& 'PARENT:pageheading' &>
+</%method>
+
+<%args>
+$featrow=>undef
+</%args>
+
+%#Uncomment (remove %#) to enable this when the research faculty stories are done
+<& "/mason/db/stories/feature.comp", type=>'facultyresearch', subtype=>'education', style_prefix=>'rf', readmore_path=>'/research/', featrow=>$featrow&>
+
+%# note the new random.comp wrapper around the image.comp component...
+%#<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'cdmscryo.jpg',alt=>'CDMS Cryostat',credit=>'Courtesy CDMS',caption=>'A cryostat for CDMS.' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'eduimages/GirlElectric.jpg',alt=>'Student doing labwork',caption=>'Student working with a cathode ray tube.' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'eduimages/GradGirl.jpg',alt=>'Physics department graduate',caption=>'A graduate of the Physics Department' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'eduimages/Group.jpg',alt=>'students doing experiments',caption=>'Part of Heller&#146;s group working on a physics experiment.' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'eduimages/ProfessorGirl.jpg',alt=>'Heller with graduate',caption=>'Heller with one of his graduates.' &> </&>
+
+%# if you remove the comment from the front of below (%#), it ads another image to the list of ones randomly chosen.
+%#<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'lemmon.jpg',alt=>'Mt. Lemmon Observitory',credit=>'Just for TESTING!!',caption=>'This is an example of another block you can add...' &> </&>
+
+<& /mason/random.comp:execute, name=>'image' &>
+
+
+<h3>Physics with Education</h3>
+<p>
+Welcome to the Physics Education Research Group at the University of Minnesota!
+
+<p>
+Physics education research combines the application of fundamental knowledge about learning and the discipline specific knowledge of physics to investigate ways of making the teaching and learning of physics more effective
+and efficient, primarily at the university level.  It is an interdisciplinary area with strong roots in the two core disciplines of Physics and Education.  Students receive a PhD in either Physics or Education, depending
+on their choice, after a masters degree in another field of physics research.
+<p>
+The focus of the Minnesota physics education group has been the investigation of student difficulties with problem solving in the context of physics.  It applies its results to develop practical curricular materials and
+techniques that can be used by physics faculty members in typical physics departments.  This research has led to the development of problems that facilitate the learning of problem solving skills (Context-rich problems),
+a peer coaching pedagogy using a cooperative group framework (Cooperative problem solving), a problem solving framework for the use of students, a laboratory style that emphasizes problem solving, a program of educating
+and supporting teaching assistants, and a set of computer problem solving coaches.  The group also develops research methodology such as techniques to effectively determine the goals of non-physics faculty for physics
+courses, the interactions of individuals solving problems in groups, and techniques to determine the beliefs and values of physics faculty teaching introductory physics.  The group also develops assessment tools to
+evaluate student progress in problem solving, technical writing, and the correlation between algorithmic mathematical skills and problem solving.
+<p>
+Read more at the <a href="http://groups.physics.umn.edu/physed/">Physics Education group page</a>.
+
+<p>
+<& profiles.comp, group=>'edu' &>
+<& profiles.comp, type=>'Researchers', flag=>'research || postdoc', group=>'edu' &>
+<& profiles.comp, type=>'Graduate Students', flag=>'physgrad || astgrad', group=>'edu' &>
+<p>

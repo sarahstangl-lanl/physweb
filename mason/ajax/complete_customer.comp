@@ -1,0 +1,153 @@
+
+<%DOC>
+   Component: complete_people.comp
+        Date: 2008.03.07
+      Author: clayton
+     Changed: 2008.03.07 by clayton
+
++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++++++++++++++++
+    Not sure what is going on?!
+See https://zzz.physics.umn.edu/physnet/web/magic
++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++++++++++++++++
+</%DOC>
+
+<%ARGS>
+  $class       => 'auto_complete'
+  $id          => 'name'
+  $name        => 'name'
+  $div_id      => undef
+  $frequency   => 0.2
+  $plugin      => undef
+  $plugin_args => {}
+  $uid         => undef
+  $required    => 0
+  $prefix      => ''
+  $no_add_button => 0
+  $include_shop_customers => 0
+</%ARGS>
+
+<%INIT>
+  $m->comp('js.comp');
+  $m->comp('jsload.comp', file => 'input_hint.js');
+
+  if (!$div_id) { $div_id = $id . '_auto_complete'; }
+  my @args = ('look_for_name_here=' . $name . (defined($uid) ? '_display' : ''), "include_shop_customers=$include_shop_customers");
+  if (defined($plugin) && defined($plugin_args)) {
+    push @args, 'plugin=' . $m->interp->apply_escapes($plugin, 'h');
+    # escape the plugin arg names and values
+    my %escaped_plugin_args = map { $m->interp->apply_escapes($_, 'h') => $m->interp->apply_escapes($plugin_args->{$_}, 'h') } keys %$plugin_args;
+    @args = (@args, join('=', %escaped_plugin_args));  
+  }
+</%INIT>
+<div class="<% $class |h %>" id="<% $div_id |h %>" style="overflow-y: auto; max-height: 300px;"></div>
+<script type="text/javascript">
+/* <![CDATA[ */
+% if (defined($uid)) {
+  completerElement = $('<% $id |h %>');
+  completerElement.value = unescape('<% $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid => $uid, include_shop_customers => $include_shop_customers) |u %>');
+  completerElement.observe('keypress', function (e) {
+      switch(e.keyCode) {
+          case Event.KEY_TAB:
+          case Event.KEY_RETURN:
+              Event.stop(e);
+          default:
+              this.uidElement.value = '';
+      }
+  }.bind(completerElement));
+  uidElement = new Element('input', { id: completerElement.id + '_uid', type: 'hidden', name: completerElement.name, value: '<% $uid |h %>' });
+  completerElement.validateMethod = function() {
+      if (this.value && this.value != this.title && !this.uidElement.value) {
+          this.errorMsg = "Invalid customer. You must choose a customer from the list.";
+          return false;
+      }
+      <% $required ? 'else if (this.value == this.title || this.value == "") {
+          this.errorMsg = "' . ucfirst($id) . ' is required.";
+          return false;
+      }
+      ': '' %>return true;
+  };
+  completerElement.uidElement = uidElement;
+  completerElement.name = completerElement.name + '_display';
+  completerElement.parentNode.appendChild(uidElement);
+% }
+  completerElement.ac = new Ajax.Autocompleter('<% $id |h %>',
+			 '<% $div_id |h %>',
+			 '/include/complete_customer.html?<% join('&amp;', @args) %>',
+			 {
+                 frequency: <% $frequency %><% defined($uid) ? ',
+                 afterUpdateElement: function(el, li) {
+                     el.uidElement.value = li.id;
+                     if (el.clearError)
+                         el.clearError();
+                     contact_number = $("contact_number");
+                     if (li.readAttribute("phone") != "" && contact_number !== null && contact_number.value == "")
+                         contact_number.setValue(li.readAttribute("phone"));
+                 }' : '' %>
+             });
+% unless ($no_add_button) {
+  completerElement.addFormDiv = new Element('div').setStyle({ padding: '10px', border: '2px solid black', backgroundColor: '#ccc', display: 'none', zIndex: '10' });
+  completerElement.addFormDiv.appendChild(completerElement.addFormDiv.addFormContainer = new Element('div'));
+  addButton = new Element('img', { src: '/images/add.gif', alt: 'Add New Customer', title: 'Add New Customer' });
+  addLink = new Element('a', { href: '#' }).setStyle({ position: 'relative', top: '2px', left: '3px' });;
+  closeButton = new Element('img', { src: "/images/close-icon.png", alt: "Close", title: "Close" }).setStyle({ cursor: 'pointer', position: 'absolute', top: '-15px', right: '-15px' });
+  closeButton.observe('click', function () { this.addFormDiv.hide() }.bind(completerElement));
+  addLink.observe('click', function(e) {
+      new Ajax.Request('customer.html', {
+        method: 'get',
+        parameters: { ajax: 1, prefix: '<% $prefix %>' },
+        onSuccess: function(response) {
+          this.addFormDiv.addFormContainer.update(response.responseText);
+          viewportOffsets = document.viewport.getScrollOffsets();
+          viewportDims = document.viewport.getDimensions();
+          parentOffsets = this.addFormDiv.getOffsetParent().cumulativeOffset();
+          t = viewportOffsets.top + (viewportDims.height / 2) - (this.addFormDiv.getHeight() / 2) - parentOffsets.top + 'px';
+          left = viewportOffsets.left + (viewportDims.width / 2) - (this.addFormDiv.getWidth() / 2) - parentOffsets.left + 'px';
+          this.addFormDiv.setStyle({ position: 'absolute', display: 'inline', top: t, left: left });
+          this.addForm = this.addFormDiv.down('form');
+          this.addForm.observe('submit', this.addFormSubmit);
+        }.bind(this)
+      });
+  }.bind(completerElement));
+  addLink.appendChild(addButton);
+  completerElement.addFormDiv.insert({ top: closeButton });
+  completerElement.insert({ after: completerElement.addFormDiv });
+  completerElement.insert({ after: addLink });
+  completerElement.addFormSubmit = function(e) {
+      e.stop();
+      this.addForm.request({
+          parameters: { ajax: 1 },
+          onSuccess: function(response) {
+              try {
+                  json = response.responseText.evalJSON();
+                  new Ajax.Request('/include/complete_customer.html', {
+                      method: 'get',
+                      parameters: { uid: json.uid },
+                      onSuccess: this.updateCustomer,
+                  });
+              }
+              catch (e) {
+                  this.addForm.stopObserving('submit');
+                  this.addFormDiv.addFormContainer.update(response.responseText);
+                  this.addForm = this.addFormDiv.down('form');
+                  this.addForm.observe('submit', this.addFormSubmit);
+              }
+          }.bind(this)
+      });
+  }.bind(completerElement);
+  completerElement.updateCustomer = function(response) {
+      account = new Element('div').update(response.responseText);
+      li = account.down('li');
+      this.value = Element.collectTextNodesIgnoreClass(li, 'informal');
+      this.removeClassName('hinted');
+      this.addFormDiv.hide();
+      this.ac.options.afterUpdateElement(this, li);
+  }.bind(completerElement);
+% }
+  completerElement.ac.onClickRender = function() { this.hasFocus = true; this.onObserverEvent(); }
+  completerElement.writeAttribute('title', 'Name, Internet ID, or Physics ID');
+  completerElement.observe('click', completerElement.ac.onClickRender.bind(completerElement.ac));
+  hintInput(completerElement.id);
+/* ]]> */
+</script>

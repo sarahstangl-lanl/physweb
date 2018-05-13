@@ -1,0 +1,187 @@
+<%doc>
+  vim:set syntax=mason:
+</%doc>
+<%args>
+$old => undef
+$bfold => undef
+$debug => 0
+</%args>
+<%init>
+  use Time::Duration;
+ 
+  $old = 14 unless $old;
+  $bfold = 9 unless $bfold;
+</%init>
+<%method title>
+Bigfix Registrations
+</%method>
+<h2>On the General, Dynamic and Space VLANs</h2>
+<p>
+Shows hosts which have been seen within the last 90 days but have not checked in  with Bigfix (either never or within 7 days of the last seen time).
+</p>
+<!--
+<form>
+Last seen more recently than: <input type="text" name="old" value="<% $old |h %>" /> days<br />
+Bigfix older than: <input type="text" name="bfold" value="<% $bfold |h%>" /> (or never)<br />
+<input type="submit" value="View" />
+</form>
+<br />
+<br />
+-->
+
+<%perl>
+
+
+my $where_str = "
+                 last_seen IS NOT NULL 
+             AND last_seen >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY) 
+             AND  (
+                     (
+                        (last_seen_bigfix IS NULL OR last_seen_bigfix < (DATE_SUB(last_seen, INTERVAL 7 DAY)))
+                        AND (rundate IS NULL OR rundate < (DATE_SUB(last_seen, INTERVAL 7 DAY))) /* Remove this line some day */
+                     AND (security_status='required' OR ((net_hosts.os='mac' OR net_hosts.os='windows') AND (vlan='general' OR vlan='dynamic' OR vlan='space')) )
+                     )
+                     OR (
+                         runlog.uname LIKE 'MAC OS X 10.5%'
+                         OR runlog.uname LIKE 'MAC OS X 10.4%'
+                     )
+                  )
+";
+
+# Wrap hosts without dns entries in parenthesis
+my $name_formatter = sub {
+    my ($text, $disp_format, $vars) = @_;
+    my %vars = %$vars;
+    my $editlink = ' <a href="edit_host_form.html?id='. $vars{'id'}.'"><img border="0" alt="edit" src="/images/imgsel_edit.png"></a>';
+    
+    if ($vars{'has_dns'}) {
+        return $text.$editlink;
+    } else {
+        return '(' . $text . ')'.$editlink;
+    }
+};
+
+$m->comp('/mason/db/tablesearch.comp',
+    table              => 'net_hosts',
+    joins              => [
+                            'net_interfaces' => 'net_interfaces.host_id = net_hosts.id',
+                            'net_dns' => 'net_dns.interface_id = net_interfaces.id',
+                            'directory' => 'net_hosts.admin_uid = directory.uid',
+                            'cfengine.runlog' => "(net_hosts.id = runlog.host_id AND source = 'bigfix')", 
+                          ],
+    where              => [ $where_str ],
+
+    field_list         => [
+                            "CONCAT(directory.last_name, ', ', directory.first_name) AS owner",
+                            'directory.email AS email',
+                            'net_dns.hostname IS NOT NULL AS has_dns',
+                            "IF(net_dns.hostname IS NOT NULL, CONCAT(net_dns.hostname, '.', net_dns.domain), net_hosts.computer_name) AS name", 
+                            'net_hosts.room',
+                            'net_interfaces.hwa', 
+                            'net_hosts.os',
+                            'net_interfaces.vlan',
+                            'security_status',
+                            'flag_noncompliant',
+                            'runlog.uname',
+                            'directory.inactive as dir_inactive',
+                            'UNIX_TIMESTAMP(DATE_ADD(noncompliant_date, INTERVAL 14 DAY)) as disable_date',
+                            'IF(last_seen_bigfix > runlog.rundate, UNIX_TIMESTAMP(last_seen_bigfix), UNIX_TIMESTAMP(runlog.rundate)) AS rundate',
+                            'UNIX_TIMESTAMP(last_seen) as net_last_seen',
+                            'directory.uid',
+                            'net_hosts.id',
+                          ],
+    field_params       => {
+                             'name'    => {
+                                            'url'  => 'host.html?id=$row{id}',
+                                            'data_format' => $name_formatter,
+                                          },
+                             'owner'   => {
+                                            data_format => sub {
+                                                my $val = shift;
+                                                my $self = shift;
+                                                my $row = shift;
+
+                                                my $ret = '<a href="/resources/admin/people/user.html?uid='.$row->{'uid'}.'">';
+                                                $ret .= $val;
+                                                $ret .= '</a>';
+                                                if($row->{'dir_inactive'}) {
+                                                    $ret .= " (INACTIVE)";
+                                                }
+                                                return $ret;
+                                            }
+                                          },
+                             'has_dns' => {
+                                            'hidden' => 1
+                                          },
+                             'uid'     => {
+                                            'hidden' => 1 
+                                          },
+                             'id'      => {
+                                            'hidden' => 1
+                                          },
+                             'dir_inactive' => {
+                                            'hidden' => 1,
+                                          },
+                             'uname' => {
+                                hidden => 1,
+                             },
+                             'net_last_seen' => {
+                                            'name' => 'Last seen',
+                                            'data_format' => sub { my $val = shift; if ($val) { return ago(time() - $val,1); } else { return 'NEVER'; } },
+                                            },
+                             'rundate' => {
+                                            'name' => 'Bigfix Report',
+                                            'data_format' => sub { 
+                                                                      my $val = shift; 
+                                                                      my $self = shift;
+                                                                      my $row = shift;
+                                                                      if ($val) { 
+                                                                           return ago(time() - $val,1); 
+                                                                      } 
+                                                                      else { 
+                                                                          return 'NEVER'; 
+                                                                      }
+                                                                  },
+                                          },
+                             'os'      => {
+                                            'name' => 'OS',
+                                          },
+                             'hwa'     => {
+                                            'name' => 'HWA',
+                                          },
+                             security_status => {
+                                name => "Security Status",
+                             },
+                             flag_noncompliant => {
+                                hidden => 1,
+                             },
+                             disable_date => {
+                                name => 'Compliance',
+                                data_format => sub {
+                                    my $val = shift;
+                                    my $self = shift;
+                                    my $row = shift;
+                                    if($row->{'flag_noncompliant'}) {
+                                       return "<span style=\"color: red;\">Disabled</span>";
+                                    }
+                                    if($val) {
+                                       return "Will disable ". ago(time() - $val, 1);
+                                    }
+                                    #                       Mac OS X 10.5.8
+                                    if($row->{'uname'} =~ /^Mac OS X 10\.[5432]/i) {
+                                        return "<span style=\"color: red;\">". $row->{'uname'}. "</span>";
+                                    }
+                                },
+                             },
+    
+                          },
+    excluded_search_fields => [ 'net_dns.hostname IS NOT NULL' ],
+    default_sort_field => 'name',
+    default_sort_dir   => 'asc',
+    header_format      => 'ucfirst',
+    limit              => 500,
+    debug              => $debug,
+    excel_link => 1,
+    extra_url_args => ['debug', 'old', 'bfold'],
+);
+</%perl>

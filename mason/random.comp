@@ -1,0 +1,39 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: random.comp
+        Date: 2/28/2002
+      Author: allan
+ Description:
+</%doc>
+
+To use this component:
+
+init block
+two or more item blocks
+execute block
+
+<%shared>
+my %blocks;
+</%shared>
+
+%# item method - Add an item (block of text) to the stack
+<%method item>
+<%args>
+$name
+</%args>
+<%perl>
+push @{$blocks{$name}}, $m->content;
+</%perl>
+</%method>
+
+%# Execute method - Choose an item randomly and print it
+<%method execute>
+<%args>
+$name
+</%args>
+<%perl>
+my $total = @{$blocks{$name}};
+my $random = int( rand($total) );
+$m->out($blocks{$name}[$random]);
+</%perl>
+</%method>

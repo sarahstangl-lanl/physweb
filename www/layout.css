@@ -1,0 +1,1144 @@
+/* 
+  Stylesheet Created April 2007 by Alex Schumann
+
+  University of Minnesota Physics Website
+
+
+  This file should only contain styles relevant to the template. Content stylings should go in main.css
+ */
+
+   body {
+     margin: 0px;
+     padding: 0px;
+     font-family: "Lucida Grande", Lucida, Helvetica, Arial, sans-serif; 
+     font-family: sans-serif;
+     background-position: left;
+     background-repeat: repeat-y;
+     min-width: 960px;
+     background-image: url(/images/physics_leftcol_background_shader.jpg); 
+     background-repeat: no-repeat;
+     background-position: -6px 0px;
+   }
+   #top {
+     overflow: hidden;
+     height: 35px;
+     border-bottom: 1px solid black;
+     width: 100%;
+     margin: 0;
+     padding: 0;
+   }
+   img#wordmark{
+     border: none;
+     padding: 0; margin: 0;
+     border-right: 1px solid black;
+   }
+
+   #phys {
+     height: 65px;
+     margin: 0px;
+     background: black;
+     background-image: url(/images/physics_web_header_background_shader.jpg);
+     background-repeat: no-repeat;
+     overflow: hidden;
+   }
+   #phys_logo_text {
+     /* School of Physics & Astronomy logo placeholder */
+     padding-left: 20px;
+     padding-top: 10px;
+     padding-right: 6000;
+     white-space: nowrap;
+     width: 600px;
+     float: left;
+     font-size: 34px;
+     text-indent: -6000px;
+     cursor: pointer;
+   } 
+   #leftcol {
+      position: absolute;
+      top: 0px;
+      left: 0px;
+      width: 178px;
+      padding: 0; margin: 0;
+      margin-top: 186px;
+    }
+   div#leftcontent {
+      padding: 5px;
+      padding-top: 0px;
+      font-size: 11pt;
+      line-height: normal;
+      font-weight: 600;
+      border-right: 1px solid black;
+      font-family: "Lucida Grande", Lucida, Helvetica, Arial, sans-serif;
+   }
+   div#contentblock {
+      border-top: 1px solid black;
+      border-left: 1px solid black;
+      margin: 0; padding: 0;
+      height: 100%;
+      /*      top right btm left */
+      margin: 0 0 0 177px;
+      background: white; 
+   }
+
+   div#footer {
+      clear: both;
+   }
+   div#footeraddress {
+        float: left;
+        color: white;
+        font-size: 10px;
+       padding: 10px 2px 10px 10px;
+   }
+   div#physfooter {
+       background: #411;
+       color: white;
+       text-align: right;
+       font-size: 10px;
+       padding: 10px 10px 10px 2px;
+   }
+   div#physfooter a:link, div#physfooter a:visited {
+    color: white;
+   }
+
+   div#background {
+        width: 100%;
+        height: 100%;
+        margin: 0; padding: 0;
+   }
+
+   div#page {
+      clear: both;
+      padding-top: 0;
+      margin-top: 0;
+      margin-left: 1em;
+      margin-right: 1em;
+      padding-bottom: 1em;
+      font-size: 13px;
+   }
+   div#page p {
+        margin: 0 0 0 0;
+        padding: 0.5em 0 0.5em 0;
+   }
+
+   h1#heading {
+      padding: 0;
+      margin: 0;
+      padding-left: 15px;
+      clear: right; /* put it under the breadcrumbs */
+   }
+   h2#heading,
+   h3#heading,
+   h4#heading,
+   h5#heading
+   {
+      padding: 0;
+      margin: 0;
+      padding-left: 15px;
+   }
+   /* obsolete */
+   div#related_sites {
+      margin-left: 0px;
+      width: 160px;
+      margin-top: 0.5em;
+      padding-bottom: 0.2em;
+      border: 1px solid #400;
+      border-top: none;
+      background: #F4EAEA;
+      margin-bottom: 0.5em;
+   }
+   /*
+    * related_links should be obsolete
+    * menulink1 used ONLY in LH column menu
+    * menulink 2+ are now unused anywhere */
+   div#related_sites h2.menulink1 {
+      font-size: 14px;
+      background: #400;
+      color:  #cf9c34;
+      color: white;
+      padding: 0;
+      margin: 0;
+      padding: 0.2em;
+      padding-left: 0.4em;
+   }
+   /* obsolete */
+   div#related_sites ul.menulink1 {
+      padding-left: 0.2em;
+      font-weight: 600;
+      font-size: 11pt;
+      font-family: "Lucidia Grande", Lucidia, Helvetica, Arial, sans-serif;
+   }
+   /* quicklinks will be unused once deleted */
+   div#quicklinks {
+      margin-left: 0px;
+      width: 160px;
+      margin-top: 0.5em;
+      padding-bottom: 0.2em;
+      border: 1px solid #400;
+      border-top: none;
+      background: #F4EAEA;
+      margin-bottom: 0.5em;
+   }
+   /* obsolete? */
+   div#quicklinks h2.menulink1 {
+      font-size: 14px;
+      background: #400;
+      color:  #cf9c34;
+      color: white;
+      padding: 0;
+      margin: 0;
+      padding: 0.2em;
+      padding-left: 0.4em;
+   }
+   /* obsolete? */
+   div#quicklinks ul.menulink1 {
+      padding-left: 0.2em;
+      font-weight: 600;
+      font-size: 11pt;
+      font-family: "Lucidia Grande", Lucidia, Helvetica, Arial, sans-serif;
+   }
+   /* used by login/myphys/status box on LH column */
+   div#login_info_box {
+      border: 1px solid black;
+      color: black;
+      background: #F4EAEA;
+      width: 160px;
+       padding: 5px;
+      padding-left: 0.2em;
+      font-weight: 600;
+      font-size: 11pt;
+  }
+   /* why on earth do we tie these together? */
+   div#login_info_box h2.menulink1 {
+      font-size: 14px;
+      background: #400;
+      color:  #cf9c34;
+      color: white;
+      padding: 0;
+      margin: 0;
+      padding: 0.2em;
+      padding-left: 0.4em;
+   }
+   /* box in left menu */
+   div#quicklinks {
+      width: 160px;
+      margin-top: 0.5em;
+      padding-bottom: 0.2em;
+      border: 1px solid #400;
+      border-top: none;
+      background: #F4EAEA;
+      margin-bottom: 0.5em;
+   }
+   div#quicklinks h2.menulink1 {
+      font-size: 14px;
+      background: #400;
+      color:  #cf9c34;
+      color: white;
+      padding: 0;
+      margin: 0;
+      padding: 0.2em;
+      padding-left: 0.4em;
+   }
+   div#quicklinks ul.menulink1 {
+      padding-left: 0.2em;
+   }
+
+   div#linkbox a:link, div#linkbox a:visited, div#linkbox a:active {
+        color: white;
+        font-size: 10px;
+    
+   }
+   div#linkbox {
+        /*
+        position: absolute; 
+        right: 0;
+        */
+        float:right;
+        padding-top: 0px;
+        color: white;
+        background: #400;
+        font-size: 15px;
+        text-align: right;
+        line-height: 28px;
+        -moz-border-radius: 0px 0px 0px 10px;
+        border-radius: 0px 0px 0px 10px;
+   }
+   div#linkbox_links {
+        text-align: center;
+        padding-bottom: 2px;
+        padding-right: 25px;
+        padding-left: 25px;
+   }
+   #gradapp_announcement {
+        background: white;
+        color: black;
+        padding: 0 5px 0 14px;
+        font-size: 10px;
+        -moz-border-radius: 0px 0px 0px 10px;
+        border-radius: 0px 0px 0px 10px;
+        font-weight: bold;
+   }
+   #gradapp_announcement_form {
+        display: inline;
+        padding: 0;
+        margin: 0;
+   }
+   #gradapp_announcement_button {
+        border: 1px solid black; 
+        opacity: 1; 
+        color: black;
+        margin-top: 0px;
+        font-size: 1.1em;
+        font-weight: bold;
+        background-color: #FC2;
+        margin-left: 10px;
+        margin-right: 10px;
+        cursor: pointer;
+   }
+   #gradapp_announcement_button:hover {
+    background: #FD3;
+   }
+   div#searchform {
+   }
+   .searchgo {
+        border: 1px solid #999; 
+        border: 1px solid black; 
+        background-color: #7A0019; 
+        background-color: #a86;
+        background-color: #440000;
+        background-color: #c93;
+        color: white;
+        color: black;
+   }
+   .searchgo:hover {
+      color: #fff;
+   }
+   .searchgo:active {
+      background-color: white;
+      background-color: black;
+      color: #f4c33a;
+   }
+   .searchbox {
+      border: 1px solid black;
+      background-color: #fed;
+      background-color: #eee;
+    }
+
+   /* TODO: Remove menulink 2-5 when done converting website to new before/after title menus */
+
+   /* Menu indent levels */
+   ul.menulink, ul.menulink1, ul.menulink2,
+   ul.menulink3, ul.menulink4, ul.menulink5 {
+      list-style-position: outside; 
+      padding: 0px; margin: 0px;
+   }
+   ul.menulink li, ul.menulink1 li, ul.menulink2 li,
+   ul.menulink3 li, ul.menulink4 li, ul.menulink5 li {
+      display: block;
+      list-style-type: none;
+      padding-bottom: 3px;
+      padding-top: 3px;
+      line-height: 0.9em;
+   }
+   a:link.menulink, a:visited.menulink,
+   a:link.menulink1, a:visited.menulink1, 
+   a:link.menulink2, a:visited.menulink2,
+   a:link.menulink3, a:visited.menulink3,
+   a:link.menulink4, a:visited.menulink4,
+   a:link.menulink5, a:visited.menulink5 {
+      color: black;
+      text-decoration: none;
+   }
+   a:hover.menulink, a:hover.menulink1,
+   a:hover.menulink2, a:hover.menulink3,
+   a:hover.menulink4, a:hover.menulink5 {
+      color: #333;
+   }
+   ul.menulink1 {
+   }
+   a:link.menulink1, a:visited.menulink1 {
+   }
+       ul.menulink2 {
+         margin-left: 1em;
+       }
+       a:link.menulink2, a:visited.menulink2 {
+         font-size: 0.8em;
+       }
+       h2.menulink2 {
+         font-size: 1.2em;
+         padding-top: 0px;
+         margin-top: 0px;
+       }
+           ul.menulink3 {
+             margin-left: 1em;
+           }
+           a:link.menulink3, a:visited.menulink3 {
+             font-size: 0.8em;
+           }
+           h2.menulink3 {
+             font-size: 1em;
+             padding-top: 0px;
+             margin-top: 0px;
+           }
+               ul.menulink4 {
+                 margin-left: 1em;
+               }
+               a:link.menulink4, a:visited.menulink4 {
+                 font-size: 0.8em;
+               }
+                   ul.menulink5 {
+                     margin-left: 1em;
+                   }
+                   a:link.menulink5, a:visited.menulink5 {
+                     font-size: 0.7em;
+                   }
+   .menulink a:hover .thelink {
+      text-decoration: underline;
+   }
+   div#whereami_container {
+    background: #333 url("/images/horizmenu/background_above.gif");
+    background-size: 100%;
+    width: 100%;
+   }
+   div#whereami {
+      padding: 0;
+      margin: 0;
+      padding-bottom: 3px;
+      padding-left: 5px;
+      font-size: small;
+      color: #999;
+   }
+   div#whereami a {
+    color: #ddd;
+   }
+
+   /* Playing with horizontal menu */
+   div#titlemenu_above {
+        padding-left: 0px;
+        background: #333 url("/images/horizmenu/background_above.gif");
+        background-size: 100%;
+        font-size: 93%;
+        line-height: normal;
+        float: left;
+        width: 100%;
+   }
+   div#titlemenu_above ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+   }
+   div#titlemenu_above ul li {
+        height: 20px;
+        float: left;
+        margin: 0;
+        padding: 0;
+   }
+   div#titlemenu_above a {
+       display: block;
+       padding: 2px 13px 0px 13px;
+       color: white;
+       text-transform:uppercase;
+       font-family: arial, helvetica,sans-serif;
+       font-weight: bold;
+       font-size: 0.8em;
+   }
+   div#titlemenu_above ul li.titlemenu_current {
+       background: #aaa url("/images/horizmenu/background_below.gif");
+       border-bottom: none;
+       -moz-border-radius: 4px 4px 0px 0px;
+            border-radius: 4px 4px 0px 0px;
+   }
+   div#titlemenu_above ul li.titlemenu_current a {
+       display: block;
+       border-bottom: none;
+       color: black;
+   }
+
+   div#pagetitle {
+    background: #aaa url("/images/horizmenu/background_below.gif");
+    background-size: 100%;
+    padding: 5px 0 5px 0;
+    clear: both;
+    color: black;
+   }
+
+   div#titlesearchbar {
+        background: #aaa  url("/images/horizmenu/background_below.gif");
+        color: black;
+   }
+   div#titlesearchbar a {
+        color: white;
+   }
+
+   /* Below menu */
+   div#titlemenu_below {
+        padding-left: 0px;
+        background: #888 url("/images/horizmenu/background_below.gif");
+        background-size: 100%;
+        font-size: 93%;
+        line-height: normal;
+        float: left;
+        width: 100%;
+        margin-bottom: 10px; /* Put some space before the page content */
+   }
+   div#titlemenu_below ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+   }
+   div#titlemenu_below ul li {
+        height: 20px;
+        float: left;
+        margin: 0;
+        padding: 0;
+   }
+   div#titlemenu_below a {
+       display: block;
+       padding: 4px 12px 0px 12px;
+       color: white;
+       text-transform:uppercase;
+       font-family: arial, helvetica, sans-serif;
+       font-weight: normal;
+       font-size: 0.8em;
+   }
+   div#titlemenu_below ul li.titlemenu_current {
+       background: #Fff;
+       border-below: none;
+       -moz-border-radius: 4px 4px 0px 0px;
+            border-radius: 4px 4px 0px 0px;
+   }
+   div#titlemenu_below ul li.titlemenu_current a {
+       display: block;
+/*       background: #Fff;*/
+       border-below: none;
+       color: black;
+   }
+
+   div#titlemenu_side {
+        float: right;
+        border: 1px solid black;
+        background: #ddd;
+        margin: 5px;
+   }
+   div#titlemenu_side ul {
+        padding: 0px 10px;
+        list-style: none;
+ 
+   }
+
+
+
+   /* body div#whereami a:visited { */
+
+  body li a:link.selected .thelink, a:visited.selected .thelink {
+    text-decoration: underline !important;
+  }
+
+  div#contentblock div.undertitlemenu {
+    margin: 0; padding: 0;
+  }
+  div.undertitlemenu ul.menulink3 {
+     font-size: 1.4em;
+     font-weight: bold;
+  }
+  div.undertitlemenu ul.menulink4 {
+     font-size: 1.2em;
+     padding-left: 1em;
+     font-weight: bold;
+  }
+  div.undertitlemenu ul.menulink5 {
+     font-size: 1.2em;
+     padding-left: 2.0em;
+     font-weight: bold;
+  }
+
+
+  div.undertitlemenu ul {
+     clear: both;
+  }
+  div.undertitlemenu ul li {
+     float: left;
+  }
+
+
+  /* This is used on the network/admin.html page to put
+   * the menu menulink5 inside a table */
+  div.embedmenu ul li {
+    float: left;
+  }
+
+   #leftcol h2 {
+      margin: 0px;
+      padding: 0px;
+      padding-top: 8px;
+   }
+
+   #leftcol_related_box {
+        font-family: "Lucida Grande", Lucida, Helvetica, Arial, sans-serif;
+        padding-top: 10px;
+        padding-bottom: 10px;
+   }
+   #leftcol_related_box_hdr {
+        font-size: 14px;
+        font-weight: 600;
+        line-height: normal;
+
+        color: white;
+        background: #400;
+        margin: 0;
+        border-top: 3px none #993300;
+        border-left: none;
+        border-bottom: none;
+        border-right: 1px solid black;
+        padding: 5px 0px 2px 10px;
+        margin: 10px 0 0;
+   }
+   #leftcol_related_box_bdy {
+        margin: 0px;
+        background-color: #f4eaea;
+        background-color: #c09090;
+        padding-top: 5px;
+        padding-right: 10px;
+        padding-bottom: 10px;
+        padding-left: 10px;
+        border-right: 1px solid black;
+        font-size: 12px;
+        font-weight: bold;
+   }
+   #leftcol_related_box ul {
+        list-style-type: none;
+        margin: 0;
+        padding: 0;
+   }
+   #leftcol_related_box ul li {
+        padding-bottom: 1px;
+        padding-top: 0px;
+   }
+   #leftcol_related_box a {
+    color: black;
+   }
+
+   #physloginname {
+        padding: 0;
+        margin: 0;
+        padding-left: 4px;
+        font-weight: normal;
+   }
+
+   /* address block */
+   div.address {
+      padding: 0; margin: 0;
+      /* background-color: white; */
+      border-right: 1px solid black;
+      padding-top: 0.1em;
+   }
+   div.contact_information_hdr {
+    font-family: "Trebuchet MS", "Lucida Grande", LucidaGrande, Lucida, Helvetica, Arial, sans-serif;
+    font-weight: bold;
+    font-size: 10px;
+    color: #ffffff;
+    margin: 0px;
+    margin-left: 5px;
+    /*
+    margin-top: 10px;
+    margin-left: 5px;
+    margin-right: 5px;
+    */
+    border-top: 3px none #993300;
+    text-transform: uppercase;
+    /*
+    border-bottom: none #dedabe;
+    border-left: none #dedabe;
+    */
+    background: #400;
+    padding: 5px 0px 5px 10px;
+    letter-spacing: 0.3em;
+    /*
+    padding-top: 5px;
+    padding-right: 10px;
+    padding-bottom: 2px;
+    padding-left: 10px;
+    */
+    width: 152px;
+   }
+   div.contact_information_bdy{
+    font-family: Verdana, Arial, Helvetica, sans-serif;
+    margin: 0px;
+    background-color: #f9f3d4;
+
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-left: 10px;
+
+    border-right: 1px solid black;
+    border-bottom: 1px solid black;
+    border-left: 1px solid black;
+    font-size: 10px;
+    font-weight: bold;
+    margin-left: 5px;
+    width: 150px;
+   }
+   div.contact_information_bdy a:link,
+   div.contact_information_bdy a:visited
+   {
+       color: #f44;
+       color: #900;
+   }
+
+   ul.rss_feed{
+      padding: 0; margin:0;
+   }
+   li.rss_item{
+      padding: 0; margin: 0;
+      font-size: small;
+      margin-top: 1em !important;
+   }
+
+   /* 3 column boxes on front page: */
+   div#boxes div.news{
+      font-size: small;
+      font-size: 12px;
+   }
+   div#boxes div.news h4 {
+    clear: both;
+   }
+   div#boxes div.columnblock {
+      padding-bottom: 1em;
+   }
+   div.news img.frontpagestoryimage {
+      float: left;
+      padding-right: 0.4em;
+      padding-top: 0.4em;
+   }
+   div#boxes div.news p {
+      margin: 0px; 
+      padding: 0px;
+   }
+   div#boxes div.news p.readmore {
+    padding: 0; margin: 0;
+    padding-top: 0.2em;
+    padding-bottom: 0.2em;
+   }
+   div.news h4{
+     text-align: left;
+     line-height: 21px;
+     line-height: 16px;
+     padding: 0; margin: 0;
+     margin-top: 1em;
+     text-transform: uppercase;
+   }
+   div.recentpub div.news h4.event{
+     text-transform: none;
+     line-height: 14px;
+   }
+   div.news p{
+     padding: 0; margin: 0;
+   }
+
+   /* Front page columns */
+
+   div#boxes{
+        padding-left: 0.2em;
+   }
+   div#one{
+        margin-right: 400px;
+   }
+   div#two{
+        position: relative;
+   }
+   #contentblock h2.fpcolumn{
+     text-transform: uppercase;
+     text-indent: 0.0em;
+     font-size: 18pt;
+     font-weight: normal;
+     padding-top: 0;
+     margin: 0;
+   }
+   .calbox h2.fpcolumn {
+      text-indent: 0.5em !important;
+   }
+
+   div#boxes div.space{
+      height: 2.4em;
+      float: left;
+   }
+   hr{
+     border: 1px solid #AAA;
+   }
+
+   .insert_image_comp {
+     padding: 5px;
+
+  }
+
+/* general headline setup */
+div#page h1,
+div#page h2,
+div#page h3,
+div#page h4,
+div#page h5 {
+    font-size: 100%;
+    font-weight: normal;
+    margin: 0em 0 0 0;
+    padding: 0.5em 0.1em 0 0;
+    text-align: left;
+}
+
+/* special headlines */
+div#page h1 {font-size: 160%; font-weight: bold;}
+div#page h2 {font-size: 150%;}
+div#page h3 {font-size: 140%; border-bottom: none; font-weight: bold;}
+div#page h4 {font-size: 120%; border-bottom: none; font-weight: bold;}
+div#page h5 {font-size: 100%; border-bottom: none; font-weight: bold;}
+
+/* Fix annyance of named a's having hover properties... */
+#page a[name]:hover {
+  color: inherit; background: inherit; text-decoration: inherit;
+}
+
+span.sitemap_info {
+   color: #777;
+   font-size: 80%;
+}
+span.sitemap_info:before {
+  content: '(';
+}
+span.sitemap_info:after {
+  content: ')';
+}
+div.sitemap ul, div.sitemap.ul li {
+         list-style-type: none;
+      }
+
+div.admin_panel {
+    font-size: 0.6em;
+    padding: 0; margin: 0;
+    white-space: nowrap;
+}
+
+div.back {
+  clear: both;
+}
+
+.right {
+  float: right;
+}
+
+div.rightmenu {
+    float: right;
+    border: 1px solid black;
+    margin: 0;
+    padding: 0.5em 1em 0.5em 1em;
+    background: #ffd;
+    margin: 0.5em;
+    margin-right: 0px;
+}
+
+div.rightmenu h4 {
+ padding-top: 0em;
+}
+
+.large {
+  font-size: 120%;
+  font-weight: bold;
+}
+
+ul.related {
+   margin-left: 0em;
+   padding-left: 1em;
+   text-align: left;
+   list-style-type: none;
+   list-style-position: outside;
+   margin-right: 0.5em;
+   line-height: 1em;
+}
+ul.related li {
+   margin: 0.4em 0 0.4em 0;
+}
+
+
+
+/* Calendar */
+div.calendar {
+}
+
+div.cal_day {
+  width: auto;
+}
+div.cal_item {
+  padding: 0.0em 0 0.4em 0;
+}
+div.cal_day_title {
+
+  font-size: 1.4em;
+  font-weight: bold;
+  border-bottom: 1px solid black;
+  padding-bottom: 0.1em;
+  margin-bottom: 0.1em;
+}
+
+div.cal_panel a.selected { text-decoration: underline !important; }
+
+div#page div.calendar div.cal_heading h1.cal_heading {
+  padding: 0; 
+  margin: 0;
+  padding-bottom: 0.5em;
+}
+
+div.cal_title {
+  margin-top: 0.0em;
+}
+
+div.cal_title, div.cal_speaker, div.cal_subject, div.cal_info, div.cal_abstract, div.cal_edit, div.cal_status, div.cal_readmore {
+   margin-left: 5em;
+}
+
+div.cal_time {
+  float: left;
+}
+
+div.calbox a[name]:hover {
+  color: black !important;
+  text-decoration: none !important;
+}
+
+div.calbox {
+  padding-bottom: 1em;
+    xxborder: 1px solid black;
+    margin: 0;
+    padding: 0 0 0.5em 0;
+    xxbackground: #f9f3d4;
+    xxxbackground: #999;
+    font-size: 11px;
+    width: 100%;
+    xx-moz-border-radius: 10px 10px 10px 10px;
+    xxborder-radius: 10px 10px 10px 10px;
+}
+
+/* Front page calendar */
+div.fpcalendar {
+  padding: 1em;
+  padding-top: 1.1em;
+  padding-bottom: 0;
+}
+
+div.fpcal_day {
+  width: auto;
+  padding-bottom: 0.5em;
+}
+div.fpcal_item {
+  padding: 0.0em 0 0.4em 0;
+}
+div.fpcal_day_title {
+  font-size: 1.1em;
+  border-bottom: 1px solid #900;
+  padding-bottom: 0.0em;
+  margin-bottom: 0;
+  clear: left;
+}
+
+div.fpcal_item {
+  text-align: left;
+  font-weight: normal;
+  margin-top: 0.0em;
+}
+div.fpcal_title {
+  margin-left: 6em;
+  line-height: 1.5em;
+}
+
+div.fpcal_time {
+  float: left;
+  margin: 0; padding: 0;
+  line-height: 1.5em;
+}
+
+div.fpcal_info {
+  font-style: italic;
+}
+
+
+/*
+** New dualMagic Login CSS
+** From silverorange.com
+*/
+
+#loginbox {
+	border: 1px solid #666;
+	clear: both;
+	background: #FFF3B3;
+	padding: 0.75em;
+}
+
+#loginbox.physbox {
+	background: #B7C3FF;
+}
+
+#loginhead {
+	position: relative;
+	width: 100%;
+	height: 3em;
+	width: 45em; /* a width is required for Opera, older Mozilla browsers, and Konqueror browsers */
+}
+
+#loginhead ul#primary {
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	bottom: -1px;
+	width: 45em; /* a width is required for Opera, older Mozilla browsers, and Konqueror browsers */
+}
+
+#loginhead ul#primary li  {
+	display: inline;
+	list-style: none;
+}
+
+#loginhead ul#primary a,#loginhead ul#primary span,#loginhead ul#primary a.current {
+	width: 10em;
+	display: block;
+	float: left;
+	padding: 4px 0;
+	margin: 1px 2px 0 0;
+	text-align: center;
+	font-family: tahoma, verdana, sans-serif;
+	font-size: 85%;
+	text-decoration: none;
+	color: #333;
+}
+
+#loginhead ul#primary span,#loginhead ul#primary a.current,#loginhead ul#primary a.current:hover {
+	border: 1px solid #666;
+	border-bottom: none;
+	background: #FFF3B3;
+	padding-bottom: 6px;
+	margin-top: 0;
+}
+
+#loginhead ul#primary li#login_tab_phys span,#loginhead ul#primary li#login_tab_phys a.current,#loginhead ul#primary li#login_tab_phys a.current:hover {
+	background: #B7C3FF;
+}
+
+#loginhead ul#primary li#login_tab_phys a {
+	background: #EDF0FF;
+}
+
+
+#loginhead ul#primary li#login_tab_phys a:hover {
+	background: #DBE1FF;
+}
+
+#loginhead ul#primary a {
+	background: #FFFAE1;
+	border: 1px solid #AAA;
+	border-bottom: none;
+}
+
+#loginhead ul#primary a:hover {
+	margin-top: 0;
+	border-color: #666;
+	background: #FFF7CD;
+	padding-bottom: 5px;
+}
+
+img.rssicon, img.facebookicon, img.twittericon {
+    padding: 0.1em;
+    margin: 0;
+    padding-top: 0.1em;
+    padding-left: 0.1em;
+    padding-right: 0.3em;
+    border: none;
+    float: left;
+}
+
+div.sectionendblock {
+    border-top: 1px solid black;
+    margin-top: 0.8em;
+    padding-top: 0.8em;
+    padding-bottom: 0.3em;
+    line-height: 1.2em;
+    clear: left;
+}
+
+/* calendar.comp */
+
+div.popcalendar
+{
+  font-size: smaller;
+  color: #000;
+}
+
+div.popcalendar.popup
+{
+  margin-left: -40px;
+  margin-top: -100px;
+}
+
+div.popcalendar table
+{
+  background-color: #eee;
+  border: 1px solid #aaa;
+  border-collapse: collapse;
+}
+
+div.popcalendar thead {
+  background-color: white;
+}
+
+div.popcalendar td,
+div.popcalendar th
+{
+  padding: 3px;
+  text-align: center;
+}
+
+div.popcalendar td.title
+{
+  font-weight: bold;
+}
+
+div.popcalendar th
+{
+  background: #ddd;
+  border-bottom: 1px solid #ccc;
+  border-top: 1px solid #ccc;
+  font-weight: bold;
+  color: #555;
+}
+
+div.popcalendar tr.days td {
+  width: 2em;
+  color: #555;
+  text-align: center;
+  cursor: pointer;
+}
+
+div.popcalendar tr.days td:hover,
+div.popcalendar td.button:hover
+{
+  background-color: #34ABFA;
+  cursor: pointer;
+}
+
+div.popcalendar tr.days td:active
+div.popcalendar td.button:active
+{
+  background-color: #cde;
+}
+
+div.popcalendar tr.days td.selected
+{
+  font-weight: bold;
+  background-color: #fff;
+  color: #000;
+}
+
+div.popcalendar tr.days td.today
+{
+  font-weight: bold;
+  color: #D50000;
+}
+
+div.popcalendar tr.days td.otherDay
+{
+  color: #bbb;
+}

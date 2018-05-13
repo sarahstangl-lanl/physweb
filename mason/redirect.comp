@@ -1,0 +1,14 @@
+<%doc>
+   Component: redirect.comp
+        Date: 9/3/2002
+      Author: allan
+ Description: redirect to another page
+</%doc>
+
+<%args>
+$url
+</%args>
+
+<%init>
+$m->redirect($url);
+</%init>

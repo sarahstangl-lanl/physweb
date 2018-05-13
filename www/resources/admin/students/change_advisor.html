@@ -1,0 +1,93 @@
+<%args>
+    $uid
+    %auths
+    
+    $year
+    $semester
+    
+    $new_advisor => undef
+    $action => undef
+</%args>
+
+<h2>Change Advisor</h2>
+
+<%init>
+    if (!$auths{'progreport'} && !$auths{'appointment'}) { $m->redirect('index.html'); }
+    if (!$uid) { $m->redirect('index.html'); }
+    
+    my $retval = 0;
+    
+    my ($advisor, $prog_year, $new_advisor_uid);
+
+    my $report_sth = $m->comp('/mason/db/students/progress_report.comp:query', uid => $uid, max_year => $year, max_semester => $semester);
+    
+    if (my $row = $report_sth->fetchrow_hashref()) {
+        $advisor = $row->{'advisor'};
+        $prog_year = $row->{'record_year'};
+    }
+    
+    if ($action) {
+        if (my $finder = $m->comp('/mason/ajax/people_finder.comp', name => $new_advisor, limit => 1)) {
+            if (my $row = $finder->fetchrow_hashref()) {
+                $new_advisor_uid = $row->{'uid'};
+            }
+        }
+        
+        if ($new_advisor_uid || !$new_advisor) {
+            # Either we found the person or they want us to clear the advisor out
+             
+            if (defined($prog_year)) {
+                my $sth = $dbh->prepare('
+                    UPDATE gradprogress
+                    SET advisor=?
+                    WHERE uid=? AND record_year=?');
+                    
+                $sth->execute($new_advisor_uid, $uid, $prog_year)
+                    or die 'Report update failed: ' . $dbh->errstr;
+                    
+                $advisor = $new_advisor_uid;
+            
+            } else {
+                my $sth = $dbh->prepare('
+                    INSERT INTO gradprogress (advisor, uid, record_year)
+                    VALUES (?, ?, ?)');
+                    
+                # If they do not already have a progress report we need to be careful creating one.
+                # Doing it wrong can screws up the whole Missing Progress Report thing. (Make it look like they
+                # submitted one, when they haven't.) So let's create one in year 0 which will get pulled for
+                # as the latest but be considered old.
+                    
+                $sth->execute($new_advisor_uid, $uid, 0)
+                    or die 'Report insert failed: ' . $dbh->errstr;
+                
+            }
+        } else {
+            print $m->comp('/mason/notice_box.comp', type => 'error', text => 'Unable to find the given person. Advisor is unchanged.');
+            $retval = 'noredirect';
+        }
+    }
+    
+    my $advisor_name = $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid => $advisor);
+</%init>
+
+<form method="POST" action="?uid=<% $uid |h %>">
+<input type="hidden" name="go_back" value="1"/>
+<table>
+<tr>
+    <td>Current Advisor:</td>
+    <td><% $advisor_name |h %></td>
+</tr>
+<tr>
+    <td>New Advisor:</td>
+    <td><input type="text" id="new_advisor" name="new_advisor" style="width: 20em"/> <small>[<a href="http://zzz.physics.umn.edu/computing/web/physweb/completepeople">autocompleter?</a>]</small>
+    <small>(Empty will remove advisor)</small></td>
+</tr>
+<tr>
+    <td></td>
+    <td><input type="submit" name="action" value="Save and Return"/></td>
+</tr>
+</table>
+</form>
+<& '/mason/ajax/complete_people.comp', id => 'new_advisor', name => 'new_advisor' &>
+
+% return $retval;

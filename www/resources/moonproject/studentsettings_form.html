@@ -1,0 +1,31 @@
+<%args>
+$student
+</%args>
+<%init>
+unless ($student) {
+    $m->comp('/mason/notice_box.comp', type => 'error', text => 'Could not find student info for student ' . $session{'moonproject_gradesid'} . ' (X.500 ' . $session{'moonproject_x500'} . '). Please contact net@physics.umn.edu for assistance.');
+    return;
+}
+</%init>
+<%method meta>
+<style type="text/css">
+.settings-table TH { text-align: right }
+</style>
+</%method>
+<%perl>
+if ($ARGS{'msg'}) {
+    $m->comp('/mason/notice_box.comp', type => 'error', text => $ARGS{'msg'});
+}
+</%perl>
+<form action="studentsettings_submit.html" method="POST">
+<table cellpadding="3" cellspacing="0" class="settings-table">
+<tr><th>Student ID</th><td><% $student->{studentid} %></td></tr>
+<tr><th>X.500</th><td><% $student->{x500} %></td></tr>
+<tr><th>Name</th><td><% $student->{name} %></td></tr>
+<tr><th>Section</th><td><% $student->{section} %></td></tr>
+<tr><th>TA</th><td><% $student->{ta_name} %> &lt;<a href="mailto:<% $student->{ta_email} |u %>"><% $student->{ta_email} |h %></a>&gt;</td></tr>
+<tr><th>Email</th><td><input name="email" value="<% $student->{email} || "" |h %>"></td></tr>
+<tr><th>Degrees per Fist/Hand [e.g., 5.5]</th><td><input name="fistdegrees" value="<% $student->{fistdegrees} || '' |h %>"></td></tr>
+<tr><td align="right" colspan="2"><input type="submit" value="Submit"></td></tr>
+</table>
+</form>

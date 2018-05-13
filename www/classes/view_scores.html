@@ -1,0 +1,139 @@
+
+<%DOC>
+   Component: view_scores.html
+        Date: 2008.08.13
+      Author: clayton
+     Changed: 2008.08.13 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$classid=>undef
+$x500=>''
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp');
+
+# determine if we have an admin user who can view scores other than their own...
+my $auth = $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, always_include_tas=>1);
+my $authwr = $m->comp('/mason/auth/auth_check_classes.comp');
+
+$x500 = $session{'x500'};
+
+my @viewing_array;
+push @viewing_array, $x500 . '@umn.edu' unless (!$x500);
+
+my $viewing = join ' and ', @viewing_array;
+</%INIT>
+
+% $m->comp('/www/classes/update_clicker.html:clicker_info', classid => $classid);
+
+<h3>Viewing Scores for <% $viewing |h %></h3>
+
+% if ($classid && !$auth && !$authwr) {
+<p>You are currently only viewing your scores for this class. You can also <a href="/classes/view_scores.html">view all of your physics scores</a>.</p>
+% }
+
+<table style="margin-left: 2em; min-width: 15em;" border=0 cellspacing=0 cellpadding=5>
+<%perl>
+# seems the only people in  grades.users with physids are instructors, so pointless to use that.
+my $sth = $dbh->prepare('SELECT id FROM grades.users WHERE (x500=? AND x500 IS NOT NULL AND CHAR_LENGTH(x500) > 0)');
+$sth->execute($x500)
+  or die 'Error fetching user id(s): ' . $sth->errstr;
+
+my @usergradeids;
+while (my $row = $sth->fetchrow_hashref()) {
+  push @usergradeids, $row->{'id'};
+}
+
+my $lookup_class = $dbh->prepare('SELECT year, quarter, name, section, flags FROM webdb.classlist WHERE classid=? LIMIT 1');
+my $find_classes_all = $dbh->prepare('SELECT DISTINCT a.classid, a.name, g.assignmentid, a.max_possible FROM grades.assignments AS a JOIN grades.grades AS g ON (g.assignmentid = a.id AND g.userid = ? AND a.legacy_email_flag=1) ORDER BY classid DESC, assignmentid ASC');
+my $find_classes_by_id = $dbh->prepare('SELECT DISTINCT a.classid, a.name, g.assignmentid, a.max_possible FROM grades.assignments AS a JOIN grades.grades AS g ON (g.assignmentid = a.id AND g.userid = ? AND a.classid=? AND a.legacy_email_flag=1) ORDER BY classid DESC, assignmentid ASC');
+my $get_latest_grade = $dbh->prepare('SELECT value, textvalue FROM grades.grades WHERE assignmentid=? AND userid=? ORDER BY created DESC LIMIT 1');
+#my $get_stats;
+my $get_stats = $dbh->prepare('SELECT AVG(value) AS mean, MAX(value) AS max, MIN(value) AS min, STDDEV(value) AS stddev FROM grades.grades AS g WHERE assignmentid=? AND created = ( SELECT MAX(created) FROM grades.grades AS newest WHERE newest.assignmentid=g.assignmentid AND newest.userid=g.userid LIMIT 1 ) GROUP BY assignmentid LIMIT 1');
+
+# This could all be written in one or two queries, perhaps a bit like so, but eh...
+#my $get_assignments = $dbh->prepare('SELECT assignmentid, value, textvalue FROM grades.assignments WHERE userid=? ORDER BY created DESC GROUP BY assignmentid');
+
+my $hasgrades = 0;
+# if matching grades users were found
+foreach (@usergradeids) {
+  my $userid = $_;
+  my $find_classes = $find_classes_all;
+  my @find_classes_args;
+  push @find_classes_args, $userid;
+  if ($classid) {
+    $find_classes = $find_classes_by_id;
+    push @find_classes_args, $classid;
+  }
+
+  $find_classes->execute(@find_classes_args)
+    or die 'Find classes failed: ' . $find_classes->errstr;
+  
+  my $last_classid;
+  my $even = 0;
+  my $gradestats;
+
+  while (my $row = $find_classes->fetchrow_hashref()) {
+    my $this_classid = $row->{'classid'};
+    my $assnid = $row->{'assignmentid'};
+
+    $hasgrades = 1;
+
+    if ($last_classid != $this_classid) {
+      print '<tr><td></td></tr>';
+
+      $lookup_class->execute($this_classid)
+        or die 'Class lookup failed: ' . $lookup_class->errstr;
+
+      print '<tr><th align="left" colspan="7">';
+      #print '<tr><th align="left" colspan="3">';
+      if (my $row = $lookup_class->fetchrow_hashref()) {
+        print ucfirst($row->{'name'}) . ($row->{'section'} ? '.' . $row->{'section'} : '') . ' (' . ucfirst($row->{'quarter'}) . ' ' . $row->{'year'} . ')' . "\n"
+          unless $classid;
+        $gradestats = ($row->{'flags'} =~ /gradestats/);
+      } else {
+        print '<em>Unknown Class (' . $this_classid . ')</em>';
+        $gradestats = 0;
+      }
+      print '</th></tr>';
+      print '<tr class="tablehead2"><th>Name</th><th>Score</th><th>Maximum Possible Score</th>';
+      if ($gradestats) {
+        print '<th>Highest Score in Class</th><th>Lowest Score in Class</th><th>Standard Deviation</th><th>Mean</th></tr>';
+      }
+
+      $last_classid = $this_classid;
+    }
+
+    $get_latest_grade->execute($assnid, $userid)
+      or die 'Grade lookup failed: ' . $get_latest_grade->errstr;
+
+    if (my $grade = $get_latest_grade->fetchrow_hashref()) {
+      $get_stats->execute($assnid)
+        or die 'Failed to get stats: ' . $get_stats->errstr;
+
+      my $stats = $get_stats->fetchrow_hashref();
+      if (!$stats) { die 'Stats failure!'; }
+
+      print '<tr class="' . ($even ? 'even' : 'odd') . '"><td>' . $row->{'name'} . '</td><td><b>' . $grade->{'textvalue'} . '</b></td><td>' . (defined($row->{'max_possible'}) ? $row->{'max_possible'} : '' ) . '</td>';
+      if ($gradestats) {
+        print '<td>' . $stats->{'max'} . '</td><td>' . $stats->{'min'} . '</td><td>' . $stats->{'stddev'} . '</td>';
+        print '<td>' . $stats->{'mean'} . '</td>';
+      }
+      print '</tr>';
+      $even = !$even;
+    }
+  }
+}
+
+if (!$hasgrades) {
+  print '<p><b>No scores available.</b>';
+}
+</%perl>
+</table>
+
+
+		

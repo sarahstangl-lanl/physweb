@@ -1,0 +1,107 @@
+<%doc>
+   Component: auth_check_classes.comp
+        Date: 9/2/2002
+      Author: allan
+ Description:
+
+   Checks if the user has access to edit classpage, returns (any value that evaluates to) TRUE or FALSE.
+
+   TRUE may be:
+     classes     this person has global class admin rights
+     template    this is a template so all faculty have edit access  
+     instructor  this user is the instructor for the class
+                 (this may also be set if the TA has full edit access!)
+     maintainer  this user is the maintainer
+     ta          this user is a TA for the class
+
+   Added always_include_tas so this can also be used as a check for TA discussion...
+
+   Also updated to take either classid or itemid. If both then the type comes from itemid
+   while the classid no longer does.
+</%doc>
+
+<%args>
+$array=>0
+$classid=>undef
+$itemid=>''
+$item_type=>''
+$always_include_tas=>0
+#Default to mixing child section ta and parent section ta as 'ta' by default for compatability
+#if set to 1 child tas are 'child_ta' instead of 'ta'
+$distinguish_child_ta=>0
+</%args>
+
+<%init>
+my $auth = 0;
+
+if (($classid) || ($itemid)) {
+
+  if ($itemid && ($itemid ne 'new')) {
+    # Given a classdata itemid... check if they can edit that item specifically
+    # Yay! Another query.
+    my $sql = "SELECT classid, item_type FROM classdata WHERE entryid = ? LIMIT 1";
+    my $sth = $dbh->prepare($sql);
+    $sth->execute($itemid)
+        or die 'Unable to grab classid from entryid: ' . $dbh->errstr;
+
+    my $item_classid;
+    my $row_ref = $sth->fetchrow_arrayref;
+    if ($row_ref) {
+      ($item_classid, $item_type) = @$row_ref;
+      if (!$classid) { $classid = $item_classid; }
+    } elsif (!$row_ref && !$classid) {
+      return 0;
+    }
+  }
+
+  if ($item_type && (($item_type eq 'ask') || ($item_type eq 'ta'))) {
+    $always_include_tas = 1;
+  }
+
+  my ($maintainer, $year, $flags, $faculty);
+  $auth = 'classes' if $m->comp('/mason/auth/auth_check.comp',auth_type=>'classes');
+
+  if ((!$auth) && ($classid) && ($session{'uid'})) {
+    my $faculty = $m->comp('/mason/auth/auth_check_faculty.comp');
+    # need to check if the user can edit this classid
+    # Now fetch the entry
+    my $sth = $dbh->prepare('SELECT year, flags FROM classlist WHERE classid=?');
+    $sth->execute($classid)
+        or die 'Unable to grab maintainer and such from classid: ' . $dbh->errstr;
+  
+    if (my $result = $sth->fetchrow_arrayref()) {
+      ($year, $flags) = @$result;
+    }
+    
+    # Grant faculty editing access to any template
+    $auth = 'template' if (($faculty) && ($year == 0));
+
+    # Grant instructors and maintainers editing access
+    $auth = 'instructor' if ($m->comp('/mason/auth/member_check.comp', type => 'instructor', uid => $m->comp('/mason/auth/current_uid.comp'), memberof => $classid));
+
+    #print "DEBUG: running auth checks. auth=$auth flags=$flags<BR>\n";
+    # user is not authed yet but if (parent) TAs can edit... check TA list
+    if ((!$auth) && (($flags =~ /taedit/) || $always_include_tas)) {
+      $auth = $m->comp('/mason/auth/member_check.comp', type => 'TA', include_children=>0, uid => $m->comp('/mason/auth/current_uid.comp'), memberof => $classid);
+
+      # ta editing enabled... return instructor so the TA has full editing access
+      if ($auth && ($flags =~ /taedit/)) {
+          #print "DEBUG: setting instructor for TA<BR>";
+          $auth = 'instructor';
+      }
+
+      #Not a parent ta. Check if they are in the child TA list
+      if(!$auth) {
+          $auth = $m->comp('/mason/auth/member_check.comp', type => 'TA', include_children=>0, uid => $m->comp('/mason/auth/current_uid.comp'), memberof => $classid);
+          if(!$auth) {
+              $auth = $m->comp('/mason/auth/member_check.comp', type => 'TA', include_children=>1, uid => $m->comp('/mason/auth/current_uid.comp'), memberof => $classid);
+              $auth = 'child_ta' if($auth && $distinguish_child_ta);
+          }
+      }
+    }
+  }
+
+}  # end given classid or itemid if
+
+return $auth;
+</%init>

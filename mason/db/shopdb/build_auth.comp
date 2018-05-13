@@ -1,0 +1,69 @@
+<%doc>
+
+auth.comp
+
+Builds $session{'shopdb-auth'} auth hash if not already set or if explictly requested
+Should be called by autohandler and any pages with inherit=>undef flag
+
+</%doc>
+
+<%init>
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $shopdb_auth = $session{'shopdb-auth'};
+
+    my $reload_auth = $ARGS{'reload-auth'} || $m->request_args->{'reload-auth'};
+
+    # Store current uid in schema
+    $schema->uid($ARGS{'uid'} || $shopdb_auth->{'uid'});
+
+    # Only rebuild auth if requested, session uid changes, or if job_entry_uid is still undefined
+    return if ( $shopdb_auth && defined $shopdb_auth->{'job_entry_uid'} && ! defined $reload_auth && ( $shopdb_auth->{'uid'} == $session{'uid'} || ( $shopdb_auth->{'su_from_uid'} && $shopdb_auth->{'su_from_uid'} == $session{'uid'})));
+
+    warn "Building shopdb-auth";
+
+    my $admin = $session{'uid'} ? $m->comp('/mason/auth/auth_check_sysadm.comp') : undef;
+
+    # Determine uid of job entry PC directory entry
+    my $job_entry_uid = $schema->resultset('ShopDbSettings')->find({ name => 'job_entry_uid' });
+
+    # Die if no job entry account found unless admin and on settings page
+    unless ($job_entry_uid || ($admin && $r->uri =~ /settings/)) {
+        die "No job entry account for job entry PCs defined in ShopDB settings. Please add a 'job_entry_uid' entry at /resources/shopdb/settings.html";
+    }
+
+    # Check if connecting from job creation computer (special case where no auth is required)
+    my $job_entry_pc = $m->comp('/mason/db/shopdb/job_entry_pc_check.comp');
+
+    # Auth block unless shop job creation computer
+    $m->comp('/mason/auth/auth_block.comp') unless ($job_entry_pc);
+
+    # Fetch directory entry
+    my $directory = $schema->resultset('DirectoryEntry')->find({ uid => $ARGS{'uid'} || $session{'uid'} });
+
+    # Build shopdb-auth hash
+    my $shopdb_uid = $job_entry_pc ? $job_entry_uid->get_column('value') : $directory ? $directory->get_column('uid') : $session{'uid'};
+    warn "shopdb_uid = $shopdb_uid";
+    my $machinist = $schema->resultset('Machinists')->find({ directory_uid => $shopdb_uid, active => 1 });
+    my $customer = $schema->resultset('Customers')->find({ directory_uid => $shopdb_uid });
+    my $auth_args = {
+            uid             => $shopdb_uid,
+            x500            => $job_entry_pc ? undef : $directory ? $directory->get_column('x500') : $session{'x500'},
+            display_name    => $job_entry_pc ? 'Job Entry PC' : $directory ? $directory->full_name : $session{'display_name'},
+            machinist_id    => $job_entry_pc ? undef : $machinist ? $machinist->machinist_id() : undef,
+            customer_id     => $job_entry_pc ? undef : $customer ? $customer->customer_id() : undef,
+            admin           => $job_entry_pc ? undef : $m->comp('/mason/auth/auth_check.comp', uid => $shopdb_uid, auth_type => 'sysadm') && $admin,
+            foreman         => $job_entry_pc ? undef : $m->comp('/mason/auth/auth_check.comp', uid => $shopdb_uid, auth_type => 'shopdb_foreman'),
+            accounting      => $job_entry_pc ? undef : $m->comp('/mason/auth/auth_check.comp', uid => $shopdb_uid, auth_type => 'shopdb_accounting'),
+            job_entry_pc    => $job_entry_pc,
+            job_entry_uid   => $job_entry_uid ? $job_entry_uid->get_column('value') : undef,
+    };
+    for my $type (qw/machinist_id admin foreman accounting/) {
+        $auth_args->{'shop_person'} = 1 if ($auth_args->{$type});
+    }
+    $session{'shopdb-auth'} = $auth_args;
+
+    $schema->uid($shopdb_uid);
+
+    warn Dumper({ %$auth_args, schema_uid => $schema->uid });
+</%init>

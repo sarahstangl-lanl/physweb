@@ -1,0 +1,148 @@
+
+<%DOC>
+   Component: edit_classlist.html
+        Date: 2003.07.15
+      Author: allan
+     Changed: 2003.07.15 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$classid=>undef
+$year=>undef
+$quarter=>undef
+$name=>undef
+$section=>''
+$title=>undef
+$instructor=>''
+$maintainer=>''
+$location=>''
+$time=>''
+$url=>''
+$summary=>''
+$template=>''
+$enabletaedit=>''
+$enableask=>''
+$enableaskinstmail=>''
+$enableasktamail=>''
+$enablefeedback=>''
+$enablefbmail=>''
+$enabletadisc=>''
+$enabletainstmail=>''
+$enabletatamail=>''
+$enablewiki=>''
+$enablegradestats=>''
+$enablegoogledocs=>''
+$enableclickers=>''
+$dw_pull=>0
+$switch_dw_pull=>undef
+$officehours=>''
+</%ARGS>
+
+<%INIT>
+return if $m->comp('/mason/db/dbcheck.comp');
+
+if (!$classid) {$m->redirect('classerror.html');}
+my $access = $m->comp('/mason/auth/auth_check_editclass.comp',classid=>$classid);
+my $sql;
+my $sth;
+my $success;
+my $error;
+my $flags = "class";
+if ($template) { $flags = 'template'; $year = 0; $quarter= "fall";}
+if ($enabletaedit) { $flags .= ',taedit'; }
+if ($enableask) { $flags .= ',ask'; }
+if ($enableaskinstmail) { $flags .= ',askinstmail'; }
+if ($enableasktamail) { $flags .= ',asktamail'; }
+if ($enablefeedback) { $flags .= ',feedback'; }
+if ($enablefbmail) { $flags .= ',fbmail'; }
+if ($enabletadisc) { $flags .= ',tadisc'; }
+if ($enabletainstmail) { $flags .= ',tainstmail'; }
+if ($enabletatamail) { $flags .= ',tatamail'; }
+if ($enablewiki) { $flags .= ',wiki'; }
+if ($enablegradestats) { $flags .= ',gradestats'; }
+if ($enablegoogledocs) { $flags .= ',googledocs'; }
+if ($enableclickers) { $flags .= ',clickers'; }
+($name) = split /\./, $name;
+    use Cache::FileCache;
+</%INIT>		
+		
+<%method title>Class List Update</%method>
+
+<%perl>
+if (!$access) {$m->comp('/mason/redirect.comp',url=>"index.html");}
+
+## Expire Heading Cache
+    use HTML::Mason::Utils qw(data_cache_namespace);
+
+    my $cache = new Cache::FileCache
+        ( { namespace => data_cache_namespace('/mason/db/classes/classheadings.comp'), cache_root => $m->interp->data_dir . '/cache' } );
+
+    $cache->remove($classid);
+## END Expire Heading Cache
+
+if ($classid) {
+
+  my ($pf_query, $uid_instructor, $uid_maintainer);
+
+  $pf_query = $m->comp('/mason/ajax/people_finder.comp', 'name'=>$instructor, 'limit'=>1);
+  if ($pf_query && (my $row = $pf_query->fetchrow_hashref())) {
+    $uid_instructor = $row->{'uid'};
+  }
+
+  $pf_query = $m->comp('/mason/ajax/people_finder.comp', 'name'=>$maintainer, 'limit'=>1);
+  if ($pf_query && (my $row = $pf_query->fetchrow_hashref())) {
+    $uid_maintainer = $row->{'uid'};
+  }
+
+  my @sql_args = ($year, $quarter, $name, $section, $title, $uid_maintainer, $location, $time, $url, $summary, $flags, $officehours, $classid);
+
+  if ($classid eq "new") {
+    #
+    # should check for duplicates before adding
+    #
+    my $testid = $m->comp('/mason/db/classes/get_classid.comp', year=>$year, quarter=>$quarter, name=>$name, section=>$section);
+    if (($testid) && ($year > 0)) {
+      # (don't complain about duplicates for templates)
+      $error = "Duplicate class (year/quarter/designator)!";
+    } else {
+      $sql = "INSERT INTO classlist (year, quarter, name, section, title, maintainer, location, time, url, summary, flags, officehours) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
+      pop @sql_args;
+    }
+  } else {
+    if (defined($switch_dw_pull)) {
+      $sql = 'UPDATE classlist SET dw_pull=? WHERE classid=?';
+      @sql_args = ($switch_dw_pull, $classid);
+    } else {
+      if ($dw_pull) {
+        $sql = 'UPDATE classlist SET maintainer=?, url=?, flags=?, officehours=?, summary=? WHERE classid=?';
+        @sql_args = ($uid_maintainer, $url, $flags, $officehours, $summary, $classid);
+      } else {
+        $sql = "UPDATE classlist SET year=?, quarter=?, name=?, section=?, title=?, maintainer=?, location=?, time=?, url=?, summary=?, flags=?, officehours=? WHERE classid=?";
+      }
+    }
+  }
+
+  if ($sql) {
+    $sth = $dbh->prepare($sql);
+    if ($sth->execute(@sql_args)) {
+      if ($classid eq "new") {
+          $classid = $dbh->last_insert_id(undef, undef, undef, undef);
+      }
+      $m->comp('/mason/redirect.comp',url=>$m->comp('/mason/db/classes/make_classlink.comp', fullurl=>1, classid=>$classid, type=>'edit'));
+    } else {
+      $error = $DBI::errstr;
+    }
+  }
+
+} ;#END if classid
+#
+# At this point, either success, and already redirected
+# or failed and should report error...
+#
+</%perl>
+
+<b>Classlist edit failed</b>
+
+<% $error %>

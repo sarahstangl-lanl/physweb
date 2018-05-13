@@ -1,0 +1,101 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: index.html
+        Date: 2008.08.27
+      Author: rubin
+     Changed: 2008.08.27 by rubin
+
+Description ... 
+$m->interp->apply_escapes($var, 'h');
+</%DOC>
+
+<%ARGS>
+$excel=>''
+$published=>''
+</%ARGS>
+
+<%method title>Positions report</%method>
+
+<%init>
+
+use physdb::directory;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $dirauth = $m->comp('/mason/auth/auth_check_directory.comp');
+
+if(! ($auth || $dirauth )) {
+    print "No Access\n";
+    return;
+}
+
+</%init>
+<p>
+This report shows the displayed positions vs the one derived from Peoplesoft/group memberships, and the override position entered in the directory. This report only contains "published" entries.
+</p><p>
+<b>In almost all cases there should be no override position!</b> Either make the group memberships correct, or if the generated position seems wrong, consult with net@physics.umn.edu!
+</p>
+
+<%perl>
+    my $where;
+#    if ($published) {
+        $where = "AND (directory.uid in (SELECT distinct uid FROM groupmembers JOIN groups ON groups.name=groupmembers.groupname WHERE type='flags' AND publish=1))";
+#    }
+    my $directory = Directory->new();
+    my $status_sql_fragment = $directory->status_sql_fragment();
+    $m->comp('/mason/db/tablesearch.comp',
+        table => 'directory',
+        field_list => [ 'concat(last_name, \', \', first_name) as name',
+                        'uid as edit', 
+                        'uid as uid',
+                        'IF(position>\'\',position,dw_position) AS displayed_position',
+                       'dw_position', 
+                        'position AS override_position',
+                        #'DATE(directory.modified_date) AS modified',
+                        #'DATE(create_date) AS added',
+                    ],
+        field_params => {
+            uid => {
+                hidden => 1,
+            },
+            name => {
+                url => 'user.html?uid=$row{uid}',
+            },
+                edit => {
+                # needs to be hidden for excel export
+                hidden =>$excel,
+                data_format => sub {
+                    my ($field_value, $coderef, $row_hashref) = @_;
+                    return ' <a href="edit_entry_form.html?uid='. $row_hashref->{'uid'} .'"><img src="/images/imgsel_edit.png" alt="Edit Directory" title="Edit Directory Entry" border="0" /></a>';
+                }
+            },
+        },
+        header_format => 'ucfirst',
+        default_sort_field => 'directory.position',
+        default_sort_dir => 'DESC',
+        hide_pagenator => 0,
+        no_limit => 0,
+        limit => 50,
+        debug => 0,
+        excel_link => 1,
+        excel_filename => 'directory',
+        where => 'WHERE inactive=0 '.$where,
+        extra_url_args => [ 'published', ],
+);
+
+</%perl>
+
+
+
+<%method meta>
+<script language="javascript">
+function accountHelp() {
+  window.alert("DISABLED: loginShell = /bin/false\nEXPIRED: shadowExpire < today\nSAMBA DISABLED: sambaAcctFlags = D\nSAMBA EXPIRED: sambaKickoffTime < today\nLOGIN DISABLED: loginShell = /sbin/nologin")
+}
+</script>
+<style>
+   .rotated{
+        font-size: 9px; line-height: 0px; margin: 25px 0 0 7px; width: 3px; -moz-transform: rotate(-90deg); display: block;
+   }
+</style>
+</%method>
+

@@ -1,0 +1,32 @@
+<%doc>
+   Component: abcd.comp
+        Date: 9/2/2002
+      Author: allan
+ Description: send tag list of alphabet (#A, #B, etc)
+</%doc>
+
+<%args>
+$highlight=>''
+$sort_reverse => 0
+</%args>
+
+<%init>
+$sort_reverse ||= 0;
+my $output = $m->cache->get("$highlight$sort_reverse");
+if (!defined($output)) {
+my ($i,$chr);
+my $start = $sort_reverse?26:1;
+my $inc = $sort_reverse?-1:1;
+for ($i = $start; $i < 27 and $i > 0; $i +=$inc) {
+  $chr = chr(64+$i);
+  if ($chr !~ /$highlight/) {
+    $chr = "<a href=\"#$chr\">$chr</a>";
+  }
+  $output .= "-".$chr;
+}
+$output = substr($output,1);
+$m->cache->set("$highlight$sort_reverse",$output,'10 min');
+}
+</%init>
+
+<% $output %>

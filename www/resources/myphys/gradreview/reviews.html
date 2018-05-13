@@ -1,0 +1,43 @@
+<%init>
+use tablesearch;
+
+unless ($m->comp("/mason/auth/auth_check_gradapp_mgr.comp")) {
+    $m->comp('/mason/notice_box.comp', type => 'warning', text => "You must be a manager of the gradapp web group to see this page.");
+    return;
+}
+
+my $terms = $m->comp('/mason/db/gradapp/get_terms.comp');
+
+my $ts = Tablesearch->new(
+    table => 'gradapp_application a',
+    header_format => 'ucfirst_all',
+    joins => [
+        'gradapp_review r' => 'r.client_id = a.client_id',
+        'directory d' => 'd.uid = r.reviewer_uid',
+    ],
+    filter_field => 'a.proposed_term_of_entry',
+    filter_values => $terms,
+    # Set the default filter to the latest term...
+    filter => $terms->[0]->[0],
+    field_list => [ 'CONCAT(d.last_name, ", ", d.first_name) AS reviewer', 'r.score', 'r.comment',
+        'a.client_id',
+        'CONCAT(a.last_name,\', \', a.first_name, \' \', a.middle_name) AS name',
+        #'if(a.last_name<>\'\',a.last_name,\'(none)\') as last_name', 'a.first_name', 'a.middle_name',
+        'a.email',
+        'CONCAT_WS(\', \', NULLIF(specialization,\'\'), NULLIF(specialization_1,\'\'), NULLIF(specialization_2,\'\'),NULLIF(specialization_3,\'\'),NULLIF(specialization_ast_1,\'\'), NULLIF(specialization_ast_2,\'\'),NULLIF(specialization_ast_3,\'\')) AS specialization',
+        'gender',
+        'proposed_term_of_entry as term', 'citizenship_country as citizenship', 'residency_country as residence',
+        'phone', 'complete',
+    ],
+    field_params => {
+        client_id => {
+            name => 'Client ID',
+            sort_name => 'a.client_id',
+        },
+    },
+    no_header_wrap => 1,
+    default_sort_field => 'a.client_id',
+    excel_link => 1,
+);
+$ts->display;
+</%init>

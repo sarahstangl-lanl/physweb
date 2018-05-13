@@ -1,0 +1,141 @@
+<%args>
+$job_item
+$edit_form
+$display_form
+$read_only => 0
+</%args>
+<%init>
+my $odd = 1;
+my $address_method = sub {
+    my ($self, $address_type) = @_;
+    my $address = $job_item->$address_type;
+    return '' unless ($address);
+    my @lines;
+    push @lines, $address->company if ($address->company);
+    push @lines, split /[\r\n]+/, $address->lines;
+    return join('<br/>', @lines);
+};
+
+my $customer_method = sub {
+    my $customer = shift;
+    return '' unless ($customer);
+    my $directory = $customer->directory;
+    my $email = $directory->email;
+    if ($email) {
+        ($email = $directory->full_name . " <" . $email . ">") =~ s/ /%20/g;
+    }
+    return $customer ? '<a href="customer.html?customer_id=' . $customer->customer_id . '">' . $directory->display_name . '</a>' . ($directory->email ? '<span style="position:absolute;padding-left:5px;width:0;height:0;"><a href="mailto:' . $email . '?subject=Shop%20Job%20#' . $job_item->id . '"><img border="0" title="Email ' . $directory->email . '" width="15" src="/images/email_icon.png" /></a></span>' : '') : '';
+};
+
+my $render_methods = {
+    entry_machinist => sub {
+        my $self = shift;
+        my $entry_machinist = $job_item->entry_machinist;
+        return $entry_machinist ? $entry_machinist->directory->display_name : '';
+    },
+    status => sub {
+        my $self = shift;
+        for my $option (@{$self->options}) {
+            if ($option->{value} eq $self->fif) {
+                return $option->{label};
+            }
+        }
+        return $self->value;
+    },
+    customer => sub {
+        return $customer_method->($job_item->customer);
+    },
+    pi => sub {
+        return $customer_method->($job_item->pi);
+    },
+    account_key => sub {
+        my $self = shift;
+        my $account = $job_item->account;
+        return '' unless ($account);
+        my $output = ($account->get_column('descr50') || '') . '</td></tr><tr class="' . ($odd ? 'odd' : 'even') . '"><td align="center" style="padding:0;" colspan="2">';
+        $output .= '<table class="efs_chartstring"><tr><th>FUND</th><th>DEPTID</th><th>PROGRAM</th><th>PROJECT</th></tr>';
+        $output .= '<tr><td class="efs_fund">' . ($account->fund_code || '&nbsp;') . '</td><td class="efs_deptid">' . ($account->deptid || '&nbsp;') . '</td><td class="efs_prgm">' . ($account->program_code || '&nbsp;') . '</td><td class="efs_proj">' . ($account->project_id || '&nbsp;') . '</td></tr></table>';
+        $output .= '<table class="efs_chartstring"><tr><th>EMPLID</th><th>CF1</th><th>CF2</th></tr>';
+        $output .= '<tr><td class="efs_emplid">' . ($account->chartfield3 || '&nbsp;') . '</td><td class="efs_cf1">' . ($account->chartfield1 || '&nbsp;') . '</td><td class="efs_cf2">' . ($account->chartfield2 || '&nbsp;') . '</td></tr></table>';
+        return $output;
+    },
+    parent_job_id => sub {
+        my $self = shift;
+        my $parent_job = $job_item->parent_job;
+        return $parent_job ? '<a href="job.html?job_id=' . $parent_job->job_id . '">' . $parent_job->project_name . '</a>' : '';
+    },
+    child_jobs => sub {
+        my $self = shift;
+        my @child_jobs = $job_item->child_jobs;
+        my $result = join ('<br />', map { '<a href="job.html?job_id=' . $_->job_id . '">' . $_->project_name . '</a>' } @child_jobs);
+        $result .= '<div style="width:100%; text-align:right"><a href="job.html?parent_job_id=' . $job_item->job_id . '">Add Child Job</a></div>' if ($self->has_auth);
+        return $result;
+    },
+    ship_address => sub { return $address_method->(shift, 'ship_address') },
+    bill_address => sub { return $address_method->(shift, 'bill_address') },
+    attachments => sub {
+        my $self = shift;
+        my @job_attachments = $job_item->job_attachments;
+        my $output = '';
+        if (@job_attachments) {
+            $output .= '<div style="width: 170px">';
+            my $num_attachments = scalar(@job_attachments);
+            for (my $i = 0; $i < $num_attachments; $i++) {
+                my $attachment = $job_attachments[$i]->attachment;
+                if ($i == 3) {
+                    $output .= '<div id="shopdb-job-details-attachments" style="display:none"><div>';
+                }
+                my $filename = $attachment->get_column('filename');
+                $output .= '<div style="max-width: 170px; white-space: nowrap; overflow-x: hidden;"><a href="get_file.html?attachment_id=' . $attachment->get_column('attachment_id') . '" title="' . $filename . '">' . $filename . '</a></div>';
+            }
+            if ($num_attachments > 3) {
+                $output .= '</div></div><div style="text-align:right;"><a id="shopdb-job-details-toggle-attachments" href="">More</a></div>';
+            }
+            $output .= '</div>';
+        }
+        return $output;
+    },
+    machinists => sub {
+        my $self = shift;
+        my @machinists = $job_item->machinists;
+        return @machinists ? join (', ', map { '<a href="machinist.html?machinist_id=' . $_->machinist_id .'">' . $_->get_column('shortname') . '</a>' } @machinists) : '';
+    },
+    external => sub {
+        return '<input style="margin: 1px 0 0 -1px;" type="checkbox" disabled="disabled"' . ( shift->value() ? ' checked' : '' ) . ' />';
+    },
+};
+
+# Table for displaying job information
+my $display_table = '<table class="shopdb-job-info-pane-table" cellpadding="3" cellspacing="0" id="shopdb-job-details-view">';
+my $display_table_form = $edit_form->is_valid ? $edit_form : $display_form;
+for my $field ($display_table_form->sorted_fields()) {
+    next if $field->type eq 'Submit' or $field->type eq 'Reset'; # Skip buttons in view table
+    next if $field->name =~ /^(parent_job_id|entry_machinist)$/ && !$field->fif; # Skip parent job and entry machinist fields if empty
+    next if $field->name =~ /^projected/; # Skip projected cost fields (shown in summary section)
+    $display_table .= '<tr class="' . ($odd ? 'odd' : 'even' ). '"><th>' . $field->label . '</th><td>' . ($render_methods->{$field->name} ? $render_methods->{$field->name}->($field) : $field->fif) . '</td></tr>';
+    $odd = !$odd;
+}
+$display_table .= '<tr><td colspan="2" align="right"><a href="" onclick="return job.toggleEditForm()">Edit Job Details</a></td></tr>' if (!$read_only && $display_table_form->has_auth_edit_fields);
+$display_table .= "\n</table>";
+
+# Table for updating job information
+my $edit_table = '';
+if (!$read_only && $edit_form->has_auth_edit_fields) {
+    $edit_table = '
+<div id="shopdb-job-details-edit">
+<script type="text/javascript">new Draggable("shopdb-job-details-edit");</script>
+<h2 style="margin-bottom: 10px;">Edit Job Details</h2>
+<form id="shopdb-job-edit-form" method="post" name="shopdb-job-form" action="">
+<img onclick="job.toggleEditForm();" id="shopdb-job-details-close-icon" src="/images/close-icon.png" alt="Close" />
+<table id="shopdb-job-details-edit-table" cellpadding="0" cellspacing="0">
+';
+    $edit_table .= $edit_form->render({ wrapper => undef });
+    $edit_table .= '
+</table>
+</form>
+</div>
+';
+}
+
+print $display_table . $edit_table;
+</%init>

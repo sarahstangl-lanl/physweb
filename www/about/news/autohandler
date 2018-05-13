@@ -1,0 +1,25 @@
+<% $m->call_next %>
+<%method titlemenu_above>
+    <%perl>
+#%# Fix it so news is selected when viewing a news story (and not only when viewing the news blog)
+    #my ($newstype) = (split('/', $m->dhandler_arg))[0];
+    #my $select_news = ($type =~ /^[0-9]+$/);
+    #my $select_news = 0; 
+    #if ($newstype =~ /(^news|^index\.html|[0-9]+$)/) {
+    #    $select_news = 1;
+        #print "debug: selecting general tab<BR>\n";
+    #}
+    </%perl>
+    <& /mason/titlemenu.comp:begin, type=>"above" &>
+    <&| /mason/titlemenu.comp:item, selected => ($m->dhandler_arg =~ /^(general|news)\b/ ? 1 : 0), link=>"/about/news/general/", &>General</&>
+    <&| /mason/titlemenu.comp:item, link=>"/about/news/spotlight/"  &>Research Spotlight</&>
+    <&| /mason/titlemenu.comp:item, link=>"/about/news/outreach/"  &>Outreach</&>
+    <&| /mason/titlemenu.comp:item, link=>"/about/news/student_award/"  &>Scholarship Awards</&>
+    <&| /mason/titlemenu.comp:item, link=>"/about/news/jobs/"  &>Job Opportunities</&>
+    <&| /mason/titlemenu.comp:item, link=>"/about/news/publications/"  &>Publications</&>
+    <&| /mason/titlemenu.comp:item, link=>"/about/news/facultyresearch/"  &>Faculty Research</&>
+    <& /mason/titlemenu.comp:end &>
+
+</%method>
+<!-- vim: set syntax=mason: -->
+

@@ -1,0 +1,54 @@
+<%doc>
+    vim: set syntax=mason:
+</%doc>
+
+<%init>
+use physdb;
+
+# look for hardware address in dhcp leases
+my $query = "select hwa, timestamp from accounting.dhcp_accounting where leased_ip=inet_aton(?) order by timestamp desc limit 1";
+my $query_ip = $r->connection->get_remote_host();
+my $hwa;
+my $host = physdb::queryfirstrow($query, $query_ip);
+if ($host->{'hwa'}) {
+  $hwa = $host->{'hwa'};
+}
+# if found, check not already registered
+if ($hwa) {
+  my $query2 = "select hwa from net_interfaces where hwa=?";
+  my $host2 = physdb::queryfirstrow($query2, $hwa);
+  if ($host2->{'hwa'}) { $hwa = ""; }
+}
+</%init>
+
+<%method title>Register a new network device</%method>
+
+<h4>Registration requirements</h4>
+<p>
+In order to connect any computer or other device to the Tate Lab network, you need to fulfill certain conditions below.
+Please also consider taking advantage of our fully managed <a href="http://zzz.physics.umn.edu/computing/department/windows/home">Windows AD</a> or <a href="http://zzz.physics.umn.edu/computing/department/unix/home">Linux cluster</a> installs, rather than setting everything up yourself.
+
+<ol>
+    <li>Wired connections are for <b>University Owned Property only</b>. Personally owned computers or those of guests are limited to UofM wireless network only.
+    <li>Read and understand the School's <a href="http://zzz.physics.umn.edu/computing/policies/network_connection">network security policy</a> regarding <b>acceptable operating system versions</b>, <b>antivirus requirement</b>, etc.
+    <li>Proceed to the registration form, and fill out information about your computer.
+    <li>After registering a computer, you should disconnect it from the network and wait for a few minutes before reconnecting.
+</ol>
+
+</p>
+<p>
+% if ($hwa) {
+<form method="POST" action="edit_myhost_form.html">
+<input type="hidden" name="hwa" value="<% $hwa %>">
+<input type="submit" value="Proceed to form to register the computer you are now using, <% $query_ip %>">
+</form>
+% }
+
+<form method="POST" action="edit_myhost_form.html">
+% if ($hwa) {
+<input type="submit" value="Proceed to form to register a different computer">
+% } else {
+<input type="submit" value="Proceed to registration form">
+% }
+</form>
+</p>

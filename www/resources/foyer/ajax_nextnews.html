@@ -1,0 +1,91 @@
+<%args>
+$lastNewsID => undef;
+$json => 1;
+</%args>
+<%init>
+use physdb;
+use Data::Dumper;
+
+my $type = 'foyer';
+
+if($json) {
+    $r->content_type('application/json');
+}
+
+my $sql_where = "
+                  WHERE ( type=? 
+                    AND start_date <= now() 
+                    AND (kill_date >= now() OR kill_date IS NULL) 
+                    AND priority <> 'none' 
+                  ) ";
+
+my $sql_where_failsafe = "
+                  WHERE ( type=? 
+                    AND start_date <= now() 
+                    AND priority <> 'none' 
+                  ) ";
+
+
+my $sql_order = "         ORDER BY priority DESC, post_date DESC ";
+
+my $sql_select = "SELECT eventid, event_date, post_date, 
+                  modified_date, start_date, kill_date, headline, 
+                  summary, text, url, images.imageid, images.size_x, images.size_y, images.alt
+             FROM stories
+             JOIN images 
+               ON images.parentid=stories.eventid 
+              AND images.category='stories'
+                ";
+
+my $sql = "$sql_select $sql_where $sql_order";
+my $result = physdb::query($sql, $type);
+
+#if($result->rows < 3) {
+#    $sql = "$sql_select $sql_where_failsafe $sql_order";
+#    $result = physdb::query($sql, $type);
+#}
+
+</%init>
+<%perl>
+#$m->out("DEBUG: number of rows: ". $result->rows ."<BR>\n");
+#$m->out("Last news id is $lastNewsID<BR>");
+my $doNext = 0;
+my $rowIndex = 0;
+my $firstRow;
+
+
+while (my $row = $result->fetchrow_hashref()) {
+    if($rowIndex++ == 0) {
+        $firstRow = $row;
+    }
+    if($row->{'eventid'} eq "$lastNewsID") {
+       $doNext = 1;
+    }
+    elsif($doNext) {
+        dumprow($row);
+        return;
+    }
+}
+#If we get here, we didn't find any news articles after the one, so give them the 1st one
+dumprow($firstRow);
+
+sub dumprow {
+        my $row = shift;
+        my $headline = $row->{'headline'};
+        my $copy = $row->{'summary'};
+        $headline =~ s/\"/&quot;/g;
+        $copy =~ s/\"/&quot;/g; #"
+	$copy = $m->comp('/mason/format_wikitext.comp',nodiv=>1,text=>$copy);
+	$copy =~ s/[\n\r]+//g;                #/
+        $copy =~ s/\\/\\\\/g;
+        $copy =~ s/\"/\\\"/g;                 #"
+</%perl>
+{ 
+  "id": <% $row->{'eventid'} %>,
+  "headline": "<% $headline %>",
+  "copy": "<% $copy %>",
+  "imageUrl": "/stateless/imagedb.html?id=<% $row->{'imageid'}|u%>&name=foo.jpg"
+}
+<%perl>
+}
+</%perl>

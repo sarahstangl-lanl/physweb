@@ -1,0 +1,29 @@
+<%doc>
+   Component: image_size.comp
+        Date: 9/4/2002
+      Author: allan
+ Description: returns size of image with given name (or 0,0 if not found)
+</%doc>
+
+<%args>
+$name
+</%args>
+
+<%init>
+my $sql = "SELECT image FROM images WHERE name = ? LIMIT 1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($name);
+my $image_row = $sth->fetchrow_arrayref;
+my $return_x=0;
+my $return_y=0;
+my ($type,$return,$image);
+if (defined($image_row)) {
+  ($image) = @$image_row;
+  ($return_x,$return_y,$type) = imgsize(\$image);
+}
+@$return = ($return_x,$return_y,$type);
+</%init>
+
+<%perl>
+return $return;
+</%perl>

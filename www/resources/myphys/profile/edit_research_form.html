@@ -1,0 +1,106 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: edit_research_form.html
+        Date: 
+      Author: allan
+ Description: edit a profile
+</%doc>
+
+<%args>
+$uid=>''
+</%args>
+
+<%method js></%method>
+
+<%init>
+use POSIX qw(ceil floor);
+
+if(!$uid) {
+    $uid = $session{"uid"};
+}
+if(!$uid) {
+    confess("No uid?");
+}
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+
+# Fetch directory info
+my $sql = "SELECT last_name, first_name, physid, x500, email, www, address, home_phone FROM directory WHERE uid = ? LIMIT 1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($uid);
+
+my $row_ref = $sth->fetchrow_arrayref;
+my ($lastname, $firstname, $physid, $x500, $email, $www, $address, $home_phone) = @$row_ref;
+# now fetch the profile info...
+
+$sql = "SELECT summary, research1, research2, research3, research4, reshead1, reshead2, reshead3, reshead4  FROM profiles WHERE uid = ? LIMIT 1";
+$sth = $dbh->prepare($sql);
+$sth->execute($uid);
+
+my $profile_row = $sth->fetchrow_arrayref;
+my ($summary, $research1, $research2, $research3, $research4, $reshead1, $reshead2, $reshead3, $reshead4);
+if (defined($profile_row)) {
+  ($summary, $research1, $research2, $research3, $research4, $reshead1, $reshead2, $reshead3, $reshead4) = @$profile_row;
+}
+my $access = $m->comp('/mason/auth/auth_check_profile.comp',x500=>$x500,uid=>$uid);
+
+</%init>
+
+
+<h2 title>Edit Work Interests</h2>
+<%method login></%method>
+
+% if (!$access) {$m->comp('/mason/redirect.comp',url=>"index.html");}
+
+<h3><% $firstname %> <% $lastname %></h3>
+
+<form method="POST" action="edit_research.html">
+<input type=hidden name="uid" value="<% $uid %>">
+% if($physid) {
+<input type=hidden name="physid" value="<% $physid %>">
+% } else {
+<input type=hidden name="physid" value="<% $x500 %>">
+% }
+
+<table border=0 width=100%>
+
+<tr><th colspan=2 bgcolor="#eeeeee" align="left">Summary of Interests</th></tr>
+<tr><td colspan=2><small>A brief list of (work or research) interests, two or three lines at most. This part should be written as a terse list rather than as normal english sentences. <i>It's important to fill this in, as this text will be displayed on a variety of web pages, such as your research group pages.</i></small></td></tr>
+<tr><td colspan=2>
+<textarea name="summary" cols="70" rows="1" wrap="virtual"><% $summary %></textarea>
+</td></tr>
+
+<tr><th colspan=2 bgcolor="#eeeeee" align="left">About My Work</th></tr>
+<tr><td colspan=2>
+<small>This is the main content area, where you can write as much as you want about your work or research.<br/>
+You can separate different sections with headings of different sizes using the H1 through H5 buttons.<br/>
+You can add images by first clicking on <b>Browse...</b> and selecting an image file to upload. After the image is uploaded, simply move the cursor to where you want the image to appear in your text, and click on the image under <b>Available images</b>. A tag similar to <emphasis>{{image|5}}</emphasis>, corresponding to the number of the chosen image, is inserted in your test.<br/>
+More detail on the editing syntax is <a href="http://zzz.physics.umn.edu/admin/private/web/wikiformat" target="_blank">provided here</a>.
+</small>
+</td></tr>
+
+<tr>
+
+<td>
+      <div id="tool__bar"></div>
+
+</td>
+</tr>
+
+<tr>
+<td valign="top"><textarea name="research1" cols="70" rows="20" id="wiki__text" wrap="virtual"><% $research1 %></textarea></td>
+
+<td width="100%" valign="top">
+<& '/mason/ajax/image_manager.comp', category => 'profiles', parentid => $uid &>
+</td>
+</tr>
+
+
+</table>
+
+<input type=submit value="Update the profile"> 
+<input type=reset value="Undo any changes">
+</form>
+
+<& '/mason/ajax/editor_toolbar.comp', div_id => 'tool__bar', textarea => 'wiki__text' &>
+

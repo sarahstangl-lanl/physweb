@@ -1,0 +1,11 @@
+<% $m->call_next %>
+<%method title>Research Experience for Teachers</%method>
+<%method titlemenu_below>
+   <& /mason/titlemenu.comp:begin, type=>"below" &>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/ret/index.html'  &>About</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/ret/past/index.html'  &>Past RET Programs</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+
+

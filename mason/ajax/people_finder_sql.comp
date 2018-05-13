@@ -1,0 +1,6 @@
+<%perl>
+  # This simply returns the sql used to make a default peoplefinder string representation of a user
+  # so that is isn't copied anymore between many, many files and then never updated... :(
+
+  return 'IF(CHAR_LENGTH(directory.physid) > 0, CONCAT(directory.last_name, \', \', directory.first_name, \' <\', directory.physid, \'@physics.umn.edu>\'), IF(CHAR_LENGTH(directory.x500) > 0, CONCAT(directory.last_name, \', \', directory.first_name, \' <\', directory.x500, \'@umn.edu>\'), CONCAT(directory.last_name, IF(CHAR_LENGTH(directory.first_name) > 0, \', \',\'\'), directory.first_name, \' [\', directory.uid, \']\')) )';
+</%perl>

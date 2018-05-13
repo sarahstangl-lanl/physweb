@@ -1,0 +1,68 @@
+<%method title><% $title |h %></%method>
+
+<%args>
+    $ajax => undef
+</%args>
+
+<%shared>
+    use ShopDb::Schema;
+    use ShopDb::Form::CustomerType;
+    use PhysAjax;
+
+    my %args = $m->request_args;
+    $m->comp('/mason/db/shopdb/build_auth.comp');
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $auth_args = $session{'shopdb-auth'};
+    unless ($auth_args->{'foreman'}) {
+        if ($args{'ajax'}) {
+            print_ajax({ msg => "You are not authorized to modify customer types" });
+            return;
+        }
+        $m->redirect('index.html');
+    }
+
+    my $title;
+    my $customer_type = $schema->resultset('CustomerTypes')->find({ customer_type_id => $args{'customer_type_id'} });
+
+    if (!defined($customer_type)) {
+        $title = 'Shop Dashboard';
+    } else {
+        $title = 'Shop Customer Types: ' . $customer_type->get_column('label');
+    }
+</%shared>
+
+<%init>
+    my $form = ShopDb::Form::CustomerType->new(
+        action      => 'customer_type.html',
+        name        => 'customer_type_form',
+        item        => $customer_type,
+        schema      => $schema,
+        auth_args   => $session{'shopdb-auth'},
+        active      => [ ($customer_type ? 'customer_type_update' : 'customer_type_add') ],
+    );
+
+    if ($r->method eq 'POST') {
+        $form->process(params => \%ARGS);
+    }
+
+    if ($form->is_valid) {
+        if ($ajax) {
+            print_ajax({ msg => "OK", customer_type_id => $form->item->customer_type_id });
+            return;
+        }
+        $m->redirect('customer_types.html');
+    }
+
+if ($ajax) {
+    $m->clear_buffer;
+    print '<h2>Customer Type</h2><p>' . $form->render . '</p>';
+    $m->abort;
+    return;
+}
+</%init>
+
+<h2>Customer Type</h2>
+<p>
+% print $form->render();
+</p>
+

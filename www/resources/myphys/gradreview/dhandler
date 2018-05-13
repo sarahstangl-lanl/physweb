@@ -1,0 +1,383 @@
+<%doc>
+Gradapp
+</%doc>
+
+
+<%args>
+$gradtsexcel=>undef
+$filter=>undef
+$addreviewer=>undef
+$deletereviewer=>undef
+$client_id=>undef
+$message=>undef
+$dorandomassignments=>undef
+$deleteincompletereviews=>undef
+$debug=>0
+</%args>
+<%init>
+
+my $MAX_REVIEWERS = 2;
+
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+my $manager = $m->comp('/mason/auth/auth_check_gradapp_mgr.comp') || $m->comp('/mason/auth/auth_check_sysadm.comp');
+
+my $hide_unless_excel = !$gradtsexcel;
+
+my $uid = $session{uid};
+
+my $showall;
+if($m->dhandler_arg =~ /admin/) {
+    $showall=1;
+}
+
+my $where = ($showall?"":"gradapp_review.reviewer_uid=$uid");
+my $pagename = ($showall?"All Applications":"Applications Assigned to Me");
+
+my @reviewers = physdb::queryall("SELECT concat(first_name, \' \', last_name) as full_name, uid, count(gradapp_review.client_id)
+                                    FROM directory 
+                               LEFT JOIN gradapp_review ON gradapp_review.reviewer_uid=directory.uid
+                                   WHERE uid IN (SELECT uid FROM groupmembers WHERE groupname=?)
+                                     AND uid IN (SELECT uid FROM groupmembers WHERE groupname=?)
+                                     AND directory.inactive=0
+                                GROUP BY directory.uid ORDER BY last_name, first_name
+                                ", 'gradapp', 'spafac');
+
+my $reviewlinecount = 0;
+
+use tablesearch;
+</%init>
+<%method reviewerdropdown>
+    <%args>
+        $reviewers
+        $row
+        $active
+    </%args>
+    <%init>
+        my %tsargs = $m->request_args();
+        my @tskeys = grep /^gradts/,  keys %tsargs;
+    </%init>
+    <form style="display:inline;" method="POST" action="admin.html">
+    <input type="hidden" name="client_id" value="<%$row->{client_id}|h%>" />
+    <%perl>
+        #Preserve our state
+        foreach my $tsarg (@tskeys) {
+            </%perl><input type="hidden" name="<% $tsarg|h%>" value="<% $tsargs{$tsarg}|h%>" /><%perl>
+        }
+    </%perl>
+    <select name="addreviewer" <% $active?"":"DISABLED" %>>
+    <option value="">--SELECT A REVIEWER--</option>
+    <%perl>
+    foreach my $reviewer (@$reviewers) {
+        </%perl><option value="<% $reviewer->{uid} |h %>"><% $reviewer->{full_name} %></option><%perl>
+    }
+    </%perl>
+    </select>
+    <input type="submit" value="Add" <% $active?"":"DISABLED" %> />
+    </form>
+</%method>
+<%perl>
+    if($message) {
+        print "<h3 style=\"color: green;\">"._h($message)."</h3>";
+    }
+    if($addreviewer) {
+        if(!$client_id) {
+            print "No client id to add review??";
+            return;
+        }
+        physdb::query("INSERT INTO gradapp_review (reviewer_uid, client_id) VALUES (?, ?)", $addreviewer, $client_id);
+        # Log to audits
+        my $reviewer_name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$addreviewer);
+        $m->comp('/mason/db/auditlog/addevent.comp',
+            type=>"gradreview",
+            text => "Added $reviewer_name as reviewer for application number:$client_id",
+            directory_uid => $session{uid},
+        );
+
+
+        #Preserve the state passed in so we get the same view we had before in tablesearch. Should we grep for only keys gradts*?
+        my %tsargs = $m->request_args();
+        delete($tsargs{message}); #paranoia
+        delete($tsargs{addreviewer});
+        $m->redirect("admin.html?message=". _h("Reviewer Added"). '&amp;'. _args(%tsargs));
+        return;
+    }
+    elsif($deletereviewer) {
+        if(!$client_id) {
+            print "No client id to delete a review!?";
+            return;
+        }
+        my $review = physdb::queryfirstrow("SELECT gradapp_review.comment, gradapp_review.score, 
+                                                   concat(directory.first_name, ' ', directory.last_name) as reviewer_full_name,
+                                                   concat(gradapp_application.first_name, ' ', gradapp_application.last_name) as applicant_full_name
+                                              FROM gradapp_review
+                                              JOIN gradapp_application ON gradapp_application.client_id=gradapp_review.client_id
+                                              JOIN directory ON gradapp_review.reviewer_uid=directory.uid
+                                             WHERE gradapp_review.client_id=? AND gradapp_review.reviewer_uid=?",
+                                             $client_id, $deletereviewer);
+        if(!$review) {
+            print "Error: No review to delete";
+            return;
+        }
+        if(($review->{comment} && $review->{comment} ne '') || ($review->{score} && $review->{score} ne '')) {
+            print "Error: Cannot delete; Reviewer already gave their review.";
+            return;
+        }
+        physdb::query("DELETE FROM gradapp_review WHERE client_id=? AND reviewer_uid=? LIMIT 1", $client_id, $deletereviewer);
+
+        # Log to audits
+        my $reviewer_name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$deletereviewer);
+        $m->comp('/mason/db/auditlog/addevent.comp',
+            type=>"gradreview",
+            text => "Removed $reviewer_name as reviewer for application number:$client_id",
+            directory_uid => $session{uid},
+        );
+
+        #Preserve the state passed in so we get the same view we had before in tablesearch. Should we grep for only keys gradts*?
+        my %tsargs = $m->request_args();
+        delete($tsargs{message}); #paranoia
+        delete($tsargs{deletereviewer});
+
+        $m->redirect("admin.html?message=". _u("Reviewer ". $review->{reviewer_full_name} . " Removed from ". $review->{applicant_full_name}. "'s application"). "&amp;". _args(%tsargs));
+    }
+
+    if($dorandomassignments) {
+        my $assign_random_application = sub { # return 0 for failure, 1 for success
+            my $reviewer = shift;
+            print "Trying to find an application for $reviewer->{uid} to review...\n<br />";
+            $m->flush_buffer();
+            my $apps_result = physdb::query("SELECT gradapp_application.client_id, count(gradapp_review.client_id) as count, group_concat(gradapp_review.reviewer_uid) as reviewers
+                                               FROM gradapp_application
+                                          LEFT JOIN gradapp_review ON gradapp_review.client_id=gradapp_application.client_id
+                                           GROUP BY gradapp_application.client_id
+                                             HAVING count <?
+                                           ORDER BY MD5(concat(gradapp_application.client_id, ?)) DESC
+                                                 ", $MAX_REVIEWERS, time());
+            my $flag_dup = 0;
+            while(my $app = $apps_result->fetchrow_hashref()) {
+                print "Examining an application to see if we can assign them...\n<br>";
+                $m->flush_buffer();
+                #if they already have $reviewer as app, return 1 but dont do anything
+                if($app->{reviewers} =~ /\b$reviewer\b/) {
+                    print "Skipping $reviewer->{uid} because they are already a reviewer of $app->{client_id}.<br>";
+                    $m->flush_buffer();
+                    $flag_dup = 1;
+                    next;
+                    #return 1 
+                }
+                #otherwise,  add $reviewer as app to that applicant and return 1
+                physdb::query("INSERT INTO gradapp_review (reviewer_uid, client_id) VALUES (?, ?)", $reviewer->{uid}, $app->{client_id});
+                print "Assigned $reviewer->{uid} to review $app->{client_id}<br>";
+                $m->flush_buffer();
+                return 1;
+            }
+            print "Could not find an application to assign $reviewer->{uid} to.. Returning<br />\n";
+            return 1 if($flag_dup);
+            return 0;
+        };
+        my $failsafe = 2000;
+        my $leave = 0;
+        print "<h2>Auto-assigning reviewers</h2> The Auto-assign operation is in progress. Please wait...<br>\n";
+        $m->flush_buffer();
+        #Loop through each reviewer over and over till we find them all applications
+        while(1) {
+            foreach my $person (@reviewers) {
+                $leave=1 unless &$assign_random_application($person);
+                if($failsafe-- < 1) {
+                    print "<h2>Error:</h2>Max iterations reached - quitting without completing. ";
+                    return;
+                }
+            }
+            last if $leave;
+        }
+        # Log to audits
+        $m->comp('/mason/db/auditlog/addevent.comp',
+            type=>"gradreview",
+            text => "Assigned random reviewers",
+            directory_uid => $session{uid},
+            );
+
+        print "<br /><br />Finished auto-assigning reviewers. <a href=\"admin.html\">Back to applications</a>";
+        return;
+    }
+
+    #Remove reviewers who have not reviewed
+    if($deleteincompletereviews) {
+            physdb::query("DELETE FROM gradapp_review WHERE (score IS NULL OR score = 0) AND  (comment IS NULL OR comment = '')");
+            # Log to audits
+            $m->comp('/mason/db/auditlog/addevent.comp',
+                type=>"gradreview",
+                text => "Removed all reviewers who had not yet done a review",
+                directory_uid => $session{uid},
+            );
+
+    print "Unassigned all reviewers who had not yet reviewed. <a href=\"admin.html\">Go back to applications</a>";
+            return;
+    }
+
+    #This returns a hashref by client_id which points to a list of rows for that client_id.
+    my $reviews = physdb::queryhashreflistbyfield('client_id', "SELECT gradapp_review.client_id, gradapp_review.score, gradapp_review.comment, gradapp_review.reviewer_uid, directory.first_name, directory.last_name 
+                                                                  FROM gradapp_review 
+                                                                  JOIN directory 
+                                                                    ON directory.uid=gradapp_review.reviewer_uid"
+    );
+
+    my $terms = $m->comp('/mason/db/gradapp/get_terms.comp');
+
+    my $apps = Tablesearch->new(
+        table => 'gradapp_application',
+        field_list => [ 
+                         'gradapp_application.client_id',
+                         'CONCAT(last_name,\', \', first_name, \' \', middle_name) AS name',
+                         'last_name', 'first_name', 'middle_name', 
+                         'email',
+                         'count(gradapp_review.reviewer_uid) as reviewcount',
+                         'sum(score) as score',
+                         'CONCAT_WS(", ", NULLIF(specialization,\'\'), NULLIF(specialization_1,\'\'), NULLIF(specialization_2,\'\'),NULLIF(specialization_3,\'\'),NULLIF(specialization_ast_1,\'\'), NULLIF(specialization_ast_2,\'\'),NULLIF(specialization_ast_3,\'\')) AS specialization',
+                         'major AS program',
+                         'gender',
+                         'mailing_address_line_1', 'mailing_address_line_2','mailing_address_line_3', 
+                         'mailing_address_state', 'mailing_address_postcode', 'mailing_address_country',
+                         'proposed_term_of_entry as term',
+                         'citizenship_country as citizenship', 
+                         'residency_country as residence',
+                         'CONCAT(citizenship_country, "/ ",residency_country) as citres',
+                         'phone', 'complete',
+                         '\'\' as offer',
+                         ],
+        excluded_search_fields => ['count(gradapp_review.reviewer_uid)', 'sum(score)'],
+        header_format=>'ucfirst_all',
+        joins => [ "gradapp_review"=>"gradapp_review.client_id=gradapp_application.client_id" ],
+        group_by => "GROUP BY gradapp_application.client_id",
+        filter_field => 'proposed_term_of_entry',
+        filter_values => $terms,
+        default_sort_field => 'program, last_name',
+        # Set the default filter to the latest term...
+        filter => $terms->[0]->[0],
+        where => $where,
+        extra_url_args => ['debug'],
+        debug => $debug,
+        field_params => { 
+            name => {
+                hidden=>(!$hide_unless_excel),
+                data_format => sub {
+                    my ($val, $self, $row) = @_;
+                    $val="<a href=\"reviewapp.html?client_id=$row->{client_id}\">$val</a><br/><small>$row->{email}</small>";
+                    },
+                },
+            first_name  => { hidden=>$hide_unless_excel, },
+            last_name   => { hidden=>$hide_unless_excel, },
+            client_id   => { hidden=>$hide_unless_excel },
+            term        => { hidden=>1 },
+            email       => { hidden=>$hide_unless_excel },
+            phone                    => { hidden=>$hide_unless_excel },
+            middle_name              => { hidden=>$hide_unless_excel },
+            mailing_address_line_1   => { hidden=>$hide_unless_excel },
+            mailing_address_line_2   => { hidden=>$hide_unless_excel },
+            mailing_address_line_3   => { hidden=>$hide_unless_excel }, 
+            mailing_address_state    => { hidden=>$hide_unless_excel }, 
+            mailing_address_postcode => { hidden=>$hide_unless_excel }, 
+            mailing_address_country  => { hidden=>$hide_unless_excel },
+            complete                 => { hidden=>$hide_unless_excel },
+            citizenship              => { hidden=>$hide_unless_excel },
+            residence                => { hidden=>$hide_unless_excel },
+            program                  => { nowrap=>1 },
+            citres                   => { name=>'Citizenship/Res', hidden=>(!$hide_unless_excel)},
+            score                    => { 
+                nowrap=>1,
+                data_format => sub {
+                    my ($val, $self, $row) = @_;
+                    # warning, although we suppress score for non-managers, we still leak data
+                    # as "sort" still sorts by the total score, not the individual reviewers.
+                    # this is why we set no_sort for nonmanagers, but this is annoying. REVERTED
+                    return "" if !$manager && ($row->{reviewcount} != 2 || ($row->{reviewcount} == 2 && !($reviews->{$row->{client_id}}->[0]->{score} && $reviews->{$row->{client_id}}->[1]->{score})));
+                    return _h($val) if($gradtsexcel);
+                    return ("<b>". _h($val). "</b>". " (total)") if($val);
+                    return "";
+                },
+            },
+            specialization => {
+                name => "Specialization".($manager?"/Reviews":""),
+                data_format => sub {
+                    my ($val, $self, $row) = @_;
+                    # maybe want to indicate Physics vs Astrophysics here somehow...
+                    return $val;
+                },
+            },
+            reviewcount => {
+                # display this in reviewcount col, so sort is by # of reviewers
+                name => "Reviewers",
+                data_format => sub {
+                    my ($val, $self, $row) = @_;
+                    # no reviewer selection for non-managers
+                    return $val if($gradtsexcel||(!$manager));
+                    my $str = '';
+                    $str .= $m->scomp("SELF:reviewerdropdown", reviewers=>\@reviewers, row=>$row, active=>$row->{reviewcount} < $MAX_REVIEWERS);
+                    return $str;
+                },
+                nowrap=>1,
+            },
+        },
+        excel_link=>1,
+        prefix=>'gradts',
+        postrow => sub {
+            my ($row, $ts) = @_;
+            my $str = '';
+            foreach my $review (@{$reviews->{$row->{client_id}}}) {   
+                $str .= '<tr valign="top" class="' . $ts->{tmp}->{oddeven} . '"><td colspan="1"></td><td>';
+                $str .= _h($review->{first_name}). ' '. _h($review->{last_name});
+                if($manager && !$review->{score} && !$review->{comment}) {
+                    $str .= ' <form style="display: inline; padding:0; margin:0; padding-bottom: -10px;" method="POST" action="admin.html">';
+                    $str .= '<input type="hidden" name="deletereviewer" value="'.$review->{reviewer_uid}.'">';
+                    $str .= '<input type="hidden" name="client_id" value="'.$row->{client_id}.'">';
+
+                    #Preserve the state passed in so we get the same view we had before in tablesearch. Should we grep for only keys gradts*?
+                    my %tsargs = $m->request_args();
+                    delete($tsargs{message}); #paranoia
+                    delete($tsargs{deletereviewer});
+                    delete($tsargs{client_id});
+                    delete($tsargs{deletereviewer});
+                    foreach my $a (keys %tsargs) {
+                        $str .= '<input type="hidden" name="'._h($a).'" value="'._h($tsargs{$a}).'" />';
+                    }
+                                    
+                    $str .= '<input type="image" style="vertical-align:text-top;" src="/images/delete_icon.png" alt="Remove reviewer"></form>';
+                }
+                if($manager || ($review->{reviewer_uid}==$session{uid}) || ($row->{reviewcount} == 2 && $reviews->{$row->{client_id}}->[0]->{score} && $reviews->{$row->{client_id}}->[1]->{score})) {
+                    $str .= '</td><td>';
+                    $str .= _h($review->{score});
+                    $str .= '</td><td>';
+                    $str .= _h($review->{comment});
+                }
+                $str .= '</td><td colspan="99"></td></tr>';
+            }
+            return $str;
+        },
+    );
+    </%perl>
+    <h2><% $pagename %></h2>
+    <%perl>
+    if (!$manager) {
+        print "<p>Note: You are only shown scores and comments for your own reviews<p/>\n";
+    }
+    $apps->display();
+</%perl>
+
+% if ($manager && $showall) {
+<hr>
+<h2>Auto-assign reviewers</h2>
+<p>
+<form method="POST" action="admin.html">
+    <input type="hidden" name="dorandomassignments" value="1" />
+    <input type="submit" value="Click this button" /> to automatically assign <% $MAX_REVIEWERS %> reviewers to each applicant.
+</form>
+<br/>
+<form method="POST" action="admin.html">
+    <input type="hidden" name="deleteincompletereviews" value="1" />
+    <input type="submit" value="Click this one" /> to remove all assignments who have not done a review yet.
+</form>
+</p>
+% }
+
+
+
+

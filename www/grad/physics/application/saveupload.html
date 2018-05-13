@@ -1,0 +1,73 @@
+<%DOC>
+   Component: saveupload.html
+        Date: 2005.08.10
+      Author: allan
+     Changed: 2005.11.02 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$description => ''
+$file => undef
+$id => $session{'gradappid'}
+</%ARGS>
+
+<%INIT>
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) {
+    $id = $session{'gradappid'};
+}
+if (!$id) {
+    $m->redirect('index.html?notloggedin=1');
+}
+
+my $message = "Sorry, you don't seem to be logged in correctly";
+
+if ($description) {
+    my ($email, $fname, $mname, $lname);
+    my $sql = "SELECT email, fname, mname, lname FROM grad.gradapp WHERE id=?";
+    my $sth = $dbh->prepare($sql);
+    $sth->execute($id)
+        or die 'Unable to grab app: ' . $dbh->errstr;
+    
+    if (my $row_ref = $sth->fetchrow_arrayref()) {
+        ($email, $fname, $mname, $lname) = @$row_ref;
+        my $req = Apache2::Request->new($r);
+        my $upload = $req->upload('file');
+        if ($upload) {
+	    my $recfname = $upload->filename;
+	    my $mime_type;
+            if($recfname =~ m/\.pdf$/i) {
+	    	$mime_type = "application/pdf";
+	    }
+	    else {
+	        $mime_type = $upload->type;
+	    }
+            my $fh = $upload->fh;
+            my $data = do { local $/; <$fh> };
+            my $datasize = $upload->size;
+            $sql = "INSERT INTO grad.uploads (userid, mimetype, data, description, timestamp) VALUES (?,?,?,?, NOW())";
+            $sth = $dbh->prepare($sql);
+            $sth->execute($id, $mime_type, $data, $description)
+                or die 'Unable to update entry: ' . $dbh->errstr;
+                
+            $message = "Thank you - we stored your uploaded file \"".$description."\" with your application";
+            # also send email as confirmation
+            $m->comp('/mason/send_mail.comp', to=>$email, subject=>"Uploaded File Received", from=>'grad@physics.umn.edu', text=>$message);
+            # viewapp page displays the result, no need to wait here
+            $m->comp('logevent.mhtml',text=>$email." uploaded supp. material $recfname ".$mime_type);
+            $m->redirect("viewapp.html");
+        } else {
+            $message = "Sorry, you must select a file to upload.";
+        }
+    }
+} else {
+    $message = "Sorry, you must provide both a file to upload and a description to go with it.";
+} # close description test
+
+</%INIT>		
+		
+<%method title>Application to Physics Graduate Program: Supplementary Materials</%method>
+
+<% $message |h %>

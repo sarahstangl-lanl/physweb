@@ -1,0 +1,17 @@
+<% $m->call_next %>
+<%method title>People of Physics and Astronomy</%method>
+
+<%method titlemenu_above>
+   <& /mason/titlemenu.comp:begin, type=>"above"&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/index.html' &>Main</&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/faculty/' &>Faculty</&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/research'&>Researchers</&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/staff'&>Staff</&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/students/grad'&>Students</&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/visitors/'&>Visitors</&>
+   <&| /mason/titlemenu.comp:item, link=>'/people/all/' &>All</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+
+%#<!-- vim: set syntax=mason: -->
+

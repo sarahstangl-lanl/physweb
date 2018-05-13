@@ -1,0 +1,33 @@
+<%doc>
+          vim: set syntax=mason:
+  Description: Gives you all the information needed to reproduce the full
+               url bar of the browser up to the '?' paramiters.
+</%doc>
+
+
+<%init>
+#use Apache::URI;
+my $s = $r->server;
+my %info;
+$info{protocol} = "http";
+if($ENV{HTTPS}) { 
+    $info{protocol} .= "s";
+}
+$info{siteroot} = "";
+$info{uri} = $r->uri;
+$info{hostname} = $r->hostname;
+$info{port} = $r->get_server_port();
+</%init>
+
+<%perl>
+
+  #my $uri = Apache::URI->parse($r);
+  #$m->out("DEBUG:" . $uri->hostinfo ."<BR>");
+ 
+  $info{siteroot} = $info{protocol} . "://" . $info{hostname};
+  if($info{port} and $info{port} != 80) {
+     $info{siteroot} .= ":".$info{port};
+  }
+  #$m->out("DEBUG: $info{siteroot}<BR>");
+  return %info;
+</%perl>

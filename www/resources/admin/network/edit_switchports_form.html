@@ -1,0 +1,42 @@
+
+<%DOC>
+   Component: edit_switchports_form.html
+        Date: 2008.06.02
+      Author: clayton
+     Changed: 2008.06.02 by clayton
+
+Description ... 
+</%DOC>
+
+<%method title>Add Switch Ports</%method>
+<%method js></%method>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+use physdb;
+
+  my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+  if(!$auth) {
+    print "Must be admin\n";
+    return;
+  }
+
+  my @switches;
+
+  my $results = physdb::query('SELECT DISTINCT switch FROM net_ports');
+
+  while (my $row = $results->fetchrow_hashref()) {
+    push @switches, $row->{switch};
+  }
+</%INIT>	
+
+<form action="edit_switchports.html">
+<table>
+<tr><td>Switch:</td><td><input type="text" name="new_switch" id="form_switch"></td></tr>
+<& /mason/ajax/editabledropdown.comp, id => 'form_switch', entries => \@switches &>
+<tr><td>Port(s):</td><td><input type="text" name="new_port_start" size="5"> - <input type="text" name="new_port_end" size="5"></td></tr>
+<tr><td colspan="2"><input type="submit" value="Add"></td></tr>
+</table>
+</form>

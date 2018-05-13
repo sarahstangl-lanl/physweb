@@ -1,0 +1,16 @@
+(connect  => sub {
+    # Work around some stupid oracle shit
+
+    my ($dw) = @_;
+
+    my $dbh = DBI->connect($dw->{'dsn'}, $dw->{'user'}, $dw->{'password'});
+
+    if ($dbh) {
+	$dbh->do("ALTER SESSION SET NLS_DATE_FORMAT='YYYY-MM-DD HH24:MI:SS'");
+    }
+
+    return $dbh;
+},
+user     => 'physdwa',
+password => 'FMSA498A',
+dsn      => 'DBI:Proxy:hostname=dbiproxy.spa.umn.edu;port=994;dsn=dbi:Oracle://dmw1-scan.oit.umn.edu:1521/dwprd.oit')

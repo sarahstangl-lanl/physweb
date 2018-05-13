@@ -1,0 +1,15 @@
+
+<%ARGS>
+$recipient => ''
+$comment => ''
+$message => ''
+$email => 1
+</%ARGS>
+
+<%INIT>
+    use strict;
+    
+    $m->comp('/mason/auth/auth_block.comp');
+</%INIT>
+
+% $m->comp('/mason/myfiles/upload.comp', recipient=>$recipient, comment=>$comment, message => $message, email => $email );

@@ -1,0 +1,32 @@
+<%doc>
+vim:set syntax=mason:
+
+</%doc>
+
+<%method title>Image Collection</%method>
+
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+    table => 'webdb.images',
+    field_list => [
+        'imageid',
+        'name',
+        'category',
+        'parentid',
+        'indexid',
+        'size_x',
+        'size_y',
+    ],
+    field_params => {
+        'imageid' => {
+            'data_format' => sub{
+                my $id = shift;
+                return $m->scomp('/mason/db/images/insert_thumb.comp', imageid=>$id);
+            },
+        },
+        'parentid' => { hidden => 0, },
+    },
+    filter_field => 'category',
+);
+
+</%perl>

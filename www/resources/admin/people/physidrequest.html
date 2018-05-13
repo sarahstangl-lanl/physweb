@@ -1,0 +1,78 @@
+<%doc>
+
+Submits a physics account create/enable request
+
+</%doc>
+
+<%args>
+$uid => undef
+$action => 'create'
+$ajax => 0
+$directory => undef
+</%args>
+
+<%init>
+use Scalar::Util 'blessed';
+use PhysAjax;
+
+my $access = $m->comp('/mason/auth/auth_check_directory.comp');
+
+# Validate args
+unless ($access) {
+    my $message = 'No access to request account creation';
+    print_ajax({ err => $message }) if ($ajax);
+    print $message;
+    return;
+}
+
+unless ($uid) {
+    my $message = 'uid is required';
+    print_ajax({ err => $message }) if ($ajax);
+    print $message;
+    return;
+}
+
+unless ($action =~ /^(create|enable)$/) {
+    my $message = "Invalid action $action";
+    print_ajax({ err => $message }) if ($ajax);
+    print $message;
+    return;
+}
+
+# Not really necessary but ensures autohandler passes valid directory object
+unless (blessed $directory && $directory->isa('Directory')) {
+    $directory = new Directory( uid => $uid );
+}
+
+# Ensure directory object was filled from database
+unless ($directory->{loaded}) {
+    my $message = "Invalid uid $uid";
+    print_ajax({ err => $message }) if ($ajax);
+    print $message;
+    return;
+}
+
+# Don't allow creation requests if physid set
+if ($directory->get("physid")) {
+    my $message = "Can't submit creation request - user already has physid " . $directory->get('physid');
+    print_ajax({ err => $message }) if ($ajax);
+    print $message;
+    return;
+}
+
+$directory->set(
+        acctreq => $action,
+        acctreq_uid => $session{'uid'},
+);
+
+unless ($directory->save) {
+    my $message = "Failed to save changes to directory";
+    print_ajax({ err => $message }) if ($ajax);
+    print $message;
+    return;
+}
+
+$m->comp('/mason/db/directory/send_acctreq_email.comp', directory => $directory);
+
+print_ajax({ message => 'OK' }) if ($ajax);
+</%init>

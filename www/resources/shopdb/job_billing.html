@@ -1,0 +1,351 @@
+<%shared>
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+my $job_id = $m->request_args->{job_id};
+my $job = $schema->resultset('Jobs')->with_directory_info->search(undef, {
+    '+select' => [ 'directory.email', 'directory_2.email' ],
+    '+as'     => [ 'customer_email', 'pi_email' ],
+})->find($job_id);
+</%shared>
+
+<%method titlemenu_below>
+<& '/mason/db/shopdb/job_menu.comp', job_item => $job &>
+</%method>
+
+<%init>
+
+use tablesearch;
+use DateTime;
+use DateTime::Format::Strptime;
+use PDF::Report;
+
+unless ($job) {
+    print "Invalid job_id: " . _h($job_id);
+    return;
+}
+
+my $dw_dbh = $m->comp('/mason/dw_dbh.comp');
+
+my $strp = DateTime::Format::Strptime->new( pattern => '%d-%b-%y' );
+
+my $labor_account = '720403';
+my $material_account = '720299';
+my $joint_account = '850104'; # Old billing method with labor and material on same account
+my @accounts = ($labor_account, $material_account, $joint_account);
+
+if (defined $ARGS{invoice_id}) {
+    my $voucher_sth = $dw_dbh->prepare("
+        SELECT v.INVOICE_ID, v.VOUCHER_ID, v.DESCR254_MIXED, v.INVOICE_DT, v.ACCOUNTING_DT, l.ACCOUNT, l.FOREIGN_AMOUNT, l.DESCR
+        FROM FS_PS_VOUCHER v
+        JOIN FS_PS_DISTRIB_LINE l ON v.VOUCHER_ID = l.VOUCHER_ID
+        WHERE l.ACCOUNT " . _in(@accounts) . " AND v.INVOICE_ID = ?");
+    $voucher_sth->execute(@accounts, $ARGS{invoice_id});
+    my @voucher_lines;
+    while (my $voucher_line = $voucher_sth->fetchrow_hashref) {
+        push @voucher_lines, $voucher_line;
+    }
+    unless (@voucher_lines) {
+        print "Invalid invoice_id " . _h($ARGS{invoice_id});
+        return;
+    }
+    # Determine date range for charge dates
+    my $start_date = $strp->parse_datetime($voucher_lines[0]->{INVOICE_DT})->subtract( months => 1 );
+    my $end_date = $start_date->clone->add( months => 1, end_of_month => 'limit' )->subtract( days => 1 );
+    # Fetch charge lines and calculate totals
+    my $ll_rs = $job->search_related('labor_lines', {
+        'me.active' => 1,
+        'me.finalized' => 1,
+        charge_date => { -between => [ $start_date->ymd, $end_date->ymd ] },
+    }, {
+        '+select' => [
+            'machinist.fulltime',
+            { sum => 'me.charge_hours' },
+            { sum => \'me.charge_hours * machinist.labor_rate' },
+        ],
+        '+as' => [
+            'fulltime',
+            'charge_hours_sum',
+            'extended_cost_sum',
+        ],
+        group_by => [ 'machinist.labor_rate', 'machinist.fulltime' ],
+    })->with_ts_fields;
+    my @labor_lines = $ll_rs->all;
+    my $labor_total = 0;
+    $labor_total += $_->get_column('extended_cost_sum') for (@labor_lines);
+    $labor_total = sprintf "%0.2f", $labor_total;
+    my $ml_rs = $job->search_related('material_lines', {
+        'me.active' => 1,
+        'me.finalized' => 1,
+        charge_date => { -between => [ $start_date->ymd, $end_date->ymd ] }
+    })->with_ts_fields;
+    my @material_lines = $ml_rs->all;
+    my $material_total = 0;
+    $material_total += $_->get_column('extended_cost') for (@material_lines);
+    $material_total = sprintf "%0.2f", $material_total;
+    # Check totals against voucher
+    my ($voucher_labor, $voucher_material);
+    for my $voucher_line (@voucher_lines) {
+        if ($voucher_line->{DESCR} =~ /^LAB/) {
+            $voucher_labor = $voucher_line->{FOREIGN_AMOUNT};
+            $labor_account = $material_account = $joint_account
+                if ($voucher_line->{ACCOUNT} eq $joint_account);
+        }
+        else {
+            $voucher_material = $voucher_line->{FOREIGN_AMOUNT};
+        }
+    }
+    if ($labor_total > 0 && (! defined $voucher_labor || $voucher_labor != $labor_total) && !$ARGS{ignore_errors}) {
+        print "Job labor does not equal voucher labor! Voucher: $voucher_labor Job: $labor_total<br/>";
+        print "<a href='?" . _args(%ARGS, ignore_errors => 1) . "'>Continue anyway</a>";
+        return;
+    }
+    if ($material_total > 0 && (! defined $voucher_material || $voucher_material != $material_total) && !$ARGS{ignore_errors}) {
+        print "Job material does not equal voucher material! Voucher: $voucher_material Job: $material_total";
+        print "<a href='?" . _args(%ARGS, ignore_errors => 1) . "'>Continue anyway</a>";
+        return;
+    }
+
+    my $currency = sub { my $value = shift; return $value unless (defined $value && $value =~ /^[0-9]/); return sprintf '$%0.2f', $value; };
+
+    # Generate PDF
+    my $pdf = PDF::Report->new;
+    my $font = $pdf->{font};
+    my $boldfont = $pdf->{pdf}->corefont('Helvetica-Bold');
+    $pdf->newpage;
+    my $text = $pdf->{page}->text->font($pdf->{font}, $pdf->{size});
+    $pdf->{linespacing} = 2;
+    # Header
+    my $imgX = 900;
+    my $imgY = 160;
+    my $scale = 0.6;
+    $pdf->addImgScaled($m->interp->comp_root . '/www/images/cseheader.png', ($pdf->{PageWidth} - ($scale * $imgX)) / 2, $pdf->{PageHeight} - $pdf->{Ymargin} - ($scale * $imgY), $scale);
+    $pdf->setAddTextPos(0, $pdf->{PageHeight} - $pdf->{Ymargin} - $pdf->{size} - ($scale * $imgY) - 10);
+    $pdf->setAlign('center');
+    $pdf->{size} = 13;
+    $pdf->addText("CSE Shop Invoice");
+    # Invoice details
+    $pdf->{size} = 11;
+    $pdf->{vPos} -= 3 * ($pdf->{size} + $pdf->{linespacing});
+    my $details_vPos = $pdf->{vPos};
+    my $add_left = sub {
+        my ($name, $value) = @_;
+        $pdf->setAlign('right');
+        $pdf->{font} = $boldfont;
+        $pdf->addText("$name:", $pdf->{Xmargin} + 75);
+        $pdf->{font} = $font;
+        $pdf->setAlign('left');
+        $pdf->addText($value, 80, 275);
+        $pdf->{vPos} -= $pdf->{size} + $pdf->{linespacing};
+    };
+    my $add_right = sub {
+        my ($name, $value) = @_;
+        $pdf->setAlign('right');
+        $pdf->{font} = $boldfont;
+        $pdf->addText("$name:", $pdf->{PageWidth} - $pdf->{Xmargin} - 90);
+        $pdf->{font} = $font;
+        $pdf->{hPos} = undef;
+        $pdf->addText($value);
+        $pdf->{vPos} -= $pdf->{size} + $pdf->{linespacing};
+    };
+    # Left column
+    $add_left->("Description", $job->project_name);
+    $add_left->("Requester", $job->get_column('customer_display_name') . ($job->get_column('customer_email') ? ' <' . $job->get_column('customer_email') . '>' : ''));
+    $add_left->("PI", $job->get_column('pi_display_name') . ($job->get_column('pi_email') ? ' <' . $job->get_column('pi_email') . '>' : ''));
+    (my $account = $job->get_column('account_key')) =~ s/;+/-/g;
+    $account =~ s/(^UMFIN-|-+$)//g;
+    $add_left->("EFS Account", $account);
+    my $min_vPos = $pdf->{vPos};
+    # Right column
+    $pdf->{vPos} = $details_vPos;
+    $add_right->("Job #", $job_id);
+    $add_right->("Billing Period", $start_date->month_name . " " . $start_date->year);
+    $add_right->("Transaction Date", $strp->parse_datetime($voucher_lines[0]->{ACCOUNTING_DT})->ymd);
+    $add_right->("Voucher ID", $voucher_lines[0]->{VOUCHER_ID});
+    $pdf->{vPos} = $min_vPos if ($pdf->{vPos} > $min_vPos);
+    my @columns = (
+        { name => 'description', header => 'Description', spacing => 215, align => 'left', size => 297 },
+        { name => 'quantity', header => 'Quantity', spacing => 10, align => 'right', size => 50 },
+        { name => 'unit', header => 'Unit', spacing => 55, align => 'right', size => 55 },
+        { name => 'unit_cost' => header => 'Unit Price', spacing => 35, align => 'right', size => 75, format => $currency },
+        { name => 'extended_cost', header => 'Total', spacing => 51, align => 'right', size => 75, format => $currency },
+    );
+    my $item_header = sub {
+        # Line items header (total bodywidth = pagesize - xmargin - xmargin = 612 - 30 - 30 = 552)
+        $pdf->{linespacing} = 2;
+        $pdf->{vPos} -= 2 * ($pdf->{size} + $pdf->{linespacing});
+        my $lineitem_vPos = $pdf->{vPos} + $pdf->{size} + $pdf->{linespacing} - 3;
+        $pdf->drawRect($pdf->{Xmargin}, $pdf->{vPos} - 3, $pdf->{PageWidth} - $pdf->{Xmargin}, $pdf->{vPos} + $pdf->{size} + $pdf->{linespacing} - 3);
+        $pdf->{hPos} = $pdf->{Xmargin};
+        for (my $i = 0; $i < $#columns; $i++) {
+            $pdf->{hPos} += $columns[$i]->{size};
+            $pdf->drawLine($pdf->{hPos}, $lineitem_vPos - $pdf->{size} - $pdf->{linespacing}, $pdf->{hPos}, $lineitem_vPos);
+        }
+        $pdf->setAlign('left');
+        $pdf->{hPos} = $pdf->{Xmargin} + 2;
+        $pdf->{font} = $boldfont;
+        for my $column (@columns) {
+            my $hPos = $pdf->{hPos};
+            $column->{width} = $text->advancewidth($column->{header});
+            $pdf->{align} = 'center';
+            $pdf->{hPos} += ($column->{size} - 4) / 2;
+            $pdf->addText($column->{header});
+            $pdf->{hPos} = $hPos + $column->{size};
+        }
+        $pdf->{font} = $font;
+        $pdf->{vPos} -= 1;
+    };
+    $item_header->();
+    # Line items
+    my @lines = (
+        $labor_total > 0 ? {
+            description => "Labor (account code $labor_account)",
+            quantity => '',
+            unit => '',
+            unit_cost => '',
+            extended_cost => $labor_total,
+            type => 'labor_total',
+        } : (),
+        (map { {
+            description => ($_->get_column('fulltime') ? 'Full-time' : 'Part-time') . " employee labor",
+            quantity => $_->get_column('charge_hours_sum'),
+            unit => 'Hours',
+            unit_cost => $_->get_column('labor_rate'),
+            extended_cost => $_->get_column('extended_cost_sum'),
+            type => 'labor',
+        } } @labor_lines),
+        $material_total > 0 ? {
+            description => "Material (account code $material_account)",
+            quantity => '',
+            unit => '',
+            unit_cost => '',
+            extended_cost => $material_total,
+            type => 'material_total',
+        } : (),
+        (map { my $ml = $_; my $line = {
+            type => 'material',
+            map { $_ => $ml->get_column($_) } map { $_->{name} } @columns
+        } } @material_lines),
+    );
+    my $total = sprintf '$%.02f', $labor_total + $material_total;
+    for my $line (@lines) {
+        if ($pdf->{vPos} - $pdf->{size} - $pdf->{linespacing} < $pdf->{Ymargin} + 40) {
+            $pdf->newpage;
+            $pdf->{vPos} = $pdf->{PageHeight} - $pdf->{Ymargin} - $pdf->{size};
+            $item_header->();
+            $pdf->{vPos} -= 3;
+        }
+        $pdf->setAddTextPos($pdf->{Xmargin} + 2, $pdf->{vPos} - $pdf->{size} - $pdf->{linespacing});
+        if ($line->{type} =~ /_total/) {
+            $pdf->{vPos} -= 3;
+        }
+        my $columnno = 0;
+        for my $column (@columns) {
+            unless ($columnno++ || $line->{type} =~ /_total/) {
+                $pdf->{hPos} += 10;
+                $column->{size} -= 10;
+            }
+            my $hPos = $pdf->{hPos};
+            $pdf->{hPos} += $column->{size} - 5 if ($column->{align} eq 'right');
+            $pdf->{align} = $column->{align};
+            if ($line->{type} =~ /_total/ && $column->{name} eq 'extended_cost') {
+                $pdf->{font} = $boldfont;
+            }
+            else {
+                $pdf->{font} = $font;
+            }
+            $pdf->addText($column->{format} ? $column->{format}->($line->{$column->{name}}) : $line->{$column->{name}}, undef, $column->{size} - 7);
+            $pdf->{hPos} = $hPos + $column->{size};
+        }
+        if ($line->{type} =~ /_total/) {
+            $pdf->{vPos} -= 3;
+        }
+        else {
+            $columns[0]->{size} += 10;
+        }
+    }
+    $pdf->{hPos} = $pdf->{Xmargin};
+    if ($pdf->{vPos} - $pdf->{size} - $pdf->{linespacing} - 3 < $pdf->{Ymargin}) {
+        $pdf->newpage;
+        $pdf->{vPos} = $pdf->{PageHeight} - $pdf->{Ymargin} - $pdf->{size};
+    }
+    $pdf->setAddTextPos($pdf->{PageWidth} - $pdf->{Xmargin} - $columns[$#columns]->{size}, $pdf->{vPos} - $pdf->{size} - $pdf->{linespacing} - 3);
+    $pdf->{font} = $boldfont;
+    $pdf->{align} = 'right';
+    $pdf->addText("Total Due:");
+    $pdf->{align} = 'right';
+    $pdf->{hPos} = $pdf->{PageWidth} - $pdf->{Xmargin} - 3;
+    $pdf->addText($total);
+    if ($pdf->{vPos} - 4 * ($pdf->{size} + $pdf->{linespacing}) < $pdf->{Ymargin}) {
+        $pdf->newpage;
+        $pdf->{vPos} = $pdf->{PageHeight} - $pdf->{Ymargin} - $pdf->{size};
+    }
+    $pdf->{font} = $font;
+    $pdf->setAlign('center');
+    $pdf->{vPos} -= 2 * ($pdf->{size} + $pdf->{linespacing});
+    $pdf->addText("If you have any questions concerning this invoice, please contact cseshop\@umn.edu.");
+    $pdf->setAlign('center');
+    $pdf->{vPos} -= 2 * ($pdf->{size} + $pdf->{linespacing});
+    $pdf->addText("Thank you!");
+
+    # Send PDF
+    $m->clear_buffer;
+    $r->content_type('application/pdf');
+    print $pdf->Finish('');
+    $m->abort;
+    return;
+}
+
+my $vouchers_sth = $dw_dbh->prepare("SELECT VOUCHER_ID FROM FS_PS_VOUCHER WHERE INVOICE_ID LIKE '%Job" . $job_id . "%'");
+
+$vouchers_sth->execute;
+my @vouchers;
+while (my $voucher = $vouchers_sth->fetchrow_hashref) { push @vouchers, $voucher->{VOUCHER_ID} };
+unless (@vouchers) {
+    print "No vouchers for this job";
+    return;
+}
+my $ts = Tablesearch->new(
+    debug => 0,
+    dbh => $dw_dbh,
+    storage_engine => 'oracle',
+    column_fetch_format => 'NAME_uc',
+    sql => [ "
+        SELECT v.INVOICE_ID, v.VOUCHER_ID, v.DESCR254_MIXED, v.INVOICE_DT, v.ACCOUNTING_DT, l.ACCOUNT, l.FOREIGN_AMOUNT
+        FROM FS_PS_VOUCHER v
+        JOIN FS_PS_DISTRIB_LINE l ON v.VOUCHER_ID = l.VOUCHER_ID
+        WHERE l.ACCOUNT " . _in(@accounts) . " AND v.VOUCHER_ID " . _in(@vouchers), @accounts, @vouchers
+    ],
+    sql => [ "
+        SELECT v.INVOICE_ID, v.VOUCHER_ID, v.DESCR254_MIXED, v.INVOICE_DT, v.ACCOUNTING_DT, SUM(l.FOREIGN_AMOUNT) AS VOUCHER_TOTAL
+        FROM FS_PS_VOUCHER v
+        JOIN FS_PS_DISTRIB_LINE l ON v.VOUCHER_ID = l.VOUCHER_ID
+        WHERE v.VENDOR_ID IN ('9000000044','9000000247') AND v.INVOICE_ID LIKE '%Job$job_id' AND l.ACCOUNT " . _in(@accounts) . "
+        GROUP BY v.INVOICE_ID, v.VOUCHER_ID, v.DESCR254_MIXED, v.INVOICE_DT, v.ACCOUNTING_DT", @accounts
+    ],
+    field_params => {
+        INVOICE_ID => { url => "job_billing.html?job_id=$job_id&invoice_id=\$row{INVOICE_ID}" },
+        VOUCHER_TOTAL => { data_format => 'currency' },
+        TS_RNUM => { hidden => 1 },
+    },
+    postrow_disabled => sub {
+        my ($row, $ts) = @_;
+        my $html = '';
+        my $colspan = scalar($ts->column_names);
+        my $start_date = $strp->parse_datetime($row->{INVOICE_DT})->subtract( months => 1 );
+        my $end_date = $start_date->clone->add( months => 1, end_of_month => 'limit' )->subtract( days => 1 );
+        my $cl_rs = $job->search_related($row->{ACCOUNT} eq '720403' ? 'labor_lines' : 'material_lines', {
+            charge_date => { -between => [ $start_date->ymd, $end_date->ymd ] },
+        })->with_ts_fields;
+        my $total = sprintf "%0.2f", $cl_rs->get_column('extended_cost')->sum;
+        for my $cl ($cl_rs->all) {
+            $html .= "<tr><td colspan='" . $colspan . "'>" . $cl->get_column('charge_date') . ' ' . $cl->get_column('description') . ' ' . $cl->get_column('extended_cost') . "</td></tr>";
+        }
+        $html .= "<tr><td colspan='" . $colspan . "'>" . $total . "</td></tr>";
+        unless ($total == $row->{FOREIGN_AMOUNT}) {
+            $html .= "<tr><td colspan='$colspan'><font color='red'>WARNING: " . ($row->{ACCOUNT} eq '720403' ? 'Labor' : 'Material') . " total does not equal billed amount!</font></td></tr>";
+        }
+        return $html;
+    },
+    default_sort_field => 'INVOICE_ID',
+);
+$ts->display;
+</%init>

@@ -1,0 +1,432 @@
+<%doc>
+$Id: dhandler,v 1.2 Oct 25 21:12:07 CDT 2004 rhizo Exp $
+A gallery for the physics website, modified from 'faceplant' by Alex Schumann
+
+</%doc>
+
+<%init>
+    # $r->send_http_header("text/html"); # setup-dependent
+    $r->content_type("text/html");
+    if($error) {
+        print "404, item Not Found";
+        return;
+    };
+</%init>
+
+<%method meta>
+<style>
+table.faceplant-thumb-table tr td {
+    background: #ccc;
+    vertical-align: bottom;
+    color: white;
+    text-align: center;
+}
+table.faceplant-thumb-table img {
+    padding-top: 3px;
+}
+
+img.faceplant-photo {
+    padding-top: 3em;
+}
+div.faceplant-photo-container {
+    padding: 0;
+    padding-left: 10px;
+    margin-top: 0;
+}
+div.faceplant-photo-caption {
+    background: #bbb;
+    padding: 0.1em 0.2em 0.1em 0.2em;
+}
+div.faceplant-photo-credit {
+    text-align: right;
+    font-size: 0.7em;
+}
+</style>
+</%method>
+
+<%args>
+  $page                 => 1
+  $name                 => 'faceplant'
+  $title                => 'Photo Gallery'
+  $attribute            => 1
+  $sub_gal_wrap         => 1
+  $sub_gal_table_css    => 'faceplant-sub-gal-table'
+  $photo_list_wrap      => 3
+  $photo_list_rows      => 7
+  $photo_list_pager_sep => '&#183;' # &middot;
+  $thumb_xsize          => 100
+  $thumb_ysize          => 90
+  $photo_xsize          => 300
+  $photo_ysize          => 400
+  $photo_xsize_small    => 300   
+  $photo_ysize_small    => 400    
+  $photo_xsize_medium   => 600  
+  $photo_ysize_medium   => 800
+  $photo_xsize_large    => 1200
+  $photo_ysize_large    => 1600
+  $thumb_table_css      => 'faceplant-thumb-table'
+</%args>
+
+<%ARGS>
+      $photo_scale => q/medium/
+</%ARGS>
+
+<%shared>
+  my $bread_crumb_sep      = q/ &#58;&#58; /;
+  my $bread_crumb_href_sep = q/ &#58;&#58; /;
+
+  use List::Group qw[group];
+  use HTML::Table;
+  use File::Spec::Functions qw[:ALL];
+
+  use Image::ExifTool qw(:Public);
+
+  my $d_arg = $m->dhandler_arg;
+  my ($URI_BASE) = ( $r->uri =~ m!^(.+)/(?:$d_arg|\/index\.html)! );
+  #my $GALLERY_ROOT = $r->document_root . "$URI_BASE/pictures";
+  
+  # Set this to the filesystem path of the pictures
+  my $GALLERY_ROOT = "/home/www/docs/media/pictures";
+
+  #Get the uri path and remove any index or index.html from it
+  (my $path_from_uri = $d_arg) =~ s/(?:(?:\/?index)?\.html|\/)$//;
+  #$path_from_uri =~ s/index//;
+
+  my $file = catdir $GALLERY_ROOT, $path_from_uri;
+  my ($dir, $error, $dir_list, @bread_crumb, @bread_crumb_href, $pagetitle, $bread_crumb, $bread_crumb_href);
+  if( -e $file ) {
+      $dir = -d $file ? $file : (splitpath $file)[1];
+
+      do {
+          if(! opendir DIR, $dir) {
+              $error = 1;
+              warn "quitting because $dir doesnt exist";
+              last; # or die "Error opening directory $dir: $!";
+          }
+          $dir_list = [ sort map "$dir/$_", grep { ! /^\./ } readdir DIR ];
+          closedir DIR;
+
+          @bread_crumb = ('Gallery', splitdir $path_from_uri);
+
+          #@bread_crumb_href;
+          push @bread_crumb_href,
+               sprintf q|<a href="%s/%s" >%s</a>|,
+                       $URI_BASE,
+                       join('/',@bread_crumb[1..$_]),
+                       $bread_crumb[$_] for 0 .. $#bread_crumb - 1; # photo re-size onclick
+
+          push @bread_crumb_href, $bread_crumb[-1];
+
+          $pagetitle = $bread_crumb[-2];
+          $pagetitle =~ s/_/ /g; #/
+          $pagetitle =~ s/\b(\w)/\u$1/g;
+          $bread_crumb      = join $bread_crumb_sep, @bread_crumb;
+          $bread_crumb_href = join $bread_crumb_href_sep, @bread_crumb_href;
+      }
+      while(0);
+  }
+  else {
+      #$m->clear_buffer;
+      warn("Trying to display file/directory that doesnt exist: $file");
+      $r->content_type("text/html");
+      $r->status(404);
+      $error = 1;
+      #$m->abort(404);
+      #unless -e $file;
+  }
+
+</%shared>
+<%method title>Gallery: <% $pagetitle|h %></%method>
+
+<script language="javascript">
+         var i,n;
+
+         function prop(i,n)
+         {
+                 var f;
+                 if(document.all){f=eval('document.all.photo_scale_chooser');} // IE
+                 else{f=document.getElementById('photo_scale_chooser');}      // DOM
+
+                 if(n) // pager or thumb onClick
+                 {
+                     f.action=i+'?page='+n;
+                 }
+                 else // sub-gallery or breadcrumb onClick
+                 {
+                     f.action=i;
+                 }
+                 f.submit();
+                 return false;
+         }
+</script>
+
+<table border="0" class="<% $name|u %>-content-table">
+  <tr>
+    <td valign="top"
+        class="faceplant-sub-gal-cell">
+      <& SELF:.sub_gal_list,
+           dir_list          => $dir_list,
+           wrap              => $sub_gal_wrap,
+           sub_gal_table_css => $sub_gal_table_css,
+       &>
+    </td>
+    <td valign="top">
+      <& SELF:.photo_list,
+           dir_list        => $dir_list,
+           page            => $page,
+           wrap            => $photo_list_wrap,
+           rows            => $photo_list_rows,
+           pager_sep       => $photo_list_pager_sep,
+           thumb_xsize     => $thumb_xsize,
+           thumb_ysize     => $thumb_ysize,
+           thumb_table_css => $thumb_table_css,
+           photo_scale     => $photo_scale,
+       &>
+    </td>
+    <td colspan="2" valign="top"
+        class="<% $name|u %>-photo-view">
+      <& SELF:.photo_view,
+           file  => $file,
+           xsize => $photo_xsize,
+           ysize => $photo_ysize,
+           alt => undef,          # TODO add annotations comp
+           scale => $photo_scale,               #
+           xsize_small  => $photo_xsize_small,  # 
+           ysize_small  => $photo_ysize_small,  # photo re-size
+           xsize_medium => $photo_xsize_medium, # tweak arguments 
+           ysize_medium => $photo_ysize_medium, # 
+           xsize_large  => $photo_xsize_large,  # 
+           ysize_large  => $photo_ysize_large,  # 
+           page            => $page,
+           photo_scale => $photo_scale,
+       &>
+    </td>
+  </tr>
+</table>
+
+<%method .sub_gal_list>
+  <%args>
+    @dir_list
+    $wrap => 1
+    $sub_gal_table_css => undef
+  </%args>
+  <%init>
+    @dir_list = sort grep { -d $_ } @dir_list;
+    return unless @dir_list;
+    $_ = $m->scomp('SELF:.sub_gal_view',dir => $_) for @dir_list;
+    my $table = HTML::Table->new(
+                  -data  => [ group \@dir_list, cols => $wrap ],
+                  -class => $sub_gal_table_css,
+                );
+  </%init>
+  <h3 class="faceplant-section-title">Sub Galler<% @dir_list == 1 ? "y" : "ies" %></h3>
+  <% $table %>
+  
+</%method>
+
+<%method .sub_gal_view>
+  <%args>
+    $dir
+  </%args>
+  <!-- photo re-size onclick -->  
+  <a href="<% $URI_BASE %>/<% $rel_dir %>">
+<% $label %></a>
+  <%init>
+    my $rel_dir = abs2rel $dir, $GALLERY_ROOT;
+    my $label   = (splitpath $rel_dir)[-1];
+    # Swap out _ for spaces and uppercase each word:
+    $label =~ s/_/ /g;
+    $label =~ s/\b(\w)/\u$1/g;
+
+  </%init>
+</%method>
+
+<%method .photo_list>
+    <%args>
+      @dir_list
+      $wrap => 5
+      $rows => 7
+      $page => 1
+      $pager_sep
+      $thumb_xsize
+      $thumb_ysize
+      $thumb_table_css => undef
+      $photo_scale
+    </%args>
+
+    <%init>
+      @dir_list = grep { -f $_ } @dir_list;
+      return unless @dir_list;
+      $_ = $m->scomp('SELF:.thumb_view',
+                     file => $_,
+                     page => $page,
+                     xsize => $thumb_xsize,
+                     ysize => $thumb_ysize,
+                     alt => undef, # TODO
+                     photo_scale => $photo_scale,
+                    ) for @dir_list;
+      my @files = group \@dir_list, cols => $wrap;
+      my $pages  = int( @files / $rows );
+         $pages += 1 if $pages < ( @files / $rows );
+      @files = splice @files, $rows * ($page - 1), $rows;
+      my $table = HTML::Table->new(
+                    -data  => \@files,
+                    -class => $thumb_table_css,
+                  );
+    </%init>
+
+    <h3 class="faceplant-page-count"><% $pages == 1 ? "page 1" : "pages" %>
+        <& SELF:.photo_pager,
+             page  => $page,
+             pages => $pages,
+             sep   => $pager_sep,
+             photo_scale => $photo_scale,
+         &></h3>
+    <% $table %>
+
+</%method>
+
+<%method .photo_pager>
+  <%args>
+    $page
+    $pages
+    $sep
+    $photo_scale
+  </%args>
+  <span class="faceplant-thumb-pager">&#40;
+% for ( 1 .. $pages ) {
+%   if ( $_ == $page ) {
+      <strong><% $page|h %></strong>
+%   } else {
+      <a href="<% $r->uri %>?page=<% $_ %>&photo_scale=<%$photo_scale|u%>">
+        <% $_ %></a>
+%   }
+    <% $_ != $pages ? $sep : '' %>
+% }
+  &#41;</span>
+  <%init>
+    return if $pages == 1;
+  </%init>
+</%method>
+
+<%method .thumb_view>
+  <%args>
+    $file
+    $page
+    $alt => undef # TODO
+    $xsize => 50
+    $ysize => 40
+    $photo_scale
+  </%args>
+    <a href="<% $URI_BASE %>/<% $rel_img %>.html?page=<%$page|u%>&photo_scale=<% $photo_scale|u%>">
+      <img src="<% $URI_BASE %>/images/<% $rel_img %>.html?xsize=<% $xsize|u %>&ysize=<% $ysize|u %>" class="faceplant-thumb" alt="<% $alt?$alt:''|u %>" />
+    <div><% (splitpath $file)[-1] %></div>
+    </a>
+  <%init>
+    my $rel_img = abs2rel $file, $GALLERY_ROOT;
+    #warn("DEBUG: thumb_view has URI_BASE as $URI_BASE and rel_img as $rel_img");
+    #warn("DEBUG: thumb_view has file=$file GALLERY_ROOT as $GALLERY_ROOT");
+  </%init>
+</%method>
+
+<%method .photo_size_chooser>
+    <%args>
+      $page
+      $scale
+    </%args>
+     <form id="photo_scale_chooser" style="display: block; padding:0; margin:0;"
+           method="post"
+           action="<% $r->uri %>?page=<% $page|u %>">
+       <div class="faceplant-photo-scale-chooser">
+       <span class="faceplant-photo-scale-chooser-label">View Size:</span>
+         <%perl>
+         my $c=0;
+         foreach my $size (qw(medium large)) {
+            print " / " if($c++ > 0);
+            if($size eq $scale) {
+                </%perl><b><% ucfirst $size|h %></b><%perl>
+            }
+            else {
+             </%perl>
+                    <a href="<% $r->uri %>?page=<% $page|u %>&photo_scale=<% $size |u %>"><% ucfirst($size)|h%></a>
+             <%perl>
+            }
+        }
+        </%perl>
+       </div>
+     </form>
+
+  <%init>
+      my %selected;
+         %selected = ( small  => undef,
+                       medium => undef,
+                       large  => undef, );
+         $selected{$scale} = q/selected="selected"/;
+  </%init>
+</%method>
+
+<%method .photo_view>
+    <%args>
+      $file
+      $xsize => 400
+      $ysize => 300
+      $alt          #
+      $scale        # 
+      $xsize_small  #
+      $ysize_small  #
+      $xsize_medium #
+      $ysize_medium #
+      $xsize_large  #
+      $ysize_large  # photo re-size defaults
+      $photo_scale
+      $page
+    </%args>
+    <%init>
+      my %img_sizes;                                                 #
+         %img_sizes = ( small  => [ $xsize_small, $ysize_small  ],   #
+                        medium => [ $xsize_medium,$ysize_medium ],   #
+                        large  => [ $xsize_large, $ysize_large  ] ); # 
+      ( $xsize, $ysize ) = @{ $img_sizes{$scale} }[0..1];            # photo re-size tweak
+
+      return unless -f $file;
+      my $rel_image = abs2rel $file, $GALLERY_ROOT;
+      my $filesize = -s $GALLERY_ROOT . "/". $rel_image;
+      my $image_info = ImageInfo($file);
+    </%init>
+    <div class="faceplant-photo-container" style="border: 0px dashed red;">
+    <img src="<% $URI_BASE %>/images/<% $rel_image %>.html?xsize=<% $xsize|u %>&ysize=<% $ysize|u %>"
+         class="faceplant-photo"
+         alt="ALT:<% $rel_image|h %>" />
+<div class="faceplant-photo-info" style="margin-top: 2px;">
+% if($image_info->{'Title'}) {
+    <div class="faceplant-photo-caption">
+    <% $image_info->{'Title'} |h%>
+    </div>
+% }
+% if($image_info->{'Creator'}) {
+    <div class="faceplant-photo-credit">
+    Image Credit: <% $image_info->{'Creator'} |h%>
+    </div>
+% }
+</div> <!-- info -->
+    </div> <!-- container -->
+    <div style="margin-left: 13px;">
+    <& SELF:.photo_size_chooser,
+       page     => $page,
+       scale    => $photo_scale,
+     &>
+    </div>
+    <div style="margin-left: 10px;">
+    <table border="0">
+    <tr><td>Filename:</td><td><% (splitpath $file)[-1] %></td></tr>
+    <tr><td>Size:</td><td><% sprintf("%.0f", $filesize/1000) |h%>kb</td></tr>
+    <tr><td>Created:</td><td><% $image_info->{'DateTimeCreated'} |h%></td></tr>
+    <tr><td>Download:</td><td><a href="<% $URI_BASE %>/images/<% $rel_image %>.html">Full Size</a></td></tr>
+    </table>
+%#    <pre> <% Dumper($image_info) |h%> </pre>
+    </div>
+
+</%method>
+
+
+

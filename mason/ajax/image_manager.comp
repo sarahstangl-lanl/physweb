@@ -1,0 +1,63 @@
+<%doc>
+    Currently the image manager is only setup the appear once per page. This could of course be changed/fixed fairly easily.
+</%doc>
+
+<%args>
+    $parentid
+    $category
+    $editorid => 'wiki__text'
+</%args>
+
+<%init>
+    $m->comp('js.comp');
+    
+    $m->comp('jsload.comp', file => 'multi_upload.js');
+    $m->comp('jsload.comp', file => 'image_picker.js');
+</%init>
+
+<table width="100%">
+<tr><th style="background: #eeeeee;" align="left">Upload Images</th></tr>
+%#<% ($r->dir_config('SiteName') eq 'staging') ? '<tr><td><small>DEBUG mode enabled for STAGING</small></td></tr>' : '' %>
+<tr><td>
+<input type="file" id="testfile" name="image"></input></td></tr>
+<tr><th style="background: #eeeeee;" id="image__pickerhead" align="left">Available Images</th></tr>
+<tr><td valign="top">
+<div style="max-height: 240px; overflow: auto;" id="image__picker">
+
+
+</div>
+</td></tr>
+</table>
+
+<script><!--
+    this.uploader = new MultiUpload( 'testfile', {
+        'action': '/imagedb/upload_image_ajax.html?category=<% $category %>&parentid=<% $parentid %>&autoindexid=1',
+        'name_suffix_template': '',
+        'allowDebug': <% ($r->dir_config('SiteName') eq 'staging') ? 'true' : 'false' %>,
+        'show_filename_only': true,
+        'onAdd': function (args) { window.imager.addPlaceholder(args['upload_id']); },
+        'onUploadFail': function (args) { window.imager.cancelUpload(args['upload_id']); },
+        'showUploadList': false
+    } );
+    this.imager = new ImagePicker('image__picker', '<% $editorid %>', <% $parentid %>, 'image__pickerhead', {
+        uploader: this.uploader,
+        placeholderImgTag: '<img src="/images/ajax-loader.gif" alt="Uploading...">',
+        placeholderHeight: 16
+    });
+    
+
+<%perl>
+    my $sql = 'SELECT imageid, indexid, tsize_x, tsize_y, size_x, size_y, osize_x, osize_y, alt, caption, credit, align FROM images WHERE category=? AND parentid=? AND indexid>0 ORDER BY indexid ASC';
+    my $query = $dbh->prepare($sql);
+    $query->execute($category, $parentid);
+    while (my $result = $query->fetchrow_hashref()) {
+    my $imgtag = $m->scomp('/mason/db/images/insert_thumb.comp', editlink=>0, category=>$category, parentid=>$parentid, indexid=>$$result{'indexid'});
+    $imgtag =~ s/\n//g;
+    $imgtag =~ s/\'/\\\'/g;
+</%perl>
+this.imager.addImage(<% $$result{'indexid'} %>, '<% $imgtag %>', <% $$result{'tsize_y'} %>, <% $$result{'imageid'} %>, { width: '<% $$result{'size_x'} %>', height: '<% $$result{'size_y'} %>', owidth: '<% $$result{'osize_x'} %>', oheight: '<% $$result{'osize_y'} %>', altText: '<% $$result{'alt'} %>', caption: '<% $$result{'caption'} %>', photoCredit: '<% $$result{'credit'} %>', alignment: '<% $$result{'align'} %>' });
+<%perl>
+    }
+</%perl>
+    this.imager.enableFade();
+--></script> 

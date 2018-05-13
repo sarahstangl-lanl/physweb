@@ -1,0 +1,16 @@
+<%doc>
+   Component: server.comp
+        Date: 8/30/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+</%init>
+
+<%perl>
+return "taghairm.spa.umn.edu";
+</%perl>

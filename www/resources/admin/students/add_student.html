@@ -1,0 +1,64 @@
+<%args>
+    $year
+    $semester
+    %auths
+
+    $name => undef
+    $action => undef
+</%args>
+
+<%init>
+    if (!$auths{'appointment'}) { $m->redirect('index.html'); }
+    
+    use physdb::appointment;
+    
+    # Since we always show people with an appointment, we add them simply by creating an empty appointment entry
+</%init>
+
+<%method title>Add Student</%method>
+
+<p>This allows you to add a student to the appointment tracking database that would not otherwise be included, such as an undergraduate TA. The student must already have a directory entry.
+
+<%perl>
+    if ($name) {
+        my $uid;
+        if (my $finder = $m->comp('/mason/ajax/people_finder.comp', name => $name, limit => 1)) {
+            if (my $row = $finder->fetchrow_hashref()) {
+                $uid = $row->{'uid'};
+            }
+        }
+    
+        if ($uid) {
+            my $appt = new Appointment('uid' => $uid, 'year' => $year, 'semester' => $semester);
+            
+            if (!$appt->save()) {
+                print '<div style="padding: 0.3em; border: 1px solid #B13D3D; background: #FF6060;">';
+                print '<b>Failed To Add Student</b>';
+                print '<pre style="padding: 0; margin: 0;">' . $appt->dumperrors() . '</pre>';
+                print '</div>';
+            } else {
+                print '<div style="padding: 0.3em; border: 1px solid #6FCB78; background: #8EFF99;">';
+                print '<b>Student Added</b>';
+                print '<p><a href="appointments.html?uid=' . $uid . '">Edit</a>';
+                print '</div>';
+                
+                $m->redirect('appointments.html?uid=' . $uid)
+                    if ($action && ($action eq 'Add and Edit'));
+            }
+        }
+    }
+</%perl>
+
+<form method="POST" action="?">
+<table>
+<tr>
+    <td>Student:</td>
+    <td><input type="text" id="name" name="name" style="width: 20em"> <small>[<a href="http://zzz.physics.umn.edu/computing/web/physweb/completepeople">autocompleter?</a>]</small></td>
+</tr>
+<tr>
+    <td></td>
+    <td><input type="submit" name="action" value="Add"> <input type="submit" name="action" value="Add and Edit"></td>
+</tr>
+</table>
+</form>
+<& '/mason/ajax/complete_people.comp', id => 'name', name => 'name' &>

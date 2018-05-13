@@ -1,0 +1,42 @@
+<%doc>
+
+check_file_auth.comp
+
+Returns 'foreman', 'accounting', 'machinist', 'customer' or undef
+
+First matching auth type is returned. Auth types are ordered based on auth levels
+i.e., foreman > accounting > machinist > customer
+
+</%doc>
+
+<%args>
+$attachment_id=>undef
+$attachment=>undef
+</%args>
+
+<%init>
+
+# Ensure shopdb-auth hash been generated
+$m->comp('/mason/db/shopdb/build_auth.comp');
+
+my $auth_args = $session{'shopdb-auth'};
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+die 'attachment_id or attachment is required' unless ($attachment_id || $attachment);
+
+$attachment ||= $schema->resultset('Attachments')->find({ attachment_id => $attachment_id });
+
+die "Invalid attachment_id $attachment_id" unless ($attachment);
+
+return 'foreman' if $auth_args->{'foreman'};
+return 'accounting' if $auth_args->{'accounting'};
+
+for my $job ($attachment->jobs) {
+    if (my $auth = $m->comp('/mason/db/shopdb/check_job_auth.comp', job_id => $job->job_id)) {
+        return $auth;
+        last;
+    }
+}
+
+return undef;
+</%init>

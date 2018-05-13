@@ -1,0 +1,18 @@
+
+<%DOC>
+   Component: logevent.mhtml
+        Date: 2005.12.06
+      Author: allan
+     Changed: 2005.12.06 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$text
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/db/auditlog/addevent.comp', type=>'gradapp', text=>$text);
+</%INIT>		
+		

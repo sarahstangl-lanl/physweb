@@ -1,0 +1,19 @@
+<%args>
+    $year => (1900 + (CORE::localtime)[5])
+    $semester => $m->comp('/mason/this_quarter.comp')
+    $uid => $session{'uid'}
+</%args>
+
+<%init>
+    use physdb::appointment;
+    
+    if (!$uid) { return 0; }
+    
+    my $appt = new Appointment('uid' => $uid, 'year' => $year, 'semester' => $semester);
+    
+    if ($appt->get('ta_amt')) {
+        return 1;
+    }
+    
+    return 0;
+</%init>

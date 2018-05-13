@@ -1,0 +1,63 @@
+<%DOC>
+   Component: status_form.html
+        Date: 2005.08.10
+      Author: allan
+     Changed: 2005.08.10 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id => undef
+</%ARGS>
+
+<%shared>
+</%shared>
+
+<%INIT>
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) {
+  $m->redirect('index.html');
+}
+
+if (!$id) {
+    $m->redirect('viewall.html');
+}
+
+my ($fname, $mname, $lname, $reviewer1, $reviewer2, $reviewer3, $review_verified, $review_paper, $review_supplemental);
+
+my $sql = "SELECT fname, mname, lname, review_verified, review_paper, review_supplemental FROM grad.gradapp WHERE id=?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($id);
+
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+    ($fname, $mname, $lname, $review_verified, $review_paper, $review_supplemental) = @$row_ref;
+}
+</%INIT>		
+		
+<%method title>Application Status</%method>
+
+<h4>Status Information for <% $fname |h %> <% $lname |h %></h4>
+
+<form method="POST" action="status_save.html">
+<input type="hidden" name="id" value="<% $id |h %>"/>
+
+<table border=0 width="100%">
+
+<tr valign="top"><td>GRE/GPA Verified</td><td>
+<input name="review_verified" size=50 value="<% $review_verified |h %>">
+</td></tr>
+
+<tr valign="top"><td>Paper version exists</td><td>
+<input name="review_paper" size=50 value="<% $review_paper |h %>">
+</td></tr>
+
+<tr valign="top"><td>Supplemental Comments</td><td>
+<textarea name="review_supplemental" cols=50 rows=5><% $review_supplemental |h %></textarea>
+</td></tr>
+
+</table>
+
+<input type="submit" value="Submit">
+
+</form>

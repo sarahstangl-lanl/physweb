@@ -1,0 +1,90 @@
+<%ARGS>
+$search=>undef
+$account=>undef
+$uid=>undef
+$limit=>10
+</%ARGS>
+
+<%perl>
+    if (!$search && !$account && !$uid)
+    {
+      return '';
+    }
+
+    my $pf_dbh = $dbh;
+
+    # Allow use of webdb_test cnfgroup
+    if ($session{shopdb_instance} && $session{shopdb_instance} eq 'webdb_test') {
+        $pf_dbh = $m->comp('/mason/db/shopdb/schema.comp')->storage->dbh;
+    }
+
+    my (@where_clauses, @exec_args);
+
+    my @search_columns = (qw/ACCOUNT_KEY DESCR50 DESCR/);
+
+    if($account) 
+    {
+        push(@where_clauses, '`a`.`account_key`=?');
+        push(@exec_args, $account);
+    }
+    else {
+        my (@search_terms, @or_clauses, @accounts);
+        if (ref($uid)) {
+            for my $id (@$uid) {
+                next unless $id;
+                my $directory_entry = $pf_dbh->prepare("SELECT emplid, last_name FROM webdb.directory WHERE uid = ?") or die "Failed to prepare dir entry fetch: " . $pf_dbh->errstr;
+                $directory_entry->execute($id) or die "Failed to retrieve directory entry: " . $directory_entry->errstr;
+                if (my $row = $directory_entry->fetchrow_arrayref()) {
+                    push(@search_terms, @$row);
+                }
+                my $customer_id = $pf_dbh->prepare("SELECT customer_id FROM `shopdb`.`customers` WHERE directory_uid = ?") or die "Failed to prepare customer_id fetch: " . $pf_dbh->errstr;
+                $customer_id->execute($id) or die "Failed to retrieve customer id: " . $customer_id->errstr;
+                if (my $row = $customer_id->fetchrow_arrayref()) {
+                    my $accounts = $pf_dbh->prepare("SELECT account_key FROM `shopdb`.`customer_accounts` WHERE customer_id = ?") or die "Failed to prepare account fetch: " . $pf_dbh->errstr;
+                    $accounts->execute(@$row) or die "Failed to retrieve customer accounts: " . $accounts->errstr;
+                    while (my $account = $accounts->fetchrow_arrayref()) {
+                        push(@accounts, @$account);
+                    }
+                }
+            }
+            foreach my $search_term (@search_terms) {
+                next unless ($search_term);
+                foreach my $column (@search_columns) {
+                    push(@or_clauses, "`$column` LIKE ?");
+                    push(@exec_args, "%$search_term%");
+                }
+            }
+            if (scalar(@accounts)) {
+                push(@or_clauses, "`ACCOUNT_KEY` IN (" . join(', ', map { '?' } @accounts) . ")");
+                push(@exec_args, @accounts);
+            }
+            if (scalar(@or_clauses)) {
+                push(@where_clauses, " ( " . join(' OR ', @or_clauses) . " ) ");
+                $limit = 50;
+            }
+            else {
+                @where_clauses = ('1=0');
+            }
+        } else {
+            @search_terms = split(' ', $search);
+            foreach my $search_term (@search_terms) {
+                my @or_clauses;
+                foreach my $column (@search_columns) {
+                    push(@or_clauses, "`$column` LIKE ?");
+                    push(@exec_args, "%$search_term%");
+                }
+                push(@where_clauses, " ( " . join(' OR ', @or_clauses) . " ) ");
+            }
+        }
+    }
+
+    my $sql = 'SELECT `a`.*, `p`.`descr` FROM `shopdb`.`accounts` `a` LEFT JOIN `shopdb`.`sponsored_projects` `p` ON `a`.`project_id` = `p`.`project_id` WHERE ' . join(' AND ', @where_clauses) . ($limit ? ' LIMIT ' . $limit : '');
+    use Data::Dumper;
+    warn "Search: $search";
+    warn Dumper({ SQL => $sql, ARGS => \@exec_args});
+    my $query = $pf_dbh->prepare($sql) or die "Failed to prepare: " . $pf_dbh->errstr;
+    $query->execute(@exec_args)
+      or die 'PF SQL ERROR: ' . $pf_dbh->errstr . ' /// QUERY: ' . $sql;
+
+    return $query;
+</%perl>

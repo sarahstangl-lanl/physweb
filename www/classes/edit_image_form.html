@@ -1,0 +1,103 @@
+
+<%DOC>
+   Component: edit_image_form.html
+        Date: 2003.07.18
+      Author: allan
+     Changed: 2003.07.18 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$entryid=>'new'
+$parentid=>'0'
+$item_type=>''
+$redirect_type=>'index'
+$classid
+</%ARGS>
+
+<%INIT>
+return if $m->comp('/mason/db/dbcheck.comp');
+
+$m->comp('/mason/auth/auth_block_editclass.comp',classid=>$classid, itemid=>($parentid ? $parentid : $entryid));
+# set up classlist variables
+my ($year, $quarter, $name, $title, $location, $time, $url);
+# set up classdata variables
+my ($entry_type, $post_date, $modified_date, $priority, $attach_name, $attach_text);
+
+# Get class information
+my $sql = "SELECT year, quarter, name, title, location, time, url FROM classlist WHERE classid = ? LIMIT 1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($classid);
+
+my $row_ref = $sth->fetchrow_arrayref;
+($year, $quarter, $name, $title, $location, $time, $url) = @$row_ref;
+
+if ($entryid ne "new") {
+
+  # Now fetch the entry
+  my $sql = "SELECT parentid, item_type, post_date, modified_date, priority, attach_name, entry_type, attach_text FROM classdata WHERE entryid = ? LIMIT 1";
+  my $sth = $dbh->prepare($sql);
+  $sth->execute($entryid);
+
+  my $row_ref = $sth->fetchrow_arrayref;
+  ($parentid, $item_type, $post_date, $modified_date, $priority, $attach_name, $entry_type, $attach_text) = @$row_ref;
+} else {
+  $priority = "100";
+  $item_type="image";
+}
+
+</%INIT>		
+		
+<%method title>Edit Image</%method>
+<small>
+% $m->comp('/mason/db/classes/insert_helplink.comp');
+</small><p>
+Use this form to attach an image to items [or sub-items] in your classpage. JPEG and GIF images are probably most suitable. As the image will be displayed as part of the classpage, try to limit it to reasonable dimensions (more than 800 pixels is probably too wide, for example). If you need to attach a larger image, you could use the "attach file" feature.
+
+% if ($entryid ne "new") {
+<form method="POST" action="delete_classitem.html">
+<input type=hidden name="entryid" value="<% $entryid %>">To remove this item from the database - <input type=submit value="Delete Image"><br>
+<input type=hidden name="classid" value="<% $classid |u %>">
+<input type=hidden name="parentid" value="<% $parentid |u %>">
+<input type=hidden name="redirect_type" value="<% $redirect_type |u %>">
+<input type="checkbox" name="confirm">&nbsp;Check this box to confirm deletion.
+</form>
+<p>
+% }
+
+
+<form enctype="multipart/form-data" method="POST" name="edit" action="edit_image.html">
+
+<input type=hidden name="entryid" value="<% $entryid |u %>">
+<input type=hidden name="classid" value="<% $classid |u %>">
+<input type=hidden name="parentid" value="<% $parentid |u %>">
+<input type=hidden name="redirect_type" value="<% $redirect_type |u %>">
+<table border=0 width="100%">
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Item Contents</th></tr>
+
+
+
+
+<tr valign="top"><td colspan=2>
+
+% $m->comp('/mason/db/classes/insert_image.comp',entryid=>$entryid,edit=>'0');
+
+</td></tr>
+
+<tr valign="top"><td>Placement:</td><td><& '/mason/db/classes/postplacement_control.comp', classid=>$classid, parentid=>$parentid, entryid=>$entryid, item_type=>$item_type &>
+</td></tr>
+<tr valign="top"><td>Caption:</td><td><input type=text name="caption" value="<% $attach_text %>" size=50>
+</td></tr>
+<tr valign="top"><td>Upload new image file:</td><td>
+<input type="file" size=20 name="image">
+</td></tr>
+
+</table>
+<p>
+<input type="submit" value="Update Item">
+<input type="reset" value="Cancel Changes">
+
+
+</form>
+

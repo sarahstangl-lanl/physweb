@@ -1,0 +1,10 @@
+<% $m->call_next %>
+<%method title>Overview</%method>
+<%method titlemenu_below>
+ <& /mason/titlemenu.comp:begin, type=>"below" &>
+   <&| /mason/titlemenu.comp:item, link=>'/about/overview/index.html',        &>The School</&>
+   <&| /mason/titlemenu.comp:item, link=>'/about/overview/alumnigo.html'      &>Where do our alumni go?</&>
+   <&| /mason/titlemenu.comp:item, link=>'/about/overview/photo.html'         &>Group Photo</&>
+   <&| /mason/titlemenu.comp:item, link=>'/about/overview/self-study/'        &>Self-study </&>
+ <& /mason/titlemenu.comp:end &>
+</%method>

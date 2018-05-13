@@ -1,0 +1,99 @@
+<%DOC>
+vim:set syntax=mason:
+Component: index.html
+Date: 2010.06.21
+Author: mackey
+Description: page for viewing visitor accounts
+</%DOC>
+
+<%ARGS>
+$arg_uid => '';
+$arg_name => '';
+$arg_contact => '';
+$arg_days => '';
+$arg_changed => 0;
+$arg_newuser => 0;
+</%ARGS>
+
+<%INIT>
+use lib "/var/cfengine/scripts/smbldap-tools/";
+use smbldap_tools;
+use Data::Dumper;
+use DBI;
+use Date::Calc qw(Delta_YMD);
+
+my $auth =$m->comp('/mason/auth/auth_check_sysadm.comp');
+my $dirauth = $m->comp('/mason/auth/auth_check_directory.comp');
+my $visitor_acc_adm = $m->comp('/mason/auth/auth_check_visitor.comp');
+
+if (!($auth || $dirauth || $visitor_acc_adm))
+{
+	$m->out('Access Denied');
+	return;
+}
+</%INIT>
+
+<%flags>
+inherit => undef
+</%flags>
+
+
+
+<h1>School of Physics and Astronomy</h1>
+<h2>Short-term Visitor Account</h2>
+<p>
+This account provides temporary access to Physics and Astronomy linux workstations, and login to the School's website.
+
+</p>
+<table>
+<%perl>
+	sub	firstdate {
+		#returns the lowest expire date: either reset_date or 14+last_reset_date
+        my $val = shift;
+        my $query = $dbh->prepare("SELECT reset_date, DATE_ADD(last_reset_date, INTERVAL 14 DAY) FROM webdb.visitor_accs WHERE uid=?");
+	    $query->execute($val) or die $dbh->errstr;
+    	my @dates = $query->fetchrow_array();
+        $query = $dbh->prepare("SELECT DATEDIFF(DATE_ADD(last_reset_date, INTERVAL 14 DAY), reset_date) FROM webdb.visitor_accs WHERE uid=?");                                                        									$query->execute($val) or die $dbh->errstr;
+        my $diff = $query->fetchrow_array();
+        if ($diff > 0) {
+           	return $dates[0];
+	    }
+    	else {
+       		return $dates[1];
+     	}
+    }
+
+
+	my $query = $dbh->prepare("SELECT name, uid, password, reset_date FROM webdb.visitor_accs WHERE uid =?"); # information for $arg_uid
+	$query->execute($arg_uid) or die $dbh->errstr;
+
+	my $edate = &firstdate($arg_uid);
+	
+	my @visitor = $query->fetchrow_array();
+	
+	print "<tr><td><b>Name:</b></td><td>		$visitor[0]</td></tr>";
+	print "<tr><td><b>Physics Username:</b></td><td> 	$visitor[1]</td></tr>";
+	print "<tr><td><b>Physics Password:</b></td><td> 		$visitor[2]</td></tr>";
+	print "<tr><td><b>Account Expiry:</b></td><td> 	$edate</td></tr>";
+</%perl>
+</table>
+
+</p>
+<p>
+Support information on the School's computing systems is available at the web site http://zzz.physics.umn.edu/computing
+</p>
+<p>
+This is not a permanent account, and you should not attempt to use it for long-term file storage. You may use it for interactive login to our linux workstations, and to the web site, but network login via ssh is not supported.
+</p>
+<p>
+By using our computing facilities, you agree to follow our Acceptable Use Policy. In brief:
+<ul>
+<li>Do not share your account or password with anyone.
+<li>Do not use your account for illegal or unethical purposes.
+<li>Respect the privacy of others.
+<li>Do not attempt to circumvent security or other administrative measures on the systems.
+<li>Contact the system administrators (net@physics.umn.edu) with any questions.
+</ul>
+
+
+

@@ -1,0 +1,18 @@
+<%init>
+# Fetch list of terms stored as 'Fall 2013', 'Spring 2014', etc. and sort based on DW-based term numbers (1309, 1403, etc.)
+# Tablesearch requires arrayref of arrayrefs for filter name/value pairs
+my $terms = [
+    map { [ $_->[0], $_->[0] ] }    # Return arrayref of filter name/value (both same value)
+    sort { $b->[1] <=> $a->[1] }    # Sort based on DW-based term value
+    map {                           # Convert to DW-based term value
+        my $term = $_;
+        $term =~ s/Spring /03/;
+        $term =~ s/Summer /05/;
+        $term =~ s/Fall /09/;
+        $term =~ s/^(\d{2})(\d{4})$/$2$1/;
+        [ $_, $term ]               # Return arrayref of term, DW-based term for sorting
+    }
+    @{ physdb::queryarray('SELECT DISTINCT proposed_term_of_entry FROM gradapp_application') }
+];
+return $terms;
+</%init>

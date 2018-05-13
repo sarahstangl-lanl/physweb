@@ -1,0 +1,149 @@
+<SPConfig xmlns="urn:mace:shibboleth:2.0:native:sp:config"
+    xmlns:conf="urn:mace:shibboleth:2.0:native:sp:config"
+    xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+    xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"    
+    xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+    logger="syslog.logger" clockSkew="180">
+
+    <!-- The OutOfProcess section contains properties affecting the shibd daemon. -->
+    <OutOfProcess logger="shibd.logger" />
+    
+    <!-- The InProcess section conrains settings affecting web server modules/filters. -->
+    <InProcess logger="native.logger" />
+
+    <!-- Only one listener can be defined, to connect in-process modules to shibd. -->
+
+    <!-- 
+          PHYSICS: For testing on staging, change this to shibd.sock.somethingrandom or 
+          whatever, and then manually start a shibd -c to your staging site's copy of this
+          file on graymont. 
+          XXX ** Dont forget to change it back before you commit your final changes and push ** XXX
+          XXX ** <UnixListener address="/var/run/shibboleth/shibd.sock"/>                    ** XXX
+    -->
+    <UnixListener address="/var/run/shibboleth/shibd.sock"/>
+
+    <!-- <TCPListener address="127.0.0.1" port="12345" acl="127.0.0.1"/> -->
+    
+    <!-- This set of components stores sessions and other persistent data in daemon memory. -->
+    <StorageService type="Memory" id="mem" cleanupInterval="900"/>
+    <SessionCache type="StorageService" StorageService="mem" cacheAllowance="3600" inprocTimeout="900" cleanupInterval="900"/>
+    <ReplayCache StorageService="mem"/>
+    <ArtifactMap artifactTTL="180"/>
+
+    <!-- To customize behavior, map hostnames and path components to applicationId and other settings. -->
+    <!-- Need ports 4430 to 4460 -->
+    <RequestMapper type="Native">
+        <RequestMap applicationId="default">
+            <HostRegex regex="https://www.physics.umn.edu:44..">  
+                <Path name="shibsecure" authType="shibboleth" requireSession="true"/>
+            </HostRegex>
+            <Host name="https://www.physics.umn.edu"> 
+                <Path name="shibsecure" authType="shibboleth" requireSession="true"/>
+            </Host>
+        </RequestMap>
+    </RequestMapper>
+
+    <!--
+    The ApplicationDefaults element is where most of Shibboleth's SAML bits are defined.
+    Resource requests are mapped by the RequestMapper to an applicationId that
+    points into to this section.
+    -->
+    <ApplicationDefaults id="default" policyId="default"
+        entityID="https://www.physics.umn.edu/shibboleth/default.html"
+      homeURL="https://www.physics.umn.edu/"
+        REMOTE_USER="eppn persistent-id targeted-id"
+        signing="false" encryption="false">
+
+        <!--
+        Controls session lifetimes, address checks, cookie handling, and the protocol handlers.
+        You MUST supply an effectively unique handlerURL value for each of your applications.
+        The value can be a relative path, a URL with no hostname (https:///path) or a full URL.
+        The system can compute a relative value based on the virtual host. Using handlerSSL="true"
+        will force the protocol to be https. You should also add a cookieProps setting of "; path=/; secure"
+        in that case. Note that while we default checkAddress to "false", this has a negative
+        impact on the security of the SP. Stealing cookies/sessions is much easier with this disabled.
+        -->
+            <!-- exportLocation="https://www.physics.umn.edu:4442/Shibboleth.sso/GetAssertion" exportACL="127.0.0.1,134.84.199.3" -->
+        <Sessions lifetime="28800" timeout="3600" checkAddress="false"
+            handlerURL="/Shibboleth.sso" handlerSSL="true"
+            exportLocation="http://localhost/Shibboleth.sso/GetAssertion" exportACL="127.0.0.1"
+            idpHistory="false" idpHistoryDays="7">
+
+            <!-- UMN Production Shib IdP -->
+            <SSO entityID="https://idp2.shib.umn.edu/idp/shibboleth">
+                SAML2
+            </SSO>
+
+            <!-- UMN Testing Shib IdP -->
+            <!-- commented out
+            <SSO entityID="https://idp-test.shib.umn.edu/idp/shibboleth">
+                SAML2
+            </SSO>
+            -->
+
+            <!-- Local-only logout. Our IdP does not support SAML2 logout yet. -->
+            <Logout>Local</Logout>
+
+            <!-- Extension service that generates "approximate" metadata based on SP configuration. -->
+            <Handler type="MetadataGenerator" Location="/Metadata" signing="false"/>
+
+            <!-- Status reporting service. -->
+            <Handler type="Status" Location="/Status" acl="127.0.0.1"/>
+
+            <!-- Session diagnostic service. -->
+            <Handler type="Session" Location="/Session" showAttributeValues="false"/>
+
+        </Sessions>
+
+        <!--
+        Allows overriding of error template filenames. You can also add attributes with values
+        that can be plugged into the templates.
+        -->
+        <Errors supportContact="net@physics.umn.edu"
+            logoLocation="/shibboleth/logo.jpg"
+            styleSheet="/shibboleth/main.css"/>
+
+        <!-- Uncomment and modify to tweak settings for specific IdPs or groups. -->
+        <!-- <RelyingParty Name="SpecialFederation" keyName="SpecialKey"/> -->
+
+        <!-- Chains together all your metadata sources. -->
+        <MetadataProvider type="Chaining">
+            <!-- UMN Production remotely signed metadata -->
+            <MetadataProvider type="XML" uri="https://login.umn.edu/metadata.xml"
+                 backingFilePath="prod-umn-metadata.xml" reloadInterval="7200">
+            </MetadataProvider>
+
+            <!-- UMN Test metadata -->
+            <MetadataProvider type="XML" uri="https://login-test.umn.edu/metadata.xml"
+                 backingFilePath="test-umn-metadata.xml" reloadInterval="7200">
+            </MetadataProvider>
+
+        </MetadataProvider>
+
+        <!-- Chain the two built-in trust engines together. -->
+        <TrustEngine type="Chaining">
+            <TrustEngine type="ExplicitKey"/>
+            <TrustEngine type="PKIX"/>
+        </TrustEngine>
+
+        <!-- Map to extract attributes from SAML assertions. -->
+        <AttributeExtractor type="XML" validate="true" path="attribute-map.xml"/>
+
+        <!-- Use a SAML query if no attributes are supplied during SSO. -->
+        <AttributeResolver type="Query" subjectMatch="true"/>
+
+        <!-- Default filtering policy for recognized attributes, lets other data pass. -->
+        <AttributeFilter type="XML" validate="true" path="attribute-policy.xml"/>
+
+        <!-- Simple file-based resolver for using a single keypair. -->
+        <CredentialResolver type="File" key="/usr/local/etc/ssl/private/shibboleth.spa.umn.edu.key" certificate="/usr/local/etc/ssl/certs/shibboleth.spa.umn.edu.crt"/>
+
+    </ApplicationDefaults>
+
+    <!-- Each policy defines a set of rules to use to secure messages. -->
+    <SecurityPolicyProvider type="XML" validate="true" path="security-policy.xml"/>
+
+    <!-- Low-level configuration about protocols and bindings available for use. -->
+    <ProtocolProvider type="XML" validate="true" reloadChanges="false" path="protocols.xml"/>
+</SPConfig>
+

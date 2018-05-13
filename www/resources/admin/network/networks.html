@@ -1,0 +1,75 @@
+
+<%DOC>
+   Component: networks.html
+        Date: 2008.05.20
+      Author: clayton
+     Changed: 2008.05.20 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%method title>Network VLANs</%method>
+
+<%INIT>
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+if(!$auth) {
+  print "Must be admin\n";
+  return;
+}
+</%init>
+
+<p>
+<form method="GET" action="edit_network_form.html">
+<input type="submit" value="Add New VLAN">
+</form>
+&nbsp;
+</p>
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+    table       => 'net_subnets',
+    joins       => [ 
+        'net_interfaces' => 'net_interfaces.vlan = net_subnets.vlan',
+        'net_dns' => 'net_interfaces.id = net_dns.interface_id',
+    ],
+    field_list  => [
+                    'net_subnets.id',
+                    'vlan_radius_numeric AS vlan',
+                    'net_subnets.vlan AS name',
+                    'CONCAT(INET_NTOA(net), " /", (32 - BIT_COUNT(POWER(2, 32) - netmask - 1))) as neta',
+                    'INET_NTOA(netmask) as netmaska',
+                    'POWER(2, 32 - (32 - BIT_COUNT(POWER(2, 32) - netmask - 1))) as size',
+                    'count(net_interfaces.id) as used',
+                    'POWER(2, 32 - (32 - BIT_COUNT(POWER(2, 32) - netmask - 1))) - count(net_interfaces.id) as free',
+                    'description',
+                    'net_subnets.dhcp_params',
+                    'bigfix_policy',
+                    ],
+    group_by => 'GROUP BY net_subnets.id',
+    field_params => {
+                     'id' => { 'hidden' => 1 },
+                     'name' => { 'url' => 'edit_network_form.html?id=$row{id}' },
+                     'neta' => { 'name' => 'Network' },
+                     'netmaska' => { 'name' => 'Netmask' },
+                     'dhcp_params' => {
+                        'name' => 'DHCP options',
+                        'data_format' => sub {
+                            my $txt = shift;
+                            $txt =~ s/;/;<br\/>/g;
+                            return $txt;
+                            },
+                        },
+                     },
+    limit       => 50,
+    default_sort_field => 'vlan',
+    header_format      => 'ucfirst',
+    hide_search => 1,
+    hide_header => 1,
+    header_format => 'ucfirst_all',
+    debug => 0,
+);
+
+</%perl>

@@ -1,0 +1,59 @@
+<%doc>
+   Component: word2html.comp
+        Date: 8/22/2006
+      Author: allan
+ Description: convert Word to HTML
+
+ Note, at present this needs a filename passed in,
+ rather than the file contents...
+
+ Requires antiword
+</%doc>
+
+<%args>
+$doc=>''
+$id=>''
+$ret_title=>0 #returns item attach_text
+$ret_filename=>0 #returns filename
+</%args>
+
+<%init>
+use File::Temp qw/ tempfile /;
+my ($fh,$tempfile) = tempfile("antiwordXXXX", SUFFIX => '.txt', DIR => '/var/tmp' );
+my ($title,$filename,$data);
+if($id) {
+  my $sql = "SELECT attach_text,attach_name,attach_data FROM classdata WHERE entryid = ?";
+  if (defined($dbh)) {
+    my $sth = $dbh->prepare($sql);
+    die $sth->errstr unless $sth->execute($id);
+    my $db_row = $sth->fetchrow_arrayref;
+    if (defined($db_row)) {
+      ($title,$filename,$data) = @$db_row;
+      print $fh $data;
+      $doc = $tempfile;
+    }
+  }
+}
+my $html;
+my $antiword = "/usr/local/bin/antiword -f";
+my $input;
+if (open( $input, $antiword." ".$doc." |")) {
+  while (<$input>) {
+    $html .= $_;
+  }
+}
+</%init>
+
+<%perl>
+if($ret_title) {
+  if($ret_filename) {
+    return ($title,$filename,$html);
+  } else {
+    return ($title,$html);
+  }
+} elsif($ret_filename) {
+  return ($filename,$html);
+} else {
+  return $html;
+}
+</%perl>

@@ -1,0 +1,71 @@
+% if (!$jsonly) {
+<html>
+% } else {
+% $r->content_type('text/javascript');
+% }
+
+<%doc>
+   vim: set syntax=mason:
+   Component: upload_image.html
+      Author: allan
+ Description:
+</%doc>
+
+<%flags>
+ inherit => undef
+</%flags>
+
+<%args>
+ $uid => -1
+ $jsonly => 0
+ $category
+ $parentid
+</%args>
+
+
+
+<%init>
+  my %return = $m->comp('upload_image.html', @_, ajax => '1');
+  my $g = (defined($return{'message'}) ? $return{'message'} : ''); 
+  $g =~ s/^\s+//;
+  $g =~ s/\s+$//;
+</%init>
+
+% if ($return{'return'} ne 'DONE') {
+% if (!$jsonly) {
+<script>
+% }
+% $g =~ s/\'/\\\'/g;
+  alert('<% $g %>');
+<% (!$jsonly ? 'parent.' : '') %>uploader.uploadFail(<% scalar($uid) %>);
+% if (!$jsonly) {
+</script>
+% }
+% } else {
+% if (!$jsonly) {
+<script>
+% }
+
+% if (defined($ARGS{'indexid'}) || (defined($return{'autoid'}) && defined($return{'imageid'}))) {
+% my $indexid = (defined($return{'autoid'}) ? $return{'autoid'} : $ARGS{'indexid'});
+% my $imgtag = $m->scomp('/mason/db/images/insert_thumb.comp', editlink=>0, category=>$category, parentid=>$parentid, indexid=>$indexid);
+% $imgtag =~ s/\n//g;
+% $imgtag =~ s/\'/\\\'/g;
+<% (!$jsonly ? 'parent.' : '') %>imager.addImage(<% scalar($indexid) %>, '<% $imgtag %>', <% (defined($return{'tsize_y'}) ? $return{'tsize_y'} : '75') %>, '<% $return{'imageid'} %>', { width: '<% $return{'size_x'} %>', height: '<% $return{'size_y'} %>', owidth: '<% $return{'osize_x'} %>', oheight: '<% $return{'osize_y'} %>', altText: '<% $return{'alt'} %>', caption: '<% $return{'caption'} %>', photoCredit: '<% $return{'credit'} %>', alignment: '<% $return{'align'} %>', upload_id: <% $uid %> });
+% }
+
+%# This needs to go after imager.addImage, as it will remove the iframe from the page (so parent. becomes invalid)
+<% (!$jsonly ? 'parent.' : '') %>uploader.uploadComplete(<% scalar($uid) %>);
+
+% if (!$jsonly) {
+</script>
+% }
+% }
+
+% if (!$jsonly) {
+<body>
+Debug Info: <% $g %>
+</body>
+
+</html>
+% }

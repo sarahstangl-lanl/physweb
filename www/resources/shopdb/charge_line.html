@@ -1,0 +1,125 @@
+<%args>
+    $ajax => undef
+    $type => undef
+    $line_id => undef
+    $job_id => undef
+    $parent_job_id => undef
+    $job_item => undef
+    $set_active => undef
+</%args>
+
+<%init>
+    use ShopDb::Schema;
+    use ShopDb::Form::LaborLine;
+    use ShopDb::Form::MaterialLine;
+    use PhysAjax;
+
+    my %result;
+    $result{'result'} = 'error';
+
+
+    my $print_error = sub {
+        if ($ajax) {
+            print_ajax({ result => 'error', message => shift @_ });
+        }
+        else {
+            print shift @_;
+        }
+    };
+
+    unless ($type eq 'material' || $type eq 'labor') {
+        $print_error->("Bad charge line type $type");
+        return;
+    }
+
+    my $typeupper = ucfirst($type);
+    my $package = "ShopDb::Form::${typeupper}Line";
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+    unless ($job_id || $job_item) {
+        $print_error->("job_id or job_item is required");
+        return;
+    }
+
+    $job_item ||= $schema->resultset('Jobs')->find({ job_id => $job_id });
+
+    unless ($job_item) {
+        $print_error->("Invalid job_id $job_id");
+        return;
+    }
+
+    my $parent_job_item;
+    if ($parent_job_id && $parent_job_id != $job_item->job_id) {
+        $parent_job_item = $job_item->parent_job;
+        unless ($parent_job_item && $parent_job_item->job_id == $parent_job_id) {
+            $print_error->("Invalid parent_job_id $parent_job_id");
+            return;
+        }
+    }
+
+    $job_id = $job_item->job_id;
+
+    my $auth = $m->comp('/mason/db/shopdb/check_job_auth.comp', job_item => $job_item);
+    unless ($auth && $auth ne 'customer') { # Allow foreman/accounting/machinist
+        $print_error->("You are not authorized to modify charge lines on job $job_id");
+        return;
+    }
+
+    my $form = $package->new(item_id => $line_id, job_item => $job_item, schema => $schema, auth_args => $session{'shopdb-auth'});
+
+    if ($r->method eq 'POST') {
+        if (defined $set_active) {
+            if ($form->has_auth && $form->item) {
+                # Don't allow active charge lines on cancelled jobs
+                if ($set_active && $job_item->status->label eq 'Cancelled') {
+                    $result{'message'} = 'Charge lines cannot be set to active on cancelled jobs';
+                }
+                else {
+                    $result{'result'} = 'ok';
+
+                    $schema->txn_do(sub {
+                        $form->item->update({ active => $set_active });
+                    });
+                }
+            }
+        } else {
+            $form->process(params => \%ARGS);
+
+            if ($form->is_valid) {
+                # Do something with a saved, good form
+                $result{'result'} = 'ok';
+
+                # Get the line_id if this a new entry
+                my $attr = $type.'_line_id';
+                $line_id = $form->item->$attr;
+
+                if (!$ajax) {
+                    $m->redirect($m->comp('/mason/makeurl.comp',
+                        path => 'job.html',
+                        dargs => { 'job_id' => $job_id }
+                    ));
+                } else {
+                    $result{'attrs'}{'line_id'} = $line_id;
+                }
+            } else {
+                foreach my $field ($form->error_fields()) {
+                    # Material line unit field has a 'unit_display' select and a 'unit' text input
+                    # so set error on both unit and unit_display inputs
+                    $result{'errors'}{'unit_display'} = $field->errors if ($field->name eq 'unit');
+                    $result{'errors'}{$field->name} = $field->errors;
+                }
+                if ($form->has_form_errors) {
+                    $result{'message'} = join(' | ', $form->all_form_errors);
+                }
+            }
+        }
+    }
+
+    if ($ajax) {
+        print_ajax(\%result);
+        return;
+    }
+</%init>
+
+% print $form->render();

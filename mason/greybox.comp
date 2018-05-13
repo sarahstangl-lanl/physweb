@@ -1,0 +1,21 @@
+<%doc>
+   Component: greybox.comp
+        Date: 9/3/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$text
+</%args>
+
+<%init>
+</%init>
+
+<table width="100%" border=0 cellspacing=0>
+<tr>
+<td bgcolor="#eeeeee">
+<% $text %>
+</td>
+</tr>
+</table>

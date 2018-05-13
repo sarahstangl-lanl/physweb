@@ -1,0 +1,18 @@
+<%doc>
+   Component: dhandler
+        Date: 9/4/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+    $r->content_type('text/html');
+    #$r->header_out('Status'=> 404);
+</%init>
+
+% $m->comp("/mason/404.comp");
+
+%# vim:set syntax=mason: 

@@ -1,0 +1,40 @@
+
+<%DOC>
+   vim:set syntax=mason:
+   Component: fullurl.comp
+        Date: 2008.02.21
+      Author: clayton
+     Changed: 2008.02.21 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$url => '/'
+</%ARGS>
+
+<%INIT>
+my $fullurl = $url;
+
+# If this ever breaks, take a look at the redirects. For some reason Alex fixed it
+# (was returning the wrong port) by modifying the redirect statement
+my $port = '';
+if ($r->get_server_port() != 443 && $r->get_server_port() != 80) {
+	$port = ':' . $r->get_server_port(); 
+}
+if ($fullurl !~ m/^http[s]?\:\/\//i) {
+  if ($fullurl !~ m/^\/+/) {
+    $fullurl = '/' . $fullurl;
+  }
+  $fullurl = 'https://' . $r->hostname . $port . $fullurl;
+}
+</%INIT>		
+
+<%perl>
+return $fullurl;
+</%perl>
+
+<%filter>
+s/.//gos #remove annoying newline chars
+</%filter>
+		

@@ -1,0 +1,132 @@
+
+<%DOC>
+   Component: archive.html
+        Date: 2003.07.15
+      Author: allan
+     Changed: 2003.07.15 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+    $class=>''
+    $origin=>undef
+    $show_empty_classes => 0
+</%ARGS>
+
+<%INIT>
+my ($name, $title, $count);
+my $origin_name;
+my ($sql, $sth, $row_ref);
+
+return if $m->comp('/mason/db/dbcheck.comp');
+
+# "$origin" is the classid we are calling an archive from, so we pass that to the auth function
+# to let TAs from that class get access to its archive.
+$m->redirect('index.html') unless $m->comp('/mason/auth/auth_check_classarchive.comp', classid=>$origin);
+
+</%INIT>
+
+<%method title>
+% my $class = $m->request_args->{class};
+Class Archive
+% if ($class) {
+    for <% $class %>
+% }
+</%method>
+
+<%method titlemenu_above>
+<& /mason/titlemenu.comp:begin, type=>"above" &>
+<&| /mason/titlemenu.comp:item, link=>'/classes/index.html' &>Class List</&>
+<&| /mason/titlemenu.comp:item, link=>'/classes/archive.html' &>Archive</&>
+<& /mason/titlemenu.comp:end &>
+</%method>
+
+<p>
+<a href="?show_empty_classes=<% $show_empty_classes ? '0' : '1' %>&class=<% $class |h %>"><% $show_empty_classes ? "Hide" : "Show" %> classes with no items</a>
+</p>
+
+<%perl>
+if ($class) {
+    if ($origin) {
+        $sql = "SELECT CONCAT( name, '.', section, ' ', quarter, ' ', year) FROM classlist WHERE classid=?";
+        $sth = $dbh->prepare($sql);
+        $sth->execute($origin);
+        $row_ref = $sth->fetchrow_arrayref;
+        ($origin_name) = @$row_ref;
+    }
+    my (@classlist, %terms);
+    use tablesearch;
+    my $ts = Tablesearch->new(
+        debug => 0,
+        table => 'classlist l',
+        joins => [
+            'classdata c' => 'c.classid = l.classid',
+            'members m' => 'm.type = "instructor" AND m.memberof = l.classid',
+            'directory d' => 'd.uid = m.uid',
+        ],
+        where => [ 'l.name = ? AND l.year > 0 AND l.parent IS NULL AND (c.parentid = 0' . ($show_empty_classes ? ' OR c.parentid IS NULL' : '') . ') ', $class ],
+        field_list => [ 'l.classid', 'l.quarter', 'l.year', 'l.section', 'l.title', 'GROUP_CONCAT(DISTINCT CONCAT_WS(" ", d.first_name, d.last_name) SEPARATOR ", ") AS instructors', 'COUNT(c.entryid) AS count' ],
+        field_params => {
+            classid => { hidden => 1 },
+            quarter => {
+                name => 'Semester',
+                data_format => sub {
+                    my ($value, $disp, $row, $ts) = @_;
+                    push(@classlist, $row->{classid});
+                    $terms{$row->{classid}} = "$row->{quarter} $row->{year}, section $row->{section}";
+                    return ucfirst($value) . " $row->{year}";
+                },
+                url => '#$row{classid}',
+            },
+            count => { name => 'Item Count' },
+            year => { hidden => 1 },
+        },
+        no_sort => 1,
+        no_limit => 1,
+        hide_header => 1,
+        header_format => 'ucfirst_all',
+        default_sort_field  => 'l.year DESC, l.quarter',
+        default_sort_dir => 'DESC',
+        group_by => 'GROUP BY l.quarter, l.year, l.section',
+        extra_url_args => [ 'class', 'show_empty_classes' ],
+    );
+    $ts->display;
+    foreach my $classid (@classlist) {
+        # embed an anchor for the class with each hr
+        print "<hr /><h2><a name=\"$classid\">". ucfirst($terms{$classid}). ":</a></h2>";
+        $m->comp('/mason/db/classes/render_class.comp', classid=>$classid, nocontrols=>1, showall=>1, headings=>0, copyto=>$origin, copyto_text=>$origin_name, type=>'' );
+    }
+}
+else {
+    $m->comp('/mason/db/tablesearch.comp',
+    debug => 0,
+    table => 'classlist',
+    joins => [
+        classdata => 'classlist.classid = classdata.classid',
+    ],
+    where => 'WHERE year>0 AND hidden=0 AND parent IS NULL AND (' . ($show_empty_classes ? 'parentid IS NULL OR ' : '') . 'parentid=0)',
+    field_list => [
+        'name', 'title', 'COUNT(DISTINCT classlist.classid) AS count', 'COUNT(entryid) as items',
+    ],
+    field_params => {
+        'name' => {
+            url => 'archive.html?class=$row{name}',
+        },
+        'count' => {
+            name => 'Number of Classes',
+        },
+        'items' => {
+            name => 'Item Count',
+        },
+    },
+    group_by => 'GROUP BY name',
+    default_sort_field => 'name',
+    excluded_search_fields => [ 'COUNT(DISTINCT classlist.classid)', 'COUNT(entryid)' ],
+    limit => 50,
+    header_format => 'ucfirst_all',
+    extra_url_args => [ 'show_empty_classes' ],
+    );
+</%perl>
+
+% }

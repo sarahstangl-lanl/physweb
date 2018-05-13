@@ -1,0 +1,23 @@
+<% $m->call_next %>
+<%method title>Make a Gift</%method>
+<%method titlemenu_below>
+   <& /mason/titlemenu.comp:begin, type=>"below" &>
+    <&| /mason/titlemenu.comp:item, link=>'/alumni/makeagift/index.html' &>Overview</&> 
+    <&| /mason/titlemenu.comp:item, link=>'/alumni/makeagift/undergrad.html' &>Undergraduate</&> 
+    <&| /mason/titlemenu.comp:item, link=>'/alumni/makeagift/grad.html'  &>Graduate</&>   
+   <& /mason/titlemenu.comp:end &>
+</%method>
+
+<%method whereamifilter>
+<%args>
+$partsref
+</%args>
+<%perl>
+# Force custom handling of whereami breadcrumbs. Trim the end.
+pop(@$partsref);
+pop(@$partsref);
+return @$partsref;
+</%perl>
+</%method>
+<!-- vim: set syntax=mason: -->
+

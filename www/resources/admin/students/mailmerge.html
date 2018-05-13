@@ -1,0 +1,285 @@
+<%args>
+    $ts
+    
+    $preview => undef
+    $tpl_subject => ''
+    $tpl_body => ''
+    $skip_empty => ''
+    $skip_non_phys => ''
+    @sel_recipient_groups => ()
+    $bcc_self => ''
+    $cc_advisor => ''
+    
+    $send => undef
+</%args>
+
+<%method title>Mail Merge</%method>
+
+<div style="background-color: #F0F8FF; border: 1px solid black; margin: 0.2em; padding: 1em;">Mail Merge templates use the <b><a href="http://search.cpan.org/~abw/Template-Toolkit-2.22/lib/Template.pm">Perl Template</a></b> library. Consult net@physics.umn.edu for help</div>
+<%init>
+    use Template;
+    use Text::Wrap;
+    
+    my %table;
+    $ts->{no_limit} = 1;
+    $ts->{include_hidden} = 1;
+    $ts->dump(\%table);  
+    
+    my @output;
+    my $send_errors;
+    my $prep_errors;
+    my $tt_error;
+    my @send_errors_other;
+    my %skipped;
+    my @processed;
+    
+    # Create a map of available fields
+    my %has_field = map { $_->{'name'} => 1 } @{$table{'header'}};
+
+    # Find possible groups of people we can e-mail (has fields *_uid, *_first_name, and *_last_name)
+    my @recipient_groups;
+    foreach my $field (@{$table{'header'}}) {
+        if (($field->{'name'} =~ /^(.*)_uid$/) && $has_field{"$1_first_name"} && $has_field{"$1_last_name"}) {
+            push @recipient_groups, $1;
+        }
+    }
+    
+    if ($preview || $send) {
+        my $tt = Template->new(DEBUG => Template::Constants::DEBUG_UNDEF);
+        
+        # TODO: Warn if sel_recipient_groups is empty
+        
+        foreach my $row (@{$table{'data'}}) {
+            my $i = 0;
+            my $subject = '';
+            my $body = '';
+            my $error = undef;
+            my %vars = map { $table{'header'}[$i++]{'name'} => $_ } @$row;
+            
+            if ($skip_non_phys && $has_field{'physics_payroll'} && $vars{'physics_payroll'} ne 'yes') {
+                push @{$skipped{'non_phys'}}, $vars{'student_last_name'}.', '.$vars{'student_first_name'};
+                next;
+            }
+            
+            $tt->process(\$tpl_subject, \%vars, \$subject) or do { ($tt_error = $tt->error) =~ s/Stack:.*//s; last; };
+            $tt->process(\$tpl_body, \%vars, \$body) or do { ($tt_error = $tt->error) =~ s/Stack:.*//s; last; };
+
+            if ($skip_empty && ($body =~ /^\s*$/)) {
+                push @{$skipped{'empty'}}, $vars{'student_last_name'}.', '.$vars{'student_first_name'};
+                next;
+            }
+            
+            if ($subject =~ /^\s*$/) {
+                $error = 'Subject is empty: message will not be sent.';
+            }
+            
+            my @to;
+            
+            foreach my $group (@sel_recipient_groups) {
+                # TODO: Check that the recipient groups we were given are valid (compare with @recipient_groups)
+                
+                if (!$vars{"${group}_uid"}) { next; }
+                my $email = $m->comp('/mason/db/directory/uid_to_email.comp', uid => $vars{"${group}_uid"});
+                push @to, $vars{"${group}_first_name"} . ' ' . $vars{"${group}_last_name"} . ' <' . $email . '>';
+            }
+
+            if($cc_advisor && $vars{'advisor_email'}) {
+                push @to, $vars{'advisor_email'};
+            }
+            
+            my $bcc = ($bcc_self ? $m->comp('/mason/db/directory/uid_to_email.comp') : undef);
+            
+            push @output, { to         => shift @to,
+                            cc         => join(', ', @to),
+                            bcc        => $bcc,
+                            subject    => $subject,
+                            body       => $body,
+                            prep_error => $error,
+                          };
+                          
+            if ($error) {
+                $prep_errors = 1;
+            } else {
+                push @processed, $vars{'student_last_name'}.', '.$vars{'student_first_name'};
+            }
+        }
+         
+        if (!$tt_error && $send) {
+            my $from = $m->comp('/mason/db/directory/uid_to_email.comp');
+        
+            if (!$from) {
+                $send_errors = 1;
+                push @send_errors_other, 'Unable to get your e-mail address';
+            } else {
+                foreach my $msg (@output) {
+                    if (defined($msg->{'prep_error'})) { next; }
+                    
+                    eval {
+                        $m->comp('/mason/send_mail.comp', from    => $from,
+                                                          to      => $msg->{'to'},
+                                                          cc      => $msg->{'cc'},
+                                                          subject => $msg->{'subject'},
+                                                          text    => $msg->{'body'},
+                                                          bcc     => $from);
+                    };
+             
+                    if ($@) {
+                        $send_errors = 1;
+                        $msg->{'send_error'} = $@;
+                    }
+                }
+            }
+        }
+    }
+</%init>
+
+% if ($preview || $send) {
+
+%   if ($tt_error || $prep_errors || $send_errors) {
+<div style="background-color: #DF214A; border: 1px solid black; margin: 0.2em; padding: 1em;">
+%     if ($tt_error) {
+    There was an error processing the template: <% $tt_error |h %>
+%     }
+%     if ($prep_errors) {
+    There were errors in the preparation process. These messages will not be sent. See below for details.
+%     }
+%     if ($send_errors) {
+    There were errors in the sending process. See below for details.
+%     }
+</div>
+%   } elsif ($send) {
+<div style="background-color: #53FF6C; border: 1px solid black; margin: 0.2em; padding: 1em;">
+    <b>Messages sent! Yay!</b>
+</div>
+%   }
+
+<form method="POST" action="?">
+<input type="hidden" name="tpl_subject" value="<% $tpl_subject |h %>">
+<input type="hidden" name="tpl_body" value="<% $tpl_body |h %>">
+<input type="hidden" name="skip_empty" value="<% $skip_empty |h %>">
+<input type="hidden" name="skip_non_phys" value="<% $skip_non_phys |h %>">
+% foreach my $rec_group (@sel_recipient_groups) {
+    <input type="hidden" name="sel_recipient_groups" value="<% $rec_group |h %>">
+% }
+<input type="hidden" name="bcc_self" value="<% $bcc_self |h %>">
+<input type="hidden" name="cc_advisor" value="<% $cc_advisor |h %>">
+% if (!$send) {
+    <input type="submit" name="send" value="Send E-mails">
+% }
+<a href="#summary">Jump to summary</a>
+<table width="100%">
+
+<%perl>
+    my $evenodd = 0;
+
+    foreach my $msg (@output) {
+      $evenodd = !$evenodd;
+</%perl>
+    <tr><td class="<% $evenodd ? 'even' : 'odd' %>">
+    <b>To:</b> <% $msg->{'to'} |h %><br/>
+%     if ($msg->{'cc'}) {
+    <b>Cc:</b> <% $msg->{'cc'} |h %><br/>
+%     }
+%     if ($msg->{'bcc'}) {
+    <b>Bcc:</b> <% $msg->{'bcc'} |h %><br/>
+%     }
+    <b>Subject:</b> <% $msg->{'subject'} |h %><br/>
+    <pre><% wrap('', '', $msg->{'body'}) |h %></pre>
+%     if ($msg->{'prep_error'} || $msg->{'send_error'}) {
+<div style="background-color: #DF214A; border: 1px solid black; margin: 0.2em; padding: 1em;">
+%       if ($prep_errors) {
+    <b>Prep Error</b>: <% $msg->{'prep_error'} |h %>
+%       }
+%       if ($send_errors) {
+    <b>Send Error</b>: <% $msg->{'send_error'} |h %>
+%       }
+</div>
+%     }
+%#    <label><input type="checkbox"> Do not send this message</label><br/>
+    </td></tr>
+<%perl>
+    }
+</%perl>
+
+</table>
+</form>
+<a name="summary"><h4>Summary</h4></a>
+<p>
+<table width="600">
+<tr><td><b>Successfully Processed</b></td><td><b>Skipped</b></td></tr>
+<tr><td valign="top">
+%   foreach my $student (@processed) {
+%     print "$student<br />\n";
+%   }
+</td><td valign="top"><b>Non-physics payroll:</b><br />
+%   if (defined($skipped{'non_phys'})) {
+%     foreach my $student (@{$skipped{'non_phys'}}) {
+<% $student |h %><br />
+%     }
+%   } else {
+None<br />
+%   }
+<b>Empty message:</b><br />
+%   if (defined($skipped{'empty'})) {
+%     foreach my $student (@{$skipped{'empty'}}) {
+<% $student |h %><br />
+%     }
+%   } else {
+None<br />
+%   }
+</td></tr> 
+</table>
+% } else {
+
+<form method="POST" action="?">
+<table>
+<tr><td valign="top">
+    Recipients:
+</td><td>
+%   foreach my $group (@recipient_groups) {
+    <label><input type="checkbox" name="sel_recipient_groups" value="<% $group |h %>"> <% ucfirst($group) |h %>s</label>
+%   }
+<label><input type="checkbox" name="bcc_self" value="1"> <% $m->comp('/mason/db/directory/uid_to_name.comp') |h %> (send me copies!)</label>
+% if($ts->{'field_params'}->{'advisor_email'}->{'auth'}) {
+    <label><input type="checkbox" name="cc_advisor" value="1">Advisor</label>
+% }
+<!-- 
+    <input type="radio"> Exclude Selected <input type="radio">Include Selected 
+    <div>
+    <input type="checkbox">Person One</input>
+    </div>
+-->
+</td></tr>
+
+<tr><td valign="top">
+    Template:
+</td><td>
+    <small>Subject</small><br/>
+    <input style="width: 30em" type="text" name="tpl_subject"><br/>
+    <small>Body</small><br/>
+    <textarea cols="70" rows="20" name="tpl_body"></textarea>
+</td><td valign="top">
+    Fields:<br/>
+%   foreach my $field (@{$table{'header'}}) {
+<a href="#"><% $field->{'display_name'} %></a> <small>[% <% $field->{'name'} %> %]</small><br/>
+%   }
+    
+</td></tr>
+
+<tr><td></td><td>
+    <label><input type="checkbox" name="skip_empty"> Don't send messages to recipients with empty output</label>
+</td></tr>
+
+<tr><td></td><td>
+    <label><input type="checkbox" name="skip_non_phys"> Don't send messages to recipients paid by other departments</label>
+</td></tr>
+
+<tr><td></td>
+<td>
+    <input type="submit" name="preview" value="Preview">
+</td></tr>
+</table>
+
+</form>
+
+% }

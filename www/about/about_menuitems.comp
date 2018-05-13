@@ -1,0 +1,8 @@
+   <&| /mason/titlemenu.comp:item, link=>'/about/overview/',         &>Overview</&>
+   <&| /mason/titlemenu.comp:item, link=>'/about/awards.html',       &>Awards</&>
+   <&| /mason/titlemenu.comp:item, link=>'/about/history/'           &>History</&>
+   <&| /mason/titlemenu.comp:item, link=>'/about/news/'              &>News</&>
+   <&| /mason/titlemenu.comp:item, link=>'/about/area/'              &>Visitor Information</&>
+   <&| /mason/titlemenu.comp:item, link=>'/about/positions/'         &>Positions</&>
+   <&| /mason/titlemenu.comp:item, link=>'/about/contact/'           &>Contact Us</&>
+

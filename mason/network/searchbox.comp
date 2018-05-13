@@ -1,0 +1,69 @@
+<%args>
+$search => undef;
+$sort => undef;
+$sort_reverse => undef;
+$action => "hosts.html";
+$last_search => undef;
+</%args>
+<%shared>
+my %args = $m->request_args();
+</%shared>
+<%init>
+#use Data::Dumper;
+my $magic = $args{'magic'};
+if($last_search) {
+    $magic = $session{'net_magic'};
+#    $search = $session{'net_search'};
+    $sort = $session{'net_sort'};
+    $sort_reverse = $session{'net_sort_reverse'};
+}
+</%init>
+<div class="searchbox">
+<form method="GET" action="<%$action|u%>">
+<table border=0 cellpadding="5" cellspacing="0" width="100%">
+    
+<tr><td colspan=3 nowrap><input type="text" name="magic" value="<% $magic|h%>">
+    <input type="submit" value="Search">
+%#    <input type="reset" value="Reset">
+    <input type="hidden" name="sort" value="<% $sort |h%>">
+    <input type="hidden" name="sort_reverse" value="<% $sort_reverse|h%>">
+    </td><td colspan="6">
+<div class="embedmenu">
+<& SELF:embedmenu, sort=>$sort, sort_reverse=>$sort_reverse &>
+</div>
+</table>
+<input type='hidden' id='input_edit' name='edit'>
+</form>
+</div>
+<script type="text/javascript">
+function setEdit(e) {
+  if(e.which == 16) document.getElementById('input_edit').value = '1';
+}
+function unsetEdit(e) {
+  document.getElementById('input_edit').value = '';
+}
+document.onkeydown = setEdit;
+document.onkeyup = unsetEdit;
+</script>
+<%method embedmenu>
+<%args>
+$action => "hosts.html"
+$sort=>undef
+$sort_reverse=>undef
+</%args>
+%if($action eq "hosts.html") {
+   <& /mason/menu.comp:begin, level=>5 &>
+   <&| /mason/menu.comp, link=>"/resources/admin/network/edit_host_form.html?id=new", level=>5 &>Add New Device</&>
+   <&| /mason/menu.comp, link=>"/resources/admin/network/$action?search=unix&sort=$sort&sort_reverse=$sort_reverse", level=>5, selected=>($args{'search'} eq 'unix' ? '1' : '0') &>UNIX</&>
+   <&| /mason/menu.comp, link=>"/resources/admin/network/$action?search=linuxworkstations&sort=$sort&sort_reverse=$sort_reverse", level=>5, selected=>($args{'search'} eq 'linuxworkstations' ? '1' : '0')  &>Linux Workstations</&>
+   <&| /mason/menu.comp, link=>"/resources/admin/network/$action?search=linuxservers&sort=$sort&sort_reverse=$sort_reverse", level=>5, selected=>($args{'search'} eq 'linuxservers' ? '1' : '0')  &>Linux Servers</&>
+   <&| /mason/menu.comp, link=>"/resources/admin/network/$action?search=windows&sort=$sort&sort_reverse=$sort_reverse", level=>5, selected=>($args{'search'} eq 'windows' ? '1' : '0')  &>Windows</&>
+   <&| /mason/menu.comp, link=>"/resources/admin/network/$action?search=physlab&sort=$sort&sort_reverse=$sort_reverse", level=>5, selected=>($args{'search'} eq 'physlab' ? '1' : '0')  &>Phys Lab</&>
+   <&| /mason/menu.comp, link=>"/resources/admin/network/$action?search=printers&sort=$sort&sort_reverse=$sort_reverse", level=>5, selected=>($args{'search'} eq 'printers' ? '1' : '0')  &>Printers</&>
+   <&| /mason/menu.comp, link=>"/resources/admin/network/$action?search=netdevices&sort=$sort&sort_reverse=$sort_reverse", level=>5, selected=>($args{'search'} eq 'netdevices' ? '1' : '0')  &>Net Devices</&>
+    <&| /mason/menu.comp, link=>"/resources/admin/network/$action?search=all&sort=$sort&sort_reverse=$sort_reverse", level=>5, selected=>($args{'search'} eq 'all' ? '1' : '0')  &>All</&>
+    <&| /mason/menu.comp, link=>"/resources/admin/network/$action?search=blocked&sort=$sort&sort_reverse=$sort_reverse", level=>5, selected=>($args{'search'} eq 'blocked' ? '1' : '0')  &>Blocked</&>
+  <& /mason/menu.comp:end &>
+%}
+</%method>
+

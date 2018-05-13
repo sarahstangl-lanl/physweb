@@ -1,0 +1,203 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: edit_classitem_form.html
+        Date: 2003.07.18
+      Author: allan
+     Changed: 2003.07.18 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$entryid=>'new'
+$parentid=>0
+$item_type=>'post'
+$redirect_type=>'index'
+$classid=>undef
+</%ARGS>
+
+<%INIT>
+return if $m->comp('/mason/db/dbcheck.comp');
+if(!defined($classid)) { $m->redirect('index.html'); }
+# set up classlist variables
+my ($year, $quarter, $name, $title, $location, $time, $url);
+# set up classdata variables
+my ($post_date, $modified_date, $start_date, $kill_date, $priority, $headline, $text, $text_type, $attach_name, $entry_type, $attach_text, $flags);
+
+# Get class information
+my $sth = $dbh->prepare('SELECT year, quarter, name, title, location, time FROM classlist WHERE classid=? LIMIT 1');
+$sth->execute($classid)
+  or die 'Unable to fetch class info: ' . $sth->errstr;
+
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+  ($year, $quarter, $name, $title, $location, $time) = @$row_ref;
+} else {
+  print "ERROR: The given classid was not found"; return;
+}
+
+if ($entryid ne "new") {
+
+  # Now fetch the entry
+  my $sth = $dbh->prepare('SELECT classid, parentid, item_type, post_date, modified_date, start_date, kill_date, priority, headline, text, text_type, attach_name, entry_type, attach_text, flags FROM classdata WHERE entryid = ? LIMIT 1');
+  $sth->execute($entryid);
+
+  if (my $row_ref = $sth->fetchrow_arrayref()) {
+    ($classid, $parentid, $item_type, $post_date, $modified_date, $start_date, $kill_date, $priority, $headline, $text, $text_type, $attach_name, $entry_type, $attach_text, $flags) = @$row_ref;
+  } else {
+    $m->comp('/mason/redirect.comp', url=>$m->comp('/mason/db/classes/make_classlink.comp', classid=>$classid, type=>$redirect_type, fullurl=>1));
+  }
+} else {
+  $text_type="wiki";
+  $headline = "New ".$item_type." item";
+  $priority = "100";
+  $start_date = 'today';
+  $kill_date='future';
+  $entry_type="item";
+}
+
+# Override classid and item_type if we are given a parent item and we're creating new
+($classid, $item_type) = $m->comp('/mason/db/classes/get_parent_item.comp', entryid=>$entryid, parentid=>$parentid, classid=>$classid, item_type=>$item_type); 
+
+#
+# Check auth now that we know the real item type and classid (if the item already exists)
+#
+
+$m->comp('/mason/auth/auth_block_editclass.comp', classid=>$classid, item_type=>$item_type);
+        
+
+my $texttypevalues = $m->comp('/mason/db/getvalues.comp',
+table=>'classdata', column=>'text_type');
+
+my $cute_type = ucfirst($item_type);
+if ($cute_type eq 'Ta') {
+  $cute_type = 'TA';
+}
+</%INIT>		
+		
+<%method title>Edit Class Item</%method>
+
+<form method="POST" name="edit" action="edit_classitem.html">
+
+<input type=hidden name="entryid" value="<% $entryid |u %>">
+<input type=hidden name="classid" value="<% $classid |u %>">
+<input type=hidden name="parentid" value="<% $parentid |u %>">
+<input type=hidden name="item_type" value="<% $item_type |u %>">
+<input type=hidden name="redirect_type" value="<% $redirect_type |u %>">
+
+<table border=0 width="100%">
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Item Data</th></tr>
+
+% if ($post_date) {
+<tr valign="top"><td colspan=2><small>Posted <% $post_date %>, Modified <% $modified_date %></small></td></tr>
+% }
+
+<tr valign="top"><td><% $cute_type |h %> Heading:</td><td><input type=text name="headline" value="<% $headline %>" size=50></td></tr>
+
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Publishing Controls</th></tr>
+
+<tr valign="top"><td>Formatting Style:</td><td>
+% $m->comp( '/mason/form_selector.comp', name=>'text_type', id=>'text_type', selected=>$text_type,optionlist=>$texttypevalues);
+</td></tr>
+
+
+<tr valign="top"><td>Post Placement:</td><td>
+<& '/mason/db/classes/postplacement_control.comp', classid=>$classid, parentid=>$parentid, entryid=>$entryid, item_type=>$item_type &>
+</td></tr>
+
+
+<tr valign="top"><td>Publish Date:</td><td>
+<& /mason/date_selector.comp, format=>'do-M-yyyy', year=>'start_year', month=>'start_month', day=>'start_day', default=>$start_date &>
+</td></tr>
+<tr valign="top"><td>Removal Date:</td><td>
+<& /mason/date_selector.comp, format=>'do-M-yyyy', year=>'kill_year', month=>'kill_month', day=>'kill_day', default=>$kill_date &> <small>(Note: classes are viewable only by faculty a few weeks after the end of the semester)</small>
+</td></tr>
+<tr valign="top"><td>Additional Controls:</td>
+<td>
+% # Disable this checkbox if we$published=>1 are on the syllabus page and it isn't already checked...
+% my $enableit = ((($item_type ne 'syllabus') && ($item_type ne 'office')) || (grep $_ eq 'restricted', split(',', $flags)));
+% $m->comp('/mason/checkbox.comp',label=>'Must be student in class to view',name=>'studentonly',value=>$flags,enable=>$enableit);
+% $m->comp('/mason/checkbox.comp',label=>'Must log in to view (e.g. for homework solutions, etc)',name=>'restricted',value=>$flags,enable=>$enableit);
+% #$m->comp('/mason/checkbox.comp',label=>'Private',name=>'private',value=>$flags);
+% #$m->comp('/mason/checkbox.comp',label=>'Large item (display headline only and click to expand)',name=>'expandable',value=>$flags);
+</td></tr>
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Item Text</th></tr>
+
+<tr><td colspan="2" style="padding-top: 2px; padding-bottom: 0px"><div id="toolbar" style="display: inline"></div> <small style="vertical-align: top"><a href="http://zzz.physics.umn.edu/admin/private/web/wikiformat">Syntax Guide</a></small></td></tr>
+
+<tr valign="top"><td colspan=2 style="padding-top: 0;">
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr><td valign="top">
+<textarea name="text" id="wikitext" cols=70 rows=18 wrap="virtual" style="width: 100%; margin-top: 0;"><% $text %></textarea>
+</td><td valign="top" style="padding-left: 5px;" width="40%">
+<& '/mason/ajax/image_manager.comp', category => 'classdata', parentid => $classid, editorid => 'wikitext' &>
+</td></tr>
+</table>
+</td></tr>
+
+
+</table>
+<p>
+<input type="submit" value="Publish Item">
+<input type="submit" name="draft" value="Save Item as Draft">
+<input type="reset" value="Cancel Changes">
+
+
+</form>
+
+<& '/mason/ajax/editor_toolbar.comp', div_id => 'toolbar', textarea => 'wikitext' &>
+
+
+<form enctype="multipart/form-data" method="POST" name="edit" action="upload_classitem.html">
+
+<input type=hidden name="classid" value="<% $classid %>">
+<input type=hidden name="entryid" value="<% $entryid %>">
+<input type=hidden name="parentid" value="<% $parentid %>">
+<input type=hidden name="item_type" value="<% $item_type %>">
+<table border=0 width="100%">
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Import item text from file</th></tr>
+<tr><td>
+<small>
+You can use this to directly import the text from a file (at present HTML, text, Word or Excel) into the text form above. The Word conversion is fairly basic (it can convert bold, italic and underlined text). Excel files are converted to HTML tables. To put other file types (such as PDF files) onto your class page, you should first create an empty item to act as a container, then use the <b>Attach file</b> or <b>Attach image</b> option.
+</small>
+<p>
+<input type="file" size=40 name="file">
+<input type="submit" value="Import File">
+</td></tr>
+</table>
+</form>
+
+
+% if ($entryid ne "new") {
+<p><hr>
+<h4>Delete Item</h4>
+<form method="POST" action="delete_classitem.html">
+<p>
+<input type=hidden name="classid" value="<% $classid |u %>">
+<input type=hidden name="entryid" value="<% $entryid |u %>">
+<input type=hidden name="redirect_type" value="<% $redirect_type |u %>">
+<input type="checkbox" name="confirm">&nbsp;I want to delete this item along with any attachments.
+<p>
+<input type=submit value="Delete item">
+</form>
+% }
+
+<& '/mason/ajax/js.comp' &>
+<script><!--
+    var imagerUnavailable = new Element('div', { id: 'imager__info_pane' });
+    imagerUnavailable.innerHTML = '<div style="padding-left:0.5em"><b>Images Unavailable</b><p>Inline images are only available when using wiki formatting.</p></div>';
+
+    function onFormattingStyleChange() {
+        if ($('text_type').value == 'wiki') {
+            enableEditorToolbar();
+            imager.hideCustomPane();
+        } else {
+            disableEditorToolbar();
+            imager.showCustomPane(imagerUnavailable);
+        }
+    }
+
+    $('text_type').observe('change', onFormattingStyleChange.bindAsEventListener(this));
+    onFormattingStyleChange();
+--></script>

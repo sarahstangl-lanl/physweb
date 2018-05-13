@@ -1,0 +1,494 @@
+<%doc>
+ Undorgrad Advising report
+ </%doc>
+
+
+<%args>
+  $uid=>undef
+  $message=>'';
+  $uploadfile=>undef;
+  $delfile=>undef;
+  $getfile=>undef;
+  $imsure=>undef;
+</%args>
+
+<%method statusbar>Report: <% $student?$student->fullname():"Error" |h%> - Undergraduate Advising System</%method>
+<%method title>Undergraduate Advising System</%method>
+<%shared>
+use physdb::uga_student;
+use physdb::directory;
+
+my %args = $m->request_args;
+
+my $auth_office = $m->comp('/mason/auth/auth_check.comp', auth_type => ['undergradoffice', 'sysadm']);
+my $student = new Directory( uid=> $args{'uid'} );
+my $uga_student = new uga_student(uid => $args{'uid'});
+
+#Clear the above queried data if the viewer doesnt have access, this way the title wont
+#show peoples names without access
+if(!$auth_office && $uga_student->get("advisor_uid") ne $session{'uid'}) {
+    if($uga_student->get("uid") ne $session{'uid'}) {
+        $student = undef;
+        $uga_student = undef;
+    }
+}
+</%shared>
+<%perl>
+
+use physdb::uga_student;
+use physdb::directory;
+
+if(!defined $uid) {
+    $m->out("<h1>Error: No uid supplied</h1>");
+    return;
+}
+
+
+if(!$student->{'loaded'}) {
+    $m->out("<h1>Error: Unable to load student ". _h($uid). ", or no access.</h1><p>must be their advisor, or in the undergradoffice group</p>");
+    return;
+}
+
+if(!$uga_student) {
+    $m->out("<h1>Error: No uga student</h1>");
+    return;
+}
+
+my $disabled = '';
+if(!$auth_office && $uga_student->get("advisor_uid") ne $session{'uid'}) {
+    if($uga_student->get("uid") ne $session{'uid'}) {
+        $m->out("<h1>Error: Access denied</h1><p>You are not in the undergradoffice group, and you are not uid "._h($uid)."'s advisor.</p>");
+        return;
+    }
+    #else showing a user their own record
+    $m->out("Showing read-only view of your advising record");
+
+    $disabled = 'disabled';
+}
+
+if($uploadfile && $auth_office) {
+    my $req = Apache2::Request->new($r);
+    my $upload = $req->upload('file');
+    my $tmpfile = $upload->tempname;
+    my $filename = $upload->filename;
+    my $mime_type = $upload->type;
+    my $fh = $upload->fh;
+    my $data = do { local $/; <$fh> };
+    my $datasize = $upload->size;
+    if($data && $filename) {
+        physdb::query("INSERT INTO uga_attachment (uid, date, data, filename) values (?, now(), ?, ?)", $uga_student->get('uid'), $data, $filename);
+        print "<h2>Success</h2> The upload of '$filename' has completed with $datasize bytes received. <a href=\"?uid=".$uga_student->get('uid')."\">Return to report</a>";
+    }
+    else {
+        print "<h2>Error</h2> No filename or file content.\n";
+    }
+    return;
+
+}
+elsif($delfile && $auth_office) {
+    if(!$imsure) {
+        </%perl>
+            <form method="POST" action="report_form.html">
+                <input type="hidden" name="uid" value="<% $uga_student->get('uid')|h%>">
+                <input type="hidden" name="delfile" value="<% $delfile|h%>">
+                <input type="hidden" name="imsure" value="1">
+                Are you SURE you want to delete this file? Note: There is NO undelete!<br />
+               Yes, <input type="submit" value="I'm Sure">
+            </form>
+        <%perl>
+        return;
+    }
+    else {
+        physdb::query("DELETE FROM uga_attachment WHERE id=?", $delfile);
+        </%perl>
+        <h2>File Deleted</h2>
+        The file you requested to delete has been removed. <a href="?uid=<%$uga_student->get('uid')|h%>">Return to Application Review</a>
+        <%perl>
+        return;
+    }
+}
+elsif($getfile) {
+    my $filerow = physdb::queryfirstrow("SELECT filename, data FROM uga_attachment WHERE id=?", $getfile);
+    if($filerow) {
+        #Magical dump-a-file code scraped together from various parts of our website
+        $m->clear_buffer();
+        $r->content_type("application/x-pdf");
+        $r->headers_out->set('Content-Disposition' => "file; filename=\"". $filerow->{filename}. "\"");
+        print $filerow->{data};
+        $m->abort();
+        return;
+    }
+    else {
+        #TODO: should really 404 here?
+        print "<h2>Error</h2> did not find a file by that ID";
+        return;
+    }
+}
+
+</%perl>
+<& '/mason/ajax/js.comp' &>
+<& '/mason/ajax/jsload.comp', file=>'event.simulate.js' &>
+<& '/mason/ajax/jsload.comp', file=>'InPlaceEditor.js' &>
+<& '/mason/ajax/jsload.comp', file=>'AjaxCheckbox.js' &>
+
+<table width="100%" style="padding-bottom: 0.4em">
+    <tr>
+        <td nowrap="1" style="padding-top: 0.2em; font-size: 2.0em; font-weight: bold;"><% $student->fullname() |h%></td>
+        <td width="100%" style="padding-left: 30px; color: red; ">Note: All updates to the progress monitor will be processed in APAS</td>
+    </tr>
+    <tr>
+        <td colspan="2"><table cellpadding="2" cellspacing="0">
+% my $email = $m->comp('/mason/db/directory/uid_to_email.comp', uid => $student->get('uid'));
+            <tr><th align="right">Email</th><td><a href="mailto:<% $email |u %>"><% $email |h %></a></td></tr>
+            <tr><th align="right">Student ID</th><td><% $student->get('emplid') |h %></td></tr>
+            <tr><th align="right">Internet ID</th><td><% $student->get('x500') |h %></td></tr>
+        </table></td>
+    </tr>
+</table>
+
+<table class="tablehead"><tr>
+% if($auth_office) {
+<th style="font-weight: bold; font-size: 1.2em; padding 0.1em 0.4em;">
+One-Year plan history<br>
+    <form  enctype="multipart/form-data" method="post" action="?">
+        <input type="hidden" name="uploadfile" value="1">
+        <input type="hidden" name="uid" value="<% $uga_student->get('uid')|h%>">
+        <input type="file" size=10 name="file">
+        <input type="submit" name="submit" value="Upload New">
+    </form>
+</th>
+% }
+
+<form name="student" method="post" action="uga_student.html">
+<input type="hidden" name="uid" value="<% $uid |h %>" />
+
+<%perl>
+my @planfiles = physdb::queryall("SELECT id, filename,`date` FROM uga_attachment WHERE uid=?", $uga_student->get('uid'));
+foreach my $file (@planfiles) {
+#    print Dumper($file);
+    </%perl>
+    <td valign="top" class="tablehead2" style=""><div style="padding: 0.1em 0.4em; font-size: 1.2em; font-weight: bold; text-decoration: underline;"><a href="report_form.html?uid=<% $uga_student->get('uid')|h%>&getfile=<% $file->{'id'}|h%>"><% $file->{'filename'}|h%></a></div>
+    <div style="padding: 0.1em 0.4em; text-align: center;">
+    <% $file->{'date'} %>
+    <%perl>
+    if($auth_office) {
+        </%perl>
+        <a href="?delfile=<% $file->{'id'}|h%>&uid=<% $uga_student->get('uid')|h%>"><img src="/images/delete.png" alt="delete" title="Delete this file" style="padding: 0; margin:0; border: 0;"></a>
+        <%perl>
+    }
+    </%perl>
+    </div>
+    </td>
+    <%perl>
+}
+</%perl>
+</tr>
+</table>
+<br>
+
+
+<table>
+<tr><td>Status:</td><td>
+<select name="status" <%$disabled%>>
+<%perl> foreach my $s (@{$uga_student->{'enums'}->{'status'}}) {
+            </%perl><option value="<% $s|h%>" <% $s eq $uga_student->get('status')?"selected":"" %>><% $s|h%></option><%perl>
+        }
+</%perl>
+</select>
+</td>
+<td></td>
+
+<td>Advisor:</td><td colspan="3">
+% if($auth_office) {
+    <input type="text" id="advisor_name_box" name="advisor_name" value="<% $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid=>$uga_student->get("advisor_uid"))|h %>" size="40" />
+    <& '/mason/ajax/complete_people.comp', name=> 'advisor_name', id=>'advisor_name_box' &>
+% }
+% elsif (my $advisor_uid = $uga_student->get("advisor_uid")) {
+%   my $advisor_email = $m->comp('/mason/db/directory/uid_to_email.comp', uid => $advisor_uid);
+    <% $m->comp('/mason/db/directory/uid_to_displayname.comp', uid => $advisor_uid) |h %>&nbsp;&lt;<a href="mailto:<% $advisor_email |u %>"><% $advisor_email |h %></a>&gt;
+% }
+% else {
+    <i>None</i>
+% }
+</td>
+<td>Sub-program:</td><td>
+<select name="program_id" <% $disabled %>>
+<%perl>
+if(! $uga_student->get("program_id")) {
+    </%perl><option value=0 selected>--Choose--</option> <%perl>
+}
+    foreach my $i (physdb::queryall("SELECT uga_program.id, uga_program.name FROM uga_program WHERE depricated = 0 ORDER BY name")) {
+        </%perl>
+            <option value="<% $i->{'id'} %>" <% ($i->{'id'} == $uga_student->get("program_id"))?"selected":""%>><% $i->{'name'} |h%></option>
+        <%perl>
+    }
+</%perl>
+</select>
+</table>
+
+<%perl>
+</%perl>
+<table>
+<tr class="tablehead"><th class="tableheader">Lower-Disivion</th><th class="tableheader" nowrap>In Progress</th><th class="tableheader">Complete</th><th class="tableheader">Comment</th></tr>
+<tr><td nowrap>Physics:</td>
+    <td><input type="checkbox" <% $disabled %> name="prereq_phys_in_progress" <% $uga_student->get("prereq_phys_in_progress")?"checked":"" |h%> value="1" /></td>
+    <td><input type="checkbox"  <% $disabled %> name="prereq_phys_complete" <% $uga_student->get("prereq_phys_complete")?"checked":"" |h%> value="1" /></td>
+    <td style="width: 100%;"><input style="width: 90%;" type="text"  <% $disabled %> name="prereq_phys_comment" value="<% $uga_student->get("prereq_phys_comment") |h%>" /></td>
+</tr>
+<tr><td nowrap>Math:</td>
+    <td><input type="checkbox"  <% $disabled %> name="prereq_math_in_progress" <% $uga_student->get("prereq_math_in_progress")?"checked":""  |h%> value="1" /></td>
+    <td><input type="checkbox"  <% $disabled %> name="prereq_math_complete" <% $uga_student->get("prereq_math_complete")?"checked":"" |h%> value="1" /></td>
+    <td><input style="width: 90%;"  <% $disabled %> type="text" name="prereq_math_comment" value="<% $uga_student->get("prereq_math_comment") |h%>" /></td>
+</tr>
+</table>
+Student Notes:<br />
+<textarea rows="5" style="width: 90%;" name="comment" <% $disabled?"readonly":"" %> ><% $uga_student->get("comment")|h%></textarea>
+<br />
+<table border="0">
+<tr><td valign="top">
+%if(!$disabled) {
+<input id="uga_student_submit" type="submit" value="Save" />
+%}
+</td><td valign="top">
+<div><span id="uga_student_message" style="padding-left: 1em; font-size: 1.2em; color: red;"><% $message |h%></span></div>
+</tr></table>
+</form>
+<br />
+
+<script type="text/javascript">
+/* <![CDATA[ */
+   wait = new Element('img', {src: '/images/ajax-loader.gif'});
+   submit = $('uga_student_submit');
+   message = $('uga_student_message');
+
+   submit.observe('click', uga_student_submit);
+
+
+   function uga_student_submit(e) {
+       message.innerHTML = ''
+       message.appendChild(wait);
+
+   }
+/* ==> */
+</script>
+
+<%perl>
+
+my %args = $m->request_args();
+my $page_rand_seed = int(rand(100000));
+my $page_time = time();
+
+# make_auto_complete:
+# called in append_html from tablesearch, this replaces the <td> contents with a textbox when clicked, and saves
+# changes on defocus to uga_course.html.
+# Some magic-hackery is done here to generate a unique course_id (idval) before the row has been created, so we can
+# do consecutive edits without having to reload the page. Kind of a hack because of this being a virtual view of
+# whats really 2 tables in a huge union...
+my $make_auto_complete = sub {
+    my ($name, $idcol) = @_;
+    $idcol = 'id' unless($idcol);
+
+    #return $name if($disabled);
+    return ' ' if($disabled);
+
+    return '
+        <script type="text/javascript">
+        idval = \'$row{course_id}\'
+        if(idval == \'new\') {
+           /* Have to do this in javascript, instead of perl, because incr and course_id are only available during eval as tablesearch runs... */
+           idval = \''.$page_rand_seed.$page_time.'_'.$uid.'_$incr\'
+        }
+        new InPlaceEditor(\'$id\',
+                          \'uga_course.html\',
+                          { parameters: { save: 1, uid: \''.$uid.'\', name: \'' . $name . '\', '.$idcol.': idval, requirement_id: \'$row{requirement_id}\', ajax: 1  }});
+        </script>
+    ';
+};
+
+# make_auto_checkbox:
+# This is called in append_html, and replaces the contents of that <td> with a checkbox (must originally contain a 0 or 1)
+# with ajax state saving to uga_course.html like above
+# same complicated id as above, and its important this function and the one above agree on the idval, or edits to each
+# will result in 2 seperate courses being saved!
+my $make_auto_checkbox = sub {
+    my ($name, $idcol) = @_;
+    $idcol = 'id' unless($idcol);
+
+    return if $disabled;
+
+    return '
+        <script type="text/javascript">
+        idval = \'$row{course_id}\'
+        if(idval == \'new\') {
+           /* Have to do this in javascript, instead of perl, because incr and course_id are only available during eval as tablesearch runs... */
+           idval = \''.$page_rand_seed.$page_time.'_'.$uid.'_$incr\'
+        }
+        new AjaxCheckbox(\'$id\',
+                          \'uga_course.html\',
+                          { parameters: { save: 1, uid: \''.$uid.'\', name: \'' . $name . '\', '.$idcol.': idval, requirement_id: \'$row{requirement_id}\', ajax: 1  }});
+        </script>
+    ';
+};
+
+if(defined $uga_student && $uga_student->get("program_id")) {
+    $m->comp('/mason/db/tablesearch.comp',
+              debug => $args{'debug'}?1:0,
+              table => 'uga_category cat',
+              joins => [
+                           'uga_requirement r' => 'r.category_id = cat.id',
+                           'uga_course c'      => ['c.uid=? AND (c.category_id = cat.id OR c.requirement_id = r.id)', $uid],
+                           'uga_program p'     => 'cat.program_id = p.id',
+                       ],
+              field_list => [
+                             'cat.title as category',
+                             'cat.sort as category_sort',
+                             'cat.description as category_description',
+                             'cat.id as catid',
+                             'p.id as program_id',
+                             'c.uid as uid',
+                             'r.title as requirement',
+                             'r.course_number as course_number',
+                             'r.credits',
+                             'r.id as requirement_id',
+                             'if(c.id IS NOT NULL, c.id, \'new\') as course_id',
+                             'c.category_id as course_cat',
+                             'c.in_progress',
+                             'c.complete',
+                             'c.course_number as actual_course_taken',
+                             'c.credits as actual_credits',
+                             'c.comment as comment',
+                            ],
+              where => ['(program_id IS NULL OR program_id = ? )', $uga_student->get('program_id')],
+              default_sort_field => 'category_sort',
+              hide_header => 1,
+              field_params => { 
+                       course_id => { 
+                           hidden => 1,
+                       },
+                       catid => { 
+                           hidden => 1,
+                       },
+                       program_id => {
+                           hidden => 1,
+                       },
+                        uid => { 
+                           hidden => 1,
+                       },
+                       category => {
+                           hidden => 1,
+                       },
+                       category_sort => {
+                           hidden => 1,
+                       },
+                       category_description => {
+                           hidden => 1,
+                       },
+                       requirement_id => {
+                            hidden => 1,
+                       },
+                       requirement => {
+                           header_format => sub { return "Requirement: Name" },
+                           nowrap => 1,
+                       },
+                       course_number => {
+                           header_format => sub { return "Course #" },
+                       },
+                       #actual_title_taken => {
+                       #    header_format => sub { return "Actual: Name" },
+                       #},
+                       course_cat => {
+                            hidden => 1,
+                       },
+                       actual_course_taken => {
+                           header_format => sub { return "Actual Course #<br>(if different)" },
+                           html_id => 'actual_course_taken_$incr',
+                           html_append => $make_auto_complete->('course_number', 'course_id' ),
+                       },
+                       actual_credits => {
+                           header_format => sub { return "Credits<br> (if different)" },
+                           html_id => 'actual_credits_taken_$incr',
+                           html_append => $make_auto_complete->('credits', 'course_id' ),
+                       },
+                       in_progress => {
+                           html_id => 'in_progress_$incr',
+                           data_format => sub { 
+                                my ($val) =  @_;
+                                return ($val?"Yes":"No") if($disabled);
+                                return $val;
+                           },
+                           html_append => $make_auto_checkbox->('in_progress', 'course_id' ),
+                       },
+                       complete => {
+                           html_id => 'complete_$incr',
+                           data_format => sub { 
+                                my ($val) =  @_;
+                                return ($val?"Yes":"No") if($disabled);
+                                return $val;
+                           },
+                           html_append => $make_auto_checkbox->('complete', 'course_id' ),
+                       },
+                       comment => {
+                           html_id => 'comment_$incr',
+                           html_append => $make_auto_complete->('comment', 'course_id' ),
+                           width => "300",
+                       }
+              },
+              header_format => 'ucfirst_all',
+              prerow => sub { # This prints the category headings
+                my ($row, $ts) = @_;
+                my $header;
+
+                return "" if($ts->{'sort'} and $ts->{'sort'} ne 'category_sort');
+
+                #Skip printing courses which are really just empty categories
+                #print "DEBUG: <PRE>". (_h(Dumper($row))) . "</PRE>";
+                if($row->{'catid'} ne $ts->{tmp}->{'last_category'}) {
+                    #Category changed, print the bar
+                    $ts->{tmp}->{'last_category'} = $row->{'catid'};
+                    $ts->{tmp}->{'oddeven'}  = "even";
+                    $header .= '<tr class="tablehead2"><td class="tablehead2" style="text-align:center;" colspan="'.(scalar($ts->column_names) -0).'"><b>'.$row->{'category'}.'</b><br />'.$row->{'category_description'}.'</td></tr>';
+                    if($row->{'course_id'} eq 'new' && !$row->{'requirement_id'}) {
+                            $ts->{tmp}->{'skiprow'} = 1;
+                            $header .= '<tr class="tablehead1"><td class="tableheader1" style="text-align:center;" colspan="'.(scalar($ts->column_names) -0).'">None</td></tr>';
+                    }
+                    return($header);
+                }
+              },
+              postdata => sub { #Print an add course form at the bottom
+              return '' if($disabled);
+                my ($ts) = @_;
+                my $str = '';
+                $str .= '<tr class="tablehead"><td class="tableheader" style="text-align:center;" colspan="'.(scalar($ts->column_names) -0).'">&nbsp;</td></tr>';
+                $str .= '<tr class="tablehead1">
+                                 <form method="post" action="uga_course.html">
+                                   <input type="hidden" name="course_id" value="'.$page_rand_seed .time() ."_". $uid .'" />
+                                   <input type="hidden" name="uid" value="'.$uid.'" />
+                                   <td class="tablehead1" style="text-align:center;" colspan="3">Add Elective:</td>
+                                   <td class="tablehead1"><input type="checkbox" value="1" name="set_in_progress" /></td>
+                                   <td class="tablehead1"><input type="checkbox" value="1" name="set_complete" /></td>
+                                   <td class="tablehead1"><input type="text" name="set_course_number" value="" size="20" /></td>
+                                   <td class="tablehead1"><input type="text" name="set_credits", value="" size="2" /></td>
+                                   <td class="tablehead1"><input type="text" name="set_comment" value="" size="40" />
+                                   <input type="hidden" name="set_category_id" value="'.$ts->{tmp}->{'last_category'}.'" />
+                                   <input type="submit" value="Add" /></td>
+                                 </form>
+                               </tr>
+                               ';
+                return $str;
+
+              },
+              extra_url_args => ['uid'],
+              no_sort => 1,
+        );
+}
+else {
+    </%perl>
+    Please select a sub-program and click save, to continue.
+    <%perl>
+}
+</%perl>
+
+
+<br />
+<br />
+<br />

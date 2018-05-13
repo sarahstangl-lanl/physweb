@@ -1,0 +1,189 @@
+<%doc>
+    vim: set syntax=mason:
+</%doc>
+
+<%args>
+$msg => ''
+$magic => '';
+$search => '';
+$sort => "name";
+$sort_reverse => 0;
+$show_groups => 2;
+$uid => undef;
+$showall => 0;
+</%args>
+<%init>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+use physdb;
+
+use DateTime;
+
+use Time::Duration; #from /local/lib, not in ports :(
+
+#my $x500 = $session{'x500'};
+if(!$m->comp('/mason/auth/auth_check_sysadm.comp') || !defined $uid ) {
+    $uid = $m->comp('/mason/auth/current_uid.comp');
+}
+else {
+    print "Using DEBUG uid override: ". _h($uid) . "<BR>";
+}
+#$show_groups = int($show_groups);
+my $bigfix_msg;
+my $query = $dbh->prepare("SELECT COUNT(*) 
+                             FROM net_hosts 
+                  LEFT OUTER JOIN cfengine.runlog ON (net_hosts.id = runlog.host_id AND source = 'bigfix') 
+                  LEFT OUTER JOIN net_interfaces ON net_interfaces.host_id = net_hosts.id
+                        LEFT JOIN net_subnets ON net_subnets.vlan = net_interfaces.vlan
+                            WHERE net_subnets.bigfix_policy <> 'exempt'
+                              AND net_hosts.security_status = 'required'
+                              AND last_seen IS NOT NULL 
+                              AND net_hosts.last_seen >= DATE_SUB(CURRENT_DATE(),  INTERVAL 90 DAY)
+                              AND (rundate IS NULL OR rundate < (DATE_SUB(last_seen, INTERVAL 7 DAY)))  /* Can remove this line eventually */
+                              AND (last_seen_bigfix IS NULL OR last_seen_bigfix < (DATE_SUB(last_seen, INTERVAL 7 DAY))) 
+                              AND admin_uid=?");
+my $result = $query->execute($uid);
+my @problems = $query->fetchrow_array();
+if ($problems[0]) {
+    my $devices = ($problems[0]>1)?"devices":"device";
+    my $req = ($problems[0]>1)?"require":"requires";
+    # we no longer display this message since abandoning the requirement...
+    $bigfix_msg = "Warning: you have $problems[0] $devices which $req patch management software installation";
+}
+
+my $noncompliant = 0;
+</%init>
+
+<%method title>My Network Devices</%method>
+
+% if ($msg) {
+<p>
+<span style="color: green;"><% $msg |h %></span>
+</p>
+% }
+
+<h4>Network registration</h4>
+<p>
+You can use this page to register computers or other network devices for use on the <b>Physics wired network</b> (in PAN). Until you register here, your computer will be unable to have network access.
+</p>
+<form method="GET" action="start_register.html">
+<input type="submit" value="Start registering a new device">
+</form>
+<p>
+To register for the general University network, visit the <a href="https://it.umn.edu/registering-device-network-dhcp">IT@UMN registration page</a>
+</p>
+<h4>Your registered devices</h4>
+<p>
+To edit or renew an existing entry, click on its name in the list below, verify the information, and click "Save".
+Please also check the School's <a href="http://zzz.physics.umn.edu/computing/policies/network_connection">network security policy</a> requirements for the PAN wired network.
+<p>
+<small>
+<a href="myhosts.html?search=<%$search|u%>&amp;magic=<%$magic|u%>&amp;sort=<%$sort|u%>&amp;sort_reverse=<%$sort_reverse|u%>&amp;show_groups=0" class="<% $show_groups == 0?"selected":""%>">Only show devices owned by me</a>
+| <a href="myhosts.html?search=<%$search|u%>&amp;magic=<%$magic|u%>&amp;sort=<%$sort|u%>&amp;sort_reverse=<%$sort_reverse|u%>&amp;show_groups=1" class="<% $show_groups == 1?"selected":""%>">Only show devices in groups I manage</a>
+| <a href="myhosts.html?search=<%$search|u%>&amp;magic=<%$magic|u%>&amp;sort=<%$sort|u%>&amp;sort_reverse=<%$sort_reverse|u%>&amp;show_groups=2" class="<% $show_groups == 2?"selected":""%>">Show both my personal and group devices</a>
+
+</small>
+</p>
+
+<%perl>
+
+my @hostlist_query_args1;
+my $where1 = '';
+
+$where1 = "WHERE ( ";
+
+if($show_groups == 1 or $show_groups == 2) {
+    $where1 .= "  groups.name in (SELECT groupname FROM groupmembers WHERE manager=1 AND uid=?) "; 
+    push @hostlist_query_args1, $uid;
+}
+else {
+    $where1 .= " 1=0 "
+}
+if($show_groups == 0 or $show_groups == 2) {
+    $where1 .= " OR directory.uid=? "; 
+    push @hostlist_query_args1, $uid;
+}
+$where1 .= " ) ";
+
+if($showall && $session{'uid'} == 727) {
+    $where1 = 'WHERE uid <> 616 ';
+    @hostlist_query_args1 = ();
+}
+
+$m->comp('/mason/db/tablesearch.comp',
+            debug => 0,
+            extra_url_args => ['show_groups', 'showall', 'uid'],
+            table           => 'net_hosts',
+            joins           =>  [
+                net_interfaces  =>  'net_interfaces.host_id = net_hosts.id',
+                net_dns         =>  'net_dns.interface_id = net_interfaces.id',
+                net_subnets     =>  'net_subnets.vlan = net_interfaces.vlan',
+                directory       =>  'net_hosts.admin_uid = directory.uid',
+                groups          =>  'net_hosts.groupname = groups.name',
+                net_security_status => 'net_hosts.security_status=net_security_status.status',
+                'cfengine.runlog' => "(net_hosts.id = runlog.host_id AND source = 'bigfix')",
+            ],
+            field_list      =>  [
+                            'net_hosts.id',
+                            'net_interfaces.id AS iid',
+                            'IF (net_dns.hostname IS NULL, computer_name, CONCAT_WS(".", net_dns.hostname, net_dns.domain)) AS evaluated',
+                            'net_interfaces.hwa',
+                            'IF (flag_disabled=0, IF (net_interfaces.blockrt=0, IF (net_dns.id IS NULL, "dynamic", inet_ntoa(net_dns.ip)), CONCAT("BLOCKED:",net_interfaces.blockrt) ), "disabled") as status',
+                            'concat_ws(" ", net_hosts.building, net_hosts.room) as location',
+                            'groups.description as group_description',
+                            'concat_ws(" ", first_name, last_name) AS admin',
+                            'IF (net_hosts.last_seen IS NULL, "Never", UNIX_TIMESTAMP(net_hosts.last_seen)) AS lseen',
+            ],
+            field_params    =>  {
+                evaluated   =>  {
+                        'name'          =>  'Name',
+                        'url'           =>  '/resources/myphys/network/edit_myhost_form.html?id=$row{id}&iid=$row{iid}'
+                },
+                hwa         =>  {
+                        'name'          =>  'HWA'
+                },
+                group_description   =>  {
+                        'name'          =>  'Group'
+                },
+                lseen       =>  {
+                        'name'          =>  'Last Seen',
+                        'data_format'   =>  sub {
+                            my $seen = shift;
+                            if ($seen ne "Never") {
+                                return ago(time() - $seen, 1);
+                            }
+                            else {
+                                return $seen;
+                            }
+                        }
+                },
+                nobigfix => {
+                        'hidden' => 1,
+                },
+                id          =>  {
+                        'hidden'    => 1
+                },
+                iid         =>  {
+                        'hidden'    => 1
+                },
+                status      =>  {
+                        'name' => 'IP or Status',
+                },
+                'bigfix_policy' => { hidden => 1 },
+            },
+            group_by => 'GROUP BY net_interfaces.hwa',
+            header_format => 'ucfirst_all',
+            default_sort_field  =>  'evaluated',
+            where               =>  [ $where1, @hostlist_query_args1 ], 
+);
+
+if($noncompliant) {
+</%perl>
+<div style="color: red;">
+[1] - Host(s) have been disconnected from the network because we did not detect the required patch management software installed. Edit and re-save the host to re-enable it, then follow our <a href="http://zzz.physics.umn.edu/computing/policies/bigfix/home">installation instructions</a>.
+</div>
+<%perl>
+}
+</%perl>
+

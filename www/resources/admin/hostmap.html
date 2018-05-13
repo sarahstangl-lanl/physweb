@@ -1,0 +1,249 @@
+<%doc>
+  vim:set syntax=mason:
+</%doc>
+
+<%method title>Host Map</%method>
+
+<%init>
+use Sort::Naturally;
+use Carp qw(confess cluck);
+use Data::Dumper;
+use DBI;
+use physdb;
+use DBD::Sybase;
+use Hilbert;
+
+my @osList = ('linux', 'freebsd', 'tru64', 'openbsd', 'windows', 'other');
+my %linuxColors = (
+    '4' => 'hostYellow',
+    '5' => 'hostBlue',
+    '6' => 'hostRed',
+);
+
+</%init>
+<style type="text/css">
+    .key {
+        float: left;
+        text-align: center;
+        min-width: 100px;
+        margin-top: 5px;
+        margin-bottom: 5px;
+        margin-left: 2px;
+        margin-right: 2px;
+    }
+    .windows {
+        color: #002b36;
+        background: #859900;
+    }
+    .linux {
+        /*background: #dc322f;*/
+        color: #93a1a1;
+        background: #073642;
+    }
+    .freebsd {
+        color: #002b36;
+        background: #cb4b16;
+    }
+    .openbsd {
+        color: #002b36;
+        background: #b58900;
+    }
+    .tru64 {
+        color: #657b83;
+        background: #fdf6e3;
+    }
+    .other {
+        color: #002b36;
+        background: #268bd2;
+    }
+    .container {
+        width: 7em;
+        height: 6em;
+        position: relative;
+    }
+    .host{
+        padding: 1px;
+        border-bottom : 2px solid;
+    }
+    .hostBlue{
+        padding: 1px;
+        border-bottom : 2px solid #268bd2;
+    }
+    .hostRed{
+        padding: 1px;
+        border-bottom : 2px solid #dc322f;
+    }
+    .hostYellow{
+        padding: 1px;
+        border-bottom : 2px solid #b58900;
+    }
+    .status {
+    }
+    .ip {
+        text-align: right;
+        right: 0;
+        bottom: 0;
+        position: absolute;
+    }
+    tr {
+        color: #586e75;
+        background: #002b36;
+    }
+</style>
+<%perl>
+my $mysql_select = "computer_name, ip as ipn, INET_NTOA(ip) as ip, cluster, net_hosts.os, type, runlog.os_major, runlog.os_minor";
+   $mysql_select .= ", UNIX_TIMESTAMP(net_hosts.last_seen) as last_seen_unix";
+my $mysql_from   = "net_hosts";
+   $mysql_from .= " JOIN net_interfaces ON net_interfaces.host_id = net_hosts.id";
+   $mysql_from .= " JOIN net_dns ON net_dns.interface_id = net_interfaces.id";
+   $mysql_from .= " LEFT OUTER JOIN cfengine.runlog ON cfengine.runlog.host = concat(net_dns.hostname, '.', net_dns.domain) ";
+my $mysql_where = " AND ip > INET_ATON('128.101.220.0') AND ip < INET_ATON('128.101.221.255') ";
+#my $mysql_order = "type, os, cluster, computer_name";
+my $mysql_order = '';
+my @hosts = physdb::queryall("SELECT $mysql_select FROM $mysql_from WHERE 1=1 $mysql_where $mysql_order ");
+
+
+#my @sorted_hosts = sort { ncmp($a->{'computer_name'}, $b->{'computer_name'} ) } @hosts;
+
+my @host_array;
+foreach my $host (@hosts) {
+   my $ipn = $host->{'ipn'};
+   my $ip = $host->{'ip'};
+   my $index = $ipn & 511;
+   #$m->out("DEBUG: $index = $ipn ($ip)<BR>\n");
+   $host_array[$index] = $host
+}
+my $size = 5;
+my $hilbert = Math::Curve::Hilbert->new( direction=>'down', max=>$size, clockwise=>0, step=>1, );
+my $side_size = $size**2;
+
+my $bf_dbh = DBI->connect("DBI:Sybase:server=winserv-4", "physread", "quidnunc2");
+my %bigfix_host;
+if(!defined $bf_dbh) {
+    $m->out("Error connecting to bigfix:".$DBI::errstr);
+}
+my $bfsth = $bf_dbh->prepare(" 
+SELECT LEFT(Computer_Name.Value, LEN(Computer_Name.Value) - 1) as computer_name , Computer_Name.ComputerID , LEFT(IP_Address.Value, LEN(IP_Address.Value) - 1) as ip_address , LEFT(RAM.Value, LEN(RAM.Value) - 1) as ram , LEFT(OS.Value, LEN(OS.Value) - 1) as os , LEFT(CPU.Value, LEN(CPU.Value) - 1) as cpu , LEFT(Total_Size_of_System_Drive.Value, LEN(Total_Size_of_System_Drive.Value) - 1) as total_size_of_system_drive , LEFT(BIOS.Value, LEN(BIOS.Value) - 1) as bios , LEFT(DNS_Name.Value, LEN(DNS_Name.Value) - 1) as dns_name , LEFT(Free_Space_on_System_Drive.Value, LEN(Free_Space_on_System_Drive.Value) - 1) as free_space_on_system_drive , LEFT(Last_Report_Time.Value, LEN(Last_Report_Time.Value) - 1) as last_report_time , LEFT(Wake_On_Address.Value, LEN(Wake_On_Address.Value) - 1) as wake_on_address , LEFT(Ghost_Image_Version.Value, LEN(Ghost_Image_Version.Value) - 1) as ghost_image_version 
+
+FROM dbo.BES_COLUMN_HEADINGS AS Computer_Name 
+JOIN dbo.BES_COLUMN_HEADINGS AS IP_Address ON IP_Address.Name='IP Address' AND Computer_Name.ComputerID=IP_Address.ComputerID 
+JOIN dbo.BES_COLUMN_HEADINGS AS RAM ON RAM.Name='RAM' AND Computer_Name.ComputerID=RAM.ComputerID 
+JOIN dbo.BES_COLUMN_HEADINGS AS OS ON OS.Name='OS' AND Computer_Name.ComputerID=OS.ComputerID 
+JOIN dbo.BES_COLUMN_HEADINGS AS CPU ON CPU.Name='CPU' AND Computer_Name.ComputerID=CPU.ComputerID 
+JOIN dbo.BES_COLUMN_HEADINGS AS Total_Size_of_System_Drive ON Total_Size_of_System_Drive.Name='Total Size of System Drive' AND Computer_Name.ComputerID=Total_Size_of_System_Drive.ComputerID 
+JOIN dbo.BES_COLUMN_HEADINGS AS BIOS ON BIOS.Name='BIOS' AND Computer_Name.ComputerID=BIOS.ComputerID 
+JOIN dbo.BES_COLUMN_HEADINGS AS DNS_Name ON DNS_Name.Name='DNS Name' AND Computer_Name.ComputerID=DNS_Name.ComputerID 
+JOIN dbo.BES_COLUMN_HEADINGS AS Free_Space_on_System_Drive ON Free_Space_on_System_Drive.Name='Free Space on System Drive' AND Computer_Name.ComputerID=Free_Space_on_System_Drive.ComputerID 
+JOIN dbo.BES_COLUMN_HEADINGS AS Last_Report_Time ON Last_Report_Time.Name='Last Report Time' AND Computer_Name.ComputerID=Last_Report_Time.ComputerID 
+JOIN dbo.BES_COLUMN_HEADINGS AS Wake_On_Address ON Wake_On_Address.Name='Wake-On Address' AND Computer_Name.ComputerID=Wake_On_Address.ComputerID 
+JOIN dbo.BES_COLUMN_HEADINGS AS Ghost_Image_Version ON Ghost_Image_Version.Name='Ghost Image Version' AND Computer_Name.ComputerID=Ghost_Image_Version.ComputerID 
+WHERE Computer_Name.Name='Computer Name'
+");
+$bfsth->execute() or confess($bfsth->errstr);
+while(my $row = $bfsth->fetchrow_hashref()) {
+   $bigfix_host{$row->{'ip_address'}} = $row;
+}
+#print "<PRE>";
+#print "DEBUG: ". Dumper(\%bigfix_host);
+</%perl>
+<div class="key"><% $side_size**2 %> Hosts</div>
+<%perl>
+foreach my $os (@osList) {
+</%perl>
+    <div class="<%$os%> key"><%$os%></div>
+<%perl>
+}
+</%perl>
+<br>
+<table style="font-size: 0.8em;" border=0 cellspacing=0 cellpadding=1>
+<%perl>
+
+for(my $i = 1; $i<=$side_size-9; $i++) {
+   $m->out("<tr>");
+   for(my $j = 1; $j<=$side_size; $j++) {
+        my $point = $hilbert->PointFromCoordinates($i,$j);
+        my $host = $host_array[$point];
+        my $color = "#FFF";
+        my $version_color;
+        my $os_maj;
+        my $os_min;
+        my $seen_days;
+
+        $m->out("<td class=\"$host->{'os'}\" valign=\"top\">");
+        $m->out("<div class=\"container\">");
+
+        if ($host->{'computer_name'} ne "") {
+            $os_maj = "0";
+            $os_min = "0";
+            if ($host->{'os_major'}) {
+               $os_maj = substr $host->{'os_major'}, -1;
+                $m->out("<DIV class=\"$linuxColors{$os_maj}\">");
+            } else {
+                $m->out("<DIV class=\"host\">");
+            }
+            if($host->{'os_minor'}) {
+               $os_min = substr $host->{'os_minor'}, -1;
+            }
+            $m->out($host->{'computer_name'} . "<BR>\n");
+            $m->out("</DIV>");
+            # If its windows in bigfix, get the version there
+            #my $host_bfinfo;
+            if($host->{'os'} eq 'windows' and $bigfix_host{$host->{'ip'}}) {
+                my $host_bfinfo = $bigfix_host{$host->{'ip'}};
+                if($host_bfinfo->{'ghost_image_version'} =~ /v0(\d)(\d)/) {
+                   $os_maj = $1;
+                   $os_min = $2;
+                #   $m->out("DEBUG: found match on 0XY style: $os_maj.$os_min<BR>\n");
+                }
+                elsif($host_bfinfo->{'ghost_image_version'} =~ /v(\d+)\.(\d+)/) {
+                   $os_maj = $1;
+                   $os_min = $2;
+                #   $m->out("DEBUG: found match on vX.Y style: $os_maj.$os_min<BR>\n");
+                }
+                #else {
+                #   $m->out("DEBUG: no regex match: ".$host_bfinfo->{'ghost_image_version'} . "<BR>\n");
+                #}
+            }
+            
+            if($os_maj or $os_min) {
+              my $blue = sprintf("%1x", ($os_maj + $os_min));
+              $version_color = "#".$os_maj.sprintf("%1x", $os_min*1.5).$blue;
+            }
+            else {
+              $version_color = "#051";
+            }
+
+            # if it hasn't been seen on the network for a while, mark it somehow:
+            if($host->{'last_seen_unix'} > 0) {
+                $seen_days = sprintf("%.0d", (time() - $host->{'last_seen_unix'})/(60*60*24));
+                if($seen_days > 14) {
+                   #$color = "#422";
+                   $version_color = "#422";
+                }
+            }
+
+            $m->out("<DIV class=\"status\">");
+            if($os_maj or $os_min) {
+              $m->out("ver$os_maj.$os_min<BR>\n");
+            }
+            if($seen_days > 14) {
+              $m->out("msng ".$seen_days."d");
+            }
+            $m->out("</DIV>");
+        } #if host exists
+
+        #$m->out("<DIV style=\"padding: 1px; border: ".$bordersize."px solid $version_color; width=\"100%\";\">");
+        $m->out("<DIV class=\"ip\">");
+        $m->out("22".(($point&256)>>8) . ".". ($point&255));
+        $m->out("</DIV>");
+        $m->out("</DIV>");
+        $m->out("</td>");
+   }
+   $m->out("</tr>\n");
+}
+</%perl>
+</table>
+<%perl>
+
+</%perl>
+

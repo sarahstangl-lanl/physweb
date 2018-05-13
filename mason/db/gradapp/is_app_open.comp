@@ -1,0 +1,8 @@
+<%doc>
+    The app is open starting the 9th month and
+    ending with the start of the 2nd
+</%doc>
+<%init>
+    my @time = CORE::localtime(time);
+    return ($time[4] >= 8 || $time[4] < 1);
+</%init>

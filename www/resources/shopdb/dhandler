@@ -1,0 +1,337 @@
+<%shared>
+    $m->comp('/mason/db/shopdb/build_auth.comp');
+    (my $page = $m->dhandler_arg) =~ s/\.html$//;
+    my $type = join '', map { ucfirst } split '_', $page;
+    my $title = join ' ', map { ucfirst } split '_', $page;
+</%shared>
+
+<%init>
+    use tablesearch;
+    use ShopDb::Schema;
+    use ShopDb::TablesearchMethods;
+
+    my $ts_methods = ShopDb::TablesearchMethods->new();
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $filter_form;
+
+    my $auth_args = $session{'shopdb-auth'};
+    my $admin = $auth_args->{'admin'};
+    my $foreman = $auth_args->{'foreman'};
+    my $machinist = !(!$auth_args->{'machinist_id'});
+    my $shop_person = $foreman || $machinist;
+
+    $m->redirect('index.html') unless (grep /^$type$/, keys %{$schema->source_registrations});
+
+    my $rs = $schema->resultset($type);
+    if ($type eq 'Attachments') {
+        $rs = $rs->search({ },
+        {
+            join => [ 'uploader', { job_attachments => { 'job' => { customer => 'directory', pi => 'directory' } } } ],
+            '+select' => [
+                \'CONCAT_WS(", ", uploader.last_name, uploader.first_name)',
+                'job.job_id',
+                'job.project_name',
+                'job.customer_id',
+                'job.pi_id',
+                \'CONCAT_WS(", ", directory.last_name, directory.first_name)',
+                \'CONCAT_WS(", ", directory_2.last_name, directory_2.first_name)',
+             ],
+            '+as' => [ 'Uploaded By', 'job_id', 'project_name', 'customer_id', 'pi_id', 'customer_display_name', 'pi_display_name' ],
+        });
+    }
+    elsif ($type eq 'Customers') {
+        $m->redirect('index.html') unless ($admin || $shop_person);
+        $rs = $rs->with_type_info->with_directory_info->with_address_info->search({}, {
+            order_by => { -asc => 'customer_display_name' },
+        });
+    } elsif ($type eq 'AuditEntries') {
+        $m->redirect('index.html') unless ($admin || $foreman);
+        $rs = $rs->with_directory_info;
+    } elsif ($type eq 'Machinists') {
+        $m->redirect('index.html') unless ($admin || $foreman);
+        $rs = $rs->with_directory_info->search({
+            active => ($ARGS{inactive} ? 0 : 1),
+        }, {
+            order_by => { -asc => 'display_name' },
+        });
+    } elsif ($type eq 'Jobs') {
+        $rs = $rs->with_directory_info->with_parent_info->with_status_info->with_machinists;
+        unless ($admin || $shop_person) {
+            if ($auth_args->{'customer_id'}) {
+                $rs = $rs->search([ { 'me.customer_id' => $auth_args->{'customer_id'} }, { 'me.pi_id' => $auth_args->{'customer_id'} } ]);
+            }
+            else {
+                $rs = $rs->search({ 'me.customer_id' => undef }, { 'me.pi_id' => undef });
+            }
+
+        }
+        use ShopDb::Form::JobFilter;
+        $filter_form = ShopDb::Form::JobFilter->new(schema => $schema, name => 'filter', rs => \$rs, auth_args => $session{'shopdb-auth'});
+        # Pass tablesearch args onto filter form action url
+        my $args = _args( map { $_ => $ARGS{$_} } grep { $_ !~ /_display$/ && !$filter_form->field($_, 0) } keys %ARGS );
+        $filter_form->action("jobs.html?$args");
+        if (exists $ARGS{'filter_submit'}) {
+            use Data::Dumper;
+            warn Dumper({ args => \%ARGS });
+            $filter_form->process(params => \%ARGS);
+        }
+    } elsif ($type eq 'Accounts') {
+        $rs = $rs->with_project_info->with_account_type;
+        # Restrict list of accounts unless authed
+        my $customer_id = ($admin || $foreman || $auth_args->{'accounting'}) ? undef : $auth_args->{'customer_id'};
+        # Allow admin and foreman to request specific customer accounts
+        if (($admin || $foreman) && $ARGS{'customer_id'}) {
+            $customer_id = $ARGS{'customer_id'};
+        }
+        if ($customer_id) {
+            if (my $customer = $schema->resultset('Customers')->find({ customer_id => $customer_id })) {
+                my @search_terms;
+                # Add saved accounts
+                push (@search_terms, { 'me.account_key' => $_->account_key })
+                    for ($customer->accounts);
+                # Add accounts matching last name or emplid
+                for my $term (map { $customer->directory->$_ } (qw/emplid last_name/)) {
+                    next unless ($term);
+                    push (@search_terms, { $_ => { -like => '%' . $term . '%' } })
+                        for (qw/me.account_key me.descr50 project.descr/);
+                }
+                $rs = $rs->search(\@search_terms);
+            }
+            else {
+                $rs = $rs->search('1=0');
+            }
+        }
+    } elsif ($type eq 'Addresses') {
+        $rs = $rs->with_relationships;
+        # Restrict list of addresses unless authed
+        my $customer_id = ($admin || $foreman || $auth_args->{'accounting'}) ? undef : $auth_args->{'customer_id'};
+        # Allow admin and foreman to request specific customer accounts
+        if (($admin || $foreman) && $ARGS{'customer_id'}) {
+            $customer_id = $ARGS{'customer_id'};
+        }
+        if ($customer_id) {
+            $rs = $rs->search([
+                'customer_addresses.customer_id' => $customer_id,
+                'jobs.customer_id' => $customer_id,
+                'jobs.pi_id' => $customer_id,
+            ]);
+        }
+    }
+    my $extra_url_args = exists $ARGS{'filter_submit'} ? [ grep { exists $ARGS{$_} && $ARGS{$_} ne '' } map { $_->html_name } map { $_->has_flag('is_compound') ? $_->fields : $_ } $filter_form->sorted_fields ] : [ ];
+    my %ts_args = (
+        'Accounts' => {
+            field_params => {
+                account_key => {
+                    hidden => 1,
+                },
+                account_type_id => {
+                    hidden => 1,
+                },
+                descr50 => {
+                    name => 'Description',
+                    data_format => sub {
+                        my ($value, $self, $row) = @_;
+                        return '<a href="account.html?' . _args(
+                            ( map { ( "tssearch_$_" => $ARGS{$_} ) } keys %ARGS ),
+                            account_key => $row->{account_key},
+                        ) . '">' . ($value || "<i>$row->{account_key}</i>") . '</a>';
+                    },
+                },
+                project_descr => {
+                    name => 'Project Description',
+                },
+                setid => {
+                    hidden => 1,
+                },
+                fund_code => {
+                    name => 'Fund',
+                },
+                deptid => {
+                    name => 'Dept ID',
+                },
+                program_code => {
+                    name => 'Program',
+                },
+                project_id => {
+                    name => 'Project ID',
+                },
+                lastupddttm => {
+                    hidden => 1,
+                },
+                lastupdoprid => {
+                    hidden => 1,
+                },
+                'auto-added' => {
+                    hidden => 1,
+                },
+                disabled => $ts_methods->checkbox,
+            },
+            columns => [ qw/descr50 account_type project_descr/ ],
+            show_remaining_columns => 1,
+            filter_field => 'account_type',
+            filter_name_field => 'label',
+        },
+        'Addresses' => {
+            field_params => {
+                address_id => {
+                    url => 'address.html?address_id=$row{address_id}',
+                },
+                lines => {
+                    name => 'Address',
+                    data_format => sub { $_[0] =~ s/[\r\n]+/<br\/>/g; $_[0] },
+                },
+                customers => {
+                    data_format => sub { return $_[0] },
+                },
+                jobs => {
+                    data_format => sub { return $_[0] },
+                },
+                packing_slips => {
+                    data_format => sub { return $_[0] },
+                },
+            },
+            excluded_search_fields => [ qw/customers jobs packing_slips/ ],
+        },
+        'Attachments' => {
+            field_params => {
+                attachment_id => {
+                    hidden => 1,
+                },
+                data => {
+                    hidden => 1,
+                },
+                uploader_uid => {
+                    hidden => 1,
+                },
+                customer_id => {
+                    hidden => 1,
+                },
+                pi_id => {
+                    hidden => 1,
+                },
+                job_id => $ts_methods->job_id,
+                project_name => $ts_methods->project_name,
+                customer_display_name => $ts_methods->customer_id,
+                pi_display_name => $ts_methods->pi_id,
+                filename => {
+                    url => 'get_file.html?attachment_id=$row{attachment_id}',
+                },
+            },
+        },
+        'AuditEntries' => {
+            field_params => {
+                display_name => {
+                    name => 'Name',
+                    width => 125,
+                },
+                entry_date => {
+                    width => 150,
+                },
+                result_id => {
+                    name => 'Result ID',
+                },
+            },
+            columns => [ qw/display_name result_type result_id action_type value entry_date/ ],
+            default_sort_field => 'entry_date',
+            default_sort_dir => 'desc',
+        },
+        'Customers' => {
+            field_params => {
+                customer_id => { hidden => ($ARGS{excel} ? 0 : 1) },
+                customer_display_name => $ts_methods->customer_id,
+                email => { width => '150' },
+                work_phone => { width => '150' },
+                cell_phone => { width => '150' },
+                shipping_address => {
+                    %{ $ts_methods->address },
+                    name => 'Primary Shipping Address',
+                },
+                billing_address => {
+                    %{ $ts_methods->address },
+                    name => 'Primary Billing Address',
+                },
+            },
+            filter_field => 'customer_type',
+            filter_name_field => 'label',
+            columns => [ qw/customer_id customer_display_name customer_type email company_name work_phone cell_phone fax_number shipping_address billing_address comments/ ],
+        },
+        'CustomerTypes' => {
+            field_params => {
+                'customer_type_id' => { url => 'customer_type.html?customer_type_id=$row{customer_type_id}' },
+            },
+        },
+        'Jobs' => {
+            field_params => {
+                ( map { $_ => $ts_methods->$_ } (qw/job_id project_name customer_id pi_id/) ),
+                'job_id_sort_val' => {
+                    'secondary_sort_field' => 'job_id',
+                },
+            },
+            columns => [ qw/job_id project_name status customer_id pi_id machinists account_key/ ],
+            extra_url_args => $extra_url_args,
+            default_sort_field => 'job_id_sort_val',
+            default_sort_dir => 'desc',
+            hide_search => 1,
+        },
+        'Machinists' => {
+            field_params => {
+                machinist_id => $ts_methods->machinist_id,
+                fulltime => {
+                    name => 'Full-time',
+                    %{$ts_methods->checkbox},
+                },
+                active => $ts_methods->checkbox,
+            },
+            columns => [ qw/machinist_id labor_rate shortname fulltime active/ ],
+            extra_url_args => [ qw/inactive/ ],
+        },
+    );
+
+    my $ts = new Tablesearch(
+        resultset => $rs,
+        header_format => 'ucfirst_all',
+        %{$ts_args{$type}},
+        debug => 0,
+        excel_link => 1,
+    );
+</%init>
+<table cellpadding="0" cellspacing="3">
+<tr>
+% if ($filter_form) {
+    <td style="vertical-align: top;padding-right: 5px; min-width: 275px;"><% $filter_form->render %></td>
+% }
+<td valign="top">
+% $ts->display;
+</td>
+</tr>
+</table>
+
+<%method title>Shop <% $title |h %></%method>
+
+<%method titlemenu_below>
+% my $re = qr/(?:(s)e)?s$/;
+% (my $newpage = $page) =~ s/$re/$1||''/e;
+% (my $newtitle = $title) =~ s/$re/$1||''/e;
+% if ($type !~ /(AuditEntries|Settings)/) {
+    <& /mason/titlemenu.comp:begin, type=>"below"&>
+%   if ($type =~ /^Customer/) {
+    <&| /mason/titlemenu.comp:item, link => "/resources/shopdb/customers.html" &>Customers</&>
+    <&| /mason/titlemenu.comp:item, link => "/resources/shopdb/customer.html" &>New Customer</&>
+    <&| /mason/titlemenu.comp:item, link => "/resources/shopdb/customer_types.html" &>Customer Types</&>
+    <&| /mason/titlemenu.comp:item, link => "/resources/shopdb/customer_type.html" &>New Customer Type</&>
+%   }
+%   elsif ($type eq 'Machinists') {
+    <&| /mason/titlemenu.comp:item, link => "/resources/shopdb/$page.html", selected => !$m->request_args->{inactive} &>Active Machinists</&>
+    <&| /mason/titlemenu.comp:item, link => "/resources/shopdb/$page.html?inactive=1", selected => $m->request_args->{inactive} &>Inactive Machinists</&>
+    <&| /mason/titlemenu.comp:item, link => "/resources/shopdb/$newpage.html" &>New <% $newtitle |h %></&>
+%   }
+%   else {
+    <&| /mason/titlemenu.comp:item, link => "/resources/shopdb/$page.html" &><% $title |h %></&>
+%     unless ($type =~ /(Attachments|Invoices)/) {
+    <&| /mason/titlemenu.comp:item, link => "/resources/shopdb/$newpage.html" &>New <% $newtitle |h %></&>
+%     }
+%   }
+    <& /mason/titlemenu.comp:end &>
+% }
+</%method>

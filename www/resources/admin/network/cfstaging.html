@@ -1,0 +1,31 @@
+<%flags>
+inherit => undef
+</%flags>
+<%args>
+$ip => undef
+$hostname => undef
+</%args>
+<%init>
+$ip ||= $r->connection->get_remote_host;
+my $query = "SELECT cfengine_repo, sysadm_repo FROM net_hosts h JOIN net_interfaces i ON h.id = i.host_id JOIN net_dns d ON d.interface_id = i.id";
+my ($where, @args);
+if ($hostname) {
+    if ($hostname =~ /([^\.]+).*\.umn\.edu/) {
+        $hostname = $1;
+    }
+    $where = "d.hostname = ?";
+    push(@args, $hostname);
+}
+else {
+    $where = "INET_NTOA(d.ip) = ?";
+    push(@args, $ip);
+}
+my $sth = $dbh->prepare("$query WHERE $where GROUP BY h.id");
+warn "$query WHERE $where GROUP BY h.id";
+warn @args;
+$sth->execute(@args) || die "Failed to fetch staging repo: " . $sth->errstr;
+while (my $row = $sth->fetchrow_hashref) {
+    warn Dumper($row);
+    print "cfengine_repo " . ($row->{cfengine_repo} || '') . "\nsysadm_repo " . ($row->{sysadm_repo} || '') . "\n";
+}
+</%init>

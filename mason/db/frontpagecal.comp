@@ -1,0 +1,155 @@
+<%doc>
+  vim: set syntax=mason:
+  Author: Alex Schumann
+  Date: July 31, 2007
+  Description:
+    Provide next n items from the calendar for the front page.
+</%doc>
+
+<%args>
+$limit=>5
+$areatag=>'spa'
+$fullperiod=>'thisweek'
+$today_only=>0
+$linkmore=>1
+$details=>0
+</%args>
+
+<%init>
+
+return if (!(defined($dbh)));
+
+#return if $m->cache_self(expire_in => '5 min', key => $areatag . '.' . $limit);
+
+my $count;
+my $row_ref;
+my $time;
+my $lastdate = "";
+my ($month, $day);
+my ($hour, $minute, $second, $ampm);
+my $heading;
+my $firsttable = 1;
+my $areaid = 0;
+if ($areatag) {
+  my $sql = 'SELECT areaid FROM calendar_areas WHERE tag=?';
+  my $sth = $dbh->prepare($sql);
+  $sth->execute($areatag);
+  if (my $row_ref = $sth->fetchrow_arrayref) {
+    ($areaid) = @$row_ref;
+  }
+}
+
+my $sql_where;
+# in time calculations, we're assuming events last 1 hour, since we have no better data...
+if($today_only) {
+    $sql_where = "class='calendar' 
+                  AND DATE(date) = DATE(NOW())
+                  AND DATE > DATE_SUB(now(), INTERVAL 1 HOUR)
+                  /*AND frontpage*/ ";
+}
+else {
+    $sql_where = "class='calendar'
+                  AND date > DATE_SUB(now(), INTERVAL 1 HOUR)
+                  /* AND frontpage */ ";
+}
+
+if ($areaid) {
+    $sql_where .= " AND areaid=? ";
+}
+my $sql = "SELECT eventid, date, title, location, speaker, subject, info, abstract, status, mod_date 
+          FROM calendar 
+         WHERE $sql_where
+      ORDER BY date asc, title LIMIT ?
+      ";
+  
+</%init>
+
+
+<%perl>
+  if(defined($dbh)) {
+    $m->out("<div class=\"fpcalendar\">\n");
+    my $sth = $dbh->prepare($sql);
+    if ($areaid) {
+      $sth->execute($areaid, $limit);
+    } 
+    else {
+      $sth->execute($limit);
+    }
+    while ($row_ref = $sth->fetchrow_arrayref) {
+          my ($eventid, $date, $title, $location, $speaker, $subject, $info, $abstract, $status, $mod_date) = @$row_ref;
+          $count++;
+          ($date,$time) = split(" ",$date);
+          ($hour,$minute,$second) = split(":",$time);
+          if ($hour>11) {
+             $ampm="pm";
+          } 
+          else {
+             $ampm="am";
+          }
+          if ($hour>12) {
+              $hour-=12;
+          }
+          $time = $hour.":".$minute."&nbsp;".$ampm;
+          if ($hour eq "00") { 
+              $time = "";
+          }
+          if ($date ne $lastdate) {
+            $lastdate = $date;
+            my ($year,$month,$day) = split("-",$date);
+            $date = sprintf("%s, %s %s", Day_of_Week_to_Text(Day_of_Week($year,$month,$day)), Month_to_Text($month), English_Ordinal(int($day)));
+            $m->out("</div> <!-- fpcal_day (unless) -->\n\n") unless ($firsttable);
+            $m->out("<div class=\"fpcal_day\">\n");
+            $m->out("<div class=\"fpcal_day_title\">$date</div>\n");
+            $firsttable = 0;
+          }
+          $m->out("<div class=\"fpcal_item\">");
+           $time =~ s/\s+/&nbsp;/g;
+           $location =~ s/^\s//g;
+           if (length($location) < 20) {
+             $location =~ s/\s+/&nbsp;/g;
+           }
+           $title = "Untitled" unless $title;
+           $m->out("<div class=\"fpcal_head\">");
+              $m->out("<div class=\"fpcal_time\">$time:</div>");
+              $m->out("<div class=\"fpcal_title\">");
+                $m->out("<a href=\"/events/calendar/$areatag.all/thisweek/index/calendar.html?item=".$eventid."\"><b>".$title."</b></a>\n");
+                if($location) {
+                  $m->out("in $location");
+                }
+              $m->out("</div> <!-- fpcal_title -->");
+              if($details && ($subject || $speaker || $info)) {
+                  $m->out("<div class=\"fpcal_details\">");
+                    if ($subject) {
+                      $m->out("<div class=\"fpcal_subject\">$subject");
+                      $m->out(" &mdash; ") if ($speaker);
+                      $m->out("</div>");
+                    }
+                    $m->out("<div class=\"fpcal_speaker\">$speaker</div>") if ($speaker);
+                    $m->out("<div class=\"fpcal_info\"> $info</div>") if $info;
+                  $m->out("</div>");
+              }
+           $m->out("</div> <!-- fpcal_head -->");
+          $m->out("</div> <!-- cal item -->\n");
+    }
+    $m->out("</div><!-- fpcal_day -->\n\n") if($count);
+    if($linkmore) {
+        if (!$areatag) {
+          </%perl>
+
+            <div class="sectionendblock">
+            <a href="/rss/calendar/" class="rsslink" title="Subscribe to Physics Calendar RSS feed"><img class="rssicon" src="/images/feed-icon-14x14.png" width="14" height="14" alt="Subscribe to Physics Calendar RSS feed"></a>
+            | <a class="frontpagefulllink" href="/events/calendar/">Full Calendar &raquo;</a>
+            </div> <!-- sectionendblock -->
+
+          <%perl>
+        } 
+        else {
+          </%perl>
+            <a href="/rss/calendar" class="rsslink" title="Subscribe to Physics Calendar RSS feed"><img class="rssicon" src="/images/feed-icon-14x14.png" width="14" height="14" alt="Subscribe to Physics Calendar RSS feed"></a>
+            | <a href="/events/calendar/<% $areatag |u %>.all/<% $fullperiod %>/">Full Calendar &raquo;</a>
+          <%perl>
+        }
+    }
+    $m->out("</div> <!-- fpcalendar -->\n\n");
+  }
+</%perl>

@@ -1,0 +1,3 @@
+<%init>
+    return (1900 + (CORE::localtime)[5]);
+</%init>

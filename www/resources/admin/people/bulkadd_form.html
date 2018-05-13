@@ -1,0 +1,92 @@
+<%init>
+$m->redirect("index.html") unless ($m->comp('/mason/auth/auth_check_directory.comp') || $m->comp('/mason/auth/auth_check_sysadm.comp'));
+</%init>
+
+<%method title>Add Multiple New Directory Entries</%method>
+
+<%method no_search_box></%method>
+
+<p>
+Use this form to add multiple new people to the directory. Any automatically updated groups will be added during creation and can be reviewed or edited by clicking "Edit entry" after successful creation.
+</p>
+
+<form method="POST" action="bulkadd.html">
+
+<h2 style="text-decoration: underline">Step 1. Enter Employee IDs or X.500s</h2>
+<br/>
+
+<table cellspacing="0" cellpadding="2">
+<tr><td valign="top">ID Numbers or X.500s:</td><td><textarea rows="5" cols="25" name="search" id="autodir_search"></textarea></td></tr>
+</table>
+
+<h2 style="text-decoration: underline">Step 2. Look Up Information</h2>
+<br/>
+
+<table cellspacing="0" cellpadding="2"><tr>
+<td width="100"><input id="autodir_lookup" type="submit" value="Lookup" /></td>
+<td><div id="autodir_lookup_messages"></div></td>
+</tr></table>
+
+
+<h2 style="text-decoration: underline">Step 3. Verify New Entries</h2>
+<br/>
+
+<div id="div_newusers"></div>
+
+<h2 style="text-decoration: underline">Step 4. Select Global Group Options</h2>
+<br/>
+
+<table border=0 cellspacing="0" cellpadding="2">
+<tr><th align="left" bgcolor="#eeeeee" colspan=3>Entry type:</th></tr>
+<tr><td colspan=3>
+<%perl>
+my $physacct_checkbox;
+for my $checkbox ($m->comp('quickadd_form.html:quickadd_flags')) {
+    # Handle physacct specially
+    if ($checkbox->{name} eq 'physacct') {
+        $physacct_checkbox = $checkbox;
+        next;
+    }
+</%perl>
+<& checkbox, %$checkbox &>
+% }
+</td></tr>
+
+<tr><th align="left" colspan=3 bgcolor="#eeeeee">Account Request:</th></tr>
+
+<tr><td align="left" colspan=3>
+<& checkbox, %$physacct_checkbox &>
+</td></tr>
+</table>
+
+<h2 style="text-decoration: underline">Step 5. Create New Entries / Submit Account Creation Requests</h2>
+<br/>
+
+<table border=0 cellspacing="0" cellpadding="2">
+<tr>
+<td><input id="autodir_add" type="submit" value="Add entries"></td>
+<td><div id="autodir_add_messages"></div></td>
+</tr>
+<tr>
+<td><input id="autodir_request" type="submit" value="Request accounts"></td>
+<td><div id="autodir_request_messages"></div></td>
+</tr>
+</table>
+
+</form>
+
+<br/>
+
+% $m->comp('/mason/ajax/js.comp');
+% $m->comp('/mason/ajax/jsload.comp', file=>'DirectoryBulkAddLookup.js');
+<script type="text/javascript">
+    new DirectoryBulkAddLookup();
+</script>
+
+<%def checkbox>
+<%args>
+$name
+$label
+</%args>
+<input type="checkbox" id="autodir_<% $name %>" name="<% $name %>">&nbsp;<label for="autodir_<% $name %>"><% $label %></label>
+</%def>

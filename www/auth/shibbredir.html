@@ -1,0 +1,29 @@
+<%args>
+$url => undef;
+</%args>
+
+<%method title>Shibboleth login redirection launcher</%method>
+
+<%init>
+#r my $cookie = Apache2::Cookie->new($r,
+#r         -name => 'UMNPHYS_PERSIST',
+#r         -value => 'phys|' . $session{'x500'} . '|' . $session{'physid'},
+#r         -expires => '+10Y',
+#r         -path => '/',
+#r         -domain => '.umn.edu',
+#r );
+#r if (defined($cookie)) {
+#r     $cookie->bake($r);
+#r }
+
+$session{'shibbredir'} = $url;
+$m->redirect("/shibsecure");
+</%init>
+   You should be redirected to the UMN shibboleth login handler. If not <a href="/shibbsecure">click here</a>.
+
+   <br />
+   <br />
+   <br />
+   <br />
+   <br />
+

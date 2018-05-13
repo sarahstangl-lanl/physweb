@@ -1,0 +1,26 @@
+<%doc>
+   Component: ensure_entry.comp
+        Date: 9/4/2002
+      Author: allan
+ Description: makes sure an entry exists in the profile database
+</%doc>
+
+<%args>
+$uid
+</%args>
+
+<%perl>
+my $sql = "SELECT uid FROM profiles WHERE uid = ? LIMIT 1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($uid);
+
+my $row_ref = $sth->fetchrow_arrayref;
+
+if (!defined($row_ref)) {
+
+  $sql = "INSERT profiles (uid) VALUES (?) ";
+  $sth = $dbh->prepare($sql);
+  my $successful_insert = $sth->execute($uid);
+
+}
+</%perl>

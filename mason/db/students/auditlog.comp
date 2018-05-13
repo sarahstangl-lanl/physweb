@@ -1,0 +1,73 @@
+<%DOC>
+   vim: set syntax=mason:
+</%DOC>
+
+<%method display>
+    <%args>
+        $appt_uid
+        $appt_year
+        $appt_semester
+        $limit => undef
+    </%args>
+    <%init>
+        my ($where, $slimit);
+        my @where_args;
+        if ($appt_uid && $appt_year && $appt_semester) {
+            $where = "WHERE appt_uid=? AND appt_year=? AND appt_semester=?";
+            @where_args = ($appt_uid, $appt_year, $appt_semester);
+        }
+        if ($limit) {
+            $slimit = ' LIMIT ' . int($limit);
+        }
+        my $result = physdb::query("SELECT a.*, CONCAT(d.first_name, ' ', d.last_name) AS editor FROM accounting.appointment_auditlog AS a LEFT JOIN directory AS d ON (d.uid = a.uid) $where ORDER BY timestamp DESC $slimit", @where_args);
+        
+        return if($result->rows == 0);
+    </%init>
+    
+    <h3>Change History</h3>
+    <table border=0 cellpadding="5" cellspacing="0" width="100%">
+    <tr class="tablehead"><th>Timestamp</th><th>Editor</th><th>Change</th></tr>
+    <%perl>
+    my $oddeven=0;
+    while(my $row = $result->fetchrow_hashref()) {
+    </%perl>
+       <tr class="<% ($oddeven ? "odd" : "even") %>">
+           <td valign="top" nowrap><% $row->{'timestamp'}%></td>
+           <td valign="top"><% $row->{'editor'}|h%></td>
+           <td valign="top"><% $row->{'text'}|h%></td>
+       </tr>
+    <%perl>
+       $oddeven = $oddeven ? "0" : "1";
+    }
+    </%perl>
+    </table>
+</%method>
+
+<%method log>
+    <%ARGS>
+        $text=>''
+        $uid=>$session{uid}
+        $appt_uid
+        $appt_year
+        $appt_semester
+    </%ARGS>
+    
+    <%perl>
+    my $sql = "INSERT INTO accounting.appointment_auditlog (timestamp, text, uid, appt_uid, appt_year, appt_semester) VALUES (now(),?,?,?,?,?)";
+    
+    if (defined($dbh)) {
+      physdb::query($sql, $text, $uid, $appt_uid, $appt_year, $appt_semester);
+    }
+    #my $recemail = $m->comp('/mason/auth/getgroup_manager_emails.comp', groupname=>'appointment');
+    my $recemail = "grad-appt-log\@physics.umn.edu";
+    my $student = $m->comp('/mason/db/directory/uid_to_name.comp', uid => $appt_uid);
+    my $culprit = $m->comp('/mason/db/directory/uid_to_name.comp', uid => $uid);
+    my $subject = "Grad student appointment change: $student";
+    my $from = 'donotreply@physics.umn.edu';
+    my $body = "Grad student appointment change alert\n";
+    $body .= "Year/Semester: $appt_semester $appt_year\n";
+    $body .= "Student: $student\nEntered by: $culprit\n\n";
+    $body .= "Change log: $text\n\n";
+    $m->comp('/mason/send_mail.comp', to=>$recemail, from=>$from, subject=>$subject, text=>$body);
+    </%perl>
+</%method>

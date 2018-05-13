@@ -1,0 +1,67 @@
+<%init>
+my $overlaps;
+my $overlap_sth = $dbh->prepare("SELECT date, GROUP_CONCAT(DISTINCT x500 ORDER BY x500) AS x500s FROM moonproject.observation JOIN moonproject.student ON observation.student = student.userid WHERE current AND term = ? AND year = ? GROUP BY date HAVING COUNT(date) > 1 ORDER BY date ASC");
+$overlap_sth->execute($session{moonproject_term}, $session{moonproject_year}) or die "Failed to execute: " . $overlap_sth->errstr;
+while (my $overlap = $overlap_sth->fetchrow_hashref) {
+    my @x500s = split /,/, $overlap->{x500s};
+    for my $x500 (@x500s) {
+        for my $x500b (@x500s) {
+            next if ($x500b eq $x500);
+            $overlaps->{$x500}->{$x500b} ||= 0;
+            $overlaps->{$x500}->{$x500b}++;
+        }
+    }
+}
+while (my ($x500, $x500s) = each (%$overlaps)) {
+    for my $x500b (keys %$x500s) {
+        delete $overlaps->{$x500}->{$x500b} if ($overlaps->{$x500}->{$x500b} < 3);
+    }
+    delete $overlaps->{$x500} unless (%{$overlaps->{$x500}});
+}
+</%init>
+<table cellpadding="3" cellspacing="0"><tr><td valign="top" style="padding-right: 50px;">
+<h2>Students with overlapping observation dates</h2><br/>
+<table cellpadding="3" cellspacing="0"><tr><th align="left" width="150">X500</th><th align="left" width="150">X500</th><th align="left" width="50">Count</th></tr>
+<%perl>
+my $idmap = { };
+my $idlookup_sth = $dbh->prepare("SELECT userid FROM moonproject.student WHERE x500 = ?");
+my $lookup = sub {
+    my $x500 = shift;
+    return $idmap->{$x500} if (exists $idmap->{$x500});
+    $idlookup_sth->execute($x500) or die "Failed to lookup id: " . $idlookup_sth->errstr;
+    $idmap->{$x500} = $idlookup_sth->fetchrow_arrayref->[0];
+    return $idmap->{$x500};
+};
+my $oddeven = 0;
+for my $x500 (sort keys %$overlaps) {
+    my $studentid = $lookup->($x500);
+    my $header = 0;
+    my $result = $overlaps->{$x500};
+    for my $x500b (sort keys %$result) {
+        my $studentbid = $lookup->($x500b);
+        print '<tr class="' . ($oddeven ? 'odd' : 'even') . '"><td>';
+        $oddeven = !$oddeven;
+        unless ($header) {
+            print '<a href="observations.html?student=' . $studentid . '">' . $x500 . '</a>';
+            $header = 1;
+        }
+        print '</td><td><a href="observations.html?student=' . $studentbid . '">' . $x500b . '</a></td><td>' . $result->{$x500b} . "</td></tr>\n";
+    }
+}
+print "</table>";
+</%perl>
+</td><td valign="top">
+<h2>Students with differing fists per observation</h2><br/>
+<table cellpadding="3" cellspacing="0"><tr><th align="left" width="150">X500</th><th align="left">Observations</th></tr>
+<%perl>
+my $observations = $dbh->prepare("SELECT s.userid, s.x500, GROUP_CONCAT(b.number ORDER BY b.number) AS observations FROM (SELECT a.student, a.number, a.term, a.year FROM moonproject.observation a JOIN moonproject.observation b ON a.student = b.student AND a.number = b.number AND a.term = b.term AND a.year = b.year AND a.id < b.id WHERE a.term = ? AND a.year = ? AND ABS(a.fists) <> ABS(b.fists) GROUP BY a.student, a.number) b JOIN moonproject.observation a ON a.student = b.student AND a.number = b.number AND a.term = b.term AND a.year = b.year AND a.current JOIN moonproject.student s ON a.student = s.userid WHERE a.taAccepted = 'accepted' GROUP BY b.student ORDER BY s.x500");
+$observations->execute($session{moonproject_term}, $session{moonproject_year}) or die "Failed to execute: " . $observations->errstr;
+$oddeven = 0;
+while (my $row = $observations->fetchrow_hashref) {
+    print '<tr class="' . ($oddeven ? 'odd' : 'even') . '"><td><a href="observations.html?student=' . $row->{userid} . '">' . $row->{x500} . '</a></td>';
+    print '<td nowrap>' . join(', ', map { '<a href="observations.html?student=' . $row->{userid} . '#obs' . $_ . '">' . $_ . '</a>' } split (/,/, $row->{observations})) . "</td></tr>\n";
+    $oddeven = !$oddeven;
+}
+print "</table>";
+</%perl>
+</td></tr></table>

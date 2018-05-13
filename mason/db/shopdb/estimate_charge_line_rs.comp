@@ -1,0 +1,48 @@
+<%args>
+$job_estimate_id
+$type
+$category
+$edit_auth
+$line_id
+</%args>
+<%init>
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $rs = $schema->resultset('Estimate'.ucfirst($type).'Lines')->search({
+        'me.job_estimate_id' => $job_estimate_id,
+        'me.category' => $category,
+    });
+
+    if ($edit_auth) {
+        $rs = $rs->search({}, {
+            '+select' => (\'\'\' AS edit'),
+            '+as'     => 'edit',
+        });
+    }
+
+    if ($line_id) {
+        $rs = $rs->search({
+            "estimate_${type}_line_id" => $line_id,
+        });
+    }
+
+    if ($type eq 'material') {
+        $rs = $rs->search({}, {
+            '+select' => [ \'me.quantity * me.unit_cost' ],
+            '+as' => [ qw/extended_cost/ ],
+        });
+    } else { # Labor line
+        my $labor_rate_field = 'labor_rate';
+        my $labor_rate_divisor = 1;
+        # EDM charge_hours stored as minutes
+        if ($category eq 'wire') {
+            $labor_rate_field = 'edm_labor_rate';
+            $labor_rate_divisor = 60;
+        }
+        $rs = $rs->search({}, {
+            '+select' => [ "job_estimate.$labor_rate_field", \"me.charge_hours * job_estimate.$labor_rate_field / $labor_rate_divisor" ],
+            '+as' => [ qw/labor_rate extended_cost/ ],
+            join => 'job_estimate',
+        });
+    }
+    return $rs;
+</%init>

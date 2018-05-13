@@ -1,0 +1,339 @@
+<%doc>
+Component: dhandler
+Date: 9/9/2002
+Author: allan
+Description:
+</%doc>
+
+<%args>
+$item=>''
+$printer=>''
+$view=>''
+</%args>
+
+<%shared>
+my $year;
+my $baseurl="/events/calendar/"; # Needs trailing slash!
+my $dhandler_arg = $m->dhandler_arg;
+$dhandler_arg =~ s/[^-a-zA-Z0-9_.\/]+/_/go;
+my ($area,$when,$quarter) = split("/",$dhandler_arg);
+
+# Default values
+$area = 'all' unless ($area);
+$when = 'thisweek' unless ($when);
+$quarter = '' unless ($quarter);
+
+# Remove .html from args
+$area =~ s/\.html$//;
+$when =~ s/\.html$//;
+$quarter =~ s/^.*html$//;
+
+# Determine sortcode and areatag from args
+my @areaarr = split(/\./, $area);
+my ($sortcode, $areatag);
+
+if (scalar(@areaarr) == 1) {
+    $sortcode = $areaarr[0];
+} else {
+    ($areatag, $sortcode) = @areaarr;
+}
+
+if (!$areatag) {
+    $areatag = 'spa';
+}
+
+$areatag = lc($areatag);
+
+# Lookup areaid and page title from tag
+my ($areaid, $page_title);
+if ($dbh) {
+    my $query = $dbh->prepare('SELECT areaid, name FROM calendar_areas WHERE tag=? LIMIT 1') or die "Failed to prepare areatag query: " . $dbh->errstr;
+    $query->execute($areatag) or die "Failed to execute areatag query: " . $query->errstr;
+    if (my $row = $query->fetchrow_hashref()) {
+        $areaid = $row->{'areaid'};
+        $page_title = $row->{'name'} . ' Calendar';
+    }
+    else { # Invalid areatag, redirect to known-good page
+        $m->redirect($baseurl);
+    }
+} else {
+    # Database is down so calendar doesn't work anyway
+    $areaid = 0;
+    $page_title = "Physics and Astronomy Calendar";
+}
+
+# Try to figure out page title from sortcode
+if (defined($dbh) && $sortcode ne 'all') {
+    my $sth = $dbh->prepare("SELECT title FROM calendar WHERE class=? AND sortcode=? LIMIT 1") or die "Failed to prepare sortcode query: " . $dbh->errstr;
+    $sth->execute('template', $sortcode) or die "Failed to execute sortcode query: " . $sth->errstr;
+    if (my $row_ref = $sth->fetchrow_hashref) {
+        $page_title = $row_ref->{'title'};
+    }
+    else { # Invalid sortcode
+        $m->redirect($baseurl);
+    }
+}
+
+</%shared>
+
+<%init>
+# take care of content-type if the .html was omitted...
+$r->content_type("text/html");
+
+my $internal = $m->comp('/mason/auth/auth_check_internal.comp');
+my $auth = ($m->comp('/mason/auth/auth_check_calendar.comp', areatag=>$areatag) || $m->comp('/mason/auth/auth_check_sysadm.comp'));
+
+# disable auth flag for printer version - hide links
+if ($printer) {$auth = 0;}
+
+my $uri = $r->uri;
+
+# Store current uri for use in edit_calendar.html
+$session{'calendaruri'} = $uri;
+
+# Determine year
+if ($when =~ /^\d+$/ && $when > 1900) {
+    $year = $when;
+}
+else {
+    $year = 1900 + (CORE::localtime)[5];
+}
+
+# Get current semester
+if ($when eq "semester") {
+    $quarter = $m->comp('/mason/this_quarter.comp');
+    $when = $year;
+}
+
+my ($eventid, $date, $title, $location, $speaker, $subject, $info, $abstract, $status, $uid, $mod_date, $facultyhost, $imageid, $size_x, $size_y, $alt);
+my ($sql, @exec_args);
+my $time;
+my $lastdate = "";
+my ($month,$day);
+my ($hour,$minute,$second,$ampm);
+my $heading;
+
+if ($item) {
+    $sql = q[
+        SELECT eventid, date, title, location, speaker, subject, info, abstract, status, uid, mod_date, facultyhost, images.imageid, images.size_x, images.size_y, images.alt
+        FROM calendar
+        LEFT OUTER JOIN images ON images.parentid=calendar.eventid AND images.category='calendar'
+        WHERE eventid=? AND areaid=?
+    ];
+    push(@exec_args, ($item, $areaid));
+}
+else {
+    $sql = "SELECT eventid, date, title, location, speaker, subject, info, abstract, status, uid, mod_date, facultyhost FROM calendar WHERE class='calendar'";
+    if ($when eq "nextweek") {
+        $sql .= " AND WEEK(date)=WEEK(now() + INTERVAL 7 DAY) AND YEAR(date)=YEAR(now())";
+        $heading = "Week of ".Date_to_Text_Long(Add_Delta_Days(Monday_of_Week(Week_of_Year(Today())),7));    
+    } elsif ($when eq "lastweek") {
+        $sql .= " AND WEEK(date)=WEEK(now() - INTERVAL 7 DAY) AND YEAR(date)=YEAR(now())";
+        $heading = "Week of ".Date_to_Text_Long(Add_Delta_Days(Monday_of_Week(Week_of_Year(Today())),-7));        
+    } elsif ($when eq "future") {
+        $sql .= " AND date>now()";
+        $heading .= "All future";
+    } elsif ($when eq "thisweek") {
+        $sql .= " AND WEEK(date)=WEEK(now()) AND YEAR(date)=YEAR(now())";
+        $heading = "Week of ".Date_to_Text_Long(Monday_of_Week(Week_of_Year(Today())));
+    } elsif ($when =~ /^\d+$/ && $when > 1999) {
+        $sql .= " AND YEAR(date)=?";
+        push(@exec_args, $when);
+        $heading .= " semester, $when";
+        if ($quarter =~ /fal/i) { 
+            $sql .= " AND MONTH(date)>8"; 
+            $heading = "Fall Semester";
+        }
+        if ($quarter =~ /spr/i) { 
+            $sql .= " AND MONTH(date)<6"; 
+            $heading = "Spring Semester"; 
+        }
+        if ($quarter =~ /sum/i) { 
+            $sql .= " AND MONTH(date)>5 AND MONTH(date)<9"; 
+            $heading = "Summer Semester"; 
+        }
+    } elsif ($when eq "all") {
+        $heading .= "All";
+    } else {
+        $m->redirect("${baseurl}${area}/thisweek");
+    }
+
+    if (($sortcode ne "all") && ($sortcode)) { 
+        $sql .= " AND sortcode=?";
+        push(@exec_args, $sortcode);
+    }
+
+    $sql .= " AND areaid=?";
+    push(@exec_args, $areaid);
+    $sql .= " ORDER BY date, title";
+
+}
+
+my $debuginfo = "<small>Debug info: sortcode=".$sortcode." when=".$when." semester=".$quarter."<br/>SQL query = ".$sql."</small>";
+
+</%init>
+
+<%method title><% $page_title %></%method>
+
+<div class="calendar">
+<div class="rightmenu">
+<& SELF:rightmenu &>
+</div>
+
+% if ($heading) {
+<div class="cal_heading">
+<h1 class="cal_heading"><% $heading %></h1>
+</div>
+% }
+
+<div class="cal_panel">
+<small>
+
+<%perl>
+my $selector_year = $year;
+if (!$quarter && $m->comp('/mason/this_quarter.comp') =~ /fall/i) {
+    $selector_year++;
+}
+$m->comp('/mason/quarter_selector2.comp', header=>'no', year=>$selector_year, quarter=>$quarter, url=>$baseurl.$areatag.'.'.$sortcode);
+</%perl>
+
+<br/>
+<a <% $uri =~ /thisweek/ ? 'class="selected"' : '' %> href="<% $baseurl.$areatag %>.<% $sortcode %>/thisweek">This week</a> |
+<a <% $uri =~ /nextweek/ ? 'class="selected"' : '' %> href="<% $baseurl.$areatag %>.<% $sortcode %>/nextweek">Next week</a> |
+<a <% $uri =~ /semester/ ? 'class="selected"' : '' %> href="<% $baseurl.$areatag %>.<% $sortcode %>/semester">This semester</a> |
+<a <% $uri =~ /future/ ? 'class="selected"' : '' %> href="<% $baseurl.$areatag %>.<% $sortcode %>/future">All future</a> |
+<a href="<% $baseurl.$areatag %>.<% $sortcode %>/<% $when |u %>?view=yes&print=yes&skel=yes">Print view</a>
+</small>
+
+<%perl>
+
+if ($auth) {
+    print "<small>";
+    my $e = "| <a href=\"".$baseurl."calendar_mailform.html?areatag=".$areatag."&amp;when=$when\">Send calendar email</a>";
+    $e = '' if ($areatag ne 'spa');
+    print "| <a href=\"".$baseurl."edit_calendar_form.html?areatag=".$areatag."\">Add new item</a> " . $e . " | <a href=\"".$baseurl."calendar_help.html\">Help</a>";
+    print "</small><p>";
+}
+
+#$m->comp('/mason/greybox.comp',text=>$debuginfo);
+</%perl>
+
+</div>
+<%perl>
+
+my $count=0;
+
+if (defined($dbh)) {
+    my $sth = $dbh->prepare($sql) or die "Failed to prepare calendar fetch query: " . $dbh->errstr;
+    $sth->execute(@exec_args) or die "Failed to execute calendar fetch query: " . $sth->errstr;
+    my $firsttable = 1;
+
+    while (my $row_ref = $sth->fetchrow_arrayref) {
+        my ($eventid, $date, $title, $location, $speaker, $subject, $info, $abstract, $status, $uid, $mod_date, $facultyhost, $imageid, $size_x, $size_y, $alt) = @$row_ref;
+        $count++;
+        ($date,$time) = split(" ",$date);
+        ($hour,$minute,$second) = split(":",$time);
+        if ($hour>11) {$ampm="pm";} else {$ampm="am";}
+        if ($hour>12) {$hour-=12;}
+        $time = $hour.":".$minute."&nbsp;".$ampm;
+        if ($hour eq "00") { $time = "";}
+        if ($date ne $lastdate) {
+            if ($view) {
+                print '<br/>';
+            }
+            $lastdate = $date;
+            my ($year,$month,$day) = split("-",$date);
+            $date = Date_to_Text_Long($year,$month,int($day));
+            print "</div> <!-- cal_day (unless) -->\n\n" unless ($firsttable);
+            print "<div class=\"cal_day\">\n";
+            print "<div class=\"cal_day_title\">$date</div>\n";
+            $firsttable = 0;
+        }
+        $m->out("<div class=\"cal_item\">");
+        $time =~ s/\s+/&nbsp;/g;
+        $location =~ s/^\s//g;
+        $location =~ s/\s+/&nbsp;/g;
+        $title = "Untitled" unless $title;
+        print "<div class=\"cal_head\"><div class=\"cal_time\">$time:</div><div class=\"cal_title\"><a name=\"#".$eventid."\"><b>".$title."</b></a>\n";
+        if($location) {
+            print "in $location";
+        }
+        print "</div></div>";
+        if ($speaker) { print "<div class=\"cal_speaker\"><i>Speaker:</i>&nbsp;".$speaker."</div>\n"; }
+        if ($subject) { print "<div class=\"cal_subject\"><i>Subject:</i>&nbsp;".$subject."</div>\n"; }
+        if ($info) {
+            $m->out("<div class=\"cal_info\"><i>".$m->comp('/mason/format_wikitext.comp',text=>$info, extended => 1, nodiv => 1, nopar => 1)."</i></div>\n");
+        }
+        if (length($abstract)>10) {
+            if ($item || $view ) {
+                my $image;
+                if ($imageid) {
+                    $image = $m->scomp('/mason/db/images/insert_image.comp', category=>'calendar', parentid=>$eventid);
+                }
+                $abstract = $m->comp('/mason/format_wikitext.comp',text=>$abstract, extended=>1);
+# insert any image after the first p tag...
+# we don't try to match ^<p> as there may be <div> stuff before it!
+                $abstract =~ s/<p>/<p>$image/i;
+                $m->out("<div class=\"cal_abstract\">".$abstract."</div>\n");
+            } else {
+                $m->out("<div class=\"cal_readmore\"><small>[<a href=\"$baseurl$areatag.$sortcode/".($uri =~ /semester/ ? "semester/" : "$when/".($quarter ? "$quarter/" : ""))."calendar.html?item=".$eventid."\">Abstract</a>]</small></div>\n");
+            }
+        }
+	    if ($facultyhost) { print "<div class=\"cal_info\"><i>Faculty Host</i>: ".$m->comp('/mason/db/directory/uid_to_name.comp', uid=>$facultyhost)."<br />"; }
+        if ($internal) {
+            $m->out("<div class=\"cal_edit\"><small>");
+            if ($status) {$m->out("Status:&nbsp;".$status." | ");}
+            $m->out("last modified $mod_date");
+            if ($uid) { print " by " . $m->comp('/mason/db/directory/uid_to_name.comp', uid => $uid);}
+            $m->out(" | <a href=\"".$baseurl."edit_calendar_form.html?eventid=$eventid\">edit item</a>") if ($auth);
+            $m->out("</small></div>\n");
+        }
+        $m->out("</div> <!-- cal item -->\n");
+    }
+    $m->out("</div><!-- cal_day -->\n\n") if($count);
+    $m->out("</div> <!-- calendar -->\n\n");
+
+    if (!$count) {
+        $heading =~ s/Week/the week/;
+        $m->out("<p>There are no $page_title entries for $heading.</p>");
+    }
+
+} else { #end if defined($dbh)
+    print '<p>The calendar is currently unavailable due to database maintenance.';
+}
+
+</%perl>
+
+% if ($areatag eq 'spa') {
+<p>The weekly calendar is also available via subscription to the <a href="http://zzz.physics.umn.edu/computing/accounts/email/lists">physics-announce</a> mailing list, and by <a href="http://www.physics.umn.edu/rss/calendar/index.html">RSS feed</a>.</p>
+% }
+
+<%method rightmenu>
+<&| /mason/menu.comp:begin, level=>2 &>Categories</&>
+<b><&| /mason/menu.comp, link=>$baseurl . $m->interp->apply_escapes($areatag, 'u') . '.all/' . ($r->uri =~ /semester/ ? "semester" : $when . ($quarter ? "/$quarter" : "")), level=>2, left_next=>1 &>All Categories</&></b>
+
+<%perl>
+my $sql = "SELECT title, sortcode FROM calendar WHERE class='template' AND areaid=? ORDER BY title";
+if (defined($dbh)) {
+    my $sth = $dbh->prepare($sql);
+    $sth->execute($areaid);
+    my $row_ref;
+    my $sortcode_list = "none,";
+    while ($row_ref = $sth->fetchrow_arrayref) {
+        my ($title, $code) = @$row_ref;
+        $title =~ s/ and / &amp; /g; # /
+        my $url = "$baseurl$areatag.$code/";
+        if ($r->uri =~ /semester/) {
+            $url .= "semester";
+        } else {
+            $url .= "$when";
+            if ($quarter) {
+                $url .= "/$quarter";
+            }
+        }
+        </%perl><&| /mason/menu.comp, link=>$url, level=>2  &><% $title%></&><%perl>
+    }
+}
+</%perl>
+<& /mason/menu.comp:end &><br />
+</%method>

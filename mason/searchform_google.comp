@@ -1,0 +1,8 @@
+<form method="get" action="http://www.google.com/u/umn">
+<b>Search this site</b><br />
+<input type="text" name="q" size="13" maxlength="255" value="<% $ARGS{'search'}%>" />
+<input type="image" src="/images/go_btn.gif" width="21" align="absmiddle" name="Go" height="21" border="0" alt="Go" />
+<input type="hidden" name="hq" value="inurl:www.physics.umn.edu" />
+<p></p>
+</form>
+

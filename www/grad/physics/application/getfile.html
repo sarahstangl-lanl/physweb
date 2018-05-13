@@ -1,0 +1,64 @@
+
+<%DOC>
+   Component: getfile.html
+        Date: 2005.10.03
+      Author: allan
+     Changed: 2005.10.03 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id => undef
+</%ARGS>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%INIT>
+use File::MMagic;
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) { $m->redirect('index.html'); }
+if ($id == undef) {
+	print "Page called incorrectly. <a href=\"index.html\">Go back</a>";
+	return;
+}
+
+my $sql = "SELECT data, mimetype FROM grad.uploads WHERE uploadid = ?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($id)
+  or die "Unable to grab upload $id: " . $dbh->errstr;
+
+my ($recdata, $rectype);
+my $ext = ".dat";
+if (my $db_row = $sth->fetchrow_arrayref()) {
+  ($recdata, $rectype) = @$db_row;
+  if ($rectype =~ /octet/) {
+    # try to identify with mmagic...
+    my $mm = File::MMagic->new();
+    $rectype = $mm->checktype_contents($recdata);
+  }
+  my $size = length($recdata);
+  $r->content_type($rectype);
+  if ($rectype ne "text/html") {
+    if ($rectype =~ /pdf/) {$ext = ".pdf";}
+    if ($rectype =~ /msword/) {$ext = ".doc";}
+    if ($rectype =~ /plain/) {$ext = ".txt";}
+    if ($rectype =~ /jpeg/) {$ext = ".jpg";}
+    $r->headers_out->add('Content-Length' => $size);
+    $r->headers_out->add('Content-Disposition' => "file; filename=\"appfile$ext\"");
+  }
+  
+  $m->clear_buffer();
+  $m->autoflush(1);
+  $m->out($recdata);
+  $m->autoflush(0);
+  
+  $m->abort(Apache2::Const::OK);
+}
+
+</%INIT>		
+		
+
+Sorry, I can't understand what file you are trying to fetch.

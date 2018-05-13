@@ -1,0 +1,28 @@
+<%args>
+$job_item => undef
+</%args>
+
+<%init>
+    my $auth_args = $session{'shopdb-auth'};
+    my $admin = $m->comp('/mason/auth/auth_check_sysadm.comp') && $auth_args->{'admin'};
+    my $foreman = $auth_args->{'foreman'};
+    my $machinist = !(!$auth_args->{'machinist_id'});
+    my $shop_person = $foreman || $machinist;
+</%init>
+
+% if ($job_item) {
+%# if ($shop_person || $admin) {
+<& /mason/titlemenu.comp:begin, type=>"below"&>
+<&| /mason/titlemenu.comp:item, link => '/resources/shopdb/job.html?job_id=' . $job_item->id &>Overview</&>
+% if ($shop_person || $admin) {
+<&| /mason/titlemenu.comp:item, link => '/resources/shopdb/job_billing.html?job_id=' . $job_item->id &>Billing</&>
+% }
+% else {
+<&| /mason/titlemenu.comp:item, link => '/resources/shopdb/customer_billing.html?job_id=' . $job_item->id &>Billing</&>
+% }
+% if ($shop_person || $admin || $job_item->estimate) {
+<&| /mason/titlemenu.comp:item, link => '/resources/shopdb/estimate.html?job_id=' . $job_item->id &>Estimate</&>
+% }
+<&| /mason/titlemenu.comp:item, link => '/resources/shopdb/shipping.html?job_id=' . $job_item->id &>Shipping</&>
+<& /mason/titlemenu.comp:end &>
+% }

@@ -1,0 +1,45 @@
+<%doc>
+</%doc>
+
+<%perl>
+    use tablesearch;
+
+    # incomplete since it should only display forms for which the current user has access permissions
+
+    $m->comp('/mason/auth/auth_block.comp', internal=>1);
+    $m->comp('/mason/db/tablesearch.comp',
+        table => 'form',                                 #Table to query
+        field_list => ["'' as operation", 'name', 'id', 'title', 'email', '`auth` as `group`' ],   #Columns to get out of the table
+        header_format => 'ucfirst_all',                           #Capitalize headers
+        field_params => {
+            operation => {
+                name => '',
+                data_format => sub {
+                    my ($val, $foo, $row, $ts) = @_;
+                    my $form_name = $row->{'name'};
+                    my $str = '
+                      <a href="results.html?form_name=' . $form_name. '">
+                      <img src="/images/imgsel_list.png" title="View Submissions" alt="View Submissions" />
+                      </a>
+                      <a href="edit.html?form_name='. $form_name. '">
+                      <img src="/images/imgsel_edit.png" title="Edit Form" alt="Edit Form" />
+                      </a>
+                      <a href="' . $form_name. '.html">
+                      <img src="/images/imgsel_view.png" title="View Form" alt="View Form" />
+                      </a>
+                      ';
+                    return $str;
+                },
+            },
+            title => { url => 'results.html?form_name=$row{name}', },
+            id => {
+                hidden => 1,
+            }
+        },
+   );
+
+</%perl>
+<form method="get" action="edit.html">
+<input type="submit" value="Create new form">
+<input type="hidden" name="form_id" value="new">
+</form>

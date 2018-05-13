@@ -1,0 +1,57 @@
+<%doc>
+Quarter selector - creates "menu" of available quarters/semesters, with current one selected.
+
+"style" can be either "calendar" or "academic"
+</%doc>
+
+<%args>
+$quarter=>''
+$url=>'index.html'
+$startyear=>''
+$year=>''
+$style=>'acad'
+$nosummer=>''
+</%args>
+
+<%perl>
+my ($y);
+my $thisyear = 1900+(CORE::localtime)[5];
+my $selyear = $year;
+if (!$startyear) {$startyear=$thisyear-3;}
+for ($y=$startyear; $y<$thisyear+2; $y++) {
+    my $fall_class = "";
+    my $spring_class = "";
+    my $summer_class = "";
+    my $year = $y;
+    my $fallyear = $year;
+    my $line;
+
+    if ($style !~ /cal/i ) {
+      #if ($quarter =~ /fall/i) { $year = $year + 1; }
+      $fallyear = $year - 1;
+    }
+    if (!(($quarter ne "fall") || ($fallyear != $selyear))) {
+      $fall_class = "selected";
+    }
+    if (!(($quarter ne "spring") || ($year != $selyear))) {
+      $spring_class = "selected";
+    }
+    if (!(($quarter ne "summer") || ($year != $selyear))) {
+      $summer_class = "selected";
+    }
+
+    my $summer = "<a class=\"menulink2 $summer_class\" href=\"$url?quarter=summer&amp;year=$year\">summer</a>";
+    my $spring = "<a class=\"menulink2 $spring_class\" href=\"$url?quarter=spring&amp;year=$year\">spring</a>";
+    my $fall = "<a class=\"menulink2 $fall_class\" href=\"$url?quarter=fall&amp;year=$fallyear\">fall</a>";
+
+    if ($nosummer) {$summer="";}
+
+    if ($style =~ /cal/i ) {
+      $m->out($year." - ".$spring." - ".$summer." - ".$fall);
+    } else {
+      $m->out("<li class=\"menulink2\">".$fallyear."-".$year."<br /> ".$fall." ".$spring." ".$summer);
+    }
+    $m->out($line."<br>");
+}
+</%perl>
+%# vim: set syntax=mason:

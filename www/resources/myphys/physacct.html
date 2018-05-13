@@ -1,0 +1,242 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: password.html
+        Date: 2008.04.18
+      Author: clayton
+     Changed: 2008.04.18 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+ $update=>'',
+ $oldpass=>'',
+ $newpass=>'',
+ $newpassagain=>'',
+ $forward=>undef,
+</%ARGS>
+
+<%INIT>
+use Data::Password qw(:all);
+use Email::Valid;
+
+use smbldap_tools;
+
+%config = smbldap_tools::read_conf();
+
+
+$m->comp('/mason/auth/auth_block.comp');
+
+if (!$session{'physid'}) {
+ print 'Unable to find your Physics ID. If you believe this is in error, please contact directory@physics.umn.edu. If you wish to change your X.500 password, please visit <a href="https://www.umn.edu/validate">UMN Internet Account Options</a>.';
+ return;
+}
+
+# A substitute for slappasswd tool
+sub make_hash
+{
+    my $hash_encrypt;
+    my $crypt_salt_format;
+
+    my $clear_pass=$_[0] or return undef;
+    if(defined $_[1]) {
+        $hash_encrypt='{' . $_[1] . '}' 
+    }
+    else {
+        $hash_encrypt = "{SSHA}";
+    }
+    $crypt_salt_format=$_[2] or $crypt_salt_format = '%s';
+
+    my $hash_pass;
+    if ($hash_encrypt eq "{CRYPT}" && defined($crypt_salt_format)) {
+        # Generate CRYPT hash
+        # for unix md5crypt $crypt_salt_format = '$1$%.8s'
+        my $salt = sprintf($crypt_salt_format,make_salt());
+        $hash_pass = "{CRYPT}" . crypt($clear_pass,$salt);
+
+    } elsif ($hash_encrypt eq "{MD5}") {
+        # Generate MD5 hash
+        $hash_pass = "{MD5}" . encode_base64( md5($clear_pass),'' );
+
+    } elsif ($hash_encrypt eq "{SMD5}") {
+        # Generate SMD5 hash (MD5 with salt)
+        my $salt = make_salt(4);
+        $hash_pass = "{SMD5}" . encode_base64( md5($clear_pass . $salt) . $salt,'');
+
+    } elsif ($hash_encrypt eq "{SHA}") {
+        # Generate SHA1 hash
+        $hash_pass = "{SHA}" . encode_base64( sha1($clear_pass),'' );
+
+    } elsif ($hash_encrypt eq "{SSHA}") {
+        # Generate SSHA hash (SHA1 with salt)
+        my $salt = make_salt(4);
+        $hash_pass = "{SSHA}" . encode_base64( sha1($clear_pass . $salt) . $salt,'' );
+
+    } elsif ($hash_encrypt eq "{CLEARTEXT}") {
+        $hash_pass=$clear_pass;
+
+    } else {
+        #This should never happen..
+        die "unknown type $hash_encrypt\n";
+        #$hash_pass=undef;
+    }
+    return $hash_pass;
+}
+
+# Generates salt
+# Similar to Crypt::Salt module from CPAN
+sub make_salt
+{
+    my $length=32;
+    $length = $_[0] if exists($_[0]);
+
+    my @tab = ('.', '/', 0..9, 'A'..'Z', 'a'..'z');
+    return join "",@tab[map {rand 64} (1..$length)];
+}
+
+my $suffix = $config{'suffix'};
+my $userdn = "ou=People,${suffix}";
+
+use Crypt::SmbHash;
+use Digest::MD5 qw(md5);
+use Digest::SHA1 qw(sha1);
+use MIME::Base64 qw(encode_base64);
+
+sub make_hash;
+sub make_salt;
+
+my $redirect = 0;
+my $message;
+my $error;
+if ($update) {
+  if (!$oldpass) {
+    $error='You must enter your current password.';
+  } 
+  elsif (($newpass && !$newpassagain) || (!$newpass && $newpassagain)) {
+    $error='You need to enter your new password twice.';
+  } 
+  elsif ($newpass ne $newpassagain) {
+    $error='Your new passwords do not match.';
+  } 
+  else {
+    $config{'masterDN'} = 'uid=' . $session{'physid'} . ',' . $userdn;
+    $config{'masterPw'} = $oldpass;
+
+    my $ldap_master = connect_ldap_master();
+    my $dn = $config{'masterDN'};
+    
+    if (!is_user_valid($session{'physid'}, $dn, $oldpass)) {
+      $error='Authentication Failure: Your old password does not match.';
+    } 
+    else {
+      my @mods;
+      my $testing;
+      if ($newpass) {
+        $MAXLEN = 32; # for BadPassword check below
+        $MINLEN = 8;
+        $DICTIONARY = (length($newpass) - 2);
+        $GROUPS = 3;
+        if ($DICTIONARY < 5) { $DICTIONARY = 5; }
+        my $samba = is_samba_user($session{'physid'});
+        my $groups = $m->comp('/mason/db/ldap/groups.comp', uid=>$session{'physid'});
+        my $hashtype = $config{'hash_encrypt'};
+        #if ($groups =~ /tru64/) {
+        #  $hashtype = "CRYPT"; $MINLEN = 7; $MAXLEN = 8;
+        #  $message = "Warning, using weak CRYPT hash. ";
+        #}
+        my $hash_password = make_hash($newpass, $hashtype, $config{'crypt_salt_format'});
+        my $badpassword = IsBadPasswordForUNIX($session{'physid'}, $newpass);
+
+        if (!defined($hash_password)) {
+          $error='Password encryption failed: password will not be changed. If this problem persists please contact us at http://zzz.physics.umn.edu/computing/contact.';
+        } 
+        elsif ($badpassword) {
+          $error="Bad password: $badpassword";
+        } 
+        elsif (!$testing) {
+          if ($samba) {
+            my ($sambaLMPassword, $sambaNTPassword) = ntlmgen $newpass;
+
+            my $date = int(time);
+
+            push(@mods, 'sambaLMPassword' => $sambaLMPassword);
+            push(@mods, 'sambaNTPassword' => $sambaNTPassword);
+            push(@mods, 'sambaPwdLastSet' => $date);
+          }
+
+          my $shadowLastChange=int(time()/86400);
+
+          push(@mods, 'userPassword' => $hash_password);
+          push(@mods, 'shadowLastChange' => $shadowLastChange);
+          $message .= "Password updated. ";
+          $redirect = 1;
+
+        } ;# End hash_password errs
+
+      } ;# End change pass
+    
+      # Let's send changes
+      my $modify = $ldap_master->modify ( "$dn",
+                                          'replace' => { @mods }
+                                          );
+      if ($modify->code) {
+        $error='Failed while sending changes: ' . $modify->error . '. If this problem persists, please contact us at net@physics.umn.edu';
+        $message = "";
+      }
+    }
+
+    $ldap_master->unbind;
+  }
+} 
+else {
+  my $ldap_master = connect_ldap_master();
+  my $user = read_user_entry($session{'physid'});
+
+  $forward = $user->get_value('mailForwardingAddress');
+ 
+  $ldap_master->unbind;
+}
+</%INIT>
+
+<%method subtitle>Change Physics Password</%method>
+
+% my $pwage = $m->comp("/mason/db/ldap/passwordage.comp", uid=>$session{'physid'});
+
+% if ($pwage > 500) {
+    <p style="color:red">
+    <b>Your Physics password has not been changed for <% $pwage %> days. Please change it before continuing.</b>
+    </p>
+% } elsif ($pwage) {
+    <p>
+    <b>Your Physics password was last changed <% $pwage %> days ago</b>
+    </p>
+% }
+% if ($error) {
+    <p style="color:red">
+    <b><% $error |h %></b>
+    </p>
+% }
+% if ($message) {
+    <p>
+    <b><% $message |h %></b>
+    </p>
+% }
+% if ($redirect && !$error) {
+    <p><a href="index.html">Return to MyPhys</a></p>
+% return;
+% }
+
+<p>
+<form method="POST" action="?">
+<table width="100%">
+
+<tr><th align="left" colspan=2 bgcolor="#eeeeee">Verify identity and change password</th></tr>
+<tr><td>Physics Username:</td><td><% $session{'physid'} %></td></tr>
+<tr><td>Current Physics Password:</td><td><input type="password" name="oldpass"></td></tr>
+
+<tr><td>New Password:</td><td><input type="password" name="newpass"></td></tr>
+<tr><td>Retype New Password:</td><td><input type="password" name="newpassagain"></td></tr>
+<tr><td colspan="2"><input type="submit" name="update" value="Change Password"></td></tr>
+</table>
+</form>
+% $m->comp('/mason/greybox.comp', text=>'<h4>Password Help</h4><p>Choose a password that is at least 8 characters long, not all letters or all numbers, and not a dictionary word in any language or a permutation of such. Please don\'t give out your account password to anyone. Your account is for your own personal use and is not to be shared with anyone, including system administrators and your supervisors.</p><p>A good way to choose a strong password which you can remember is to base it on a memorable phrase. For example, "C!Wwbima" - based on "Curious! Who would break into my account?" (of course, now this has been given as an example, it is no longer a good choice!).</p><p>More password advice is available at <a href="http://zzz.physics.umn.edu/computing/accounts/passwords">http://zzz.physics.umn.edu/computing/accounts/passwords</a>');

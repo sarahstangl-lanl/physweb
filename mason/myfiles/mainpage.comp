@@ -1,0 +1,136 @@
+
+<%INIT>
+    use strict;
+    $m->comp('/mason/auth/auth_block.comp');
+    my $uid = $session{'uid'};
+    my $adminuser = $m->comp('/mason/auth/check_groups.comp', allow => ['deptoffice','sysadm']);
+    
+    my $debug = 0;
+    my $where;
+    my $join = "myphysfiles.uid = directory.uid";
+    my $listwho = "owner";
+    my $hidesearch = 0;
+    my $adminview = ($mode ne 'myphys' && $adminuser );
+    if ($mode eq 'myphys' || $adminuser==0 ) {
+        $where = "WHERE myphysfiles.uid = '$uid'";
+        $join = "myphysfiles.sender_uid = directory.uid";
+        $listwho = "sender";
+        $hidesearch = 1;
+    }
+
+
+
+</%INIT>
+
+<%ARGS>
+$mode => 'myphys'
+</%ARGS>
+<p>
+    MyPhys Files is a system for secure file exchange between department members and the Physics Front Office.
+
+% if ($adminuser) {
+    <br/>
+%   if ($adminview) {
+    <b>This is the administrative page for MyPhysFiles, where all files belonging to all people are visible</b>.
+    <br/>Access to this area is restricted to the "deptoffice" group.
+%   }
+%   else {
+    This is your personal MyPhys Files page. Here is a link to the <a href="/resources/admin/myfilesadmin/">MyPhys Files Administration area</a>
+%   }
+% }
+</p>
+
+<h3>My Files</h3>
+<p>
+Click on a filename to download it. You can sort the display by clicking on the column headers.<br/>
+If a file has an associated message, it will have a small icon of poorly-drawn spectacles nearby to let you "view" the message.
+</p>
+<%perl>
+    
+    if ($debug) {
+    print "<p>";
+    print "adminuser = ".$adminuser;
+    print ", mode = ".$mode;
+    print ", where = ".$where;
+    print ", adminview = ".$adminview;
+    print ", groupmgrs = ".$m->comp('/mason/auth/getgroup_manager_emails.comp', groupname=>'deptoffice');
+    print "<p>";
+    }
+
+    $m->comp('/mason/db/tablesearch.comp',
+            field_list => [
+                'id',
+                'CONCAT(directory.last_name,", ",directory.first_name) as '.$listwho,
+                'filename',
+                'sender_uid AS reply',
+                'sender_uid AS del',
+                'message',
+                'comment As description',
+                'date' ],
+            joins => [ 'directory' => $join, ],
+            debug => $debug,
+            field_params => {
+                'id' => {
+                    hidden => 1,
+                },
+                'reply' => {
+                    hidden => 1,
+                    name => '',
+                    data_format => sub { my $val = shift; return '<img src="/images/email_icon.png" border="0" alt="REPLY" label="REPLY" title="Upload new file in reply to this one">' if ($val != $uid ) },
+                    url => 'delfile.html?id=$row{id}&name=$row{filename}',
+                },
+                'del' => {
+                    name => '',
+                    data_format => sub { my $val = shift; return '<img src="/images/imgsel_delete.png" border="0" alt="DELETE" label="DELETE" title="Delete this file">' if ($adminview || $val == $uid ) },
+                    url => 'delfile.html?id=$row{id}&name=$row{filename}',
+                },
+                'message' => {
+                    name => '',
+                    data_format => sub { my $val = shift; return '<img src="/images/imgsel_view.png" border="0" alt="MESSAGE" label="MESSAGE" title="Read Message for this file">' if ($val) },
+                    url => 'getfile.html?id=$row{id}&type=message',
+                },
+                'filename' => {
+                    name => 'File',
+                    url => 'getfile.html?id=$row{id}&name=$row{filename}',
+                },
+
+            },
+            excluded_search_fields => [ 'id', ],
+            table => 'myphysfiles',
+            default_sort_field => 'date',
+            default_sort_dir   => 'desc',
+            header_format      => 'ucfirst',
+            where => $where,
+            hide_search => $hidesearch,
+            );
+</%perl>
+
+
+<h4>Upload a new file</h4>
+<p>
+To send a file back to the Physics office, choose the file to upload using the "Browse" button below, enter a short description (and a longer message if desired), and click "Upload". You will receive a copy of the notification email which is sent.
+</p>
+<form enctype="multipart/form-data" action="upload.html" method="POST">
+    <table>
+%   if ($adminuser && $mode ne 'myphys') {
+<tr><td>Recipient</td><td>
+<input type="text" size="30" name="recipient" id="recipient"> 
+<& /mason/ajax/complete_people.comp, id => 'recipient', name => 'recipient' &>
+</td></tr>
+<tr><td>Send email</td><td><input name="email" type="checkbox" checked></td></tr>
+%   }
+%   else {
+    <tr><td>Recipient</td><td>Physics Main Office</td></tr>
+%   }
+<tr><td>File</td><td>
+<input type="file" size=30 name="file">
+</td></tr>
+<tr><td>Description</td><td>
+<input type="text" size=30 name="comment">
+</td></tr>
+<tr><td colspan=2>Message (optional)</td></tr>
+<tr><td colspan=2><textarea cols="60" rows="10" name="message"></textarea></td></tr>
+    </table>
+<input type="submit" name="action" value="Upload">
+</form>
+

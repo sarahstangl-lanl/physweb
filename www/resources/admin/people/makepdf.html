@@ -1,0 +1,197 @@
+
+<%DOC>
+   Component: makepdf.html
+        Date: 2003.09.04
+      Author: allan
+     Changed: 2003.09.04 by allan
+     ~~NOSITEMAP~~
+
+Produces a PDF file (via LaTeX) from the department directory database.
+
+Bugs/Restrictions:
+1) The contacts page should be in a database rather than a unix-edited file.
+2) The directory.pdf file can be downloaded by unauthorised people, if they know its name - should do this differently.
+3) Similarly, we don't yet check for permission to access this page...
+4) Finally (?), there's no locking against 2 people running this simultaneously - which will have bad results.
+</%DOC>
+
+<%ARGS>
+$queue=>'230'
+</%ARGS>
+
+<%INIT>
+use File::Basename;
+use File::Temp "tempfile";
+</%INIT>
+
+<%method title>Generating Directory</%method>
+
+Generating LaTeX document for directory...<br/>
+
+<%perl>
+
+# get date for title page and header
+my $date = strftime("%B %Y", CORE::localtime);
+
+# this should be obsolete...
+my $infofile = "/home/www/data/direct.info";
+
+my ($uid, $lastname, $firstname, $physid, $x500, $email, $www, $building, $office, $work_phone, $address, $home_phone, $cell_phone, $pager_phone, $position);
+
+my ($name, $room, $line);
+
+my ($number, $row_ref, $initial, $curtag);
+
+my ($fh, $texfile) = tempfile();
+
+print $fh <<End_of_preamble;
+\\documentclass[twoside]{report}
+\\title{School of Physics and Astronomy Directory}
+\\author{}
+\\date{$date}
+\\begin{document}
+\\columnsep 64pt
+\\columnseprule 0.5pt
+\\pagestyle{myheadings}
+
+\\setlength{\\marginparwidth}{0in}
+\\setlength{\\marginparsep}{0in}
+
+\\addtolength{\\oddsidemargin}{.75in}
+\\addtolength{\\evensidemargin}{-.75in}
+
+\\addtolength{\\topmargin}{-0.25in}
+\\addtolength{\\textheight}{1.5in}
+
+\\markboth{$date}{School of Physics and Astronomy Directory}
+\\begin{flushleft}
+\\begin{tabbing}
+{\\bf PAN, 115 Union Street S.E., Minneapolis, MN 55455.}\\\\
+End_of_preamble
+
+my $output_fancy = sub {
+	print $fh " \\pagebreak[2] \\framebox{\\bf \\$_[0] $_[1]}";
+};
+
+# read info junk for first contact page...
+if (open (INFO, $infofile)) {
+  while ($line = <INFO>) {
+    $line =~ s/\n//;
+    if ($line =~ /^\S/) {
+      $output_fancy->("sl",$line);
+      print $fh "\\\\\n";
+    } else {
+      $line =~ s/^\s//;
+      ($name, $room, $number, $email) = split(/\t/,$line,4);
+      $number =~ s/-/--/g;
+      if ($room) {$room = " {\\em $room Phys}";}
+      print $fh "\\hspace{4pt} $name $room \\`$number \\\\ \n";
+    }
+  }
+  close (INFO);
+}
+
+
+print $fh "\\end{tabbing}\n";
+print $fh "\\nopagebreak[2]{\\bf PAN}\\\\Minneapolis Campus, University of Minnesota\\newpage\n";
+
+my $sql = "SELECT uid, last_name, first_name, physid, x500, email, www, 
+                  dwsp_building.BLDG_ABBR, room, work_phone, address, home_phone, cell_phone, pager_phone, 
+                  position FROM directory 
+               JOIN dwsp_building ON dwsp_building.BLDG_NO = directory.room_building
+           WHERE uid NOT IN (SELECT uid FROM groupmembers WHERE groupname='temporary') 
+              AND inactive='0' 
+              AND uid IN (SELECT uid FROM groupmembers JOIN groups ON groups.name=groupmembers.groupname WHERE groups.publish=1)
+         ORDER BY last_name, first_name;";
+my $sth = $dbh->prepare($sql);
+$sth->execute() or confess("Sql failed");
+
+while ($row_ref = $sth->fetchrow_arrayref) {
+  ($uid, $lastname, $firstname, $physid, $x500, $email, $www, $building, $office, $work_phone, $address, $home_phone, $cell_phone, $pager_phone, $position) = @$row_ref;
+
+  # replace "#", "&" with "\#", "\&" to keep TeX happy.
+  foreach ($uid, $lastname, $firstname, $physid, $x500, $email, $www, $building, $office, $work_phone, $address, $home_phone, $cell_phone, $position, $pager_phone) {
+    $_ =~ s/\#/\\#/g;
+    $_ =~ s/\&/\\&/g;
+  }
+  if ($firstname) {
+    # uppercase last name, but also special case for
+    # McSOMETHING
+    $lastname = uc($lastname);
+    $lastname =~ s/^MC/Mc/;
+  }
+  # track current initial, print new when change
+  $initial = uc(substr($lastname,0,1));
+  if ($curtag ne "$initial") {
+    if ($initial ne "A") {print $fh " \\end{description} ";}
+    $output_fancy->("huge",$initial);
+    $curtag = $initial;
+    print $fh " \\begin{description} ";
+  }
+  # tweak formatting of various entries...
+  $email =~ s/--/-/g;
+  $work_phone =~ s/-/--/g;
+  $home_phone =~ s/-/--/g;
+  print $fh "\\item[$lastname]";
+  if ($firstname) {print $fh " $firstname";}
+  if ($position) {print $fh ", $position";}
+  if ($office) {
+    # add "Phys" to office if it contains no
+    #whitespace/nonalpha, and does contain number
+    unless ($office =~ /\s/ || $office =~ /\W/) {
+      if ($office =~ /\d/) {$office = "$office $building";}
+    }
+    # make whitespace nonbreaking for tex
+    print $fh ", $office";
+  }
+  if ($work_phone) {print $fh " \\textit{($work_phone)}";}
+  if ($address) {print $fh ", $address";}
+  if ($home_phone) {print $fh ", $home_phone";}
+  if ($email) {print $fh ", {\\tt $email}";}
+  print $fh "\n\n";
+}
+print $fh <<Closing_text;
+\\end{description}
+\\end{flushleft}
+\\end{document}
+
+
+Closing_text
+
+close $fh or die "Can't close $texfile: $!\n";
+
+$m->out("Running LaTeX on document...");
+
+my $return;
+my $path = dirname($texfile);
+chdir($path);
+$return = system("/usr/local/bin/latex", $texfile);
+
+if ($return) {
+  $m->out("LaTex failed - code ".$return."<br/>");
+} else {
+  $m->out("<br/>Running dvipdf to produce PDF file...");
+  $return = system("/usr/local/bin/dvips", "$texfile.dvi");
+  if ($return) {
+    $m->out("dvips failed - code ".$return."<br/>");
+  } else {
+    $m->out("<br/>Running ghostscript to produce PDF file...");
+    $return = system("/usr/local/bin/gs", "-q", "-dNOPAUSE", "-dBATCH", "-sDEVICE=pdfwrite", "-sOutputFile=directory.pdf", "$texfile.ps");
+    if ($return) {
+      $m->out("ghostscript failed - code ".$return."<br/>");
+    } else {
+      $m->out("<br/>All done...<p>");
+      my $size = (-s "$path/directory.pdf");
+	  $r->content_type('application/pdf');
+	  $r->headers_out->unset('Content-Length');
+	  $r->headers_out->set('Content-Disposition' => "file; filename=\"directory.pdf\"");
+	  $r->headers_out->set('Content-Length' => -s "$path/directory.pdf" );
+	  $m->autoflush(1);
+	  $r->sendfile("$path/directory.pdf");
+	  $m->autoflush(0);
+	  return Apache2::Const::OK;
+	}
+  }
+}
+</%perl>
+

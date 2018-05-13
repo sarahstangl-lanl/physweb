@@ -1,0 +1,317 @@
+<%args>
+$passcode => undef
+</%args>
+<%flags>
+inherit => undef
+</%flags>
+<%init>
+use Digest::MD5 qw(md5_hex);
+use MIME::Base64;
+use File::Spec::Functions qw(splitpath);
+use physdb::doorlocks;
+use ToUplink;
+
+my $local_door_dir = "/local/site/doorlocks";
+
+my @messageLog;
+my $error = 0;
+my $uptodate = 0;
+
+if ($passcode ne '9DQpDb2RlUmV2aXNpb249Mi4wL') {
+    $m->comp('/mason/db/auditlog/addevent.comp', type => 'ipaqsync', text => "Invalid passcode ($passcode).");
+    print 'ERROR ACCESS';
+    return;
+}
+
+$m->comp('/mason/db/auditlog/addevent.comp', type => 'ipaqsync', text => 'Starting iPAQ Sync...');
+
+my $req = Apache2::Request->new($r);
+my $upload = $req->upload('upload');
+
+if (!$upload) {
+    dumpnice('Called without an upload argument!');
+    $m->comp('/mason/db/auditlog/addevent.comp', type => 'ipaqsync', text => 'Aborting: ipaqdownload.html called without an upload argument.');
+    return;
+}
+else {
+    $m->comp('/mason/db/auditlog/addevent.comp', type => 'ipaqsync', text => 'Found upload file ' . $upload->filename . '.');
+}
+
+
+my $tmpfile = $upload->tempname;
+my $filename = $upload->filename;
+
+my $FH = $upload->fh;
+my $data;
+
+my $mode = 'READ';
+my $encodedFile;
+my $currentFile = undef;
+my %files;
+my $dumpIncoming = '';
+
+while (my $line = <$FH>) {
+    $dumpIncoming .= $line;
+    chomp($line);
+    warn "line=".$line;
+    if ($line eq '') {
+        # skip empty lines
+    }
+    elsif (($line eq 'MANIFEST_BEGIN') && ($mode eq 'READ')) {
+        warn "entering MANIFEST mode";
+        $mode = 'MANIFEST';
+    }
+    elsif (($line eq 'MANIFEST_END') && ($mode eq 'MANIFEST')) {
+        warn "exiting MANIFEST mode";
+        $mode = 'READ';
+    }
+    elsif ($mode eq 'MANIFEST') {
+        if ($line =~ /^([^ ]+) ([^ ]+) ([^ ]+)$/) {
+            my $md5 = $1;
+            # subtract 11644473600 seconds to get to unix time
+            my $mtime = $2 - 11644473600;
+            my $filename = $3;
+            $files{$filename}{'md5'}  = $md5;
+            $files{$filename}{'mtime'} = $mtime;
+            $files{$filename}{'data'} = '';
+            warn "Found file $filename with mtime $mtime";
+        }
+    }
+    elsif ((substr($line, 0, 11) eq 'FILE_BEGIN ') && ($mode eq 'READ')) {
+        warn "entering FILE mode";
+        $mode = 'FILE';
+        $encodedFile = '';
+        my $filename = substr($line, 11);
+        if (defined($files{$filename})) {
+            $currentFile = $filename;
+        }
+    }
+    elsif (($line eq 'FILE_END') && ($mode eq 'FILE') && defined($currentFile)) {
+        warn "exiting FILE mode";
+        $mode = 'READ';
+        $files{$currentFile}{'data'} = decode_base64($encodedFile);
+        if (md5_hex($files{$currentFile}{'data'}) ne $files{$currentFile}{'md5'}) {
+            $m->comp('/mason/db/auditlog/addevent.comp', type => 'ipaqsync', text => "Aborting: md5sum mismatch for $currentFile (retry?)");
+            print 'ERROR MD5SUM';
+            return;
+            undef($files{$currentFile});
+        }
+        $currentFile = undef;
+    }
+    elsif (($mode eq 'FILE') && defined($currentFile)) {
+        $encodedFile .= $line;
+    }
+    else {
+        # invalid
+    }
+}
+
+# Let the iPAQ know we received its files
+$m->flush_buffer;
+
+sub dumpnice {
+    my $msg = shift;
+    print "LOG_BEGIN\n" . $msg . "\nSee the auditlog for more information\nLOG_END\n\nERROR";
+}
+
+sub dumpFile {
+    my ($destfile, $contents) = @_;
+
+    chmod 0666, $destfile;
+    unlink $destfile;
+    open OUTF, ">$destfile" or die "\nCan't open $destfile for writing: $!\n";
+    binmode OUTF;
+    print OUTF $contents;
+    close OUTF or die "Can't close $destfile: $!\n";
+    chmod 0660, $destfile;
+}
+
+sub unpackFiles {
+    my ($dest, $files) = @_;
+
+    foreach my $file (keys %$files) {
+        my $destfile = $dest . '/' . $file;
+        dumpFile($destfile, $files->{$file}{'data'});
+    }
+}
+
+#
+# Process uploaded package (already unpacked above)
+#
+
+if (defined($files{'Capindex.ndx'})) {
+    my @INDEX = split /(\r|\n)+/, $files{'Capindex.ndx'}{'data'};
+
+    my $line = shift @INDEX;
+    if ($line !~ m/CAP Index File/) {
+        $m->comp('/mason/db/auditlog/addevent.comp', type => 'ipaqsync', text => 'Aborting: Bad Capindex.ndx file on iPAQ (does not contain "CAP Index File"). You could try clearing out the Doorlocks folder (audits could be lost).');
+        dumpnice("ERROR: Bad Capindex.ndx file on iPAQ");
+        return;
+    }
+
+    my $uplink = ToUplink->new;
+
+    # Check for audit files
+    for my $file (keys %files) {
+        if ($file =~ /\.A(\d{2})/) {
+            my $doorlock = Doorlocks->new(door_num => $1);
+            unless ($doorlock->{'loaded'}) {
+                warn "Invalid door number $1";
+                next;
+            }
+            confess "Invalid door number $1" unless ($doorlock->{'loaded'});
+
+            # Resolve door audits
+            $m->comp('/mason/db/auditlog/addevent.comp', type => 'ipaqsync', text => "Found auditfile $file");
+            if ($uplink->resolve_audits({ door_id => $doorlock->get('door_id'), name => $file, %{$files{$file}} })) {
+                push @messageLog, "Resolved audits for audit file $file";
+            }
+            else {
+                push @messageLog, @{$uplink->{'errors'}};
+            }
+        }
+    }
+
+    # Check for programmed doors
+    foreach my $line (@INDEX) {
+        my ($door_number, $building, $door_name, $door_file, $status) = $line =~ m/\d+;\d+;(\d+);[^;]*;([^;]*);~;([^;]*);([^;]*);([TF])/;
+
+        # Skip unprogrammed doors
+        next unless ($status && $status eq 'T'); # programmed
+
+        push @messageLog, "Found programmed doorlock $door_name";
+
+        my $doorlock = Doorlocks->new(door_num => $door_number);
+        confess "Invalid door number $door_number" unless ($doorlock->{'loaded'});
+
+        my $mtime;
+        my $audit_file = "00100100.A".sprintf("%02s",$door_number);
+
+        # Determine programming_date
+        if (defined($files{$audit_file})) {
+            $mtime = $files{$audit_file}{'mtime'};
+        }
+        else {
+            $mtime = $files{'Capindex.ndx'}{'mtime'};
+        }
+
+        # Update programming date
+        $doorlock->set(program_date => \"FROM_UNIXTIME($mtime)");
+
+        # Update door PIN
+        $doorlock->set(pin => $doorlock->get('next_pin')) if ($doorlock->get('generate_pin'));
+
+        # Save changes
+        if ($doorlock->save) {
+            $doorlock->log_changes;
+        }
+        else {
+            push @messageLog, "Failed to save doorlock: " . $doorlock->dumperrors;
+        }
+
+        # Update active PINs
+        $doorlock->update_active_pins;
+    }
+
+}
+
+# Regenerate programming files for doors that are out of date
+my @doorlocks = Doorlocks->new->search("`needs_programming` = 1 AND `type` = 'magstripe'");
+if (@doorlocks) {
+    my $uplink = ToUplink->new(selected => \@doorlocks);
+    $uplink->create_index;
+    $uplink->create_lock_files;
+}
+else {
+    $m->comp('/mason/db/auditlog/addevent.comp', type => 'ipaqsync', text => "All doors up-to-date.");
+    push @messageLog, "All doors up to date.";
+    $uptodate = 1;
+}
+
+#
+# Create outgoing package (files for ipaq)
+#
+
+sub md5sum {
+    my $file = shift;
+    my $digest = "";
+
+    eval{
+        open(FILE, $file) or die "Can't find file $file\n";
+        my $ctx = Digest::MD5->new;
+        $ctx->addfile(*FILE);
+        $digest = $ctx->hexdigest;
+        close(FILE);
+    };
+
+    if ($@){
+        return "ERROR";
+    }
+
+    return $digest;
+}
+
+sub dofile {
+    my $file = shift;
+    my $buf;
+    if (open(FILE, $file)) {
+        while (read(FILE, $buf, 60*57)) {
+            print encode_base64($buf);
+        }
+    }
+    else {
+        # HANDLE ERROR
+    }  
+}
+</%init>
+
+LOG_BEGIN
+<% join("\n", map {
+            my @chunks;
+            my $len = length($_);
+            push @chunks, substr($_, 0, 30);
+            for (my $i = 30; $i < $len; $i += 30) {
+                push @chunks, substr($_, $i, 30);
+            }
+            @chunks;
+        } @messageLog) %>
+LOG_END
+
+<%perl>
+if ($error) {
+    print "\n\nERROR\n";
+    return;
+}
+elsif ($uptodate) {
+    print "\n\nOK UPTODATE\n\n";
+    return;
+}
+else {
+    print "\nOK\n\n";
+}
+</%perl>
+
+MANIFEST_BEGIN
+<%perl>
+my @files;
+for my $file (glob('/local/site/doorlocks/*')) {
+    # Only send door files (*.D??) and Capindex.ndx
+    next if (-d $file || $file !~ /\.(D\d{2}|ndx)$/);
+
+    # Current manifest format md5 modifiedTime filename
+    # modifiedTime does not matter for iPaq package... only the pkg we get
+    my ($a, $b, $filename) = splitpath($file);
+    print md5sum($file) . ' UNDEFINED ' . $filename . "\n";
+    push @files, [$filename, $file];
+}
+</%perl>
+MANIFEST_END
+
+<%perl>
+for my $file (@files) {
+    my ($filename, $path) = @$file;
+    print 'FILE_BEGIN ' . $filename . "\n";
+    dofile($path);
+    print 'FILE_END' . "\n\n";
+}
+</%perl>

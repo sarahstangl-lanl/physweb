@@ -1,0 +1,39 @@
+<%DOC>
+   Component: gmtunix_to_text.comp
+        Date: 2008.09.05
+      Author: clayton
+     Changed: 2008.09.05 by clayton
+
+Takes UNIX ticks (GMT!!) and converts to local time textual representation
+
+in Aug 2012, SEEMS to be used only within classpages...
+</%DOC>
+
+<%INIT>
+  my $ticks = shift;
+
+  my @time = CORE::localtime($ticks);
+  my $timestring;
+  eval {
+      $timestring = strftime('%e-%b-%Y at %l:%M%p', @time);
+  };
+  if ($@) {
+      use Data::Dumper;
+      use Carp qw(cluck);
+      $Carp::MaxArgNums = 0;
+      warn "Failed to get strftime from \@time";
+      cluck Dumper({
+        uri => $r->uri,
+        ticks => $ticks,
+        time => \@time,
+        'scalar(time)' => scalar @time,
+        timestring => $timestring,
+        '$@' => $@,
+        '$!' => $!,
+        '$?' => $?,
+      });
+      $m->comp('/mason/500.comp');
+      return '';
+  }
+  return $timestring;
+</%INIT>

@@ -1,0 +1,72 @@
+<%doc>
+- This component was designed to work with the DBI library.
+- You pass in a DB handle, a select statement, and a type request ('scalar', 'list', 'array', 'hash', or 'loh').
+- The list of hashes ('loh') is clearly the most useful ways to represent a mutli-row result set from a database,
+ but the other types do come in handy.
+- Optional $debug flag can be set to log date, calling component, and sql statement to a logfile.
+- Credit to Chris Dobosz for original coding
+- altered by Graham Allan to use constant db handle supplied
+</%doc>
+<%init>
+my ($dbscalar, $hash_ref);
+my @dblist=();
+my %dbhash=();
+my @array=();
+
+if (!defined($dbh)) {
+  # just return if no database available...
+  return();
+}
+
+$conn = $dbh;
+
+if($debug){
+        my $logFile = $m->current_comp->source_dir."/sql.log";
+        open(LOGFILE, ">> $logFile");
+        my $caller = $m->callers(1);
+        print LOGFILE UnixDate(ParseDate("today"), "%c"). ": ".$caller->source_file."\nSQL: ".$query."\n\n";
+        close(LOGFILE);
+}
+
+my $sth = $conn->prepare($query);
+my $rv = $sth->execute(@args);
+
+if ($type eq 'scalar') {
+  (@dblist) = $sth->fetchrow_array;
+  return $dblist[0];
+
+} elsif ($type eq 'list') {
+  @dblist = $sth->fetchrow_array;
+  return @dblist;
+
+} elsif ($type eq 'array') {
+  while(@array = $sth->fetchrow_array){
+        push(@dblist, $array[0]);
+  }
+  return @dblist;
+
+} elsif ($type eq 'hash') {
+  $hash_ref = $sth->fetchrow_hashref;
+  %dbhash = %$hash_ref;
+  return %dbhash;
+
+} elsif ($type eq 'loh') {
+  while ($hash_ref = $sth->fetchrow_hashref) {
+    %dbhash = %$hash_ref;
+    push (@dblist,{%dbhash});
+  }
+  return @dblist;
+}
+
+</%init>
+
+<%once>
+my $conn;
+</%once>
+
+<%args>
+$query
+$type
+$debug=>0
+@args=>()  # not yet tested.. should work ;) -Alex
+</%args>

@@ -1,0 +1,8 @@
+<%init>
+# this only runs once...
+if ($session{'physid'} && !defined($session{'pwagecheck'})) {
+  $session{'pwagecheck'} = "done";
+  my $age = $m->comp("/mason/db/ldap/passwordage.comp", uid=>$session{'physid'});
+  if ($age > 500) {$m->redirect("/resources/myphys/physacct.html");}
+}
+</%init>

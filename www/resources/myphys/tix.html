@@ -1,0 +1,105 @@
+<%args>
+    $tickid=>''
+</%args>
+
+<%init>
+  use Error qw(:try);
+
+use strict;
+    use RT::Client::REST;
+    use DBD::AnyData;
+    use Data::Dumper;
+    
+    my $rt = RT::Client::REST->new(
+    server => 'https://support.physics.umn.edu/rt3',
+    timeout => 30,
+  );
+
+$rt->basic_auth_cb( sub {
+    my ($realm, $uri, $proxy) = @_;
+    return ("rtsvc", "f!73t.w2");
+  }
+ );
+my $columns = [ qw/id Queue Subject Created LastUpdated Status/ ];
+my $tickets = [ $columns ];
+
+</%init>
+
+<%method title>My Tickets</%method>
+
+<%perl>
+my $x500 = $session{'x500'};
+my $physid = $session{'physid'};
+if (!$tickid) {
+    $tickets = $m->cache->get($x500);
+    print "cache returned ".Dumper($tickets);
+    if (!defined(@$tickets[0])) {
+    print "<p>processing...";
+    $tickets = [ $columns ];
+    my $query = "(Requestor.EmailAddress = '".$x500."\@umn.edu'"
+        ." OR Requestor.EmailAddress = '".$physid."\@physics.umn.edu'"
+        ." OR Requestor.EmailAddress = '".$physid."\@astro.umn.edu')"
+       ." AND Status != 'resolved'";
+
+    my @ids = $rt->search(
+        type => 'ticket',
+        query => $query,
+    );
+
+    foreach my $id (@ids) {
+        my $ticket;
+        $ticket = $rt->show(type => 'ticket', id => $id);
+        push(@$tickets, [ map { $ticket->{$_} } @$columns ]);
+    }
+    #print Dumper($ticket);
+    $m->cache->set($x500 => $tickets, '1 min');
+    }
+    print "<p>array now returned ".Dumper($tickets);
+    #return;
+    $m->comp('/mason/db/tablesearch.comp',
+        data => $tickets,
+        debug => 1,
+        field_list => [
+            'id', 'Queue', 'Subject', 'Created', 'LastUpdated', 'Status'
+        ],
+        field_params => {
+            id => {
+                'name' => 'id',
+                'url' => '/resources/myphys/tix.html?tickid=$id',
+                'data_format' => sub {
+                    my $t = shift;
+                    $t =~ s/ticket\///g;
+                    return $t;
+                }
+            },
+            Queue => { name=>'queue'},
+        }
+        
+        );
+}
+else {
+    my $ticket = $rt->show(type => 'ticket', id => $tickid);
+    # first thing should be to validate that Requestor.EmailAddress contains what we think...
+    print "<h3>".$tickid.": ".$ticket->{'Subject'}."</h3>";
+    my @tlist = $rt->get_transaction_ids (parent_id => $tickid);
+    print "<table>";
+    foreach my $transid (@tlist) {
+        my $trans = $rt->get_transaction (parent_id => $tickid, id => $transid);
+        my $type = $trans->{'Type'};
+        # ignore all Email types, as they duplicate the output...
+        if ($type !~ /Email/) {
+            my $created = $trans->{'Created'};
+            $created =~ s/ /&nbsp;/g;
+            print "<tr valign=\"top\" bgcolor=\"#eeeeee\"><th align=left>".$created."</th><th align=left>".$type.": ".$trans->{'Description'}."</th></tr>";
+            #print Dumper($trans);
+            if ($type eq "Correspond" || $trans->{'Creator'} eq $session{'physid'}) {
+                my $text= $m->comp('/mason/format_wikitext.comp', text=>$trans->{'Content'});
+                print "<tr><td></td><td>".$text."</td></tr>";
+            }
+        }
+    }
+    print "</table>";
+    #exit;
+
+}
+</%perl>

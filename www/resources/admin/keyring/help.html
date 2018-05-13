@@ -1,0 +1,55 @@
+
+<%DOC>
+   Component: help.html
+        Date: 2008.01.08
+      Author: clayton
+     Changed: 2008.01.08 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+</%INIT>
+
+<%method title>Key Management: Help</%method>
+
+<h2>Table of Contents</h2>
+<ol>
+<li><a href="#conventions">Important Conventions: KeyID vs Copy# vs Physical Keys</a></li>
+<li><a href="#lookup">Usage: Looking up Keys</a></li>
+<li><a href="#assigning">Usage: Assigning a Key</a></li>
+<li><a href="#removing">Usage: Removing a Room from a Key</a></li>
+</ol>
+
+<a name="conventions">
+<h2>1. Important Conventions: KeyID vs Copy# vs Physical Keys</h2>
+
+<img src="Key-Example.jpg" style="float: left">
+
+<p>The following conventions are used throughout the Key Management Web Application:</p>
+
+<p><b>KeyID</b> - The Key ID, also called Key Code in the picture on the left, is the code identifying a specific series of keys. All keys with the same KeyID should be the same, ie. they open the same doors.</p>
+
+<p><b>Copy#</b> - The Copy Number identifies a key in a series. This differentiates the various copies of keys which, while having the same Key ID, are separate physical keys held by different people.</p>
+
+<p><b>Physical Key</b> - A Physical Key is the key itself which can be held by only one person at a single time. It is uniquely identified by a combination of the Key ID and the Copy Number.
+
+<p>The Building Number on the key is not used in the Key Management Application</p>
+
+<br clear="all">
+
+<a name="lookup">
+<h2>2. Usage: Looking up Keys</h2>
+
+<p>Looking up keys is simple, and can be done based on many different criteria from the start page of the Key Management Application. Additionally, links are provided under the details screens allowing you to move between different views. The Person view, for example, has links allowing one to click on a KeyID or Copy# of a key held by that person and view all keys with that ID or the history of that physical key, respectively.</p>
+
+<a name="assigning">
+<h2>3. Usage: Assigning a Key</h2>
+<p>Assigning a key is straight forward regardless of if the key already exists in the database or not. First, lookup the key using the index page or using links from various data views. Once you are in a Physical Key view, you can then assign the key to a new holder by entering a first name, last name, x500, phys id, or e-mail address into the text box -- auto completion will pop up under the box allowing you to pick the right user. Then, click update. If you wish to mark the key as free, simply Update with no New Holder specified.
+
+<a name="removing">
+<h2>4. Usage: Removing a Room from a Key</h2>
+<p>Should a room be incorrectly added to a key, the room can be removed from the page accessed through the "Lookup Key" form.</p>

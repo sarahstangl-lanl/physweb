@@ -1,0 +1,99 @@
+<%doc>
+   Component: loginout.comp
+        Date: 9/4/2002
+      Author: allan
+ Description: provide login or logout link with status
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+#use Data::Dumper;
+my $server = $r->server->server_hostname;
+my $x500 = $session{'x500'};
+my $physid = $session{'physid'};
+my $logged_in = $m->comp('/mason/auth/loggedin.comp');
+my $name = $m->comp('/mason/db/directory/current_user.comp', try_umn => 1);
+my $uri = $m->comp('/mason/get_escaped_url.comp');
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $web = $m->comp('/mason/auth/auth_check.comp', auth_type=>'web');
+my $stagingpath = "/home/www/docs2007/staging/";
+# following method checks password age (once) and redirects for reset
+$m->comp("/mason/auth/checkpwage.comp");
+</%init>
+
+<div id="login_info_box">
+<%perl>
+
+# check for working database handle
+if (defined($dbh)) {
+  my $myphys_link = "<a href=\"/resources/myphys/\">Go to MyPhys</a>";
+  print "<small>"; 
+  if ($logged_in) {
+    my $logout = 'https://www.umn.edu/logout?desturl='. $m->comp('/mason/fullurl.comp', url=>_u('/auth/logout.html?url='.$m->comp('/mason/fullurl.comp', url=>($session{'shibauth'}?'/Shibboleth.sso/Logout':$uri) )));
+    print "Welcome, $name<br/>$myphys_link - <a href=\"$logout\">Log&nbsp;out</a>";
+  } elsif ($uri !~/auth\/index.html/) {
+    my $port = (($r->dir_config('SiteName') eq "staging") ? ':4430' : '');
+    my $login = $m->comp('/mason/fullurl.comp',url=>'/auth/index.html') . '?url=' . $uri;
+    print $myphys_link . " - ";
+    print "<a href=\"$login\">Log&nbsp;in</a>";
+  }
+  print "</small>";
+
+  print '<div class="admin_panel">';
+  if ($web) {
+     my %info = $m->comp('/mason/request_info.comp');
+  }
+  if ($auth || $session{'old_uid'}) {
+      </%perl>
+      <a href="/auth/su.html?dest=<% $m->scomp('/mason/makeurl.comp', oargs=> $r->args(), escape=>1) |h %>" title="Change to another user for testing"><% $session{'old_uid'}?"UN-":""%>SU</a> 
+      <%perl>
+      if($auth) { 
+          </%perl> | <a href="/resources/admin/" title="Administrative Functions">Admin</a> <%perl>
+      }
+  }
+  # present available staging sites if suitably privileged
+  if($auth or $web) {
+     </%perl>
+      <br/>
+      <!-- this site is <% $r->dir_config('SiteName') %> -->
+      <%perl>
+      if($r->dir_config('SiteName') eq "htphysics") {
+        </%perl>
+        Production
+        <%perl>
+      } 
+      else {
+        </%perl>
+        <a href="<% $m->scomp('/mason/makeurl.comp', oargs=> $r->args(), port=> '443', full=>1, protocol=>'https') |h %>" title="Switch to production (live) website">Production</a>
+        <%perl>
+      }
+      opendir STAGINGDIR,$stagingpath;
+      my $count=1;
+      foreach my $file (sort readdir STAGINGDIR) {
+           next unless $file =~ /^([0-9]+)$/;
+           my $port = $1;
+           $m->out(" | ") if($count++);
+           my $owner = '';
+           my $status = eval {$owner = getpwuid((@{stat "$stagingpath/$port"})[4])};
+           if($r->get_server_port() eq $port) {
+               </%perl><% $owner?$owner:$port %><%perl>
+           }
+           else {
+               </%perl>
+                    <a href="<% $m->scomp('/mason/makeurl.comp', oargs=> $r->args(), port=>$port, full=>1, protocol=>'https') |h %>" title="Staging port <% $port %>, owner <% $owner |h%>"><% $owner?$owner:$port %></a> 
+               <%perl>
+           }
+           if($count >= 4) {
+              $m->out("<br />");
+              $count = 0;
+           }
+      }
+  }
+  print '</div> <!-- admin_panel -->';
+} else {
+  print '<small><b>Some web site features are currently unavailable due to database maintenance</b></small>';
+}
+</%perl>
+</div> <!-- login_info_box -->

@@ -1,0 +1,32 @@
+
+<%DOC>
+   Component: goclass.html
+        Date: 2005.02.10
+      Author: allan
+     Changed: 2005.02.10 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$classid
+$type=>'post'
+</%ARGS>
+
+<%INIT>
+return if $m->comp('/mason/db/dbcheck.comp');
+
+my $sql = "SELECT quarter, year, name, section FROM classlist WHERE classid=?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($classid);
+my $row_ref = $sth->fetchrow_arrayref;
+if (defined($row_ref)) {
+  my ($quarter, $year, $name, $section) = @$row_ref;
+  if ($section) {$name .= ".".$section;}
+  $name =~ s/ /%20/g;
+  my $url = "/classes/$year/$quarter/$name/$type.html";
+  $m->redirect($url);
+}
+</%INIT>		
+		
+Sorry, class not found!

@@ -1,0 +1,40 @@
+
+<%DOC>
+   Component: flash_video.comp
+        Date: 2007.07.23
+      Author: clayton
+     Changed: 2007.07.23 by clayton
+
+- $url must be relative to to url root
+- For smart to work properly the following is required in meta:
+   <script type="text/javascript" charset="utf-8" src="/include/smart_flash_video.js"></script>
+   
+</%DOC>
+
+<%ARGS>
+  $url         => ''
+  $width       => 336
+  $height      => 240
+  $real_height => $height + 19
+  $smart       => 0
+  $autoplay    => 0
+  $vidname     => ""
+</%ARGS>
+
+<%INIT>
+</%INIT>
+
+<%perl>
+if ($smart)
+{
+</%perl>
+<div>[<a href="/video.html?url=<% HTML::Entities::encode($url) %>&vidname=<% HTML::Entities::encode($vidname) %>&goback=<% HTML::Entities::encode($ENV{REQUEST_URI}) %>" target="_new" onclick="return displayFlashVideo(this, '<embed src=&quot;mediaplayer.swf&quot; alt=&quot;Video of <% $vidname %>&quot; width=&quot;<% $width %>&quot; height=&quot;<% $real_height %>&quot; allowfullscreen=&quot;true&quot; flashvars=&quot;&displayheight=<% $height %>&file=<% $url %>&height=<% $real_height %>&width=<% $width %>&autostart=true&quot;/>', true);">View Video</a>]</div>
+<%perl>
+} else {
+</%perl>
+<%method meta>test<script type="text/javascript" charset="utf-8" src="/smart_flash_video.js"></script></%method>		
+
+<embed src="mediaplayer.swf" alt="Video of <% $vidname %>" width="<% $width %>" height="<% $real_height %>" allowfullscreen="true" flashvars="&displayheight=<% $height %>&file=<% $url %>&height=<% $real_height %>&width=<% $width %>&autostart=<% ($autoplay ? 'true' : 'false') %>" />
+<%perl>
+}
+</%perl>

@@ -1,0 +1,26 @@
+
+<%DOC>
+   Component: dw_approve.html
+        Date: 2008.10.15
+      Author: clayton
+     Changed: 2008.10.15 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $term=>undef
+</%ARGS>
+
+<%INIT>
+  my $auth = $m->comp('/mason/auth/auth_check_class.comp');
+
+  if ($auth && $term) {
+    my $check_dw_active = $dbh->prepare('INSERT INTO class_dwterm (term, approved) VALUES(?,?) ON DUPLICATE KEY UPDATE approved=?');
+    $check_dw_active->execute($term, 1, 1)
+      or die 'Unable to update dw term approval status: ' . $dbh->errstr;
+  }
+
+  $m->redirect('index.html');
+</%INIT>		
+		

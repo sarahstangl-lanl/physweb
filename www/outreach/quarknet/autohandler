@@ -1,0 +1,11 @@
+<% $m->call_next %>
+<%method titlemenu_below>
+   <& /mason/titlemenu.comp:begin, type=>"below" &>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/quarknet/index.html'  &>About</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/quarknet/topics.html'  &>Quarknet at work</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/quarknet/links.html'  &>Online Resources</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+
+

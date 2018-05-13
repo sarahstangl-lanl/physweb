@@ -1,0 +1,132 @@
+<%DOC>
+vim:set syntax=mason:
+Component: index.html
+Date: 2010.06.21
+Author: mackey
+Description: page for editing/adding new visitor accounts
+</%DOC>
+
+<%ARGS>
+$arg_uid => '';
+$arg_name => '';
+$arg_contact => '';
+$arg_days => '';
+$arg_changed => 0;
+$arg_newuser => 0;
+</%ARGS>
+
+<%INIT>
+use lib "/var/cfengine/scripts/smbldap-tools/";
+use smbldap_tools;
+use Data::Dumper;
+use DBI;
+use Date::Calc qw(Delta_YMD);
+
+my $auth =$m->comp('/mason/auth/auth_check_sysadm.comp');
+my $dirauth = $m->comp('/mason/auth/auth_check_directory.comp');
+my $visitor_acc_adm = $m->comp('/mason/auth/auth_check_visitor.comp');
+
+if (!($auth || $dirauth || $visitor_acc_adm))
+{
+	$m->out('Access Denied');
+	return;
+}
+</%INIT>
+
+<style type="text/css" media="screen">
+    .visform {
+        width: 200px;
+        margin: 0 25px 0 0;
+
+    }
+    .visform .input {
+        width: 100%;
+    }
+    .visform .numeric {
+        width: 20px;
+    }
+</style>
+
+<%perl>
+		sub	firstdate {
+			#returns the lowest expire date: either reset_date or 14+last_reset_date
+        	my $val = shift;
+        	my $query = $dbh->prepare("SELECT reset_date, DATE_ADD(last_reset_date, INTERVAL 14 DAY) FROM webdb.visitor_accs WHERE uid=?");
+	        $query->execute($val) or die $dbh->errstr;
+    	    my @dates = $query->fetchrow_array();
+        	$query = $dbh->prepare("SELECT DATEDIFF(DATE_ADD(last_reset_date, INTERVAL 14 DAY), reset_date) FROM webdb.visitor_accs WHERE uid=?");                                                        									$query->execute($val) or die $dbh->errstr;
+        	my $diff = $query->fetchrow_array();
+        	if ($diff > 0) {
+           		return $dates[0];
+	        }
+    	   	else {
+        	    return $dates[1];
+     		}
+    	}
+
+	my $query = $dbh->prepare("SELECT * FROM webdb.visitor_accs WHERE uid =?"); # information for $arg_uid
+	$query->execute($arg_uid) or die $dbh->errstr;
+	
+	my @visitor = $query->fetchrow_array(); # account is the uid of the first available visitor
+	
+	my $name = $visitor[3];
+	my $contact = $visitor[4];	
+	my $last = $visitor[6];
+
+
+	$query = $dbh->prepare("SELECT DATEDIFF(DATE_ADD(?, INTERVAL 14 DAY), NOW())");
+	$query->execute($last);
+	my $max = $query->fetchrow_array();	#maximum days to be extended
+
+	my $left = &firstdate($arg_uid);
+	$query = $dbh->prepare("SELECT DATEDIFF(?, DATE(NOW()))");
+	$query->execute($left);
+	
+	$left = $query->fetchrow_array();
+
+	if ($arg_newuser) {
+		$left = 7;
+	}
+	
+    if ($arg_changed) {		#update form from submit
+        my $user_check = $dbh->prepare("SELECT reset_date FROM webdb.visitor_accs WHERE uid=?");
+        $user_check->execute($arg_uid) or die $dbh->errstr;
+        my @out_array = $user_check->fetchrow_array();
+       	my $update = $dbh->prepare("UPDATE webdb.visitor_accs SET name=?, contact=?, reset_date=DATE_ADD(DATE(NOW()), INTERVAL ? DAY) WHERE uid=? LIMIT 1");
+       	$update->execute($arg_name, $arg_contact, $arg_days, $arg_uid);
+       	if ($arg_newuser) { # go to view page for new users
+       		$update = $dbh->prepare("UPDATE webdb.visitor_accs SET requester=? WHERE uid=? LIMIT 1");
+       		$update->execute($session{'physid'}, $arg_uid);
+       		$m->redirect("visitors_view.html?arg_uid=$arg_uid");
+       		$update = $dbh->prepare("UPDATE webdb.visitor_accs SET reset_date_last=NOW() WHERE uid=? LIMIT 1");
+       		$update->execute($arg_uid);
+       	}
+       	else {
+       		$m->redirect("visitor_accts.html");
+       	}
+  	}
+	
+	
+	
+</%perl>
+	<div class="visform">
+            <form method="get" action="visitors_edit.html">
+                <h4>Username: <% $arg_uid |h %></h4>
+                <input type="hidden" name="arg_uid" value="<% $arg_uid |h %>" />
+                <br />
+                <label>Visitor Name</label> <input type="text" name="arg_name" class="input" value="<% $name |h %>" /><br />
+                <br />
+                <label>Visitor Email</label> <input type="text" name="arg_contact" class="input" value="<% $contact |h %>" /><br />
+                <br />
+                <label>Reset Time</label><br />
+                Account expires in <input type="text" name="arg_days" value="<% $left |h %>" class="numeric" size="2" /> days. (max days: <% $max |h %>) <br />
+                <br />
+                <input type="hidden" name="arg_changed" value=1 />
+                <input type="hidden" name="arg_newuser" value=<% $arg_newuser |h %> />
+                <input type="submit" value="Save" class="submit" />
+            </form>
+	</div>
+	
+<br />
+<br />
+<a href="visitor_accts.html">Back to visitor accounts</a>

@@ -1,0 +1,293 @@
+
+<%DOC>
+   Component: progress_form.html
+        Date: 2006.03.23
+      Author: allan
+     Changed: 2006.03.23 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%shared>
+# using Date::Calc... making available to title method
+my $this_year = This_Year;
+</%shared>
+
+<%INIT>
+  use physdb::directory;
+  my $uid = $session{'uid'};
+  my $directory = new Directory( uid => $uid );
+  if (!$directory->in_group('physgrad') && !$directory->in_group('gradapp')) {
+    print "<h4>You are not marked as a Graduate Student in the directory.</h4><b>Please email <a href=\"mailto:directory\@physics.umn.edu\">directory\@physics.umn.edu</a> to request this be fixed.</b>";
+    return;
+  }
+#  # Verify student marked as grad in directory
+#  my $sth = $dbh->prepare("SELECT room, work_phone FROM directory AS d
+#                JOIN groupmembers AS g ON d.uid = g.uid AND (g.groupname = 'physgrad' OR g.groupname = 'gradapp')
+#                WHERE d.uid = ?");
+#  $sth->execute($uid) or die "Unable to execute query: ".$dbh->errstr;
+#  my $dir_ref = $sth->fetchrow_hashref();
+  
+  
+#  my %directory = %$dir_ref;
+  
+  my ($record_year, $enter_year, $expected_degree, $gwe_pass, $gwe_text, $ms_plan, $have_advisor, $advisor, $advisor_text, $degree_form, $degree_form_text, $oral_exam, $oral_exam_text, $thesis_proposal, $thesis_proposal_text, $expected_completion_month, $expected_completion_year, $research_text, $ta_support, $ta_fall, $ra_fall, $ta_spring, $ra_spring, $ra_text, $fellowship, $fellowship_text);
+
+  # fetch the most recent record for this student
+  my $sql = 'SELECT record_year, enter_year, expected_degree, gwe_pass, gwe_text, ms_plan, have_advisor, advisor, 
+                    advisor_text, degree_form, degree_form_text, oral_exam, oral_exam_text, thesis_proposal, 
+                    thesis_proposal_text, expected_completion_month+0, expected_completion_year, research_text, ta_support,
+                    ta_fall, ra_fall, ta_spring, ra_spring, ra_text, fellowship, fellowship_text
+             FROM gradprogress
+             WHERE uid=? ORDER BY record_year DESC LIMIT 1';
+  my $sth = $dbh->prepare($sql);
+  $sth->execute($uid)
+    or die 'Failed to grab record: ' . $dbh->errstr;
+  
+  if (my $row_ref = $sth->fetchrow_arrayref()) {
+    ($record_year, $enter_year, $expected_degree, $gwe_pass, $gwe_text, $ms_plan, $have_advisor, $advisor, $advisor_text,
+     $degree_form, $degree_form_text, $oral_exam, $oral_exam_text, $thesis_proposal, $thesis_proposal_text, $expected_completion_month,
+     $expected_completion_year, $research_text, $ta_support, $ta_fall, $ra_fall, $ta_spring, $ra_spring, $ra_text, $fellowship,
+     $fellowship_text) = @$row_ref;
+  }
+
+  my $name = $directory->fullname;;
+</%INIT>		
+		
+<%method title><% $this_year %> Progress Report Form</%method>
+<form method=POST action="progress.html">
+
+<h4><% $name |h %></h4>
+
+<b>The deadline for completing this form is <i>March&nbsp;29&nbsp;<% $this_year |h %>.</i></b>
+<p>
+% if (($record_year) && ($record_year < $this_year)) {
+<i>We copied the form contents from your previous report, <% $record_year |h %>.</i>
+<p>
+% }
+
+Entering Year:
+% my $enter_year_list = "";
+% for (my $i=$this_year-1;$i>$this_year-10; $i--) {$enter_year_list .= $i.",";}
+% $m->comp('/mason/form_selector.comp', name=>"enter_year", selected=>$enter_year, optionlist=>$enter_year_list);
+
+Expected Degree:
+% $m->comp('/mason/form_selector.comp', name=>"expected_degree", selected=>$expected_degree, optionlist=>"PhD,MS");
+
+<h4>0. Verify Physics Directory Information</h4>
+
+<p>First, <b>verify your Physics directory entry is up-to-date</b> and then continue with this form.
+</p>
+<p>Your current contact information is:</p>
+<p>
+% print $directory->location_text('room');
+<br/>
+% print $directory->location_text('room2'); 
+</p>
+<p>Please correct this in <a href="/resources/myphys/profile/edit_dirinfo_form.html">MyPhys</a> if neccessary.
+</p>
+
+<h4>A. Written Exam</h4>
+
+<p>If you plan to do an MS degree (including those who are in their second year or more and did not pass the GWE), jump to <a href="#a1">section A-1</a>.
+
+<p>Have you passed your Written Exam (GWE) at this time?
+% $m->comp('/mason/form_selector.comp', name=>"gwe_pass", selected=>$gwe_pass, optionlist=>"no,yes");
+<p>
+If you have passed, proceed to <a href="#b">section B</a>.
+<p>
+If you are in your first year and have not passed, please describe your plan to improve your GWE score. For example, do you have classmates to study with? Do you have problem sets to work on? Do you have an adviser who is interested in guiding you? Have you thought of different ways to study? Have you consulted with the DGS?
+<br>
+<textarea name="gwe_text" cols=60 rows=5><% $gwe_text |h %></textarea>
+<p>
+If you have not passed the GWE, it is a little tricky to find a research project and advisor. However, it is very important for you to look for one. Talk to at least a few professors in the field of your interest, advertise your strengths in doing research, and try to find one. Proceed to <a href="#b">section B</a> of the form.
+<p>
+<b><a name="a1">A-1 Masters Degree</a></b>
+<p>
+If you plan on getting a master's degree under plan A (thesis) or plan B (papers), or if you are not a first-year student and have not passed GWE, describe your plan. Do you have an advisor to supervise your MS thesis/papers? Who is it?
+<br>
+<textarea name="ms_plan" cols=60 rows=5><% $ms_plan |h %></textarea>
+<p>
+If you don't plan to pursue a PhD, jump to <a href="#c">Section C</a> of the form.
+
+<h4><a name="b">B. Research Project and Adviser</a></h4>
+
+Do you have a research advisor who has agreed to advise your PhD thesis?
+% $m->comp('/mason/form_selector.comp', name=>"have_advisor", selected=>$have_advisor, optionlist=>"no,yes");
+
+<p>
+Who is your advisor? If you have a research advisor, provide his/her name. If not, find your summer research advisor first, and fill in his/her name.
+<br>
+Advisor name:
+% $m->out($m->comp('/mason/db/directory/user_group_menu.comp', menuname=>'advisor', selected=>$advisor, group=>'physfac', group2=>'physgrfac', group3=>'extgrfac'));
+<p>
+
+Please describe your research plan below in consultation with your
+adviser.  If you do not have research advisor, you must find one at
+least for the coming summer, first. It should be equivalent to less than 1.5 typed page, double spaced.
+<p>
+It should address the following points.
+<ol>
+<li>The title of the research project, and the other people you will
+be working directly with if any.
+
+<li>The goal of the entire research project and what your role is.  What has previously been done relating to the proposed research?  What is new in your proposed project?
+
+<li>Why it this line of research interesting? How does it contribute
+to the understanding of physics?
+</ol>
+
+<p>
+<textarea name="research_text" cols=60 rows=10><% $research_text |h %></textarea>
+<p>
+If you don't yet have a permanent research advisor, please jump to <a href="#g">section G</a>.
+
+<p>
+<!-- section c anchor is moved up here to make sure people see this text -->
+
+<table width=100% border=0>
+<tr><td bgcolor="#eeeeee">
+<b><a name="c">Communicate with your research advisor about the remaining questions before you enter your answers. It is particularly important that your plans for financial support for the summer, fall and spring terms agree with your advisor's.</a></b>
+</td></tr>
+</table>
+
+<h4>C. Degree Program Form</h4>
+
+Once you have an advisor (MS or PhD), the next step is for you to fill out a Degree Program form. This will be your plan for the rest of your graduate school career - what classes to take; what credits to transfer from your previous school, to satisfy the 40-credit (PhD) or 20-credit (Plan A MS) or 30-credit (Plan B MS inc Phys 8500) requirement. The form is available from Kari or <a href="http://www.grad.umn.edu/current_students/forms/gs89a.pdf">online from the Graduate School</a>.
+<p>
+The Graduate School encourages students to file this form one term before taking your Oral (or Master's Final Exam), as it needs to be <b>approved</b> by the Graduate School in order to take the exam.
+<p>
+Have you filed your Degree Program form?
+% $m->comp('/mason/form_selector.comp', name=>"degree_form", selected=>$degree_form, optionlist=>"no,yes");
+<p>
+If you have, please jump to <a href="#d">section D</a>
+<p>
+If not, when do you plan to file this form?
+<p>
+<textarea name="degree_form_text" cols=60 rows=3><% $degree_form_text |h %></textarea>
+<p>
+
+<table width=100% border=0>
+<tr><td bgcolor="#eeeeee">
+<small>
+If you are pursuing a Plan A MS degree,
+<ol>
+<li>Make sure you have registered for Master's thesis credits (10 credits of Phys 8777). If you have registered for PhD thesis credits, you can petition and change them to MS thesis credits.
+<li>When your thesis is ready for the reviewers to read, request the <a href="http://www.grad.umn.edu/current_students/forms/grad_packet/masters/confirm.html">graduation packet online</a> (or at 316 Johnston Hall).
+<li>Submit the Application for Degree to 200 Fraser or 130 Coffey by the first working day of the intended month of graduation.
+<li>Submit the Thesis Reviewer's Report form (in the Graduation packet) to 316 Johnston Hall.  You will be given Final Examination Report Form.
+<li>Return the Final Examination Report form after the exam.
+</ol>
+
+If you are pursuing a Plan B MS degree,
+<ol>
+<li>Make sure you have registered for Plan B project credits (4 credits of Phys 8500).
+<li>Pick up the Final Examination Report form and the <a href="http://www.grad.umn.edu/current_students/forms/grad_packet/masters/confirm.html">graduation packet</a>.
+<li>Submit the Application for Degree to 200 Fraser or 130 Coffey by the first working day of the intended month of graduation.
+<li>Return the Final Examination Report form after the exam.
+</ol>
+Proceed to <a href="#g">section G</a>.
+</small>
+</td></tr>
+</table>
+
+<h4><a name="d">D. Oral Exam</a></h4>
+
+Meanwhile, you need to prepare for the Oral Exam, where you will present a paper to your committee. The talk will describe some research that you may be doing for your PhD. It should contain
+<ol>
+ <li>What the research is about and why it is of interest to physicists,
+ <li>What has been done in this area,
+ <li>What you would do differently to obtain better results.
+</ol>
+
+Note that you don't need to have research results to take the Oral. In fact, it is preferable that you are in the early stages of research - i.e., you should take the Oral no more than 6&nbsp;months after starting work with your advisor. If you wait too long, you will be expected to have results, and the exam will be more difficult.
+<p>
+Have you passed the Oral Exam?
+% $m->comp('/mason/form_selector.comp', name=>"oral_exam", selected=>$oral_exam, optionlist=>"no,yes");
+<p>
+If you have, jump to <a href="#e">Section E</a>.
+<p>
+If not, provide additional information below about when you plan to take it; whether you have filed the Preliminary Oral Exam Scheduling form with the Graduate School, and if not, when you plan to file it. It should be filed at least one week before the exam.
+<p>
+<em>If it has been more than 18 months since you passed the GWE, and you have not passed the Oral, explain why you have not taken the Oral.</em>
+<p>
+<textarea name="oral_exam_text" cols=60 rows=5><% $oral_exam_text |h %></textarea>
+<p>
+<h4><a name="e">E. Thesis Proposal</a></h4>
+The Thesis Proposal is no longer required by the graduate school.
+<!--
+The <a href="http://www.grad.umn.edu/current_students/forms/gs63a.pdf">Thesis Proposal form</a> is suggested to be filed with the Graduate School one term after your Oral Exam. If your oral exam paper is your thesis topic, it should be easy to file this form. Once this form is approved by the Graduate School, request the <a href="http://www.grad.umn.edu/current_students/forms/grad_packet/doctoral/confirm.html">Graduation Packet</a> right away.
+<p>
+Note also, that to be nominated for the Doctoral Dissertation Fellowship, you should file this form before the nomination deadline in early March.
+<p>
+Before scheduling your final oral exam, you must file
+<ol>
+ <li>Application for Degree at 200 Fraser Hall or 130 Coffey by the first working day of the intended month of graduation.
+ <li>Signed Thesis Reviewer's form (approval of your thesis by the three readers) and schedule the final exam one week before the exam.
+</ol>
+
+After the exam, within a day, you should return the Final Oral Examination Report form to the Graduate School. Provide a bound copy of your thesis and also an electronic copy (PDF preferred) to the department, in addition to Graduate School requirements. You should also take care of dissertation copies and other forms at this time.
+<p>
+Have you filed your Thesis Proposal form?
+%# $m->comp('/mason/form_selector.comp', name=>"thesis_proposal", selected=>$thesis_proposal, optionlist=>"no,yes");
+
+<p>
+If you have filed it, jump to <a href="#f">Section F</a>.
+<p>
+If not, provide additional information below about when you plan to file it? 
+<p>
+<textarea name="thesis_proposal_text" cols=60 rows=5><% $thesis_proposal_text |h %></textarea>
+<p>
+-->
+<h4><a name="f">F. Expected Completion</a></h4>
+
+When do you expect to receive your degree?
+% my $degree_year_range = [$this_year..$this_year+5];
+% $m->comp('/mason/date_selector.comp', format=>'M-yyyy', year_range=>$degree_year_range, default=>$expected_completion_year . '-' . $expected_completion_month . '-0', year=>'expected_completion_year', month=>'expected_completion_month');
+
+
+
+<p>
+<h4><a name="g">G. Plans for TA/RA support</a></h4>
+
+Do you request TA support this summer (<% $this_year |h %>)?
+% $m->comp('/mason/form_selector.comp', name=>"ta_support", selected=>$ta_support, optionlist=>"no,yes");
+<p>
+If you have a research advisor but are still requesting summer TA support, please ask your adviser to write in his/her report why you are not supported as an RA.
+<p>
+% my $tavalues = $m->comp('/mason/db/getvalues.comp', table=>'gradprogress', column=>'ta_fall');
+Do you request TA support in the <% $this_year |h %>-<% $this_year+1 |h %> academic year?
+<br>
+TA Fall:
+% $m->comp('/mason/form_selector.comp', name=>"ta_fall", selected=>$ta_fall, optionlist=>$tavalues);
+TA Spring:
+% $m->comp('/mason/form_selector.comp', name=>"ta_spring", selected=>$ta_spring, optionlist=>$tavalues);
+<p>
+Do you expect RA support for <% $this_year |h %>-<% $this_year+1 |h %>?
+<br>
+RA Fall:
+% $m->comp('/mason/form_selector.comp', name=>"ra_fall", selected=>$ra_fall, optionlist=>$tavalues);
+RA Spring:
+% $m->comp('/mason/form_selector.comp', name=>"ra_spring", selected=>$ra_spring, optionlist=>$tavalues);
+<p>
+If you have a research advisor but are still requesting TA support of more than 1/4 time, please ask your adviser to write in his/her report why you are not supported as an RA.
+<p>
+If you don't have a permanent research advisor yet, and as a result, it's uncertain if you will be supported as an RA this summer or during the next year, please put your best guess above and explain the situation below.
+<p>
+<textarea name="ra_text" cols=60 rows=5><% $ra_text |h %></textarea>
+<p>
+Do you expect to receive outside support such as a fellowship for <% $this_year |h %>-<% $this_year+1 |h %>?
+% $m->comp('/mason/form_selector.comp', name=>"fellowship", selected=>$fellowship, optionlist=>"no,yes");
+<p>
+If yes, what is it?
+<p>
+<textarea name="fellowship_text" cols=60 rows=3><% $fellowship_text |h %></textarea>
+<p>
+When you finish filling out this form, save it by clicking the button below, and follow the instructions on the next page.<p>
+
+<input type=submit value="Save your progress report">  <input type=reset>
+</form>
+

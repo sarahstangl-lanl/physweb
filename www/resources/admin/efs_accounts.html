@@ -1,0 +1,27 @@
+<%init>
+use tablesearch;
+my $fields = [ qw/setid fund_code deptid program_code project_id chartfield3 chartfield1 chartfield2 descr50 lastupddttm lastupdoprid/ ];
+my $ts = new Tablesearch(
+    table => 'shopdb.accounts',
+    field_list => $fields,
+    field_params => {
+        setid => { name => 'SetID' },
+        descr50 => { name => 'Description' },
+        deptid => { name => 'DeptID' },
+    },
+    header_format => 'ucfirst_all',
+    debug => 1,
+);
+#print $ts->sql();
+</%init>
+<%method no_search_box>
+</%method>
+<%method title>EFS Account Lookup</%method>
+
+<p>
+<b>WARNING - at present this page only displays information for non-sponsored accounts.<br/>
+Sponsored accounts will be added when we discover where Data Warehouse hides them.</b>
+</p>
+<%perl>
+$ts->display;
+</%perl>

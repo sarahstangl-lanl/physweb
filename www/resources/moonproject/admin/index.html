@@ -1,0 +1,24 @@
+<%args>
+$classids => undef
+$admin => undef
+$show_all_sections => 0
+</%args>
+
+<%init>
+my @sections = physdb::queryall("SELECT section, location, time FROM classlist WHERE classid " . _in(@$classids), @$classids);
+</%init>
+<h2><% $show_all_sections ? '' : 'My ' %>Sections <span style="font-size: 13px">
+% if ($admin) {
+| <a href="?show_all_sections=<% $show_all_sections ? 0 : 1 %>">Show <% $show_all_sections ? 'only my' : 'all' %> sections</a></span>
+% }
+</h2>
+<%perl>
+for my $section (@sections) {
+    print "<div style=\"padding: 5px; float: left; width: 150px;\"><h4>$section->{section} <small>[$section->{location} $section->{time}]</small></h4>";
+    print '<div style="padding: 5px 0 0 5px;"><div style="padding-bottom: 3px;"><a href="student_list.html?studentfilter=' . $section->{section} . '">View student list</a></div>';
+    print '<div style="padding-bottom: 3px;"><a href="/classes/' . $session{moonproject_year} . '/' . $session{moonproject_term} . '/Ast%201001.' . $section->{section} . '/email.html?alltas=" target="_blank">Send section email</a></div>';
+    print '<div style="padding-bottom: 3px;"><a href="/classes/' . $session{moonproject_year} . '/' . $session{moonproject_term} . '/Ast%201001.' . $section->{section} . '/class_list.html" target="_blank">Modify student list</a></div></div></div>';
+}
+</%perl>
+<br/><br/>
+

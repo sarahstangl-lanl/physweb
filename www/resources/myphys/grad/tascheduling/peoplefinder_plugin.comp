@@ -1,0 +1,23 @@
+<%DOC>
+   Component: peoplefinder_plugin.comp
+        Date: 2009.01.28
+      Author: clayton
+     Changed: 2009.01.28 by clayton
+
+****
+**** Called by /ajax/people_finder.comp 
+****
+</%DOC>
+
+<%ARGS>
+  $semester => ''
+  $year => 0
+</%ARGS>
+
+<%INIT>
+  my $sql_join = 'JOIN taschedule ON (directory.uid = taschedule.uid)';
+  my $sql_where = 'taschedule.semester=? AND taschedule.year=?';
+  my @sql_exec = ($semester, $year);
+  return ($sql_join, $sql_where, \@sql_exec);
+</%INIT>		
+		

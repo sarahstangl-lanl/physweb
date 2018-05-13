@@ -1,0 +1,477 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: group_edit.html
+        Date: 2007.08.27
+      Author: clayton
+     Changed: 2007.08.27 by clayton
+
+!!!
+!!! This is also used by /www/resources/myphys/groupmgmt/
+!!!
+</%DOC>
+
+<%ARGS>
+  $pfname           => ''
+  $action           => ''
+  @selected         => ()
+  $name             => ''
+  $description      => ''
+  $purpose          => ''
+  $type             => ''
+  $autoadd          => ''
+  $physics_all      => ''
+  $publish          => ''
+  $import           => ''
+  $import_query     => ''
+  $export           => ''
+  $link             => ''
+</%ARGS>
+
+<%shared>
+$m->comp('/mason/auth/auth_block.comp');
+
+my $group = new Groups( name => $m->request_args->{'group'} );
+
+# Group not found -- send back to group list
+unless ($group->{'loaded'}) {
+    $m->redirect('index.html?message=' . _u('The group "' . $group->get('name') . '" could not be found.'));
+}
+
+my $forcemy = $m->request_args->{'forcemy'} || $m->request_args->{'manager_only'};
+
+my $admin_auth = ($m->comp('/mason/auth/auth_check_sysadm.comp') && !$forcemy);
+my $directory_auth = $m->comp('/mason/auth/auth_check_directory.comp');
+</%shared>
+
+<%INIT>
+use physdb;
+use physdb::groups;
+use physdb::group_members;
+
+$m->comp('/mason/ajax/js.comp');
+$m->comp('/mason/ajax/jsload.comp', file=>'phpmyarows.js');
+
+my @import_types = split ',', $m->comp("/mason/db/getvalues.comp", table=>"groups", column=>"import");
+
+my (@msgs, @errmsgs);
+
+my ($sql, $query, $result);
+
+# Update group
+if ($name && $admin_auth)
+{
+    $group->set(
+            name            => $name,
+            description     => $description,
+            purpose         => $purpose,
+            type            => $type,
+            autoadd         => $autoadd ? 1 : 0,
+            physics_all     => $physics_all ? 1 : 0,
+            publish         => $publish ? 1 : 0,
+            import          => $import,
+            import_query    => $import_query,
+            export          => $export,
+            link            => $link,
+    );
+    if ($group->save) {
+        if ($group->changes_as_str) {
+            $group->log_changes;
+        }
+    }
+    else {
+        push(@errmsgs, $group->dumperrors);
+    }
+}
+
+# Get manager status
+my $manager = GroupMembers->new->search('`groupname` = ? AND `manager` AND `uid` = ?', $group->get('name'), $session{'uid'});
+
+# Check for auth
+if (!$admin_auth && !$directory_auth) {
+    $m->redirect('index.html?message=' . _u('You do not have permission to view the group "' . $group->get('name') . '"'))
+        unless ($manager);
+}
+elsif ($directory_auth && !$admin_auth) {
+    $m->redirect('index.html?message=' . _u('You do not have permission to view the group "' . $group->get('name') . '"'))
+        unless ($manager || $group->get('type') =~ /^(flags|rgroup|facultytype|attributes|overrides|committee)$/);
+}
+
+# If we are adding a member, then do a PF lookup on the name
+if ($action eq 'Add Member')
+{
+    if (!$pfname) {
+        push(@errmsgs, "No name was given to add.");
+    } else {
+        my $query = $m->comp('/mason/ajax/people_finder.comp', 'name'=>$pfname, 'limit'=>1, inactive => 1);
+        if ($query && (my $row = $query->fetchrow_hashref)) {
+            @selected = ($row->{'uid'});
+        }
+        else {
+            push(@errmsgs, "Could not find a match for $pfname: no member added to group");
+            $action = '';
+        }
+    }
+}
+
+# Handle actions
+while ($action) {
+    if (!@selected) {
+        push(@errmsgs, "No members were selected for action");
+        last;
+    }
+    my $method;
+    if ($action eq "Add Member") {
+        $method = sub {
+            my $directory = shift;
+            if ($directory->add_group_membership($group->get('name'))) {
+                push(@msgs, "Successfully added " . $directory->fullname);
+            }
+            else {
+                push(@errmsgs, $directory->dumperrors);
+            }
+
+        };
+    } elsif ($action eq "Remove Selected Members") {
+        $method = sub {
+            my $directory = shift;
+            if ($directory->remove_group_membership($group->get('name'))) {
+                push(@msgs, "Successfully removed " . $directory->fullname);
+            }
+            else {
+                push(@errmsgs, $directory->dumperrors);
+            }
+        };
+    } elsif ($admin_auth && ($action eq "Promote" || $action eq "Demote")) {
+        $method = sub {
+            my $directory = shift;
+            my $group_membership = GroupMembers->new(uid => $directory->get('uid'), groupname => $group->get('name'));
+            unless ($group_membership->{'loaded'}) {
+                push(@errmsgs, $directory->fullname . ' is not in group ' . $group->get('name'));
+            }
+            $group_membership->set(manager => $action eq 'Promote' ? 1 : 0);
+            if ($group_membership->save) {
+                $group_membership->log_changes(text => "$action " . $directory->fullname . ' (' . $directory->get('uid') . ')');
+                push(@msgs, "Successfully " . lc($action) . "d " . $directory->fullname);
+            }
+            else {
+                push(@errmsgs, "$action failed for " . $directory->fullname . ': ' . $group_membership->dumperrors);
+            }
+        };
+    } else {
+        push(@errmsgs, "Bad argument -- unknown action $action");
+        last;
+    }
+
+    # Perform action for each selected uid
+    map { $method->($_) } Directory->new->search('`uid` ' . _in(@selected), @selected);
+
+    # End loop
+    last;
+}
+
+if (@errmsgs) {
+    $m->comp('/mason/notice_box.comp', type => 'error', text => join("\n", @errmsgs));
+}
+
+if (@msgs) {
+    $m->comp('/mason/notice_box.comp', text => join("\n", @msgs));
+}
+
+</%INIT>
+
+<%def .input>
+<%args>
+$column
+$size=>25
+</%args>
+<tr><td align="right"><% ucfirst($column) |h %>:</td><td>
+% if ($admin_auth) {
+<input type="text" name="<% $column %>" value="<% $group->get($column) %>" size="<% $size %>">
+% } else {
+<% $group->get($column) |h %>
+% }
+</td></tr>
+</%def>
+
+<script language="JavaScript">
+var activeMembers = new Array();
+var inactiveMembers = new Array();
+function setCheckboxes(typeArray, checked) {
+    for (var i = 0; i < typeArray.length; i++)
+        typeArray[i].checked = checked;
+}
+</script>
+
+<table>
+    <tr><th bgcolor="#eeeeee" colspan="2" align="left">Properties</th></tr>
+    <tr><td colspan="2">
+        <form action="group_edit.html?group=<% $group->get('name') |u %><% ($forcemy ? '&amp;forcemy=1' : '') %>" method="POST">
+        <table>
+            <& .input, column => 'name' &>
+            <& .input, column => 'description', size=>50 &>
+            <& .input, column => 'purpose', size=>50 &>
+            <tr><td align="right">Type:</td><td>
+% if ($admin_auth) {
+%   my $types = $m->comp('/mason/db/getvalues.comp', table => 'groups', column => 'type');
+                <select name="type">
+%   foreach my $type (split(',', $types)) {
+                    <option value="<% $type |h %>"<% ($type eq $group->get('type') ? ' SELECTED' : '') %>><% $type |h %></option>
+%   }
+% } else {
+    <% $group->get('type') |h %>
+% }
+                </select>
+            </td></tr>
+
+% if ($group->get('type') eq 'flags' || $group->get('type') eq 'attributes') {
+            <tr>
+                <td align="right">Get physics-all email</td>
+                <td><input type="checkbox" name="physics_all" value="1" <% $admin_auth?"":"DISABLED"%> <% $group->get('physics_all')? "CHECKED":"" |h %>></td>
+            </tr>
+            <tr>
+                <td align="right">Publish in Directory</td>
+                <td><input type="checkbox" name="publish" value="1" <% $admin_auth?"":"DISABLED"%> <% $group->get('publish')? "CHECKED":"" |h %>></td>
+            </tr>
+% }
+            <tr>
+                <td align="right">Auto Import</td>
+                <td>
+                    <SELECT <% $admin_auth?"":"READONLY"%> name="import" id="import">
+%   foreach my $option (@import_types) {
+                        <OPTION <% ($option eq $group->get('import') ? "SELECTED" : "")%> value="<% $option |h%>"><% $option |h%></OPTION>
+%   }
+                    </SELECT>
+                </td>
+            </tr>
+            <tr>
+                <td align="right">Import Query to use</td>
+                <td><textarea <% $admin_auth?"":"READONLY"%> rows="5" cols="30" style="width:100%;" name="import_query"><% $group->get('import_query') |h %></textarea></td>
+            </tr>
+            <tr>
+                <td align="right">Auto-Add to Directory</td>
+                <td><input type="checkbox" name="autoadd" value="1" <% $admin_auth?"":"DISABLED"%> <% $group->get('autoadd')? "CHECKED":"" |h %>></td>
+            </tr>
+            <tr>
+                <td align="right">Export to unix (ldap) groups</td>
+                <td><input <% $admin_auth?"":"READONLY"%> type="text" name="export" value="<% $group->get('export') |h %>" /> (comma separated)</td>
+            </tr>
+            <tr>
+                <td align="right">Handy URL</td>
+                <td><input <% $admin_auth?"":"READONLY"%> type="text" name="link" value="<% $group->get('link') |h %>" /> </td>
+            </tr>
+% if ($admin_auth) {
+            <tr>
+                <td></td>
+                <td>
+                    <input type="submit" value="Update">
+                    <input type="submit" value="Preview" id="preview_button">
+                    <input type="checkbox" name="preview_all_groups"><label for="preview_all_groups">Include all groups in preview? (Can take a while)</label>
+                    <script language="javascript">
+                    button = $('preview_button');
+                    function updatePreviewLocation() {
+                        vpdim = document.viewport.getDimensions();
+                        vpscroll = document.viewport.getScrollOffsets();
+                        dim = pre.getDimensions();
+                        graybox.setStyle({
+                            height: document.body.scrollHeight + 'px',
+                            width: document.body.scrollWidth + 'px'
+                        });
+                        pre.setStyle({
+                            top: (vpdim.height / 2) + vpscroll.top - (dim.height / 2) + 'px',
+                            left: (vpdim.width / 2) + vpscroll.left - (dim.width / 2) + 'px'
+                        });
+                        offset = pre.positionedOffset();
+                        close.setStyle({
+                            top: dim.height + offset.top + 20 + 'px',
+                            left: dim.width + offset.left - close.getWidth() + 'px'
+                        });
+                    }
+                    function onComplete(cat, response) {
+                        try {
+                            json = response.responseText.evalJSON();
+                            if (json.result == 'OK') {
+                                container = new Element('div');
+                                pagePos = $('page').positionedOffset();
+                                graybox = new Element('div').setStyle({
+                                    position: 'absolute',
+                                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                                    top: 0,
+                                    left: 0,
+                                    height: document.body.scrollHeight + 'px',
+                                    width: document.body.scrollWidth + 'px'
+                                });
+                                container.appendChild(graybox);
+                                pre = new Element('pre').setStyle({
+                                    position: 'absolute',
+                                    backgroundColor: 'white',
+                                    maxHeight: '50em',
+                                    overflowX: 'hidden',
+                                    padding: '10px',
+                                    border: '1px solid black',
+                                    boxShadow: '10px 10px 7px 5px rgba(0, 0, 0, 0.5)'
+                                });
+                                container.appendChild(pre);
+                                button.form.appendChild(container);
+                                close = new Element('button').update('Close').setStyle({
+                                    position: 'absolute',
+                                    border: '1px solid black',
+                                    borderRadius: '3px',
+                                    boxShadow: '10px 10px 7px 5px rgba(0, 0, 0, 0.5)'
+                                });
+                                close.observe('click', function (e) {
+                                    e.stop();
+                                    Event.stopObserving(window, 'resize', updatePreviewLocation);
+                                    Event.stopObserving(window, 'scroll', updatePreviewLocation);
+                                    container.remove();
+                                });
+                                container.appendChild(close);
+                                pre.update("Preview results:" + json.msg);
+                                Event.observe(window, 'resize', updatePreviewLocation);
+                                Event.observe(window, 'scroll', updatePreviewLocation);
+                                updatePreviewLocation();
+                            }
+                            else {
+                                if (cat == 'failure')
+                                    msg = "There was a failure during the request. A bug ticket was automatically created.";
+                                else
+                                    msg = "There was a problem.";
+                                if (json.err != null)
+                                    msg = msg + "\n" + json.err;
+                                alert(msg);
+                            }
+                        } catch (e) {
+                            alert("There was a problem processing the request: " + e + "\n\n" + response.responseText);
+                        }
+                        button.enable();
+                    }
+                    button.observe('click', function (e) {
+                        e.stop();
+                        button.disable();
+                        new Ajax.Request('group_edit_preview.html', {
+                            parameters: button.form.serialize(),
+                            onSuccess: function (response) { onComplete('success', response); },
+                            onFailure: function (response) { onComplete('failure', response); }
+                        });
+                    });
+                    </script>
+                </td>
+            </tr>
+% }
+
+        </table></form>
+    </td></tr>
+    <tr><th bgcolor="#eeeeee" colspan="2" align="left">Members</th></tr>
+    <tr><td>People must first exist in the Physics Directory to be added to a group</td></tr>
+    <tr>
+        <td valign="top" align="right"><small>[<a href="http://zzz.physics.umn.edu/computing/web/physweb/completepeople" target="_blank">Help</a>]</small></td>
+        <td>
+            <form action="group_edit.html?group=<% $group->get('name') |u %><% ($forcemy ? '&amp;forcemy=1' : '') %>" method="POST">
+            <input type="text" size="30" name="pfname" id="new_member"> <input type="submit" name="action" value="Add Member">
+            <& /mason/ajax/complete_people.comp, id => 'new_member', name => 'pfname', dest_id => 'complete_new_member', order_by => 'display_name', inactive => 1 &>
+            </form>
+
+        </td>
+    </tr>
+    <tr>
+        <td valign="top" align="right"></td>
+        <td>
+            <form action="group_edit.html?group=<% $group->get('name') |u %><% ($forcemy ? '&amp;forcemy=1' : '') %>" method="POST">
+            <div style="border: 1px solid grey; margin: 2px; max-height: 50em; overflow: auto;">
+                <table class="rowmagic" width="100%">
+
+<%perl>
+    $sql = 'SELECT groupmembers.uid, directory.physid, directory.ucard, directory.doorpin, directory.last_name, directory.first_name, groupmembers.manager, directory.inactive
+                FROM groupmembers
+                LEFT JOIN directory ON (groupmembers.uid = directory.uid)
+                WHERE groupname=?
+                ORDER BY directory.inactive ASC, directory.last_name ASC';
+    $query = $dbh->prepare($sql);
+    $query->execute($group->get('name')) or die 'Unable to grab members: ' . $dbh->errstr;
+
+    $m->comp('SELF:list_header', display_name => 'Active Members', name => 'activeMembers');
+
+    my $inactive = 0;
+    my $have_people = 0;
+
+    while ($result = $query->fetchrow_hashref()) {
+        $have_people = 1;
+
+        if ($$result{'inactive'} && !$inactive) {
+            $m->comp('SELF:list_header', display_name => 'Inactive Members', name => 'inactiveMembers');
+            $inactive = 1;
+        }
+
+        $m->comp('SELF:do_member', result => $result, inactive => $inactive, admin_auth => $admin_auth);
+    }
+</%perl>
+
+                </table>
+            </div>
+            <input type="submit" name="action" value="Remove Selected Members"<% ($have_people ? '' : ' DISABLED="disabled"') %>>
+% if ($admin_auth) {
+            <input type="submit" name="action" value="Promote"<% ($have_people ? '' : ' DISABLED="disabled"') %>>
+            <input type="submit" name="action" value="Demote"<% ($have_people ? '' : ' DISABLED="disabled"') %>>
+% }
+            </form>
+        </td>
+    </tr>
+% if ($admin_auth) {
+    <tr><td colspan="2"></td></tr>
+    <tr><th bgcolor="#eeeeee" colspan="2" align="left">Delete Group</th></tr>
+    <tr><td colspan="2">
+        <form action="index.html<% ($forcemy ? '?forcemy=1' : '') %>" method="POST">
+        <table><tr>
+            <td>
+                <input type="hidden" name="delete" value="<% $group->get('name') |h %>">
+                <input type="submit" value="Delete This Group">
+            </td>
+            <td align="left">
+                <input type="checkbox" name="delete2" value="1" id="delete"> <label for="delete">Confirm Deletion</label>
+            </td>
+        </tr></table>
+        </form>
+    </tr>
+% }
+</table>
+
+<%method list_header>
+<%args>
+    $name
+    $display_name
+</%args>
+                    <tr><th bgcolor="#eeeeee" colspan="2" align="left">&nbsp;<% $display_name |h %>
+                        <small><a href='javascript:setCheckboxes(<% $name %>, true)'>Check All</a>&nbsp;
+                        <a href='javascript:setCheckboxes(<% $name %>, false)'>Clear All</a>&nbsp;</small>
+                    </th></tr>
+</%method>
+
+<%method do_member>
+<%args>
+    $result
+    $inactive => 0
+    $admin_auth
+    $readonly => 0
+</%args>
+<%init>
+    my $type = ($inactive ? 'inactive' : 'active');
+    my $info_link = $admin_auth ? '/resources/admin/people/user.html?uid=' . $$result{'uid'} : '/people/' . $$result{'physid'} . '.html';
+    #my $display_name = $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid=>$result->{'uid'});
+    my $display_name = "$result->{'last_name'}, $result->{'first_name'}";
+</%init>
+                    <tr class="even"><td>
+%   if ($readonly) {
+                        <input type="checkbox" disabled>
+%   } else {
+                        <input type="checkbox" name="selected" value="<% $$result{'uid'} |h %>" id="check<% $$result{'uid'} |h %>">
+%   }
+                        <label for="check<% $$result{'uid'} |h %>"><% $display_name |h %></label>
+                        [<a href="<% $info_link |h %>" target="_blank">info</a>]
+                        <% (($$result{'manager'} && !$readonly) ? ' <b>MANAGER</b>' : '') %>
+%   if (!$readonly) {
+                        <script language="JavaScript">
+                        <% $type %>Members.push(document.getElementById('check<% $$result{'uid'} |h %>'));
+                        </script>
+%   }
+                    </td></tr>
+</%method>
+

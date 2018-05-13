@@ -1,0 +1,141 @@
+<%shared>
+my $config = $m->comp('/mason/db/moonproject/config.comp');
+my $field_params = $m->comp('/mason/db/moonproject/observation_fields_hashref.comp');
+my $args = $m->caller_args(0);
+my $uri_prefix = ($r->uri =~ /admin/ ? '../' : '');
+warn "Caller args";
+warn Dumper({map { $_ => $args->{$_} } grep { $_ ne 'dt' } keys %$args });
+</%shared>
+
+<%def header>
+<%args>$field</%args>
+% my @parts = split(/\s/, $field_params->{$field}->{name});
+<th style="min-width: <% $field_params->{$field}->{header_width}||0 |h %>;"><a class="moonproject_help" href="<% $uri_prefix |h %><% $field |h %>_help.html" target="_blank"><% shift @parts %><% @parts ? '<br/>' : '' %><% join ' ', @parts %></a></th>
+<%filter>s/\n//gos</%filter>
+</%def>
+
+<%def field>
+<%args>$field</%args>
+<%perl>
+my $params = $field_params->{$field};
+my $value = defined $args->{$field} ? _h($args->{$field}) : '';
+my $error = exists $args->{error_fields} ? $args->{error_fields}->{$field} : undef;
+die "Required parameter 'type' not set" unless ($params->{type});
+if ($params->{type} eq 'text') {
+    if ($args->{confirm}) {
+        if (ref $params->{confirm_format} eq 'CODE') {
+            print $params->{confirm_format}->($value, $params, $args);
+        }
+        else {
+            print $value;
+        }
+        print '<input type="hidden" name="' . $field . '" value="' . $value . '" />';
+    }
+    else {
+        #if ((($field =~ /^fist/) or ($field eq "aveFist"))) { ### hack to add a .0 to an integer
+        #    $value = $value . ".0" if ($value !~ /\./);
+        #}
+
+        print '<input ' . ($error ? 'class="moonproject_error" ' : '') . 'name="' . $field . '" size="' . ($params->{size} || 4) . '" value="' . $value . '" ' . join(' ', map { join('=', $_, '"' . $params->{attrs}->{$_} . '"') } keys %{$params->{attrs} || {}}) . '/>';
+    }
+}
+elsif ($params->{type} eq 'select') {
+    my @options = @{$params->{options}||[]};
+    if ($args->{confirm}) {
+        if (ref $params->{confirm_format} eq 'CODE') {
+            print $params->{confirm_format}->($value, $params, $args);
+        }
+        else {
+            for (@options) {
+                if ((shift @options) eq $value) {
+                    print _h(shift @options);
+                    last;
+                }
+                shift @options;
+            }
+        }
+        print '<input type="hidden" name="' . $field . '" value="' . $value . '" />';
+    }
+    else {
+        print '<select ' . ($error ? 'class="moonproject_error" ' : '') . 'name="' . $field . '" ' . join(' ', map { join('=', $_, '"' . $params->{attrs}->{$_} . '"') } keys %{$params->{attrs} || {}}) . '><option value=""></option>';
+        while(@options) {
+            my $option_value = shift @options;
+            print '<option value="' . $option_value . '"' . ($option_value eq $value ? 'SELECTED' : '') . '>' . (shift @options) . '</option>';
+        }
+        print '</select>';
+    }
+}
+elsif ($params->{type} eq 'textarea') {
+    if ($args->{confirm}) {
+        if (ref $params->{confirm_format} eq 'CODE') {
+            print $params->{confirm_format}->($value, $params, $args);
+        }
+        else {
+            print $value;
+        }
+        print '<input type="hidden" name="' . $field . '" value="' . $value . '" />';
+    }
+    else {
+        print '<textarea name="' . $field . '" ' . join(' ', map { join('=', $_, '"' . $params->{attrs}->{$_} . '"') } keys %{$params->{attrs} || {}}) . '>' . $value . '</textarea>';
+    }
+}
+elsif ($params->{type} eq 'hidden') {
+    print '<input type="hidden" name="' . $field . '" value="' . $value . '" />';
+}
+elsif ($params->{type} eq 'plaintext') {
+    print $value;
+}
+else {
+    die "Unknown type $params->{type}";
+}
+</%perl>
+<%filter>s/\n//gos</%filter>
+</%def>
+
+<form action="observation_submit.html" method="POST">
+<& field, field => 'number' &>
+<table cellpadding="3" cellspacing="0"><tr><td>
+<table cellpadding="3" cellspacing="0" class="observation">
+<tr>
+% for my $field (qw/date time cstTime phaseNumber fists fists2 fists3 aveFist cloud moonHA dayNumber sunHA elongation/) {
+    <& header, field => $field &>
+% }
+</tr>
+<tr>
+    <td><& field, field => 'dateMonth' &>/<& field, field =>'dateDay' &>/<& field, field => 'dateYear' &></td>
+    <td><& field, field => 'dateHrs' &>:<& field, field => 'dateMins' &><& field, field => 'dateAM' &></td>
+    <td><& field, field => 'cstTime' &></td>
+    
+    <td><& field, field => 'phaseNumber' &></td>
+    <td><& field, field => 'fists' &><br/><& field, field => 'fistsDir' &></td>
+    <td><& field, field => 'fists2' &><br/><& field, field => 'fistsDir2' &></td>
+    <td><& field, field => 'fists3' &><br/><& field, field => 'fistsDir3' &></td>
+    <td><& field, field => 'aveFist' &><br/><& field, field => 'aveFistDir' &></td>
+    <td><& field, field => 'cloud' &><br/></td>
+
+    <td><& field, field => 'moonHA' &><br/><& field, field => 'moonHAdir' &></td>
+    <td><& field, field => 'dayNumber' &></td>
+    <td><& field, field => 'sunHA' &><br/><& field, field => 'sunHAdir' &></td>
+    <td><& field, field => 'elongation' &></td>
+</tr>
+<tr><th>Comments</th><td colspan="12"><& field, field => 'studentComments' &></td></tr>
+</table>
+% if ($ARGS{confirm}) {
+    <input type="hidden" name="confirm" value="1" />
+% }
+% else {
+    <table cellpadding="" cellspacing="0" class="sketches">
+    <tr>
+%   for my $sketch (@{$config->{sketches}}) {
+        <td><img border="0" src="<% _h($sketch->{src}) %>"></td>
+%   }
+    </tr>
+    <tr>
+%   for my $sketch (@{$config->{sketches}}) {
+        <td><% _h($sketch->{name}) %></td>
+%   }
+    </tr>
+    </table>
+% }
+</td><td><input type="submit" value="Submit" name="submit" /><% $r->uri =~ /submit|modify/ ? '<div style="padding-top: 5px;"/><input type="submit" value="Cancel" name="cancel" /></div>' : '' %></td></tr></table>
+</form>

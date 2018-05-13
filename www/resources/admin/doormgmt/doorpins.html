@@ -1,0 +1,116 @@
+
+<%DOC>
+   Component: doorpins.html
+        Date: 2008.06.12
+      Author: nick
+     Changed: 2008.06.12 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp');
+$m->comp('/mason/ajax/js.comp');
+
+use physdb;
+use physdb::doorlocks;
+
+my $authorized = $m->comp('/mason/auth/auth_check.comp', auth_type => 'deptoffice');
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $doormgr = $m->comp('/mason/auth/auth_check_door_mgr.comp');
+
+# Restrict access
+if (!$authorized && !$doormgr && !$admin_auth) { print "<H2>Only members of 'deptoffice' or managers of a door group are allowed to view this page</H2>"; return; }
+
+# Fetch all doorlocks
+my @doorlocks = Doorlocks->new->search($admin_auth ? '1' : "name NOT IN ('physS43','phys481')");
+
+# Restrict doorlocks unless authed
+unless ($admin_auth || $authorized) {
+    @doorlocks = grep { grep { $_->get('uid') eq $session{'uid'} } $_->managers } @doorlocks;
+}
+
+</%INIT>
+
+<%method title>Door PIN Management</%method>
+
+<h5>Access to this page is restricted to members of the 'deptoffice' group and managers of at least one door group</h5>
+
+<div class="pindiv">
+<h3>Door PIN Summary</h3>
+<table id="summarytable" class="pintable">
+<& "pinsummary.html" &>
+</table>
+<br/>
+</div>
+
+<div class="pindiv">
+<h3>Assigned PINs</h3>
+<table id="listtable" class="pintable">
+<& "assignedpins.html" &>
+</table>
+</div>
+
+<div class="pindiv">
+<h3>Assign Temporary PIN</h3>
+<form id="assign_pin_form" onsubmit="return submitRequest();" method="POST" action="assignpin.html">
+<table id="assigntable">
+<tr><td class="assignleft">Door</td><td><select length="20" id="door_id" name="door_id">
+% for my $doorlock (@doorlocks) {
+    <option value="<% $doorlock->get('door_id') %>"><% $doorlock->get('name') %></option>
+% }
+</td></tr>
+<tr><td class="assignleft">Name</td><td><input type="text" length="10" id="name" name="name"></td></tr>
+<tr><td></td><td><input type="submit" value="Assign PIN"></td></tr>
+</table>
+</form>
+</div>
+
+<& "/mason/ajax/complete_people.comp" &>
+
+<%method meta>
+<style type="text/css">
+.pintable TH { background-color: #A0A0A0; border-bottom: 1px solid black; text-align: left; vertical-align: top; padding: 0px 5px 2px 5px; }
+.pintable TD { padding: 0px 5px 3px 5px; cursor: default; }
+.assignleft { text-align:right; padding:0 5px 0 15px; }
+.pindiv { padding-right:15px;float:left; height:500px; }
+.pindiv TABLE { border: 1px solid black; border-collapse: collapse; margin-top:10px; }
+.summarytr:hover { background-color: #C0C0C0; }
+</style>
+<script type="text/javascript">
+
+function submitRequest() {
+    $('assign_pin_form').request({
+        onSuccess: onAjaxSuccess,
+        onFailure: onAjaxFailure,
+    });
+    return false;
+}
+
+function onAjaxFailure(t) {
+    alert('Failed to assign temporary id. Sorry.');
+}
+
+function onAjaxSuccess(t) {
+    if (t.responseText != 'OK!') {
+        alert('Failed to assign temporary id: ' + t.responseText);
+    } else {
+        $('name').value = "";
+        new Ajax.Request('pinsummary.html', {
+            method: 'get',
+            onSuccess: function(transport) { $('summarytable').update(transport.responseText); },
+            onFailure: function(transport) { alert("Failed to update PIN summary: " + transport.responseText) }
+        });
+        new Ajax.Request('assignedpins.html', {
+            method: 'get',
+            onSuccess: function(transport) { $('listtable').update(transport.responseText); },
+            onFailure: function(transport) { alert("Failed to update assigned PINs list: " + transport.responseText) }
+        });
+    }
+}
+</script>
+</%method>
+

@@ -1,0 +1,38 @@
+<%DOC>
+	vim: set syntax=mason:
+</%DOC>
+<%args>
+	$nologin => ''
+</%args>
+<%init>
+if(!($nologin) && !($session{'x500'})) {
+#	$m->comp('/mason/auth/auth_block.comp', internal=>'yes');
+}
+
+$m->call_next;
+</%init>
+<%method titlemenu_below>
+<%args>
+	$nologin => ''
+</%args>
+   <& /mason/titlemenu.comp:begin, type=>"below" &>
+%   if($m->comp('/mason/auth/check_groups.comp', allow =>['scheduler','sysadm'])) {
+	   <&| /mason/titlemenu.comp:item, link=>"/resources/scheduling/index.html" &>Recent Schedules</&>
+%   }
+%   if(!$nologin) {
+	   <&| /mason/titlemenu.comp:item, link=>$r->uri, selected=>1, hidden=>$nologin?0:1 &>Schedule Picker</&>
+%   }
+   <& /mason/titlemenu.comp:end &>
+</%method>
+
+<%method whereamifilter>
+<%args>
+$partsref
+</%args>
+<%perl>
+
+pop @$partsref;
+pop @$partsref;
+return @$partsref;
+</%perl>
+</%method>

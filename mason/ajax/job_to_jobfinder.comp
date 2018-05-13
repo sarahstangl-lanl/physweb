@@ -1,0 +1,18 @@
+<%ARGS>
+  $job_id
+</%ARGS>
+
+<%INIT>
+  my $query = $m->comp('job_finder.comp', job_id => $job_id);
+  if(!$query) { 
+    return undef;
+  }
+  if (my $row = $query->fetchrow_hashref) {
+    return $row->{'project_name'};
+  }
+  return undef;
+</%INIT>
+
+<%filter>
+s/.//gos
+</%filter>

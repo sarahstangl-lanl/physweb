@@ -1,0 +1,110 @@
+
+<%DOC>
+   Component: admin_x500check.html
+        Date: 2007.08.02
+      Author: clayton
+     Changed: 2007.08.02 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $admin_year => ''
+  $admin_semester => ''
+  $x500s => ''
+</%ARGS>
+
+<%INIT>
+  my $auth_admin = $m->comp('/mason/auth/auth_check_ta_admin.comp');
+  if (!$auth_admin) { $m->redirect('not_authorized.html'); }
+
+  my @x500 = split('\n|\r\n|\r', $x500s);
+</%INIT>
+
+<%method title>TA Scheduling</%method>
+
+<h3 style="border-bottom: 1px solid black; margin-bottom: 0.25em;">Check Schedules: <% ($admin_semester eq 'spring' ? 'Spring' : 'Fall') %> <% $admin_year %></h3>
+
+Based upon the list provided, the following ids have not submitted a schedule:<br/><br/>
+
+<table>
+<tr><th>Last Name</th><th>First Name</th><th>x500</th><th>PhysID</th></tr>
+
+<%perl>
+my @badvals;
+foreach (@x500) {
+  my $val = $_;
+  my $physid = '';
+  my $x500 = '';
+  my $last = '';
+  my $first = '';
+  my $uid = undef;
+  if (length($val) > 0)
+  {
+    if ($val =~ /^\s*(.*?)\s*,\s*(.*)\s*$/)
+    {
+      $last = $1;
+      $first = $2;
+      
+      my $sql = 'SELECT uid, x500, physid FROM directory WHERE last_name=? AND first_name=?';
+      my $query = $dbh->prepare($sql);
+      $query->execute($last, $first);
+      my $results = $query->fetchrow_hashref();
+      if ($results)
+      {
+        $uid = $$results{'uid'};
+        $x500 = $$results{'x500'};
+        $physid = $$results{'physid'};
+      }
+    } elsif ($val =~ /^\s*(.*?)\@physics\.umn\.edu\s*$/) {
+      $physid = $1;
+
+      my $sql = 'SELECT uid, x500, last_name, first_name FROM directory WHERE physid=?';
+      my $query = $dbh->prepare($sql);
+      $query->execute($physid);
+      my $results = $query->fetchrow_hashref();
+      if ($results)
+      {
+        $uid = $$results{'uid'};
+        $x500 = $$results{'x500'};
+        $last = $$results{'last_name'};
+        $first = $$results{'first_name'};
+      }
+    } elsif ($val =~ /^\s*(.*?)\s*$/) {
+      $x500 = $1;
+
+      my $sql = 'SELECT uid, physid, last_name, first_name FROM directory WHERE x500=?';
+      my $query = $dbh->prepare($sql);
+      $query->execute($x500);
+      my $results = $query->fetchrow_hashref();
+      if ($results)
+      {
+        $uid = $$results{'uid'};
+        $physid = $$results{'physid'};
+        $last = $$results{'last_name'};
+        $first = $$results{'first_name'};
+      }
+    }
+   
+    if (!defined($uid)) {
+      push @badvals, $val;
+    } else {
+      my $sql = 'SELECT \'1\' FROM taschedule WHERE year=? AND semester=? AND uid=?';
+      my $query = $dbh->prepare($sql);
+      $query->execute($admin_year, $admin_semester, $uid);
+      if ($query->rows < 1) {
+</%perl>
+
+<tr><td><% ($last) |h %></td><td><% ($first) |h %></td><td><% $x500 |h %></td><td><% $physid |h %></td></tr>
+% } } } }
+</table>
+
+% if (scalar(@badvals)) {
+<br/>
+<b>The following values entered cannot be associated with any known user:</b>
+<table>
+% foreach my $badval (@badvals) {
+<tr><td><% $badval |h %></td></tr>
+% }
+</table>
+% }

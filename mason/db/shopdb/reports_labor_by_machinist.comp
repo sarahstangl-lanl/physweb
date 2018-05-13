@@ -1,0 +1,180 @@
+<%args>
+$unfinalized => 0
+$schema
+$helper_methods
+</%args>
+<%init>
+    my $ll_sort = $ARGS{ll_sort} && $ARGS{ll_sort} eq 'account' ? 'job.account_key' : 'job.job_id';
+</%init>
+<h2>Charge Hours grouped by Machinist and Job</h2>
+<br/>
+<%perl>
+    my $dates = $m->comp('/mason/db/shopdb/date_range.comp', no_clear => 1 );
+    my $start_date = $dates->{start_date};
+    my $end_date = $dates->{end_date};
+    my %finalized_filter = ( $unfinalized ? ( ) : ( 'labor_lines.finalized' => 1 ) );
+</%perl>
+<h5>Filter by finalized</h5>
+<form>
+% while (my ($key, $value) = each %{ $dates->{url_args} }) {
+<input type="hidden" name="<% $key |h %>" value="<% $value |h %>"/>
+% }
+<label for="unfinalized">Include unfinalized charge lines</label><input type="checkbox" name="unfinalized"<% $unfinalized ? ' CHECKED' : '' %>/>
+<input type="submit" name="Update" value="Update"/>
+</form>
+<h5>Change sort order</h5>
+<table cellpadding="3" cellspacing="0" style="padding-top:5px;">
+<tr>
+<td><% $ll_sort eq 'job.job_id' ? '<u>' : '<a href="?' . _args(%{ $dates->{url_args} }, ll_sort => 'job_id') . '">' %>
+Sort by Job ID
+<% $ll_sort eq 'job.job_id' ? '</u>' : '</a>' %></td>
+<td>|</td>
+<td><% $ll_sort eq 'job.job_id' ? '<a href="?' . _args(%{ $dates->{url_args} }, ll_sort => 'account') . '">' : '<u>' %>
+Sort by Account Key
+<% $ll_sort eq 'job.job_id' ? '</a>' : '</u>' %></td>
+</tr></table>
+<br/><br/>
+<%perl>
+    $m->{request_args} = [ map { $_, $m->request_args->{$_} } grep { $_ ne 'll_sort' } keys %{ $m->request_args } ],
+    my $ll_summary = sub {
+        my ($ts, $row) = @_;
+        if (exists $ts->{tmp}->{lastrow} && (!$row || $row->{machinist} ne $ts->{tmp}->{lastrow}->{machinist})) {
+            my $total = $ts->{tmp}->{machinist_total} || 0;
+            my $ext_total = $ts->{tmp}->{external_total} || 0;
+            my $shop_total = $ts->{tmp}->{shop_total} || 0;
+            my $int_total = $ts->{tmp}->{internal_total} || 0;
+            my $ll_total = $ts->{tmp}->{machinist_ll_total} || 0;
+            $ts->{tmp}->{machinist_ll_total} = 0;
+            $ts->{tmp}->{shop_total} = 0;
+            $ts->{tmp}->{machinist_total} = 0;
+            $ts->{tmp}->{internal_total} = 0;
+            $ts->{tmp}->{external_total} = 0;
+            my $leaves = $schema->resultset('Machinists')->find($ts->{tmp}->{lastrow}->{machinist_id})->leaves(
+                {
+                    date => { -between => [ $start_date->ymd, $end_date->ymd ] },
+                    'leave_type.label' => { '!=' => 'Leave without pay' },
+                },
+                {
+                    '+select' => [ \'SUM(hours) AS hours', qw/leave_type.label/ ],
+                    '+as' => [ qw/hours label/ ],
+                    join => 'leave_type',
+                    group_by => 'me.leave_type_id',
+                }
+            );
+            my $total_leave = 0;
+            while (my $leave = $leaves->next) {
+                $total_leave += $leave->get_column('hours');
+            }
+            $ts->{tmp}->{html} .= '<tr><th style="padding: 8px 5px 8px 0;" align="right" colspan="' . scalar($ts->column_names) . '">Leave: ' . (sprintf "%.02f", $total_leave) . ', Shop: ' . (sprintf "%.02f",  $shop_total) . ', Internal: ' . (sprintf "%.02f", $int_total) . ', External: ' . (sprintf "%.02f", $ext_total) . ', Total charge hours: ' . (sprintf "%.02f", $total_leave + $total) . ', Total Labor Cost: ' . $ts->currency_formatter($ll_total) . '</th></tr>';
+            $ts->do_header if ($row);
+        }
+        return '';
+    };
+    my $ll_rs = $schema->resultset('Machinists')->search_rs(
+    {
+        %finalized_filter,
+        'labor_lines.active' => 1,
+        'labor_lines.bill_date' => undef,
+        'labor_lines.charge_date' => { '>=' => $start_date->ymd, '<=' => $end_date->ymd },
+#        'job.account_key' => [ -and =>  { '!=' => 'UMFIN;1026;11140;20247;;;;1000009786' },
+#                                        { '!=' => 'UMFIN;1150;11140;20248;;;;1000009786' }],
+#        'job.account_key' => [ 'UMFIN;1026;11140;20247;;;;1000009786', 'UMFIN;1150;11140;20248;;;;1000009786' ],
+#        'job.external' => 1,
+    },
+    {
+        'select' => [ \'CONCAT(directory.last_name, ", ", directory.first_name)', 'me.machinist_id', 'job.job_id', 'job.project_name', \'CONCAT(directory_2.last_name, ", ", directory_2.first_name)', \'CONCAT(directory_3.last_name, ", ", directory_3.first_name)', 'job.external', \'IF(job.account_key = "UMFIN;1150;11140;20248;;;;1000009786", 1, 0)', 'job.account_key', 'account.DESCR50', \'SUM(labor_lines.charge_hours)', 'me.labor_rate', \'SUM(labor_lines.charge_hours * me.labor_rate)', 'job.customer_id', 'job.pi_id' ],
+        'as' => [ qw/machinist machinist_id job_id project_name customer pi external shop account account_name charge_hours labor_rate ll_extended_cost customer_id pi_id/ ],
+        join => [ 'directory', { 'labor_lines' => { 'job' => [ 'account', { 'customer' => 'directory' }, { 'pi' => 'directory' } ] } } ],
+        group_by => [ 'me.machinist_id', 'job.job_id' ],
+        order_by => [ 'me.machinist_id', $ll_sort ],
+    });
+    my $ll_ts = Tablesearch->new(
+        debug => 0,
+        prefix => 'll_',
+        resultset => $ll_rs,
+        field_params => {
+            machinist => {
+                data_format => sub {
+                    my ($value, $code, $row, $ts) = @_;
+                    if (!exists $ts->{tmp}->{lastrow} || $ts->{tmp}->{lastrow}->{machinist} ne $row->{machinist}) {
+                        return '<a href="machinist.html?machinist_id=' . $row->{machinist_id} . '">' . $value . '</a>';
+                    }
+                    return '';
+                },
+            },
+            pi => {
+                name => 'PI',
+                url => 'customer.html?customer_id=$row{pi_id}',
+            },
+            pi_id => {
+                hidden => 1,
+            },
+            customer => {
+                name => 'Customer',
+                url => 'customer.html?customer_id=$row{customer_id}',
+            },
+            customer_id => {
+                hidden => 1,
+            },
+            external => $helper_methods->checkbox,
+            shop => $helper_methods->checkbox,
+            ll_extended_cost => {
+                name => 'Extended Cost',
+                data_format => 'currency',
+            },
+            charge_hours => {
+                data_format => sub { my $value = shift; return sprintf "%.02f", $value; },
+            },
+            job_id => {
+                url => 'job.html?job_id=$row{job_id}',
+                no_header_wrap => 1,
+            },
+            project_name => $helper_methods->project_name,
+            labor_rate => {
+                data_format => 'currency',
+            },
+            machinist_id => {
+                hidden => 1,
+            },
+        },
+        prerow => sub {
+            my ($row, $ts) = @_;
+            $ts->{tmp}->{charge_hours} ||= 0;
+            $ts->{tmp}->{ll_total} ||= 0;
+            $ts->{tmp}->{machinist_ll_total} ||= 0;
+            $ts->{tmp}->{machinist_total} ||= 0;
+            $ts->{tmp}->{shop_total} ||= 0;
+            $ts->{tmp}->{internal_total} ||= 0;
+            $ts->{tmp}->{external_total} ||= 0;
+            return $ll_summary->($ts, $row);
+        },
+        postrow => sub {
+            my ($row, $ts) = @_;
+            $ts->{tmp}->{charge_hours} += $row->{charge_hours};
+            $ts->{tmp}->{ll_total} += $row->{ll_extended_cost};
+            $ts->{tmp}->{machinist_ll_total} += $row->{ll_extended_cost};
+            $ts->{tmp}->{machinist_total} += $row->{charge_hours};
+            if ($row->{account} eq 'UMFIN;1026;11140;20247;;;;1000009786') {
+                $ts->{tmp}->{external_total} += $row->{charge_hours};
+            }
+            elsif ($row->{account} eq 'UMFIN;1150;11140;20248;;;;1000009786') {
+                $ts->{tmp}->{shop_total} += $row->{charge_hours};
+            }
+            else {
+                $ts->{tmp}->{internal_total} += $row->{charge_hours};
+            }
+            $ts->{tmp}->{lastrow} = $row;
+            return '';
+        },
+        postdata => sub {
+            return $ll_summary->(shift);
+        },
+        header_format => 'ucfirst_all',
+        extra_url_args => [ qw/action/ ],
+        no_limit => 1,
+        no_sort => 1,
+        hide_header => 1,
+    );
+    $ll_ts->display;
+    print '<div style="padding: 5px; font-size: 14px; font-weight: bold; float: right;">Total charge hours: ' . sprintf("%.02f", $ll_ts->{tmp}->{charge_hours} || 0) . ", Total Labor Cost: " . $ll_ts->currency_formatter($ll_ts->{tmp}->{ll_total} || 0) . "</div>";
+</%perl>

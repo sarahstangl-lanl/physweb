@@ -1,0 +1,86 @@
+<%shared>
+my $observation_fields = $m->comp('/mason/db/moonproject/observation_fields.comp');
+my $config = $m->comp('/mason/db/moonproject/config.comp');
+my $grade_tol_map = $m->comp('/mason/db/moonproject/grade_tol_map.comp');
+our $moon_info_cache;
+my $orig_args = $m->request_args;
+</%shared>
+<%init>
+my @errors;
+my $error_fields = { };
+# Set student id
+my $student = $ARGS{student};
+$ARGS{student} = $session{'moonproject_gradesid'};
+# Set current term and year
+$ARGS{term} = $session{'moonproject_term'};
+$ARGS{year} = $session{'moonproject_year'};
+for (my $i = 0; $i < @$observation_fields; $i+=2) {
+    my $field = $observation_fields->[$i];
+    my $params = $observation_fields->[$i+1];
+    # Apply transform
+    if (ref $params->{transform} eq 'CODE') {
+        $ARGS{$field} = $params->{transform}->($ARGS{$field});
+    }
+    # Check for required
+    if ($params->{required} && (!defined $ARGS{$field} || $ARGS{$field} eq '')) {
+        push @errors, { field => $field, params => $params, text => 'is required.' };
+        $error_fields->{$_} = 1 for (@{ $params->{error_fields} || [ $field ] });
+    }
+    # Run validate method
+    elsif (ref $params->{validate} eq 'CODE' && (my $error = $params->{validate}->($ARGS{$field}, $error_fields, $params, \%ARGS))) {
+        push @errors, { params => $params, text => $error };
+        $error_fields->{$_} = 1 for (@{ $params->{error_fields} || [ $field ] });
+    }
+}
+if (@errors || $ARGS{cancel}) {
+    if ($ARGS{cancel}) {
+        $m->redirect('observations.html') if (! exists $ARGS{confirm} || $r->headers_in->{'Referer'} =~ /modify/);
+        delete $orig_args->{confirm};
+    }
+    if (@errors) {
+        my $html = '';
+        for my $error (@errors) {
+            $html .= $error->{params}->{name} . ' ' . $error->{text} . '<br/>';
+        }
+        $m->comp('/mason/notice_box.comp', type => 'error', text => '', html => $html);
+    }
+    if ($orig_args->{number}) {
+        $m->comp('/www/resources/moonproject/observation_modify.html', %$orig_args, error_fields => $error_fields, student => $student);
+    }
+    else {
+        print '<h2>Submit New Observation</h2><br/>';
+        $m->comp('/mason/db/moonproject/observation_form.comp', %$orig_args, error_fields => $error_fields);
+    }
+}
+else {
+    if ($ARGS{confirm}) {
+        for (my $i = 0; $i < @$observation_fields; $i+=2) {
+            my $field = $observation_fields->[$i];
+            my $params = $observation_fields->[$i+1];
+            # Check for deflation
+            if (ref $params->{deflate} eq 'CODE') {
+                warn "Found deflate_method for $field";
+                $ARGS{$field} = $params->{deflate}->($ARGS{$field}, \%ARGS);
+            }
+        }
+
+        use lib "/home/www/docs/staging/4445/lib";
+
+        
+        use Moonproject::Observation;
+
+        $Moonproject::term = $session{moonproject_term};
+        $Moonproject::year = $session{moonproject_year};
+        my $observation = Moonproject::Observation->new(%ARGS);
+        $observation->calculate_values;
+        my $self = $observation->calculate_grades;
+        $observation->commit;
+        $m->redirect('observations.html');
+    }
+    else {
+        print '<h2>Confirm Observation</h2><br/>';
+        $m->comp('/mason/db/moonproject/observation_form.comp', %ARGS, confirm => 1);
+    }
+}
+
+</%init>

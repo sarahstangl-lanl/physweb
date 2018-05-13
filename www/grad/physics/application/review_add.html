@@ -1,0 +1,44 @@
+
+<%DOC>
+   Component: review_add.html
+        Date: 2005.12.05
+      Author: allan
+     Changed: 2005.12.05 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id=>undef
+</%ARGS>
+
+<%INIT>
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) {$m->redirect('index.html');}
+
+if (!$id) {
+  print "Sorry, but a required parameter is missing. (How did you get here?) Please go back and try again.";
+  return;
+}
+
+my ($appid, $reviewid);
+my ($sql, $sth, $success);
+$sql = "INSERT INTO grad.review (appid, reviewer) VALUES (?,?)";
+$sth = $dbh->prepare($sql);
+$sth->execute($id, $session{'uid'}) or die 'Unable to insert: ' . $dbh->errstr;
+
+# LAST_INSERT_ID() maintained per connection, so should be safe.
+$sql = "SELECT LAST_INSERT_ID()";
+$sth = $dbh->prepare($sql);
+$success = $sth->execute();
+
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+    ($reviewid) = @$row_ref;
+}
+
+if ($reviewid) { $m->redirect("review_form.html?id=$id&amp;reviewid=$reviewid"); }
+
+</%INIT>		
+		
+<%method title>Add Review Failure</%method>
+

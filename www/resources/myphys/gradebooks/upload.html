@@ -1,0 +1,75 @@
+
+<%DOC>
+   Component: upload.html
+        Date: 2003.09.03
+      Author: allan
+     Changed: 2003.09.03 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$file=>undef
+</%ARGS>
+
+<%INIT>
+if (!$file) {
+  print 'Why are you accessing this file directly? BOO!<br/><br/><a href="index.html">Try Again</a>';
+  return;
+}
+
+my $req = Apache2::Request->new($r);
+my $destdir = "/home/groups/grades/dropbox";
+my $upload = $req->upload('file');
+my $tmpfile = $upload->tempname;
+my $filename = $upload->filename;
+my $successful_insert;
+my $result= "No file supplied";
+my $x500 = $session{'x500'};
+my $time = strftime("%d-%b-%Y %k:%M:%S", CORE::localtime);
+my ($volume, $directories, $leaf) = File::Spec->splitpath( $filename );
+if ($leaf =~ /:\\/) {
+  # get leafname from Windows filename
+  my $index = rindex($filename,"\\");
+  $leaf = substr($filename, ($index + 1));
+}
+my $destfile =  $destdir."/".$leaf;
+my $logfile =  $destdir."/logfile.txt";
+if ($filename) {
+  my $mime_type = $upload->type;
+  my $fh = $upload->fh;
+  my $data = do { local $/; <$fh> };
+  my $datasize = $upload->size;
+  if ($filename !~ /.xls$/i ) {
+    $result = "Not an Excel file?";
+    } else {
+    chmod 0666, $destfile;
+    unlink $destfile;
+    open OUTF, ">$destfile" or die "\nCan't open $destfile for writing: $!\n";
+    binmode OUTF;
+    print OUTF $data;
+    close OUTF or die "Can't close $destfile: $!\n";
+    chmod 0660, $destfile;
+
+    open LOGF, ">>$logfile" or die "\nCan't open $logfile for writing: $!\n";
+    print LOGF $time." user ".$x500." uploaded file ".$filename."\n";
+    close LOGF or die "Can't close $logfile: $!\n";
+    chmod 0660, $logfile;
+
+
+
+    if (-s $destfile ) {
+        $result = "Upload of $filename successful";
+    } else {
+        $result = "Upload of $filename failed";
+    }
+   
+  }
+}
+</%INIT>		
+		
+<%method title>Grades Upload</%method>
+<p>
+<% $result %>
+<p>
+<a href="index.html">Back to gradebooks page</a>

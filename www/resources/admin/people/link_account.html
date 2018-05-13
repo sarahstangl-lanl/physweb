@@ -1,0 +1,51 @@
+
+<%DOC>
+   Component: link_account.html
+        Date: 2009.01.28
+      Author: nick
+     Changed: 2009.01.28 by nick
+
+ Description: Links x500 accounts and employee ID numbers to existing directory entries
+</%DOC>
+
+<%ARGS>
+$uid=>undef
+$x500=>undef
+$emplid=>undef
+$physid=>undef
+$url=>undef
+</%ARGS>
+
+<%INIT>
+my $access = $m->comp('/mason/auth/auth_check_directory.comp');
+if (!$access) { $m->redirect("index.html"); }
+if (!defined($uid) || !$uid) { $m->redirect("index.html"); }
+my $query = $dbh->prepare("SELECT * FROM directory WHERE uid=? LIMIT 1");
+$query->execute($uid);
+if($query->rows) {
+  if(defined($x500) && $x500) {
+    $query = $dbh->prepare("UPDATE directory SET x500=?,modified_date=now() WHERE uid=? LIMIT 1");
+    $query->execute($x500, $uid) or die "Failed to update x500: ".$dbh->errstr;
+    $m->comp('/mason/db/auditlog/addevent.comp',
+        type=>"directory", text=>"Link: X500 $x500 to $uid",
+        directory_uid=>$uid);
+  }
+  if(defined($emplid) && $emplid) {
+    $query = $dbh->prepare("UPDATE directory SET emplid=?,modified_date=now() WHERE uid=? LIMIT 1");
+    $query->execute($emplid, $uid) or die "Failed to update emplid: ".$dbh->errstr;
+    $m->comp('/mason/db/auditlog/addevent.comp',
+        type=>"directory", text=>"Link: EMPLID $emplid to $uid",
+        directory_uid=>$uid);
+  }
+  if(defined($physid) && $physid) {
+    $query = $dbh->prepare("UPDATE directory SET physid=?,modified_date=now() WHERE uid=? LIMIT 1");
+    $query->execute($physid, $uid) or die "Failed to update physid: ".$dbh->errstr;
+    $m->comp('/mason/db/auditlog/addevent.comp',
+        type=>"directory", text=>"Link: PHYSID $physid to $uid",
+        directory_uid=>$uid);
+  }
+}
+$m->redirect($url) unless !defined($url);
+$m->redirect($r->headers_in->{'Referer'});
+</%INIT>		
+		

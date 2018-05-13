@@ -1,0 +1,24 @@
+<%doc>
+- This component will return the possible values for an 'enum' data type in a MySQL database table.
+</%doc>
+
+<%args>
+$type
+</%args>
+
+<%init>
+my $sql = "SELECT subtype,description from subtypes WHERE type='$type'";
+my $sth = $dbh->prepare($sql);
+$sth->execute();
+my $values;
+my $count = 0;
+my $row_ref;
+#$m->out("DEBUG: $sql<BR>");
+while ($row_ref = $sth->fetchrow_arrayref) {
+   my ($subtype, $desc) = @$row_ref;
+   $values .= "," if $count > 0;
+   $values .= $desc."=".$subtype;
+   $count += 1;
+}
+return $values;
+</%init>

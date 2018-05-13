@@ -1,0 +1,47 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: get_groups.comp
+        Date: 2007.08.27
+      Author: rubin
+     Changed: 2007.08.27 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$uid=>'*'
+$order=>'name'
+$type=>''
+</%ARGS>
+
+<%INIT>
+my ($sql, $sth, $where);
+$where = ($type ne '' ? 'WHERE type=' . $dbh->quote($type) : '');
+if($uid eq '*') {
+    $sql = "SELECT name, description, purpose, type, physics_all, publish, import FROM groups $where ORDER BY sort DESC, name";
+    $sth = $dbh->prepare($sql);
+    $sth->execute() or die("SQL error: $sql");
+} else {
+    $sql = "SELECT groups.name, groups.description, groups.purpose, groups.type, groups.physics_all, groups.publish, groups.import FROM groups JOIN groupmembers on groups.name=groupmembers.groupname " . ($where ? $where . ' AND ' : 'WHERE') . " uid=? ORDER BY groups.sort DESC, groups.name";
+    $sth = $dbh->prepare($sql);
+    $sth->execute($uid) or die("SQL error: $sql");
+}
+my (@groups, $row_ref);
+my $i = 0;
+while($row_ref = $sth->fetchrow_arrayref) {
+   my ($groupname, $desc, $purpose, $type, $physics_all, $publish, $import) = @$row_ref;
+   my %g;
+   $g{'name'} = $groupname;
+   $g{'description'} = $desc;
+   $g{'purpose'} = $purpose;
+   $g{'type'} = $type;
+   $g{'physics_all'} = $physics_all;
+   $g{'publish'} = $publish;
+   $g{'import'} = $import;
+   push @groups, \%g;
+}
+
+</%INIT>		
+%# $m->out("DEBUG ($sql / $uid): ". $groups[0]);
+% return(@groups);
+%# return( ('abcd','1234'));

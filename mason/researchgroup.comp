@@ -1,0 +1,29 @@
+<%doc>
+   Component: researchgroup.comp
+        Date: 8/30/2002
+      Author: allan
+ Description: translates research group code to text
+</%doc>
+
+<%args>
+$name=>''
+$code=>''
+</%args>
+
+<%once>
+my %map = (
+hep=>'Elementary Particle Physics',
+cm=>'Condensed Matter Physics',
+bio=>'Biological Physics',
+spp=>'Space and Planetary Physics',
+nuc=>'Nuclear Physics',
+cos=>'Astrophysics and Cosmology',
+edu=>'Physics Education',
+his=>'History of Science and Technology',
+ast=>'Astronomy'
+);
+</%once>
+
+<%perl>
+return $map{$code};
+</%perl>

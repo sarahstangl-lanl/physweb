@@ -1,0 +1,149 @@
+<%method title>School Talks</%method>
+
+<%method eventbox>
+<%args>
+$title
+$image
+$image_xpos
+$image_ypos
+$tagline => ''
+$date => ''
+</%args>
+<%perl>
+my $width=500;
+</%perl>
+<h3 style="background-color: #DDD; width: <% $width-14%>px; border-radius: 6px 6px 0 0; padding: 7px 7px; margin-top: 0.7em;"><%$title|h%></h3>
+<div style="background-image: url(<% $image %>); background-position: <% $image_xpos%>px <% $image_ypos%>px; padding-top: 30px; width:<%$width%>px; background-repeat: no-repeat; ">
+    <div style="background-image:url(/images/opaque_84.png); padding: 0 1em 0 1em; padding-top: 0.2em; padding-bottom: 0.5em;">
+        <div style="font-weight: bold; font-style: italic; font-size: 1.1em;"><% $tagline|h%></div>
+        <div style="font-weight: normal;"><% $date|h%></div>
+        <% $m->content %>
+    </div>
+</div>
+</%method>
+
+<table style="xxwidth: 100%;">
+    <tr>
+        <td valign="top">
+            <div style="width: 500px;">
+                <h2>Upcoming Events</h2>
+                <div style="padding-left: 1em;">
+                    <&|SELF:eventbox,
+                        title => "2013 Van Vleck Lecture",
+                        image => "Vger.jpg",
+                        image_xpos => -10,
+                        image_ypos => -70,
+                        tagline => 'The Epic Journey of Voyager 1 into Interstellar Space',
+                        date => '6:30 p.m., February 6, 2014'
+                    &><p>Don Gurneett, University of Iowa, will delliver the 2013 Van Vleck Lecture. <a href="http://www.physics.umn.edu/events/calendar/spa.all/future/calendar.html?item=26821">More information here</a>. Lecture is available <a href="http://mediasite.uvs.umn.edu/Mediasite/Viewer/?peid=f5beeab616604de29c6cbfb879be688e">here.</a></&>
+
+                    <&|SELF:eventbox,
+                        title => "Physics Slam on Ice",
+                        image => "GenericPhysicsGraphicEvent.jpg",
+                        image_xpos => 0,
+                        image_ypos => -200,
+                        tagline => 'Six Physicists or "contestants" presented their ideas to be judged by the public in a game show style format.',
+                        date => 'August 2, 2013'
+                    &><p>Watch the whole physics slam <a href="http://www.youtube.com/watch?v=b1q46oeuG4Q&feature=youtu.be">on youtube.</a></&>
+
+                    <&|SELF:eventbox,
+                        title => "2013 Misel Lecture",
+                        image => "GenericPhysicsGraphicEvent.jpg",
+                        image_xpos => 0,
+                        image_ypos => -200,
+                        tagline => 'Eric Cornell, University of Colorado at Boulder, spoke on "Why is Warm Glass Sticker Than Cold Glass?"',
+                        date => 'September 24, 2013'
+                    &><p>Watch the lecture <a href="https://umconnect.umn.edu/p52111255/">online.</a></&>
+
+                    <&|SELF:eventbox,
+                        title => "Misel Family Lecture",
+                        image => "john_ellis2.jpg",
+                        image_xpos => 00,
+                        image_ypos => -115,
+                        tagline => 'John Ellis, Kings College London and CERN, "Answering Gauguin\'s Questions with the LHC: Where do we come from?"',
+                        date => 'Sept 18, 2012'
+                    &><p><a href="https://umconnect.umn.edu/p88518292/">Watch online.</a></p></&>
+
+                    <&|SELF:eventbox,
+                        title => "Van Vleck Public Talk",
+                        image => "Carbonweb.jpg",
+                        image_xpos => -00,
+                        image_ypos => -160,
+                        tagline => 'Mildred Dresselhaus: "The Promise of Nanomaterials for Theromelectric Applications"',
+                        date => 'April 26, 2012 at 5:00pm'
+                    &><p>Watch <a href="http://mediasite.uvs.umn.edu/Mediasite/Viewer/?peid=b722dac899034689af0bbc5729fde95c">online.</a></p></&>
+
+                    <&|SELF:eventbox,
+                        title => "Kaufmanis Lecture",
+                        image => "eris.jpg",
+                        image_xpos => -100,
+                        image_ypos => -390,
+                        tagline => '"How I Killed Pluto and Why It Had It Coming"',
+                        date => 'Thursday April 12, 2012 at 7:30pm'
+                    &><p>Mike Brown, Professor of Planetary Astronomy, California Institute of Technology <a href="https://www.youtube.com/watch?v=7pbj_llmiMg">Watch online.</a></p></&>
+
+                    <&|SELF:eventbox,
+                        title => "The Physics of Cooking",
+                        image => "cooking.jpg",
+                        image_xpos => -10,
+                        image_ypos => -70,
+                        tagline => 'Public Lecture, February 9, 2012'
+                    &><p>David Weitz, Harvard University delivered a public lecture on "The Physics of Cooking" to 550 people at the School of Physics and Astronomy. The lecture is <a href="http://mediasite.uvs.umn.edu/Mediasite/Viewer/?peid=2983c9329da44d8ebb95b37c51eab65e">available online</a>. The recipes used in the lecture are also <a href="http://www.physics.umn.edu/outreach/WeitzRecipes.pdf">available to download</a>.</p></&>
+
+                    <&|SELF:eventbox,
+                        title => "2011 Misel Lecture",
+                        image => "GenericPhysicsGraphicEvent.jpg",
+                        image_xpos => 0,
+                        image_ypos => -200,
+                        tagline => 'Roger Blandford, Kavli Institute, Stanford University, SLAC, "The Dark Side of the Universe"',
+                        date => ''
+                    &><p>Watch <a href="https://umconnect.umn.edu/p64312526/">online.</a></&>
+
+                    <&|SELF:eventbox,
+                        title => "2010 Misel Lecture",
+                        image => "GenericPhysicsGraphicEvent.jpg",
+                        image_xpos => 0,
+                        image_ypos => -200,
+                        tagline => 'David Mermin, Cornell University, "Spooky Actions at a Distance?"',
+                        date => ''
+                    &><p>Watch <a href="https://umconnect.umn.edu/p21439731/">online.</a></&>
+
+                    <&|SELF:eventbox,
+                        title => "2009 Misel Lecture",
+                        image => "GenericPhysicsGraphicEvent.jpg",
+                        image_xpos => 0,
+                        image_ypos => -200,
+                        tagline => 'Helen Quinn, Stanford University, SLAC, "Wandering planets, falling apples, curving spaces, whirling stars: How unraveling the mysteries of gravity have taught us about the Universe"',
+                        date => ''
+                    &><p>Watch <a href="https://umconnect.umn.edu/p16547467/">online.</a></&>
+
+                    <&|SELF:eventbox,
+                        title => "2008 Misel Lecture",
+                        image => "GenericPhysicsGraphicEvent.jpg",
+                        image_xpos => 0,
+                        image_ypos => -200,
+                        tagline => 'P. James E. Peebles
+                        Princeton University, "Finding the Big Bang"',
+                        date => ''
+                    &><p>Watch <a href="https://umconnect.umn.edu/p82335239/">online.</a></&>
+
+                    <&|SELF:eventbox,
+                        title => "2007 Misel Lecture",
+                        image => "GenericPhysicsGraphicEvent.jpg",
+                        image_xpos => 0,
+                        image_ypos => -200,
+                        tagline => 'Leo P. Kadanoff, University of Chicago "Making a Splash; Breaking a Neck: The Development of Complexity in Physical Systems"',
+                        date => ''
+                    &><p>Watch <a href="https://umconnect.umn.edu/p72267057/">online.</a></&>
+                </div>
+            </div>
+        </td>
+        <td style="xxwidth: 500px;" valign="top">
+            <div class="evcalbox" style="max-width: 600px; margin-left: 2em; margin-top: 0em;">
+                <h2>Calendar</h2>
+                <& /mason/db/frontpagecal.comp, limit => 16, details => 1 &>
+            </div>
+        </td>
+    </tr>
+</table>
+

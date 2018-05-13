@@ -1,0 +1,49 @@
+<%doc>
+vim:set syntax=mason:
+
+Yes, theres both a head and a header method in here. head is <head> section, header is the U's header html...
+</%doc>
+<%method head>
+<%args>
+$printarg => 0
+</%args>
+<link href="/include/cse_umn_template/lib/css/cse_default.css" rel="stylesheet" type="text/css" media="screen" />
+<link href="/include/cse_umn_template/fetched/cse.css" rel="stylesheet" type="text/css" media="screen" />
+%if($printarg) {
+<link href="/include/cse_umn_template/fetched/cse_print.css" rel="stylesheet" type="text/css" />
+%} else {
+<link href="/include/cse_umn_template/fetched/cse_print.css" rel="stylesheet" type="text/css" media="print" />
+%}
+<!--<script type="text/javascript" src="/include/cse_umn_template/fetched/jquery-1.4.1.min.js"></script>
+<script type="text/javascript" src="/include/cse_umn_template/fetched/cse.js"></script>
+-->
+<!-- STYLE SHEETS TO FIX INTERNET EXPLORER INCONSISTENCIES -->
+<!--[if IE 6]>
+<style type="text/css" media="screen">
+@import url("/include/cse_umn_template/lib/css/IE6.css");
+</style>
+<![endif]-->
+<!--[if IE 7]>
+<style type="text/css" media="screen">
+@import url("/include/cse_umn_template/lib/css/IE7.css");
+</style>
+<![endif]-->
+
+<!--END CSE BRANDING SCRIPTS-->
+</%method>   
+
+
+<!-- BEGIN CSE BRANDING HEADER Version 1.0 -->
+<div id="CSEHeader">
+    <ul>
+    <li><a id="CSELogo" href="http://cse.umn.edu">College of Science and Engineering</a></li>
+    </ul>
+<!-- following bit pasted from cse.js -->
+<div id="CSELinks"><ul><li><a href="http://cse.umn.edu/">CSE Home</a></li><li><a href="http://cse.umn.edu/directory/">CSE Directory</a></li><li><a href="http://cse.umn.edu/giving/">Give to CSE</a></li><li class="last"><a href="http://cse.umn.edu/dashboard/">Student Dashboard</a></li></ul></div>
+<!-- end of pasted bit -->
+
+</div>
+
+<!-- END CSE BRANDING HEADER -->
+
+

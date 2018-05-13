@@ -1,0 +1,62 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: loginaudits.html
+        Date: 2008.10.07
+      Author: nick
+
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%method title>
+Login Audits
+</%method>
+
+<%init>
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+if(!$auth) {
+    print "Must be admin\n";
+    return;
+}
+</%init>
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+            table              => 'accounting.login_accounting',
+            field_params       => {
+                                     'from'        => {
+                                                        'name'           => 'Target'
+                                                      },
+                                     'timestamp'   => {
+                                                        'nowrap'         => 1,
+                                                        # Don't sort by timestamp as there is no index
+                                                        'sort_name'      => 'id',
+                                                      },
+                                     'id'          => {
+                                                        'hidden'         => 1,
+                                                      },
+                                     'uid'         => {
+                                                        'header_format' => 'uc',
+                                                        'url'            => '/resources/admin/people/user.html?uid=$row{uid}&physid=$row{physid}&x500=$row{x500}',
+                                                      },
+                                     'host_id'     => {
+                                                        'name'           => 'Host ID',
+                                                        'url'            => '/resources/admin/network/host.html?id=$row{host_id}',
+                                                      },
+                                     'hostname'    => {
+                                                        'url'            => '/resources/admin/network/host.html?id=$row{host_id}',
+                                                      },
+                                     'x500'        => {
+                                                        'url'            => '/resources/admin/people/user.html?uid=$row{uid}&physid=$row{physid}&x500=$row{x500}',
+                                                      },
+                                     'physid'      => {
+                                                        'url'            => '/resources/admin/people/user.html?uid=$row{uid}&physid=$row{physid}&x500=$row{x500}',
+                                                      },
+                                  },
+            header_format      => 'ucfirst',
+            no_calc_found_rows => 1,
+            field_list         => ['id','physid','x500','uid','host_id','hostname','event','`from`','timestamp'],
+            default_sort_field => 'id',
+            default_sort_dir   => 'desc',
+        );
+</%perl>

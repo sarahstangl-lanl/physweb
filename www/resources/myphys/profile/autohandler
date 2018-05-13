@@ -1,0 +1,28 @@
+<%doc>
+    vim: set syntax=mason:
+</%doc>
+% $m->comp('/mason/auth/auth_block.comp', internal=>'yes');
+<% $m->call_next %>
+
+<%method title>MyPhys Directory Profile</%method>
+<%method titlemenu_below>
+    <%init>
+    my %args = $m->request_args();
+    my $uid = $args{'uid'};
+    if($uid !~ /^[0-9]*$/) {
+        return;
+    }
+    my $staff = $m->comp("/mason/auth/auth_check.comp", auth_type=>"staff");
+   </%init>
+   <& /mason/titlemenu.comp:begin, type=>"below" &>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/myphys/profile/index.html".($uid ? "?uid=$uid" : "") &>Preview</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/myphys/profile/edit_dirinfo_form.html".($uid ? "?uid=$uid" : "") &>Edit Directory</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/myphys/profile/edit_profile_form.html".($uid ? "?uid=$uid" : "") &>Edit Personal</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/myphys/profile/edit_research_form.html".($uid ? "?uid=$uid" : "") &>Edit Interests</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/myphys/profile/edit_paper_form.html".($uid ? "?uid=$uid" : "") &>Publications</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/myphys/profile/profile_help.html".($uid ? "?uid=$uid" : "") &>Help</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+
+<!-- vim: set syntax=mason: -->
+

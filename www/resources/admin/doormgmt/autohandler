@@ -1,0 +1,17 @@
+<%doc>
+    vim: set syntax=mason:
+</%doc>
+<% $m->call_next %>
+<%method titlemenu_above>
+   <& /mason/titlemenu.comp:begin, type=>"above" &>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/doormgmt/index.html'  &>Overview</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/doormgmt/new_door_form.html'  &>Create Doorlock</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/doormgmt/doorpins.html'  &>Door PIN Management</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/audits/dooraudits.html'  &>Door Audits</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/doormgmt/missingcards.html'  &>View Missing UCards</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/doormgmt/manual_resolve.html'  &>Manually Resolve Audits</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+<%method title>Door Management</%method>
+<!-- vim: set syntax=mason: -->
+

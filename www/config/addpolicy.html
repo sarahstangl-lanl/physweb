@@ -1,0 +1,50 @@
+<%flags>
+inherit=>undef
+</%flags>
+<%args>
+@polFile=>()
+@polString=>()
+$polDesc=>undef
+$debug=>undef
+</%args>
+<%init>
+use MIME::Base64;
+use Data::Dumper;
+</%init>
+% if (defined($debug)) {
+<html>
+<head>
+<title>Group Policies</title>
+<style>
+TD {border-top:1px solid black;}
+</style>
+</head>
+<body>
+% }
+<%perl>
+if (!defined($dbh)) { return; } # Check database connection
+print "Policy Files:\n".Dumper(\@polFile) if scalar(@polFile);
+print "Policy Strings:\n".Dumper(\@polString) if scalar(@polString);
+print "Policy Description: $polDesc\n" if defined($polDesc);
+my $sth;
+if (defined($polDesc) && scalar(@polFile) && scalar(@polString) == scalar(@polFile)) {
+    $sth = $dbh->prepare("INSERT INTO grouppolicy.policies (name) VALUES (?)") or die "Failed to prepare: ".$dbh->errstr;
+    $sth->execute($polDesc) or die "Failed to insert: ".$sth->errstr;
+    my $id = $dbh->{'mysql_insertid'};
+    print "Policy ID: $id\n";
+    for (my $i = 0; $i < scalar(@polFile); $i++) {
+        $sth = $dbh->prepare("INSERT INTO grouppolicy.policystrings (policyid, filename, string) VALUES (?, ?, ?)");
+        $sth->execute($id, $polFile[$i], $polString[$i]) or die "Failed to insert: ".$sth->errstr;
+    }
+}
+if (defined($debug)) {
+    $sth = $dbh->prepare("SELECT a.id, a.name, b.filename, b.string FROM grouppolicy.policies a JOIN grouppolicy.policystrings b ON a.id = b.policyid");
+    $sth->execute() or die "Couldn't get policies: ".$sth->errstr;
+    print "<table><tr><th>ID</th><th>Name</th><th>Filename</th><th>String</th></tr>\n";
+    while (my $row = $sth->fetchrow_hashref) {
+        (my $filtered_string = decode_base64($$row{'string'})) =~ s/\x00//g;
+        print "<tr><td>$$row{'id'}</td><td>$$row{'name'}</td><td>".decode_base64($$row{'filename'})."</td><td>$filtered_string</td></tr>\n";
+    }
+    print "</table></body></html>";
+}
+</%perl>

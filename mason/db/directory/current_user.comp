@@ -1,0 +1,43 @@
+<%doc>
+   Component: current_user.comp
+        Date: 9/6/2002
+      Author: allan
+ Description: returns full name of currently logged-in user (or x500/phys id)
+</%doc>
+
+<%args>
+$try_umn => undef;
+</%args>
+
+<%init>
+    use Net::LDAP;
+    if (defined($session{'display_name'})) { return $session{'display_name'}; }
+    my $result = $m->comp('/mason/db/directory/uid_to_name.comp');
+    if (!defined($result)) {
+        if ($session{'x500'}) {
+            if ($try_umn) {
+                my ($mesg, $entry);
+                my $ldap = Net::LDAP->new( 'ldap.umn.edu', onerror => undef, timeout => 2 );
+                $mesg = $ldap->search( base => "o=University of Minnesota,c=US", filter => "(uid=$session{'x500'})" ) unless !$ldap || !$ldap->bind;
+                $entry = $mesg->entry(0) unless !$mesg || !$mesg->count;
+                $result = $entry->get_value('givenName').' '.$entry->get_value('sn') unless !$entry;
+                $ldap->unbind unless !$ldap;
+            }
+            if(!$result) {
+                $result = $session{'x500'};
+            }
+        } elsif ($session{'physid'}) {
+            $result = $session{'physid'};
+        } elsif ($session{'fauxid'}) {
+        	my $sth = $dbh->prepare("SELECT last_name, first_name FROM fauxauth WHERE fauxid = ?");
+        	$sth->execute($session{'fauxid'});
+        	if (my $row = $sth->fetchrow_hashref) {
+        		$result = $row->{first_name}." ".$row->{last_name};
+        	} else {        	
+	            $result = $session{'fauxid'};
+	        }
+        }        
+    }
+    $session{'display_name'} = $result if $result;
+    return $result;
+</%init>

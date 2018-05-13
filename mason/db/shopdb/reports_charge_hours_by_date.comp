@@ -1,0 +1,92 @@
+<%args>
+$schema
+$machinist_id => undef
+$helper_methods
+</%args>
+<%init>
+use tablesearch;
+use Data::Dumper;
+use DateTime;
+#my $dt = DateTime->now->truncate( to => 'month' );
+#my $dt = DateTime->new(year => 2012, month => 8);
+my $dates = $m->comp('/mason/db/shopdb/date_range.comp', hide_form => 1, no_clear => 1);
+my $start_date = $dates->{start_date};
+my $month = $start_date->month;
+$start_date->subtract(days => $start_date->dow % 7);
+my $days_needed = $dates->{end_date}->delta_days($start_date)->in_units('days');
+my $today = DateTime->now->truncate( to => 'day' );
+my $is_in_future = DateTime->compare($today, $dates->{start_date}) < 0;
+my $is_current_month = DateTime->compare($today, $dates->{end_date}) == 0;
+if ($is_in_future) {
+    $days_needed = 0;
+}
+elsif ($is_current_month) {
+    $days_needed++;
+}
+else {
+    $days_needed = $days_needed >= 35 ? 42 : 35;
+}
+my $end_date = $start_date->clone->add( days => $days_needed - 1 );
+my @machinist_filter;
+push (@machinist_filter, 'me.machinist_id' => $machinist_id) if ($machinist_id);
+my $labor = { };
+my $labor_rs = $schema->resultset('LaborLines')->search_rs({
+    'me.active' => 1,
+    'me.charge_date' => { '>=' => $start_date->ymd, '<=' => $end_date->ymd },
+    @machinist_filter,
+},
+{
+    '+select' => [ qw/machinist.shortname job.project_name/ ],
+    '+as' => [ qw/machinist project_name/ ],
+    'join' => [ 'machinist', 'job' ],
+    'order_by' => { -asc => 'charge_date' },
+});
+my @machinists = $schema->resultset('Machinists')->active->exclude_admin->search({ @machinist_filter }, { order_by => { -asc => 'me.shortname' } });
+my @labor_lines = $labor_rs->all;
+for my $labor_line (@labor_lines) {
+    $labor->{$labor_line->charge_date}->{$labor_line->get_column('machinist')} += $labor_line->charge_hours;
+}
+my @leaves = $schema->resultset('Leaves')->search(
+    {
+        'me.date' => { '>=' => $start_date->ymd, '<=' => $end_date->ymd },
+    },
+    {
+        '+select' => [ qw/machinist.shortname/ ],
+        '+as' => [ qw/machinist/ ],
+        'join' => 'machinist',
+    }
+);
+for my $leave (@leaves) {
+    $labor->{$leave->date}->{$leave->get_column('machinist')} += $leave->hours;
+}
+print '<h2>Charge Hours by Month</h2>';
+print '<table><tr>' . join('', map { "<th>$_</th>" } (qw/Sun Mon Tue Wed Thu Fri Sat/)) . '</tr>';
+my $dt = $start_date->clone;
+for (my $i = 0; $i < $days_needed; $i++) {
+    print '<tr>' if ($i % 7 == 0);
+    print '<td><table><tr><th colspan="2"><span style="color: ' . ($dt->month != $month ? '#999' : 'black') . '">' . $dt->ymd . '</span></th></tr><tr>';
+    print join('</tr><tr>', map {
+        my $total = ($labor->{$dt->ymd}->{$_->shortname} || 0);
+        my $color = (($dt->dow > 5 || !$_->fulltime) && $total <= 8) ? 'black' : ($_->fulltime && $total != 8 || $total > 8) ? 'red' : 'green';
+        '<td align="right"><a href="?' . _args(%{ $dates->{url_args} }, report => 'machinist_charge_hours', machinist_id => $_->id) . '#' . $dt->ymd . '">' . $_->shortname . '</a></td><td><span style="color: ' . $color . '">' . sprintf("%.02f", $total) . '</span></td>';
+    } (@machinists));
+    print '</tr></table></td>';
+    print "</tr>\n" if ($i % 7 == 6);
+    $dt->add( days => 1 );
+}
+print '</table>';
+my $ts = Tablesearch->new(
+    debug => 0,
+    resultset => $labor_rs,
+    header_format => 'ucfirst_all',
+    columns => [qw/job_id project_name description machinist charge_hours charge_date finalized active/],
+    field_params => {
+        job_id => $helper_methods->job_id,
+        project_name => $helper_methods->project_name,
+        finalized => $helper_methods->checkbox,
+        active => $helper_methods->checkbox,
+    },
+    extra_url_args => [ keys %{ $dates->{url_args} } ],
+);
+$ts->display;
+</%init>

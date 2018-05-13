@@ -1,0 +1,81 @@
+<%doc>
+   Compontent: dhandler
+         Date: 7/3/2007
+    Author: Alex
+    Description: pull up article by id.
+</%doc>
+
+<%args>
+$view=>''
+$when=>'top'
+</%args>
+
+<%shared>
+  my $arg = $m->dhandler_arg;
+  $arg =~ /[^-a-zA-Z0-9_.]/go;
+  $arg =~ s/.html//g;
+  my ($type, $wanted_id) = split('/', $arg);
+  my $story;
+  
+  if (!$type || $type eq 'index') {
+    $m->redirect("general/");
+    $type = 'news';
+  }
+  elsif ($type eq 'general') {
+    $type = 'news';
+  }
+  # Support both formats: /about/news/$STORYID and /about/news/$CATEGORY/$STORYID
+  if ($wanted_id =~ /^[0-9]+$/) {
+     $story = $wanted_id;
+  } elsif ($type =~ /^[0-9]+$/) {
+     #print "DEBUG: $type, $wanted_id";
+     $m->redirect("/about/news/general/$type/$wanted_id");
+     #$story = $type;
+  }
+</%shared>
+
+<%init>
+$r->content_type("text/html");
+</%init>
+
+<%method title>
+    <%perl>
+        my $fancytype = $type;
+        if($fancytype eq 'news') {
+            $fancytype = "general_news"; #TODO: delete this after db news->general change is complete
+        }
+        $fancytype =~ s/[^0-9a-zA-Z]/ /g; # /
+        $fancytype = join(' ', map { ucfirst($_) } split(' ', $fancytype));
+        $m->out(ucfirst $fancytype);
+    </%perl>
+</%method>
+
+<%method whereamifilter>
+<%args>
+$partsref
+</%args>
+<%perl>
+# Force custom handling of whereami breadcrumb bar; just truncate it at home>about>news for all pages and let the menu bar do the rest
+pop(@$partsref);
+pop(@$partsref);
+return @$partsref;
+</%perl>
+</%method>
+
+<%method titlemenu_below>
+<& /mason/titlemenu.comp:begin, type=>"below" &>
+% my %args = $m->request_args();
+<& /mason/db/stories/storyblog.comp:yearmenuitems, type=>$type, year=>$args{'year'}, args=>\%args  &>
+<& /mason/titlemenu.comp:end &>
+</%method>
+
+<%perl>
+if($story) {
+  $m->comp("/mason/db/stories/story.comp", story=>$story, auth=>$m->comp("/mason/auth/auth_check_events.comp"), type=>$type);
+} else {
+  $m->comp("/mason/db/stories/storyblog.comp", type=>$type, args=>\%ARGS );
+}
+
+</%perl>
+%# vim: set syntax=mason: 
+

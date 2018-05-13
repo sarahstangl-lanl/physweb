@@ -1,0 +1,17 @@
+%# vim:set syntax=mason:
+% $m->comp('/mason/auth/auth_block.comp');
+<% $m->call_next %>
+<%method subtitle></%method>
+<%method title>
+MyPhys <&SELF:subtitle&>
+</%method>
+<%method whereamifilter>
+<%args>
+$partsref
+</%args>
+<%perl>
+#Hard code breadcrumbs in the myphys area so they always just end at myphys
+my $new = [{original=>"resources", display=>"Resources"}]; #{original=>"myphys", display=>"MyPhys"}];
+return @$new;
+</%perl>
+</%method>

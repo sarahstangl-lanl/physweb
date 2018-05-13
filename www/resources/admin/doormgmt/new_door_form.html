@@ -1,0 +1,20 @@
+<%init>
+unless ($m->comp('/mason/auth/auth_check_sysadm.comp')) {
+    print '<h2>You are not authorized to create door locks</h2>';
+    return;
+}
+if ($ARGS{'message'}) {
+    $m->comp('/mason/notice_box.comp', text => $ARGS{'message'});
+}
+</%init>
+<br/>
+<form action="new_door.html" method="post">
+<table>
+    <tr>
+        <th align="right">Door name:</th><td><input type="text" name="name" value="<% $ARGS{'name'} |h %>"/></td>
+    </tr>
+    <tr><th align="right">Door type:</th><td><select name="type"><option value="magstripe">Magstripe</option><option value="proximity">Proximity</option></select></td></tr>
+</table>
+<br/>
+<input type="submit" value="Create doorlock" name="submit"/>
+</form>

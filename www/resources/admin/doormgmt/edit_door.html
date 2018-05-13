@@ -1,0 +1,89 @@
+<%args>
+$door_id => undef
+</%args>
+<%init>
+use physdb::doorlocks;
+use physdb::door_groups;
+
+$m->redirect('index.html') unless ($door_id);
+
+$m->redirect('index.html?message=' . _u("You do not have permission to modify doorlocks"))
+    unless ($m->comp('/mason/auth/auth_check_sysadm.comp') || $m->comp('/mason/auth/auth_check_door_mgr.comp', door_id => $door_id));
+
+my $doorlock = Doorlocks->new(door_id => $door_id);
+
+$m->redirect('index.html?message=' . _u("Invalid door_id " . $door_id))
+    unless ($doorlock->{'loaded'});
+
+# Add/remove group/manager
+if ($ARGS{'action'}) {
+    unless ($ARGS{'action'} =~ /^(add|remove|edit)_(group|manager|timezone)$/) {
+        $m->redirect("edit_door_form.html?door_id=$door_id&message=" . _u("Invalid action"));
+    }
+    my $method = lc($ARGS{'action'});
+    my $arg;
+    if ($ARGS{'action'} =~ /group/) {
+        if ($ARGS{'action'} =~ /edit/) {
+            $method = 'update_group_timezones';
+            for my $key (keys %ARGS) {
+                # Generate zone mask for each group
+                if ($key =~ /group_([^_]+)_tz(\d)/) {
+                    $arg->{$1} = ($arg->{$1} || 0) | (128 >> $2);
+                }
+            }
+            $arg ||= {};
+        }
+        else { # add/remove group
+            $arg = $ARGS{'group'};
+            $m->redirect("edit_door_form.html?door_id=$door_id&message=" . _u("No group selected"))
+                unless ($arg);
+        }
+    }
+    elsif ($ARGS{'action'} =~ /manager/) {
+        $arg = $m->comp('/mason/ajax/peoplefinder_to_uid.comp', name => $ARGS{'manager'});
+        $m->redirect("edit_door_form.html?door_id=$door_id&message=" . _u("No manager selected"))
+            unless ($arg);
+    }
+    elsif ($ARGS{'action'} eq 'remove_timezone') {
+        $arg = $ARGS{'zone_bit'};
+        $m->redirect("edit_door_form.html?door_id=$door_id&message=" . _u("Failed to remove timezone: Missing zone bit"))
+            unless (defined $arg);
+    }
+    else { # add/edit timezone
+        my @params = (qw/start_time end_time days pin_req spans_midnight/);
+        push @params, 'zone_bit' if ($ARGS{'action'} =~ /edit/);
+        for my $param (@params) {
+            # Require all timezone params
+            $m->redirect("edit_door_form.html?" . _args( %ARGS, message => "Bad timezone args: Missing $param"))
+                unless (exists $ARGS{$param} && $ARGS{$param} ne '');
+            $arg->{$param} = $ARGS{$param};
+        }
+    }
+    if ($doorlock->$method($arg)) {
+        $m->redirect("edit_door_form.html?door_id=$door_id&message=" . _u(join(' ', map { ucfirst } split /_/, $ARGS{'action'}) . ' successful'));
+    }
+    else {
+        $m->redirect('edit_door_form.html?' . _args( %ARGS, message => $doorlock->dumperrors ));
+    }
+}
+# Else modify door parameters
+else {
+    $doorlock->set(
+        type            => $ARGS{'type'},
+        name            => $ARGS{'name'},
+        lockdays        => $ARGS{'lockdays'} || undef,
+        unlockdays      => $ARGS{'unlockdays'} || undef,
+        locktime        => $ARGS{'locktime'} || undef,
+        unlocktime      => $ARGS{'unlocktime'} || undef,
+        generate_pin    => $ARGS{'generate_pin'},
+    );
+
+    if ($doorlock->save) {
+        $doorlock->log_changes;
+        $m->redirect('edit_door_form.html?door_id=' . $doorlock->get('door_id') . '&message=' . _u("Changes saved."));
+    }
+    else {
+        $m->redirect('edit_door_form.html?' . _args( message => $doorlock->dumperrors, %ARGS ));
+    }
+}
+</%init>

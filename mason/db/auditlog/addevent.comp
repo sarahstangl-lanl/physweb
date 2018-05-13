@@ -1,0 +1,35 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: addevent.comp
+        Date: 2003.09.11
+      Author: allan
+</%DOC>
+
+<%ARGS>
+$user=>($session{'x500'} ? $session{'x500'} : $session{'physid'})
+$type=>''
+$text=>''
+$newline_to_multiple => 0
+$prefix => ''
+$directory_uid=>''
+</%ARGS>
+
+<%INIT>
+use physdb::auditlog;
+
+AuditLog->new(dbh => $dbh)->add_audit_entry(
+        user                => $user,
+        type                => $type,
+        text                => $text,
+        newline_to_multiple => $newline_to_multiple,
+        prefix              => $prefix,
+        directory_uid       => $directory_uid,
+        address             => $r->connection->get_remote_host(),
+        user_agent          => $ENV{HTTP_USER_AGENT},
+);
+
+</%INIT>		
+
+<%filter>
+s/.//gos
+</%filter>

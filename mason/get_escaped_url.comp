@@ -1,0 +1,26 @@
+
+<%DOC>
+   Component: geturi.comp
+        Date: 2008.09.24
+      Author: clayton
+     Changed: 2008.09.24 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+  my $uri = HTML::Entities::encode($r->uri);
+  $uri =~ s/ /\%20/g;
+  if ($r->args) {
+    $uri .= $m->interp->apply_escapes('?' . $r->args(), 'u');
+  }
+  return $uri;
+</%INIT>
+
+<%filter>
+s/.//gos
+</%filter>	
+		

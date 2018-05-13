@@ -1,0 +1,117 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: login.html
+        Date: 9/2/2002
+      Author: allan
+ Description:
+
+THIS FILE IS NOW USED FOR PHYS AUTH
+COOKIEAUTH IS USED FOR x500
+See old revisions for x500 version...
+</%doc>
+
+<%args>
+$user=>undef
+$pw=>undef
+$url=>'welcome.html'
+</%args>
+
+<%init>
+use Data::Dumper;
+use Apache2::ServerUtil;
+use Apache2::Cookie;
+use Digest::MD5 qw(md5_hex);
+my $auth_test=0;
+my $port = $r->get_server_port();
+my $s = Apache2::ServerUtil->server;
+my $site = $s->dir_config('SiteName');
+my %cookies = Apache2::Cookie->fetch($r);
+my $cookie_name = $site eq 'htphysics' ? 'UMNPHYS_SESSION_ID' : "UMNPHYS_STAGING_${port}_SESSION_ID";
+my $cookie = $cookies{$cookie_name};
+
+my $message;
+my $extret = '';
+
+if (!defined($dbh)) {
+$m->comp('/mason/redirect.comp', url=>'unavailable.html');
+}
+
+if (!defined($cookie)) {
+  $m->comp('/mason/redirect.comp', url=>'cookie.html');
+}
+
+if (($user) && ($pw)) {
+  #$auth_test = $m->comp('/mason/auth/x500.comp',user=>$user,pw=>$pw);
+  #$auth_test = $m->comp('/mason/auth/x500direct.comp',user=>$user,pw=>$pw,extret=>\$extret);
+  $auth_test = $m->comp('/mason/auth/phys.comp',user=>$user,pw=>$pw,extret=>\$extret);
+  if ($auth_test) {
+    $m->out("<b>Welcome, ".$user."</b>");
+    $m->comp('/mason/auth/auth_register.comp', physid=>$user);
+    $m->comp('/mason/db/auditlog/addevent.comp',type=>"login", user=>$session{'physid'}, text=> $session{'physid'}." logged in with physauth");
+
+    my $cookie = Apache2::Cookie->new($r,
+        -name => 'UMNPHYS_PERSIST',
+        -value => 'phys|' . $session{'x500'} . '|' . $session{'physid'},
+        -expires => '+10Y',
+        -path => '/',
+        -domain => '.umn.edu',
+    );
+    if (defined($cookie)) {
+        $cookie->bake($r);
+    } 
+#  } else {
+#    # Faux/WikiOnly Login
+#    my $query = $dbh->prepare('SELECT password FROM fauxauth WHERE fauxid=? LIMIT 1');
+#    my $result = $query->execute($user);
+#
+#    if ($result && (my $row = $query->fetchrow_hashref())) {
+#      my $salt = substr($$row{'password'}, 0, 8);
+#      my $hash = substr($$row{'password'}, 8);
+#      if (md5_hex($salt, $pw) eq $hash) {
+#        # Valid Login
+#        $auth_test = 1;
+#        my $lcuser = lc($user);
+#        $query = $dbh->prepare('UPDATE websession.sessions SET fauxid=? WHERE id=? LIMIT 1');
+#        $query->execute($lcuser, $cookie->value());
+#        $m->comp('/mason/db/auditlog/addevent.comp',type=>"login", user=>$lcuser, text=> $lcuser." logged in with fauxauth");
+#        $m->out("<b>Welcome, ".$user." (Faux/Wiki)</b>");
+#        $session{'login_force_redirect'} = 1;
+#        $session{'fauxauth'} = 1;
+#        $session{'fauxid'} = $lcuser;
+#
+#        my $cookie = Apache2::Cookie->new($r,
+#            -name => 'UMNPHYS_PERSIST',
+#            -value => 'faux||' . $lcuser,
+#            -expires => '+10Y',
+#            -path => '/',
+#            -domain => '.umn.edu',
+#        );
+#        if (defined($cookie)) {
+#            $cookie->bake($r);
+#        } 
+#      }
+#    }
+  }
+}
+</%init>
+
+<%method title>Physics Web Login</%method>
+<%method login></%method>
+
+<%perl>
+if ($auth_test) {
+  if ($url) { $m->comp('/mason/redirect.comp', url=>$url); }
+} else {
+  if ($extret eq 'CONNFAIL') {
+    $message = 'The connection to the password authentication server failed.<p>If this problem persists, please contact us at http://zzz.physics.umn.edu/computing/contact';
+  } else {
+    $message = "We were unable to authenticate you using that username and password.<p>";
+    if ($pw eq uc($pw)) {
+      $message .= "Please make sure that your CAPS LOCK key is not set.";
+    } else {
+#      $message .= "If login problems continue, please call 1-HELP (612-301-4357) and ask if your internet account is blocked for any reason. University of Minnesota OIT Security will sometimes block accounts from login to the wireless network or modem pool (if they detect a virus infection, for example), and this block will also affect login to our web site.";
+    }
+  }
+  $m->redirect("index.html?phys=1&url=$url&message=$message");
+}
+</%perl>

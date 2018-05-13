@@ -1,0 +1,629 @@
+<%args>
+    $start_edit => undef
+    $end_edit => undef
+    $reserve_slot_id => 0
+    $reserve_clear => undef
+    $reserve => undef
+    $update => undef
+    $update_id => undef
+    $update_title => ''
+    $update_slug => undef
+    $update_multi_reservations => undef
+    $update_closed => undef
+    $update_new => undef
+
+    $reserve_success => undef
+    $reserve_toolate => undef
+    $reserve_x500 => undef
+
+    # quiet is the "view as normal user" display
+    $quiet => undef
+    # nologin for people who are not authed and just viewing
+    $nologin => ''
+
+    # Do not print buttons in 'print view'
+    $hidden => undef
+    $scale => 100
+</%args>
+
+<%shared>
+    # take care of content-type if the .html was omitted in request...
+    $r->content_type("text/html");
+</%shared>
+
+<%init>
+use Net::LDAP::Entry;
+use DateTime;
+use Date::Manip;
+use physdb::directory;
+
+my $auth;
+my $dateobj = new Date::Manip::Date;
+
+# Prevent people from putting stuff into the web args
+if(defined($hidden) && !($hidden =~ m/^[01]$/)) {
+    $hidden = 0;
+}
+if(defined($quiet) && !($quiet =~ m/^[01]$/)) {
+    $quiet = 0;
+}
+if(defined($nologin) && !($nologin =~ m/^[01]$/)) {
+    $nologin = 0;
+}
+
+
+if ($nologin) {
+    $auth = 0;
+}
+else {
+    $auth = ($m->comp('/mason/auth/check_groups.comp', allow =>['scheduler','sysadm'])) && !$quiet;
+    #$auth = ($m->comp('/mason/auth/auth_check.comp', auth_type => 'colloq_scheduling') || $m->comp('/mason/auth/auth_check_sysadm.comp')) && !$quiet;
+}
+my $editing = '';
+my $slug = $m->dhandler_arg;
+$slug =~ s/\.html$//;
+my ($id, $title, $locktime, $creator, $multi_reservations, $closed);
+my ($directory_c, $creator_name, $creator_email);
+my ($blame, $x500, $location, $phone, $uid);
+my $prevdate = "today";
+my %slot;
+my @errors;
+# Handle an admin updating the form
+if (!$session{'x500'}) {
+    $nologin=1;
+    $m->comp('/mason/notice_box.comp',
+        type => 'warning',
+        text => '',
+        html => 'WARNING: You are not logged in to the Physics website. You will not be allowed to make or modify reservations. <a href="/auth/index.html?url=/resources/scheduling/'.$slug.'.html">Click here</a> to login.',
+    );
+}
+
+if ($auth && ($start_edit || $update  || $end_edit)) {
+    if($update && $update_slug eq '') {
+        $m->comp('/mason/notice_box.comp',
+            type => 'error',
+            title => 'Name was empty.',
+            text => 'Enter a name for the new schedule to create first'
+        );
+        return;
+    }
+    else {
+        my $editing_toggle = $dbh->prepare('UPDATE scheduler SET editing = ?, locktime = now() WHERE slug = ?') or die 'Cannot set slug edit: ' . $dbh->errstr;
+
+        if ($start_edit) {
+            $editing_toggle->execute($session{'uid'}, $slug) or die 'Unable to toggle editing: ' . $dbh->errstr;
+        }
+
+        if ($update || $end_edit) {
+            $update_id = undef if (!$update_id);
+            $update_slug =~ s/[^\w]/_/g;
+            $update_multi_reservations = ($update_multi_reservations ? 1 : 0);
+            $update_closed = ($update_closed ? 1 : 0);
+
+            # Break up the various slot variables into a hash by slot_id and then field name
+            foreach my $var (keys(%ARGS)) {
+                my ($is_slot, $slot_id, $name) = split('_', $var, 3);
+                next unless ($is_slot eq 'slot');
+                $slot{$slot_id}{$name} = $ARGS{$var};
+            }
+
+            my $update_form = $dbh->prepare('INSERT INTO scheduler (id, title, slug, multi_reservations, closed, creator, create_date ) VALUES (?, ?, ?, ?, ?, ?, now() )
+                ON DUPLICATE KEY UPDATE title = ?, slug = ?, multi_reservations = ?, closed = ?')
+                or die 'Cannot insert into scheduler:' . $dbh->errstr;
+
+            $update_form->execute($update_id, $update_title, $update_slug, $update_multi_reservations, $update_closed, $session{'uid'}, $update_title, $update_slug, $update_multi_reservations, $update_closed)
+                or die 'Unable to update form: ' . $dbh->errstr;
+
+            $slug = $update_slug;
+
+            my $update_slot = $dbh->prepare('INSERT INTO scheduler_slots (id, form_id, date, time, showtime, reservable, location, phone, x500, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE form_id = ?, date = ?, time = ?, showtime = ?, reservable = ?, location = ?, phone = ?, x500 = ?, note = ?')
+                or die 'Unable to update scheduler slots: ' . $dbh->errstr;
+
+            my $drop_slot = $dbh->prepare('DELETE FROM scheduler_slots WHERE id = ? AND form_id = ?');
+
+            foreach my $slot_id (sort {$b cmp $a} keys(%slot)) {
+                my $new = ($slot_id =~ /new/) ? 1 : 0;
+
+                if (!$slot{$slot_id}{'time'}) {
+                    next if ($new);
+                    $drop_slot->execute($slot_id, $update_id) or die 'Unable to delete slot: ' . $dbh->errstr;
+                }
+                else {
+                    my $reservable = ($slot{$slot_id}{'reservable'} ? 1 : 0);
+                    my $showtime = ($slot{$slot_id}{'showtime'} ? 1 : 0);
+                    if($slot{$slot_id}{'x500'} && $reservable) {
+                        $x500 = $slot{$slot_id}{'x500'};
+                        if($x500 =~ m/^([^@]+)\@/) {
+                            $x500 = $1;
+                        }
+                        if(!($m->comp('/mason/ldap_lookup.comp:getuser',server=>'ldap.umn.edu',x500=>$x500))) {
+                            $x500 = '';
+                        }
+                    }
+                    elsif (!($reservable)) {
+                        $x500 = '';
+                    }
+                    else {
+                        $x500 = '';
+                    }
+
+                    # parse the timeslot
+                    if ($dateobj->parse($slot{$slot_id}{'time'})) {
+                        push @errors, {
+                            slot_id => $slot_id,
+                            field => 'time',
+                            slot => $slot{$slot_id},
+                            error => "Invalid time format " . _h($slot{$slot_id}{'time'}),
+                        };
+                    }
+                    else {
+                        $slot{$slot_id}{'time'} = lc($dateobj->printf("%i:%M%p"));
+                        $slot{$slot_id}{'parsedtime'} = $dateobj->printf("%H:%M:%S");
+                    }
+
+                    # if date is empty, repeat the previous one
+                    $slot{$slot_id}{'date'} = $prevdate unless ($slot{$slot_id}{'date'});
+
+                    # parse date
+                    if ($dateobj->parse($slot{$slot_id}{'date'})) {
+                        push @errors, {
+                            slot_id => $slot_id,
+                            slot => $slot{$slot_id},
+                            field => 'date',
+                            error => "Invalid date format " . _h($slot{$slot_id}{'date'}),
+                        };
+                    }
+                    else {
+                        $slot{$slot_id}{'date'} = $dateobj->printf("%Y-%m-%d");
+                        $prevdate = $dateobj->printf("%Y-%m-%d");
+                    }
+
+                    # If X500 exists, auto-fill location and phone number
+                    # only overwrite location and phone fields if currently empty!
+                    my $directory = Directory->new(x500 => $x500);
+                    if ($directory->{loaded}) {
+                        my @location = $directory->location('room');
+                        $slot{$slot_id}{'location'} = $location[0] . " " . $location[1]
+                            unless ($slot{$slot_id}{'location'} || !$location[1]);
+                        $slot{$slot_id}{'phone'} = $location[3]
+                            unless ($slot{$slot_id}{'phone'});
+                    }
+
+                    unless (grep { $_->{slot_id} eq $slot_id } @errors) {
+                        $update_slot->execute(($new ? undef : $slot_id), $update_id, $slot{$slot_id}{'date'}, $slot{$slot_id}{'parsedtime'}, $showtime, $reservable, $slot{$slot_id}{'location'}, $slot{$slot_id}{'phone'}, $x500, $slot{$slot_id}{'note'}, $update_id, $slot{$slot_id}{'date'}, $slot{$slot_id}{'parsedtime'}, $showtime, $reservable, $slot{$slot_id}{'location'}, $slot{$slot_id}{'phone'}, $x500, $slot{$slot_id}{'note'})
+                                or die 'Unable to update: ' . $dbh->errstr;
+                    }
+                }
+            }
+        }
+
+        if ($end_edit && !@errors) {
+            $editing_toggle->execute('0', $slug) or die 'Unable to toggle editing: ' . $dbh->errstr;
+        }
+    }
+}
+
+# read basic info about this schedule...
+
+my $query = $dbh->prepare('SELECT slug, id, title, editing, UNIX_TIMESTAMP(locktime), creator, multi_reservations, closed FROM scheduler WHERE slug = ?');
+$query->execute($slug) or die 'Unable to query form: ' . $dbh->errstr;
+if (my $row = $query->fetchrow_arrayref()) {
+    ($slug, $id, $title, $editing, $locktime, $creator, $multi_reservations, $closed) = @$row;
+    $blame = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$editing);
+    $directory_c = Directory->new(uid => $creator);
+    if ($directory_c->{loaded}) {
+        $creator_name = $directory_c->fullname;
+        $creator_email = $directory_c->get("email");
+    }
+
+}
+else {
+    $m->comp('/mason/notice_box.comp',
+        type => 'error',
+        title => 'Form not found',
+        text => 'The given form (' . $m->interp->apply_escapes($slug, 'h') . ') was not found'
+    );
+    return;
+}
+
+# Handle making a reservation
+if (!$editing && $id && $reserve && ($reserve_slot_id || $reserve_clear)) {
+    my $check_slot_free = $dbh->prepare('SELECT x500 FROM scheduler_slots WHERE id=? AND form_id = ?');
+	my $reserve_slot = $dbh->prepare('UPDATE scheduler_slots SET x500 = ?, location = ?, phone = ? WHERE id = ? AND form_id = ? AND reservable = 1')
+        or die "Failed to prepare \$reserve slot: " . $dbh->errstr;
+    my $free_other_slots = $dbh->prepare('UPDATE scheduler_slots SET x500 = NULL, location = NULL, phone = NULL WHERE id != ? AND form_id = ? AND x500 = ?')
+        or die "Failed to prepare \$free other slots:" . $dbh->errstr;
+
+    if ($session{'x500'}) {
+        if ($reserve_slot_id) {
+            # first check slot is still available
+            $check_slot_free->execute($reserve_slot_id, $id) or die 'Unable to check slot: '. $dbh->errstr;
+            my $curslot_x500;
+            ($curslot_x500) = $check_slot_free->fetchrow_array;
+            if ($curslot_x500) { $m->redirect($m->comp('/mason/makeurl.comp', nargs => {'reserve_toolate' => 1})); }
+            # Look up room/phone for current x500, if in our directory
+            my $directory = Directory->new(x500 => $session{'x500'});
+            my ($location, $phone);
+            if ($directory->{loaded}) {
+                my @location = $directory->location('room');
+                $location = $location[0] . " " . $location[1];
+                $phone = $location[3];
+            }
+            $reserve_slot->execute($session{'x500'}, $location, $phone, $reserve_slot_id, $id) or die 'Unable to reserve slot: ' . $dbh->errstr;
+            $m->comp('/mason/db/auditlog/addevent.comp', type => 'cscheduling_reserve', text => 'reserved slot ' . $reserve_slot_id . ' in form ' . $id);
+            # Create a SQL query to get the date, time from DB for the email to schedule owner
+            my $reserve_info = $dbh->prepare('SELECT date, time FROM scheduler_slots WHERE id = ? AND form_id = ?');
+            $reserve_info->execute($reserve_slot_id, $id) or die 'Unable to get date, time for reservation email: ' . $dbh->errstr;
+            my @row = $reserve_info->fetchrow_array;
+            $m->comp("/mason/send_mail.comp", to => $creator_email, subject => "New reservation in schedule: $slug", text => "$session{'x500'} made a reservation in schedule: $slug\nDate: $row[0]\nTime: $row[1]") if $creator_email;
+        }
+
+        if (!$multi_reservations || $reserve_clear) {
+            $free_other_slots->execute($reserve_slot_id, $id, $session{'x500'})
+                or die 'Unable to free other slots: ' . $dbh->errstr;
+            $m->comp('/mason/db/auditlog/addevent.comp', type => 'cscheduling_reserve', text => 'cleared reservations in form ' . $id)
+                if ($reserve_clear);
+        }
+
+        $m->redirect($m->comp('/mason/makeurl.comp', nargs => {'reserve_success' => 1}));
+	}
+	else {
+        $m->redirect($m->comp('/mason/makeurl.comp', nargs => {'reserve_x500' => 1}));
+	}
+}
+
+# display schedule slots...
+$query = $dbh->prepare('SELECT id, date, UNIX_TIMESTAMP(CONCAT_WS(" ", date, time)) as unixtime, LCASE(DATE_FORMAT(time, "%l:%i%p")) AS time, showtime, reservable, location, phone, x500, note FROM scheduler_slots WHERE form_id = ? ORDER BY UNIX_TIMESTAMP(CONCAT_WS(" ", date, time))');
+$query->execute($id)
+    or die 'Unable to get form fields: ' . $dbh->errstr;
+
+# If they are editing, we show five extra lines for new entries
+my $new_slots = ($editing ? 5 : 0);
+</%init>
+
+<%method title>Schedule</%method>
+
+% my  ($title1, $title2) = split /,/, $title,2;
+
+<h3><% $title1 |h %></h3>
+% if ($title2) {
+<b><% $title2 |h %></b>
+% }
+
+% if ($auth) {
+    <form method="post" action="?">
+% }
+
+<%perl>
+if (@errors) {
+    $m->comp('/mason/notice_box.comp',
+        type => 'error',
+        text => '',
+        html => join('<br/>', (map { 'Problem with slot ' . $_->{slot_id} . ': ' . $_->{error} } @errors), 'I can understand times and dates entered most ways, but please try harder and edit the page again!'),
+    );
+}
+elsif ($editing && !$auth) {
+    $m->comp('/mason/notice_box.comp',
+        title => 'This schedule is currently locked for editing',
+        text => 'This form is locked by '.$blame.' (or undergoing maintenance). Please try back later or contact '.$blame." for assistance",
+    );
+    # Boot them out here if not authed and the form is being edited
+    return;
+}
+elsif ($auth && $editing) {
+    my $now = DateTime->now;
+    my $lk = DateTime->from_epoch(epoch=>$locktime);
+    my $age = $now->delta_ms($lk);
+    my $warntitle = $blame.' has this form locked for editing.';
+    my $warnmessage = 'The lock is ' . $age->in_units('minutes') . ' minutes old. You can clear the lock by clicking "Finish Editing" if you are certain the edit is abandoned';
+    if ($editing == $session{'uid'}) {
+        $warntitle = 'You are editing this form';
+        $warnmessage = 'While editing the form is locked to user submissions. Be sure to click Finish Editing when done to unlock the form.';
+    }
+    $m->comp('/mason/notice_box.comp',
+        type => 'warning',
+        title => $warntitle,
+        text => $warnmessage,
+        html => '<br><br><input type="submit" name="end_edit" value="Finish Editing"> | <a href="http://zzz.physics.umn.edu/admin/private/webscheduler">Scheduler manual</a>'
+    );
+}
+elsif ($auth) {
+    $m->comp('/mason/notice_box.comp',
+        title => 'You have access to edit this form',
+        text => 'While editing the form will be locked to user submissions. Be sure to click Finish Editing when done to unlock the form.',
+        html => '<br><br><input type="submit" name="start_edit" value="Start Editing"> | <a href="http://zzz.physics.umn.edu/admin/private/webscheduler">Scheduler manual</a> | <a href="?quiet=1">View as normal user</a> | <a href="?quiet=1&amp;hidden=1">Print view (normal)</a> | <a href="?quiet=1&amp;hidden=1&amp;scale=140">Print view (large)</a><p>Link for this schedule: ' . $m->interp->apply_escapes($m->scomp('/mason/makeurl.comp', full => 1, no_dargs => 1), 'h') . '</p>',
+    );
+}
+
+if ($reserve_success) {
+    # note wording change as this is used on succesful clear as well as reserve
+    $m->comp('/mason/notice_box.comp',
+        type => 'success',
+        title => 'Update successful',
+        text => 'Your update was successful. You may review the change below, or come back later to reschedule.',
+    );
+}
+
+if ($reserve_toolate) {
+    $m->comp('/mason/notice_box.comp',
+        type => 'error',
+        title => 'Reservation failed',
+        text => 'Sorry, the slot was already reserved - some-one else probably got it before you.',
+    );
+}
+
+if ($reserve_x500) {
+    $m->comp('/mason/notice_box.comp',
+        type => 'error',
+        title => 'Reservation change failed due to no UMN id',
+        text => 'You cannot make a reservation because you do not have a umn ID (x500). If you would like to make a reservation, please e-mail your request.',
+    );
+}
+
+
+</%perl>
+
+% if ($auth && $editing) {
+    <input type="hidden" name="update_id" value="<% $id |h %>">
+    <table>
+        <tr><tr><td>Title:&nbsp;</td><td><input type="text" size=60 name="update_title" value="<% $title |h %>"> <small>Printed at the top of the schedule, with a line break at the first comma.</small></td></tr>
+%       if ($id) {
+            <tr><td>Name:&nbsp;</td><td><input type="text" name="update_slug" value="<% $slug |h %>"> <small>Used to make the web link to this schedule.</small></td></tr>
+%       }
+        <tr><td></td><td><label><input type="checkbox" name="update_multi_reservations" value="1" <% $multi_reservations ? ' checked="checked"' : '' %>> Allow multiple reservations per person</label></td></tr>
+        <tr><td></td><td><label><input type="checkbox" name="update_closed" value="1" <% $closed ? ' checked="checked"' : '' %>> Close this schedule to further changes</label></td></tr>
+    </table>
+% }
+
+<%perl>
+
+# Sets red background if field had error
+my $check_error = sub {
+    my ($row_id, $field) = @_;
+    return ' style="background-color: #FF6060; border-radius: 4px;"'
+        if (grep { $_->{slot_id} eq $row_id && $_->{field} eq $field } @errors);
+    return '';
+};
+
+#   Build the admin view
+if($editing) {
+#   Table Headings
+</%perl>
+    <small><p><b>Notes - </b>You can enter the date and time in most common formats, including "5pm" and "today".<br/>
+    If you provide a time but leave the date empty, we will just take the date from the row above (if there is one).<br/>
+    Each slot <b>must</b> have a time (removing the time from a slot will delete it), but you can choose not to display it.</p></small>
+    <table>
+        <tr>
+            <th>Date<br/></th>
+            <th>Time</th>
+            <th>Show time</th>
+            <th>Reservable</th>
+            <th>Meet with<br/><i>(x500)</i></th>
+            <th>Location</th>
+            <th>Phone Number</th>
+            <th>Additional Information</th>
+        </tr>
+<%perl>
+    my $rowColor='Odd';
+    my $rows = $query->rows;
+    my $row;
+    while (($rows-- > -1 && ($row = $query->fetchrow_hashref)) || $new_slots--) {
+        my $row_id = (exists $row->{'id'} ? $row->{'id'} : 'new' . $new_slots);
+        # Use submitted values on errors
+        if (grep { $_->{slot_id} eq $row_id } @errors) {
+            for my $arg (grep { /_${row_id}_/ } keys %ARGS) {
+                my ($field) = ($arg =~ /_${row_id}_(.*)$/);
+                $row->{$field} = $ARGS{$arg};
+            }
+        }
+</%perl>
+        <tr class="scheduler<% $rowColor |h %>">
+            <td><input type="text" name="slot_<% $row_id |h %>_date" size=10 value="<% $row->{'date'} || '' |h %>"<% $check_error->($row_id, 'date') %>></td>
+            <td><input type="text" name="slot_<% $row_id |h %>_time" size=10 value="<% $row->{'time'} || '' |h %>"<% $check_error->($row_id, 'time') %>></td>
+            <td><input type="checkbox" name="slot_<% $row_id %>_showtime" value="1" title="Whether to hide time for this slot"<% $row->{'showtime'} || !$row->{'id'} ? ' checked="checked"' : '' %>></td>
+            <td><input type="checkbox" name="slot_<% $row_id %>_reservable" value="1" title="Is this slot reservable? (or just for display)"<% $row->{'reservable'} || !$row->{'id'} ? ' checked="checked"' : '' %>></td>
+%#          Build x500 form field
+            <td>
+<%perl>
+                my $physid = undef;
+                my $ldaphash = undef;
+                my $disabled;
+                my $realname;
+                # Protect against passing x500_to_uid  '' or other whitespace
+                if( defined($row->{'x500'}) && ($row->{'x500'}) ) {
+                    $physid = $m->comp('/mason/db/directory/x500_to_uid.comp',x500=>$row->{'x500'});
+                    $ldaphash = $m->comp('/mason/ldap_lookup.comp:getuser',server=>'ldap.umn.edu',x500=>$row->{'x500'});
+                }
+                if( $physid ) {
+                    $ldaphash = undef;
+                }
+                elsif ($ldaphash ) {
+                    $physid = undef;
+                }
+                else {
+                    $physid = undef;
+                    $ldaphash = undef;
+                }
+                $disabled = " disabled " if (!$row->{'reservable'});
+                if(defined($row->{'x500'}) && ($row->{'x500'}) && defined($physid)) {
+                    $x500 = $row->{'x500'};
+                    $realname = '(' . $m->comp('/mason/db/directory/uid_to_name.comp', uid => $physid) . ')';
+                }
+                elsif (defined($row->{'x500'}) && ($row->{'x500'}) && defined($ldaphash)) {
+                    $x500 =  $row->{'x500'};
+                    $realname = '(' . $ldaphash->get_value('displayname', alloptions=>0) . ')';
+                }
+                else {
+                    $x500 = '';
+                }
+</%perl>
+                <input type="text" size="10" id="slot_<% $row_id |h %>_x500" name="slot_<% $row_id %>_x500" value="<%  $x500 |h %>" <% $disabled %>>&nbsp;<% $realname || '' |h %>
+            </td>
+            <td><input type="text" size="10" name="slot_<% $row_id |h %>_location" value="<% $row->{'location'} || '' |h%>"></td>
+            <td><input type="text" size="10" name="slot_<% $row_id |h %>_phone" value="<% $row->{'phone'} || '' |h%>"><br/></td></th>
+            <td><input type="text" size="40" name="slot_<% $row_id |h %>_note" value="<% $row->{'note'} || '' |h%>"><br/></td>
+        </tr>
+<%perl>
+        #Set next row to be the other color
+        if ($rowColor eq "Odd") {
+            $rowColor = 'Even';
+        }
+        else {
+            $rowColor = 'Odd';
+        }
+        $row = undef;
+    } # END WHILE LOOP
+</%perl>
+    </table>
+    <small>If you have filled in all the slots and need more, click Update.</small>
+    <br/><br/><input type="submit" name="update" value="Update">
+<%perl>
+}
+
+#   If in "display" mode (i.e. not editing) then iterate through
+#   each row associated with slug and print out the contents
+#   For a new date create a new heading and build a new table.
+else {
+#   Iterate through each row associated with the slug and print out its contents
+    my $rowColor='Odd';
+    my $currentdate='';
+    my $ihavereservation;
+    my $tdpad = '<td style="padding-right: 10px; padding-left: 2px;">';
+    print '<div style="font-size: '.$scale.'%;">';
+    print "<table>";
+    while (my $row = $query->fetchrow_hashref) {
+        my @unixtime = CORE::localtime($row->{'unixtime'});
+
+#       Create heading row for each new date
+        if( ($row->{'date'}) && ($row->{'date'} ne $currentdate) && ($row->{'date'} ne '0000-00-00') ) {
+            $currentdate = $row->{'date'};
+            my $humandate = strftime('%A %e %B %Y', @unixtime);
+</%perl>
+            <tr><th colspan=5>
+                <h1 style="text-align: center"><% $humandate |h %></h1><br/>
+            </th></tr>
+            <tr>
+                <th>Time</th>
+                <th>Meet with</th>
+                <th>Location</th>
+                <th>Phone</th>
+                <th>Additional Information</th>
+            </tr>
+<%perl>
+            $rowColor = 'Odd';
+        }
+</%perl>
+                <tr class="scheduler<% $rowColor |h %>">
+                    <% $tdpad %>
+                        <% $row->{'time'} %>
+                    </td>
+                    <% $tdpad %>
+<%perl>#                X500 'RESERVE' BUTTON OR NAME DISPLAY
+                        my $physid;
+                        my $ldaphash;
+                        my $resfield;
+                        # Protect against passing x500_to_uid  '' or other whitespace
+                        if( defined($row->{'x500'}) && ($row->{'x500'}) ) {
+                            $physid = $m->comp('/mason/db/directory/x500_to_uid.comp',x500=>$row->{'x500'});
+                            $ldaphash = $m->comp('/mason/ldap_lookup.comp:getuser',server=>'ldap.umn.edu',x500=>$row->{'x500'});
+                        }
+                        if( $physid ) {
+                            $ldaphash = undef;
+                        }
+                        elsif ($ldaphash ) {
+                            $physid = undef;
+                        }
+                        else {
+                            $physid = undef;
+                            $ldaphash = undef;
+                        }
+                        # figure out what to display in the "meet with" field
+                        if (defined($row->{'x500'}) && ($row->{'x500'})) { 
+                            if (defined($physid)) {
+                                $resfield = $m->comp('/mason/db/directory/uid_to_name.comp', uid => $physid);
+                            }
+                            elsif (defined($ldaphash)) {
+                                $resfield =  $ldaphash->get_value('displayname', alloptions=>0);
+                            }
+                            if ($row->{'x500'} eq $session{'x500'} && !$hidden) {
+                                # highlight if it's this user (and not print mode)
+                                $resfield = '<span style="color: red; font-weight: bold;">' . $resfield . "</span>";
+                                $ihavereservation = 1;
+                            }
+                        }
+                        elsif (!$hidden && $closed) {
+                            $resfield = "Closed";
+                        }
+                        elsif ($nologin && $row->{'reservable'}) {
+                            $resfield = "Spot can be reserved";
+                        }
+                        elsif (!$hidden && $row->{'reservable'}) {
+                            $resfield = '<form method="POST" action="?">';
+                            $resfield .= "<input type=\"hidden\" name=\"reserve_slot_id\" value=\"$row->{'id'}\">";
+                            $resfield .= '<input type="submit" style="width: 10em;" name="reserve" value="Reserve">';
+                            $resfield .= "</form>";
+                        }
+                        elsif (!$row->{'reservable'} && $row->{'note'} && !$hidden && !$nologin) {
+                            $resfield = "<b>Not reservable</b>";
+                        }
+</%perl>
+                    <% $resfield %></td>
+<%perl>#            END X500
+</%perl>
+                    <% $tdpad %>
+<%perl>
+#                       HTML is dumb and needs newlines in SQL set to <br/> tags
+                        my $text = _h($row->{'location'});
+                        if($text =~ m/^[^ ]+$/) {
+                            print "PHYS $text";
+                        }
+                        else {
+                            $text =~ s/[\n\r]+/<br\/>/g;
+                            print $text;
+                        }
+</%perl>
+                    </td>
+                    <% $tdpad %><% $row->{'phone'} || '' |h %></td>
+%                   if ($row->{'reservable'}) {
+                    <% $tdpad %><% $row->{'note'} || '' |h %></td>
+%                   }
+%                   else {
+                    <% $tdpad %><b><% $row->{'note'} |h %></b></td>
+%                   }
+                </tr>
+<%perl>
+    #Set next row to be the other color
+        if ($rowColor eq "Odd") {
+            $rowColor = 'Even';
+        }
+        else {
+            $rowColor = 'Odd';
+        }
+    } # END WHILE LOOP
+</%perl>
+        </table>
+        </div>
+<%perl>
+    # only provide "clear" button if we have a reservation (and not hidden)
+    if ($ihavereservation && !$hidden) {
+</%perl>
+        <p>
+            <form method="POST" action="?">
+                <input type="hidden" name="reserve_clear" value="1">
+                <input type="submit" name="reserve" value="Clear your reservation">
+            </form>
+        </p>
+<%perl>
+    }
+    if ($creator_name) {
+        print "<p>Schedule owner: <a href=\"mailto:$creator_email\">$creator_name</a></p>\n";
+    }
+}
+
+if ($auth) {
+</%perl>
+    </form>
+<%perl>
+}
+</%perl>

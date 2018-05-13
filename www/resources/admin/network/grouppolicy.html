@@ -1,0 +1,13 @@
+<%method title>Group Policy Management</%method>
+
+<%method meta>
+<script src="/include/js/prototype.js" language="javascript"></script>
+<script src="/include/js/effects.js" language="javascript"></script>
+<script src="/include/gpdragdrop.js" language="javascript"></script>
+<script src="/include/grouppolicy.js" language="javascript"></script>
+<link rel="stylesheet" href="grouppolicy.css">
+</%method>
+
+% if (!$m->comp('/mason/auth/auth_check_sysadm.comp')) { print "<h4>You are not authorized to view this page</h4>"; return; }
+
+<div id="policypane"></div>

@@ -1,0 +1,43 @@
+<%args>
+    $uid => $session{'uid'}
+</%args>
+
+<%init>
+    use physdb::appointment;
+    
+    my $tpl = new Appointment();
+    
+    my $year = 1900 + (CORE::localtime)[5];
+    my $quarter = $m->comp('/mason/this_quarter.comp');
+    
+    #
+    # TODO: Needs ordering... May need to add ORDER BY support to search
+    #
+    
+    my @results = $tpl->search("uid=? AND year>=?", $uid, $year); 
+</%init>
+
+% my $has = 0;
+% foreach my $row (@results) {
+% $has = 1;
+% my $hasSem = 0;
+<p><b><% ucfirst($row->get('semester')) |h %> <% $row->get('year') |h %></b>
+%   if ($row->get('ta_amt')) { $hasSem = 1;
+<br>&nbsp;&nbsp; TA: <% $row->get('ta_amt') |h %> time
+%   }
+%   if ($row->get('ra_amt')) { $hasSem = 1;
+<br>&nbsp;&nbsp; RA: <% $row->get('ra_amt') |h %> time
+%   }
+%   if ($row->get('fellowship')) { $hasSem = 1;
+<br>&nbsp;&nbsp; Fellowship: <% $row->get('fellowship') |h %> time
+%   }
+%   if (!$hasSem) {
+<br>&nbsp;&nbsp;<i>No appointments</i>
+%   }
+% }
+
+% if (!$has) {
+No current or future appointments
+% }
+
+% return $has;

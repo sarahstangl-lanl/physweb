@@ -1,0 +1,48 @@
+<%doc>
+  vim:set syntax=mason:
+</%doc>
+
+<%args>
+ $url => "https://go4service.umn.edu/ipamdns.pl"
+ $action => 'add'
+ $ip
+ $hostname
+ $domain
+ $aliases => ''
+ $hwa => ''
+ $mx => ''
+ $style => 'normal'
+ $sub_text => undef
+ $pre_text => undef
+ $target => 'iblock'
+</%args>
+
+<%perl>
+$aliases =~ s/[ ,]/\n/; #replace spaces with CR
+$sub_text = "Save to Service Gateway as $hostname.$domain" unless defined $sub_text;
+$pre_text = "Update $ip:" unless defined $pre_text;
+</%perl>
+<p>
+<form method="post" action="<%$url%>" enctype="application/x-www-form-urlencoded" style="display: inline;" target="<%$target%>">
+<%$pre_text%>
+<input type="hidden" name="ip" value="<% $ip|h %>">
+<input type="hidden" name="group_context" value="">
+
+% if ($action =~ /add/) {
+    <input type="hidden" name="name" value="<%$hostname|h %>">
+    <input type="hidden" name="domain" value="<%$domain|h %>">
+    <input type="hidden" name="comment" value="">
+    <input type="hidden" name="aliases" value="<%$aliases|h %>">
+    <input type="hidden" name="addrType" value="fixed">
+    <input type="hidden" name="macAddr" value="<%$hwa|h %>">
+    <input type="hidden" name="mxRecords" value="<%$mx|h %>">
+    <input type="hidden" name="ttl" value="">
+    <input type="hidden" name="accept" value="Accept">
+    <input type="submit" value="Save to Service Gateway as <%$hostname%>.<%$domain%>">
+% }
+% else {
+    <input type="submit" value="Delete host from Service Gateway" name="deleteConfirm">
+% }
+</form>
+[<a target="<%$target|h%>" href="<%$url%>?fixed=<% $ip|u %>">View Service Gateway record</a>]
+</p>

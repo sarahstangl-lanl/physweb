@@ -1,0 +1,23 @@
+
+<%DOC>
+	 vim: set syntax=mason:
+   Component: auth_check_door_mgr.comp
+        Date: 2008.05.01
+      Author: nick
+     Changed: 2008.05.01 by nick
+ Description: Return 1 if logged in user has manager privileges on any doorlocks or specified door_id, 0 otherwise.
+
+</%DOC>
+<%ARGS>
+$door_id=>undef
+</%ARGS>
+<%INIT>
+use physdb;
+use physdb::door_managers;
+if ($door_id) {
+    return DoorManagers->new->search('`uid` = ? AND `door_id` = ?', $session{'uid'}, $door_id);
+}
+else {
+    return DoorManagers->new->search('`uid` = ?', $session{'uid'});
+}
+</%INIT>

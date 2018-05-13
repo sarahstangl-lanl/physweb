@@ -1,0 +1,22 @@
+<%args>
+    # See lib/tablesearch.pm for list of possible/default arguments
+    $excel => 0
+</%args>
+
+<%init>
+    use tablesearch;
+    
+    my $ts = new Tablesearch(%ARGS);
+    
+    if ($ARGS{pathquery}) {
+        my %query = $m->comp('/mason/pathquery/get.comp');
+        $ts->import_request_args(\%query);
+    }
+    
+    if (!$excel) {
+        $ts->display();
+    } else {
+        $ts->excel();
+    }
+    
+</%init>

@@ -1,0 +1,83 @@
+<%DOC>
+Component: viewall.html
+Date: 2011-01-12
+Author: kdesai
+Last Changed: 2011-01-12
+
+Description:	View all applications for graduate entries. Now with tablesearch!
+</%DOC>
+
+<%method title>
+View All Graduate Applications
+</%method>
+
+<%args>
+$year=>undef
+$confirm=>undef
+</%args>
+
+<%init>
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if(!$auth) { $m-> redirect('index.html'); }
+if(!$year || $year !~ m/^\d+$/ || $year < 2003) { $year = $m->comp('/mason/db/gradapp/current_app_year.comp'); }
+if(!defined($confirm) || $confirm !~ m/^[01]$/) { $confirm = 0; }
+</%init>
+
+<b>This is the administrative page for the graduate program application system</b><br/>
+Access to this page is restricted to members of the "gradapp" group.<br/>
+
+<h4>Currently viewing  <%perl> if($confirm == 0) { print "all applications" } else { print "finalized applications only" } </%perl> for year <% $year %></h4><br />
+View other years:&nbsp;
+<%perl>
+my $sth;
+$sth = $dbh->prepare('SELECT entryyear FROM grad.gradapp GROUP BY entryyear');
+$sth->execute()
+    or die 'Unable to fetch entries: ' . $dbh->errstr;
+        
+while (my $row_ref = $sth->fetchrow_arrayref()) {
+    if (defined($row_ref)) {
+        my ($yr) = @$row_ref;
+        if ($yr == $year) {
+            print $year."&nbsp;";
+        } else {
+            print "<a href=\"viewall.html?year=$yr\">$yr</a>&nbsp;";
+        }   
+    }   
+}
+</%perl>
+<br />
+View applications by:
+<%perl>
+if($confirm != 1) { print "All&nbsp;<a href=\"viewall.html?year=$year&confirm=1\">Confirmed only</a>";}
+else { print "<a href=\"viewall.html?year=$year&confirm=0\">All</a>&nbsp;Confirmed only";}
+</%perl>
+<br />
+<a href="viewexcel.html?year=<% $year %>">Download application summary data in Excel format</a>
+<br /><br /><br />
+
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+	table 		=> 'grad.gradapp',
+	field_params 	=> 	{
+				'id' => { 'header_format' => 'uc', },
+				'email' => { 'name' => 'E-mail', 'url' => 'appsummary.html?id=$row{id}', },
+				'name' => { 'name' => 'Name', } ,
+				'last_modified' => { 'name' => 'Last Modified', } ,
+				'finalized' => { 'name' => 'Finalized?', } ,
+				'recs' => { 'name' => 'Recs', } ,
+				'rev' => { 'name' => 'Review', } ,
+				},
+	field_list	=> 	['gradapp.id AS id', 'CONCAT(gradapp.fname," ",gradapp.lname) AS name', 'gradapp.email AS email', 'gradapp.last_modified AS last_modified',
+				'if(gradapp.confirm,gradapp.appdate,"No") AS finalized',
+				'if(gradapp.rectype1<>"",1,0) + if(gradapp.rectype2<>"",1,0) + if(gradapp.rectype3<>"",1,0) AS recs',
+				'COUNT(review.reviewid) as rev',
+				],
+	default_sort_field => 'id',
+	where => "WHERE `entryyear` = $year " . ($confirm ? "AND `confirm` = 1" : "") ,
+	no_limit => 1,
+	joins => [ 'grad.review' => 'grad.review.appid = grad.gradapp.id' ],
+	debug => 0,
+	group_by => 'GROUP BY id',
+	excluded_search_fields => [ 'gradapp.id', 'COUNT(review.reviewid)', ],
+);
+</%perl>

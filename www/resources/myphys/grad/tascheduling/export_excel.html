@@ -1,0 +1,188 @@
+
+<%DOC>
+   Component: export_excel.html
+        Date: 2007.08.01
+      Author: clayton
+     Changed: 2007.08.01 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $admin_year     => ''
+  $admin_semester => ''
+</%ARGS>
+
+<%flags>
+  inherit=>undef
+</%flags>
+
+<%INIT>
+  use Spreadsheet::WriteExcel;
+  use File::Temp qw/ tempfile tempdir /;
+
+  my $auth_admin = $m->comp('/mason/auth/auth_check_ta_admin.comp');
+  if (!$auth_admin) { $m->redirect('not_authorized.html'); }
+
+  sub get_time()
+  {
+    # about.com
+    my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+    my @weekDays = qw(Sun Mon Tue Wed Thu Fri Sat Sun);
+    my ($second, $minute, $hour, $dayOfMonth, $month, $yearOffset, $dayOfWeek, $dayOfYear, $daylightSavings) = CORE::localtime();
+    my $year = 1900 + $yearOffset;
+    return "$hour:$minute:$second, $weekDays[$dayOfWeek] $months[$month] $dayOfMonth, $year";
+  }
+
+  my %config = $m->comp('/mason/db/tascheduling/config.comp');
+
+  my ($fh, $filename) = tempfile("taschedXXXX", SUFFIX => '.xls', DIR => '/var/tmp' );
+  
+</%INIT>
+
+<%perl>
+
+  my $workbook = Spreadsheet::WriteExcel->new($filename);
+  my $worksheet = $workbook->add_worksheet();
+  my $abort_code = 503;
+  my $row = 3;
+  my $start_sched_col = 1;
+
+  # Header Formats
+
+  my $bigborder = $workbook->add_format();
+  $bigborder->set_bg_color('white');
+  $bigborder->set_left(6);
+  $bigborder->set_text_wrap();
+
+  my $smborder = $workbook->add_format();
+  $smborder->set_bg_color('white');
+  $smborder->set_left(1);
+  $smborder->set_text_wrap();
+
+  my $day_span_left = $workbook->add_format();
+  $day_span_left->set_center_across();
+  $day_span_left->set_left(6);
+
+  my $day_span = $workbook->add_format();
+  $day_span->set_center_across();
+
+  # Data Formats
+
+  my $black_bg = $workbook->add_format();
+  $black_bg->set_bg_color('black');
+  $black_bg->set_color('white');
+
+  my $altcolor_1 = $workbook->add_format();
+  $altcolor_1->set_bg_color('white');
+  $altcolor_1->set_border(1);
+
+  my $altcolor_2 = $workbook->add_format();
+  $altcolor_2->set_bg_color(22);
+  $altcolor_2->set_border(1);
+
+  my $sql = 'SELECT taschedule.uid, taschedule.comment, taschedule.specialreq, directory.first_name, directory.last_name, directory.physid, directory.x500 FROM taschedule
+               LEFT JOIN directory ON (taschedule.uid=directory.uid)
+               WHERE year=? AND semester=? ORDER BY directory.last_name ASC';
+  my $query = $dbh->prepare($sql);
+  $query->execute($admin_year, $admin_semester);
+
+  while (my $user = $query->fetchrow_hashref())
+  {
+    $sql = 'SELECT day-1 AS day, slot, class FROM taschedule_busy WHERE uid=? AND year=? AND semester=?';
+    my $query2 = $dbh->prepare($sql);
+    $query2->execute($$user{'uid'}, $admin_year, $admin_semester);
+
+    # Write identification information for this user
+    $worksheet->write($row, 0, $$user{'last_name'});
+    $worksheet->write($row, 1, $$user{'first_name'});
+    $worksheet->write($row, 2, $$user{'x500'});
+    $worksheet->write($row, 3, $$user{'physid'});
+
+    # Write out an alternating white and grey pattern to help distinguish days
+    for (my $day=0; $day < $config{'days'}; $day++)
+    {
+      for (my $period=1; $period <= $config{'periods'}; $period++)
+      {
+        $worksheet->write($row, 3 + ($day * $config{'periods'}) + $period, undef, (($day % 2) ? $altcolor_1 : $altcolor_2));
+      }
+    }
+    
+    # Write out actual schedules on top of white and grey area (with black busy blocks)
+    while (my $day = $query2->fetchrow_hashref())
+    {
+      $worksheet->write($row, 3 + $start_sched_col + $$day{'day'} * $config{'periods'} + $$day{'slot'}, $$day{'class'}, $black_bg);
+    }
+
+    # Write out extra information and comments
+    my $specialreq = $$user{'specialreq'};
+    $specialreq =~ s/\n/--/g;
+    $specialreq =~ s/\r//g;
+    $worksheet->write($row, 3 + $start_sched_col + $config{'days'} * $config{'periods'}, $specialreq);
+    my $comment = $$user{'comment'};
+    $comment =~ s/\n/--/g;
+    $comment =~ s/\r//g;
+    $worksheet->write($row, 4 + $start_sched_col + $config{'days'} * $config{'periods'}, $comment);
+
+    $row++;
+  }
+
+  # ---------------------
+  # Now we do the headers
+  # ---------------------
+
+  my $col = 0;
+
+  $worksheet->write(0, 0, 'TA Scheduling Excel Export - ' . ($admin_semester eq 'spring' ? 'Spring' : 'Fall') . ' ' . $admin_year . ' - ' . get_time());
+
+  $worksheet->write(1, $col++, 'Last');
+  $worksheet->write(1, $col++, 'First');
+  $worksheet->write(1, $col++, 'x500');
+  $worksheet->write(1, $col++, 'PhysID');
+  
+  $row = 1;
+  my @textdays = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday');
+  my $sep = '           -           ';
+  for (my $day=0; $day < $config{'days'}; $day++)
+  {
+    my $time = $m->comp('time.comp', 'start_time'=>$config{'start_time'}, 'period_length'=>$config{'period_length'}, 'period_break'=>$config{'period_break'}, 'separator'=>"\n");
+    $worksheet->write($row, $col, $textdays[$day] . $sep . $textdays[$day] . $sep . $textdays[$day] . $sep . $textdays[$day] . $sep . $textdays[$day], $day_span_left);
+    for (my $period=0; $period < $config{'periods'}; $period++)
+    {
+#       $worksheet->write($row, $col++, $shortdays[$day] . ($period + 1), ($period == 0 ? $bigborder : $smborder));
+        if ($period != 0) {
+          $worksheet->write($row, $col, undef, $day_span);
+        }
+        $worksheet->write($row+1, $col++, &$time(), ($period == 0 ? $bigborder : $smborder));
+    }
+  }
+
+  $worksheet->set_column(3, $col, 9);
+  $worksheet->set_row('B', 25);
+
+  $worksheet->set_column($col, $col, 9);
+  $worksheet->write(1, $col++, 'Teaching Load');
+  $worksheet->set_column($col, $col, 50);
+  $worksheet->write(1, $col++, 'Comments');
+
+  # Pretty header scrolling love (keeps it on the screen)
+  $worksheet->freeze_panes(3, 0);
+
+  # Pretty header printing love (keeps it on the page)
+  $worksheet->repeat_rows(1, 2);
+
+  $workbook->close();
+
+
+  # now send file for download
+    $r->content_type('application/ms-excel');
+    $r->headers_out->unset('Content-Length');
+    $r->headers_out->set('Content-Disposition' => "file; filename=\"tasched".$admin_year.".xls\"");
+    $r->headers_out->set('Content-Length' => -s $filename );
+    $m->autoflush(1);
+    $r->sendfile($filename);
+    $m->autoflush(0);
+    return Apache2::Const::OK;
+
+
+</%perl>

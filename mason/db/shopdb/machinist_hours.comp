@@ -1,0 +1,179 @@
+<%args>
+$machinist_id
+</%args>
+<%init>
+use Date::Calc;
+use tablesearch;
+
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+my $auth_args = $session{'shopdb-auth'};
+
+#my $title = ($machinist_id == $auth_args->{machinist_id} ? 'My Charge Hours' : 'Charge Hours');
+my $title = 'Charge Hours';
+
+my $payperiod = $m->request_args->{payperiod} || 0;
+$payperiod = 0 unless ($payperiod =~ /^-?\d+$/);
+
+# Set @start to first monday of current pay period by comparing to known start of pay period
+my @known_pay_period_start = (qw/2011 5 9/);
+my @start = Monday_of_Week(Week_of_Year(Today));
+@start = Add_Delta_Days(@start, -7) unless (Delta_Days(@start, @known_pay_period_start) % 14 == 0);
+
+# Adjust @start to requested pay period
+@start = Add_Delta_Days(@start, 14 * $payperiod);
+
+# Determine end of pay period based on @start
+my @end = Add_Delta_Days(@start, 13);
+
+if ($ARGS{start_date} && $ARGS{end_date}) {
+    if (ref $ARGS{start_date}) {
+        @start = split(/\-/, $ARGS{start_date}->ymd);
+        @end = split(/\-/, $ARGS{end_date}->ymd);
+    }
+    else {
+        @start = split(/\-/, $ARGS{start_date});
+        @end = split(/\-/, $ARGS{end_date});
+    }
+}
+
+my $machinist = $schema->resultset('Machinists')->find({ machinist_id => $machinist_id });
+unless ($machinist) {
+    print _h("Invalid machinist_id $machinist_id");
+    return;
+}
+
+my $labor_lines = $schema->resultset('LaborLines')->active->search(
+    {
+        machinist_id => $machinist_id,
+        charge_date => { -between => [ join('-', @start), join('-', @end) ] },
+    },
+    {
+        '+select' => [ 'job.project_name' ],
+        '+as' => [ 'project_name' ],
+        join => [ 'job' ],
+        order_by => [ qw/me.charge_date me.job_id/ ],
+        prefetch => [ 'job' ]
+    }
+);
+
+my $leaves = $machinist->leaves(
+    {
+        date => { -between => [ join('-', @start), join('-', @end) ] },
+    },
+    {
+        '+select' => [ qw/leave_type.label/ ],
+        '+as' => [ qw/label/ ],
+        join => 'leave_type',
+    }
+);
+my $total_leave = $leaves->get_column('hours')->sum || 0;
+my $total_labor = $labor_lines->get_column('charge_hours')->sum || 0;
+my $total_hours = $total_leave + $total_labor;
+my $leave_hash = { };
+for my $leave ($leaves->all) {
+    push @{ $leave_hash->{$leave->date} }, $leave;
+}
+
+my $day_footer = sub {
+    my ($ts, $date, $hours) = @_;
+    my $ymd = join('-', map { sprintf("%02d", $_) } @$date);
+    my $dow = Day_of_Week(@$date);
+    my $weekend = ($dow == 6 || $dow == 7) ? 1 : 0;
+    my @leaves = @{ $leave_hash->{$ymd} || [ ] };
+    my $html = '';
+    for my $leave (@leaves) {
+        $html .= '<tr><td colspan="2"></td><td>' . $leave->get_column('label') . '</td><td>' . sprintf('%.02f', $leave->hours) . '</td></tr>';
+        $hours += $leave->hours;
+    }
+    my $color = (($weekend || !$machinist->fulltime) ? 'black' : ($hours == 8 ? 'green' : 'red'));
+    $html .= '<tr class="tablesearch_section_footer"><td ' . ($weekend ? 'style="background-color: #DDD"' : '') . ' align="right" colspan="' . scalar($ts->column_names) . '"><a name="' . $ymd . '"></a>' . Date_to_Text(@$date) . " total: <span style=\"color: $color; font-style: normal;\">" . sprintf("%0.2f", $hours) . "</span></td></tr>\n";
+    return $html;
+};
+
+my $ts = new Tablesearch(
+        resultset => $labor_lines,
+        columns => [ qw/job_id project_name description charge_hours/ ],
+        field_params => {
+            job_id => { name => 'Job #', no_header_wrap => 1 },
+            charge_hours => {
+                data_format => sub { return sprintf("%0.2f", shift); },
+            },
+            project_name => {
+                url => 'job.html?job_id=$row{job_id}',
+                width => 150,
+            },
+            description => {
+                width => 150,
+            },
+        },
+        prefix => 'hours',
+        header_format => 'ucfirst_all',
+        hide_search => 1,
+        hide_header => 1,
+        no_limit => 1,
+        no_sort => 1,
+        prerow => sub {
+            my ($row, $ts) = @_;
+            my $html = '';
+            my $date = $row->{charge_date};
+            my @date = split(/-/, $date);
+            $ts->{tmp}->{hours} ||= {};
+            my $hours_hash = $ts->{tmp}->{hours};
+            $hours_hash->{current_date} ||= join('-', @start);
+            my @current_date = split(/-/, $hours_hash->{current_date});
+            for (my $i = 0; $i < Delta_Days(@current_date, @date); $i++) {
+                my @tmpdate = Add_Delta_Days(@current_date, $i);
+                my $tmpdate = join('-', @tmpdate);
+                $html .= $day_footer->($ts, \@tmpdate, $hours_hash->{$tmpdate} || 0);
+            }
+            unless (exists($hours_hash->{$date})) {
+                $hours_hash->{$date} = 0;
+                $hours_hash->{current_date} = $date;
+                $ts->{tmp}->{oddeven} = 'odd';
+            }
+            $hours_hash->{$date} += $row->{charge_hours};
+            return $html;
+        },
+        postdata => sub {
+            my $ts = shift;
+            my $html = '';
+            my $hours_hash = $ts->{tmp}->{hours};
+            $hours_hash->{current_date} ||= join('-', @start);
+            my @current_date = split(/-/, $hours_hash->{current_date});
+            my @end_date = (Delta_Days(Today, @end) < 0) ? @end : Today;
+            for (my $i = 0; $i <= Delta_Days(@current_date, @end_date); $i++) {
+                my @tmpdate = Add_Delta_Days(@current_date, $i);
+                my $tmpdate = join('-', @tmpdate);
+                $html .= $day_footer->($ts, \@tmpdate, $hours_hash->{$tmpdate} || 0);
+            }
+            return $html;
+        },
+#        debug => 1,
+);
+unless ($ARGS{no_form}) {
+    print qq[
+    <table width="100%" cellspacing="0" cellpadding="0">
+        <tr>
+            <td nowrap="1" align="left" style="font-size: 150%; padding: 0.5em 0.1em 0 0">$title</td>
+            <td nowrap="1" align="right" style="font-size: 100%; padding: 0.9em 0.3em 0 0">] . sprintf("%s - %s", Date_to_Text(@start), Date_to_Text(@end)) . qq[</td>
+        </tr>
+        <tr><td colspan="2">
+            <form method="get" action="] . $r->uri . '">' . join("\n", map { '<input type="hidden" value="' . $m->request_args->{$_} . '" name="' . $_ . '"/>' } grep { $_ ne 'payperiod' } keys %{$m->request_args}) . q[
+            <table width="100%" cellpadding="3" cellspacing="0">
+                <tr>
+                    <td nowrap="1" align="left"><button name="payperiod" value="] . ($payperiod - 1) . q[">Prev pay period</button></td>
+                    <td nowrap="1" align="center"><button] . ($payperiod ? '' : ' disabled="1"') . q[>Current pay period</button></td>
+                    <td nowrap="1" align="right"><button name="payperiod" value="] . ($payperiod + 1) . q[">Next pay period</button></td>
+                </tr>
+            </table>
+            </form>
+        </td></tr>
+        <tr><td colspan="2">];
+}
+$ts->display;
+#        print "<PRE style='width: 200px; white-space: pre-wrap'>" . Dumper($ts->sql) . "</PRE>";
+print q[
+        </td></tr>
+        <tr><td colspan="2"><table width="100%" cellpadding="5" cellspacing="0"><tr><td style="font-weight: bold; background-color: #CCF" align="right">Total charge hours: ] . sprintf("%.2f", $total_hours) . q[</td></tr></table></td></tr>
+    </table>];
+</%init>

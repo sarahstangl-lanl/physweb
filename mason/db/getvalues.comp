@@ -1,0 +1,36 @@
+<%doc>
+- This component will return the possible values for an 'enum' data type in a MySQL database table. Set sort to 1 to sort lexically as opposed to by index
+</%doc>
+
+<%args>
+$table
+$column
+$sort => '0'
+</%args>
+
+<%init>
+return if (!(defined($dbh)));
+my $sql = "SHOW COLUMNS FROM $table LIKE '$column'";
+my $sth = $dbh->prepare($sql);
+$sth->execute();
+my $row_ref = $sth->fetchrow_arrayref;
+my ($junk,$values) = @$row_ref;
+
+# use regex to isolate comma separated values
+$values =~ s/(.*)\((.*)\)/$2/;
+
+# remove unneeded quotes
+$values =~ s/\'//g;
+
+#sort values lexically if $sort = 1
+if ($sort) {
+  my @vals = (sort(split(',',$values)));
+  $values = '';
+  foreach my $val (@vals) {
+    $values .= $val.',';
+  }
+  $values = substr($values,0,-1);
+}
+
+return $values;
+</%init>

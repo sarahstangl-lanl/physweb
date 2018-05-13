@@ -1,0 +1,7 @@
+<%args>
+    $search => undef
+</%args>
+<%init>
+    use UCard;
+    return UCard::lookup($search);
+</%init>

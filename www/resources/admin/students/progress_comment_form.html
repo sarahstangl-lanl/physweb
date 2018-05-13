@@ -1,0 +1,120 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: advisor_form.html
+        Date: 2006.03.24
+      Author: allan
+     Changed: 2006.03.24 by allan
+
+Description ...
+</%DOC>
+
+<%ARGS>
+    $uid=>undef
+    $dgs=>0
+</%ARGS>
+
+<%INIT>
+    if (!defined($uid)) {
+        print 'This page was called incorrectly :(';
+        return;
+    }
+    
+    if ($dgs) {
+        # no DGS features without correct auth...
+        my $dgs_auth = $m->comp('/mason/auth/auth_check.comp', auth_type=>'gradoffice');
+        if (!$dgs_auth) { $m->redirect('index.html'); }
+    }
+    
+    #
+    # faculty check not really needed, as we do check
+    # that the user is the advisor
+    #
+    my $faculty = 1; #$m->comp('/mason/auth/auth_check.comp', auth_type=>'faculty');
+    my ($record_year, $advisor, $dgs_comments, $advisor_comments, $advisor_support);
+    
+    # fetch the most recent record for this student
+    my $sth = $dbh->prepare(
+        'SELECT record_year, advisor, dgs_comments, advisor_comments, advisor_support
+         FROM gradprogress
+         WHERE uid=? ORDER BY record_year DESC LIMIT 1');
+    $sth->execute($uid)
+        or die 'Unable to grab record: ' . $dbh->errstr;
+    
+    if (my $row_ref = $sth->fetchrow_arrayref()) {
+        ($record_year, $advisor, $dgs_comments, $advisor_comments, $advisor_support) = @$row_ref;
+    }
+
+    my $name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$uid);
+
+    # make sure this is really the advisor calling the form...
+    if (!$dgs && ($session{'uid'} ne $advisor)) {
+        $m->redirect('index.html');
+    }
+
+</%INIT>
+
+<%shared>
+    my %hARGS = $m->request_args();
+    my $who = ($hARGS{'dgs'} ? 'DGS' : 'advisor');
+</%shared>
+
+<%method title>Enter <% $who %> comments</%method>
+
+<h4><% ucfirst($who) %> Comments for <% $name %>, year <% $record_year %></h4>
+
+Please enter your general comments on the student's progress: 
+% if (!$dgs) {
+Is the project well defined?  Does the student know what s/he needs to do to complete his/her degree?  Is s/he making timely progress?  Is the completion projection realistic?. 
+% }
+The comments will be visible to the student on their report summary page.
+<p>
+<form method=post action="progress_comment.html">
+<input type="hidden" name="dgs" value="<% $dgs %>">
+<input type="hidden" name="uid" value="<% $uid %>">
+
+<table>
+<tr><td valign="top">
+<textarea name="comments" cols=60 rows=10>
+<% ($dgs ? $dgs_comments : $advisor_comments) |h %>
+</textarea>
+</td>
+<td>
+<& '/mason/db/students/progress_report.comp:comment_history', uid => $uid, dgs => $dgs, max_year => $record_year-1 &>
+</td></tr>
+</table>
+
+<p>
+% if (!$dgs) {
+<b>Prospect on Financial support:</b> Is your student's idea about this
+subject (in section G) accurate for this summer and, if applicable, next
+academic year?  If so, please confirm positively.  If not, please
+indicate how your plan is different from what your student described.
+Please communicate the disagreement to your advisee.
+<p>
+If the student is in his/her 1st or 2nd year, your response may be:
+<ul>
+<li>I will sponsor a project  but cannot support him/her financially.
+<li>I will support the student with a summer RA (full 1/2 time or
+     partial support (indicate level))
+<li>I would be able to absorb the student into your group at the end
+     of the summer if the applicant does well in the summer research.
+     If so, the kind of financial support I can provide him/her is
+     .....  If the student is a second year student (or later), this
+     information is very important.
+</ul>
+<table>
+<tr><td valign="top">
+<textarea name="advisor_support" cols=60 rows=10>
+<% $advisor_support |h %>
+</textarea>
+</td>
+<td>
+<& '/mason/db/students/progress_report.comp:comment_history', uid => $uid, support => 1, max_year => $record_year-1 &>
+</td></tr>
+</table>
+
+% }
+
+<p>
+<input type=submit value="Submit your comments">  <input type=reset>
+</form>

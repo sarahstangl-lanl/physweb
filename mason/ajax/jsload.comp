@@ -1,0 +1,30 @@
+<%DOC>
+   Component: jsload.comp
+        Date: 2008.08.27
+      Author: clayton
+     Changed: 2008.08.27 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $file
+</%ARGS>
+
+<%shared>
+  my @loaded_files;
+</%shared>
+
+<%init>
+  if ( grep { $_ eq $file } @loaded_files ) { return 0; }
+
+  push @loaded_files, $file;
+</%init>
+		
+<script src="/include/<% $file |h %>" type="text/javascript"></script>
+
+% return 1;
+
+<%filter>
+s/\n//go
+</%filter>

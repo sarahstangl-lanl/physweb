@@ -1,0 +1,31 @@
+<%doc>
+   Component: uid_to_displayname.comp
+        Date: 9/6/2002
+      Author: nick
+ Description: returns 'last name, first name' of a directory uid
+</%doc>
+
+<%args>
+$uid=>undef
+</%args>
+
+<%init>
+return '' if (!defined($uid));
+my $name = $m->cache->get($uid);
+if (!defined($name)) {
+  my $sql = "SELECT first_name, last_name FROM directory WHERE uid = ? LIMIT 1";
+  my $sth = $dbh->prepare($sql);
+  if(!$sth->execute($uid)) {
+    die("Error: $sth->errstr");
+  } else {
+    if ($sth->rows) {
+      my $row_ref = $sth->fetchrow_hashref;
+      $name = $$row_ref{'last_name'}.(($$row_ref{'last_name'} && $$row_ref{'first_name'}) ? ', ' : '').$$row_ref{'first_name'};
+    }
+  }
+  $m->cache->set($uid, $name, '0 min');
+}
+</%init>
+<%perl>
+return $name;
+</%perl>

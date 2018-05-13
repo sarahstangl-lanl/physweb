@@ -1,0 +1,19 @@
+<%doc>
+vim:set syntax=mason:
+</%doc>
+<%method backgroundcolor>#dcDCa3</%method>
+    <h1>EBEX In Flight</h1>
+    <!--<h2>EBEX in Flight</h2>-->
+    <p>EBEX or E and B Experiment, is a balloon-borne polarimeter designed to measure the intensity and polarization of the Cosmic Microwave
+Background Radiation (CMBR)</p>
+    
+     <p>EBEX will "listen" for the remnants of the inflationary period after the Big Bang by measuring the the intensity and polarization of the CMBR. 
+     The CMBR, itself a different relic remnant of the Big Bang, stores a treasure trove of information about the early Universe.</p>
+     <p>University of Minnesota Professor Shaul Hanany is leading the international team of scientists from Europe, Israel, Canada and the US 
+     (UMN, Berkeley, Brown, and Harvard) who are building EBEX. These images are from their successful test flight last year which was made in 
+     preparation for a launch from the US Antarctic base in McMurdo in 2011. 
+    <div id="sideiconblock" style="position: absolute; top: 750px; right:0px; text-align: center; width: 100%;">
+     
+      
+    </div>
+

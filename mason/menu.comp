@@ -1,0 +1,118 @@
+<%doc>
+   Component: menu.comp
+        Date: 5/11/2007
+      Author: Rubin
+ Description: handles making menus
+
+
+ Note: link to 'index.html' to force underline when on the index page.
+       This will cause 2 menu items to be underlined, which is ok in some cases but not others.
+</%doc>
+
+<%shared>
+    my @menu_items;
+    my %override_bullet; # override the next menu item (at the specified level) with this bullet
+    # A stack of the levels (should just increase, but whatever)
+    # Because of nesting we can't only store the current level.
+    my @levels;
+</%shared>
+
+<%args>
+    $link
+    $parent => ''
+    $title => $m->content
+    $left_nest => 2 #set this to the number of nest levels you want when starting from 1 (ie, for our left menu system)
+    $content => ''
+    $selected => undef  # set to 0 or 1 to override selection
+    $catch_txt => ''
+    $catch_txt2 => ''
+    $bullet => '&bull;'
+    $afterbullet => undef # use this bullet next (only once). Can be used so you have Elem1 | Elem2 * Elem3 * ... 
+</%args>
+
+<%perl>
+    my $level = $levels[$#levels];  
+    my $separator = '';
+    my $uri = $r->uri; # the path... no query string
+    my $type = 'li';
+    my %rargs = $m->request_args();
+    
+    $menu_items[$level] += 1; # we need to know the first entry for style..
+
+    if($ENV{'QUERY_STRING'}) {
+        my $query = $ENV{'QUERY_STRING'};
+        $query =~ s/&/&amp;/go;
+        $uri .= "?" . $query;
+    }
+    
+    my $simple_link = $link;
+    if ($simple_link =~ /index.html/) {
+       $uri =~ s|/$|/index.html|;
+    } else {
+       $uri =~ s/index\.html//;
+    }
+
+    my $class = "menulink$level";
+
+    if (defined($selected)) {
+        $class .= " selected" if ($selected == 1);
+    } else {
+        my $reg_link = quotemeta($simple_link);
+        $class .= " selected"
+            if(($uri eq $simple_link) ||
+               ($level >= $left_nest && $uri =~ /^$reg_link.*/));
+    }
+
+    if (defined($override_bullet{$level})) {
+        $bullet = $override_bullet{$level};
+        $override_bullet{$level} = undef;
+    }
+    $override_bullet{$level} = $afterbullet;
+    
+    if (($menu_items[$level] > 1) && ($level > $left_nest)) {
+        # Only do the separator if this isn't the first item and this isn't the side nav
+        $separator = "&nbsp;" . $bullet . "&nbsp;";
+    }
+</%perl>
+<<% $type %> class="<% $class %>"><% $separator %>
+<a class="<% $class %>" href="<% $link |h %>" title="<% $title %>">
+<span class="thelink"><% $m->content %><% $content %></span>
+<span class="catchtext"><% ($catch_txt ? '<br/>' . $catch_txt : '') %></span>
+<span class="catchtext"><% ($catch_txt2 ? '<br/>' . $catch_txt2 : '') %></span>
+</a>
+</<% $type %>>
+<%perl>
+# DEBUG: <% $uri %> - <% $simple_link %><BR />
+# See if we should do nesting (for the left nav) and then
+# check if we are in this section (if $uri starts with $simple_link)
+if (($level < $left_nest) && (index($uri, $simple_link) == 0)) {
+     my $self = $m->request_comp;
+     if ($self->method_exists('submenu'.($level+1))) {
+         </%perl><li class="<% "menulink$level" %>"><%perl>
+         $self->call_method('submenu'.($level+1));
+         </%perl></li><%perl>
+     }
+}
+</%perl>
+
+<%method begin>
+<%args>
+    $level => 1
+</%args>
+% push(@levels, $level);
+% if($m->content) {
+<h2 class="menulink<% $level %> menulink"><% $m->content %></h2>
+% }
+<ul class="menulink<% $level %> menulink">
+</%method>
+
+<%method end>
+% my $level = pop(@levels);
+</ul>
+</%method>
+
+<%filter>
+s/\n//go
+</%filter>
+
+%# vim: set syntax=mason:

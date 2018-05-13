@@ -1,0 +1,333 @@
+<%method skel></%method>
+<%method noheader></%method>
+
+<%init>
+if ($m->dhandler_arg =~ /(.+)_(help|error)\.html$/) {
+    if ($m->request_comp->method_exists("${2}_${1}")) {
+        print '<div style="max-width: 480px; max-height: 275px; overflow-y: auto;">';
+        $m->comp("SELF:${2}_${1}");
+        print '</div>';
+        return;
+    }
+}
+$m->comp("/mason/404.comp");
+</%init>
+
+<%method help_cstTime>
+<h4>OBSERVATION DECIMAL CST COLUMN</h4>
+Convert your Clock Time to Decimal CST. Follow the methods below.
+<br>
+1. If you observation is in PM, add 12 hours.
+<br>
+2. Are you in daylight savings time? If so, subtract 1 hour.
+<br>
+3. Divide the minutes by 60.
+</%method>
+<%method help_dayNumber>
+<h4>DAY NUMBER COLUMN</h4>
+Write down the day number for the date you took the observation. For example, Jan 1 = Day 1, Jan 2 = Day 2, Jan 31 = Day 31, Feb 1 = Day 32, Feb 2 = Day 33, etc.... You can also find the day number <a href="http://www.astro.umn.edu/~ayoung/calendarw.html" target="new">here</a>.
+<h4>DAY: Day Number check</h4>
+Your day number does not match your observation date.
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>Click <a href="http://www.astro.umn.edu/~ayoung/calendarw.html" target="new">HERE</a> for the list of day numbers.
+<li>30 days hath September, April, June, and November. All the rest have 31. Except for February which has 28 
+(unless it is a leap year, in which case it has 29 days).
+<li>There is no such thing as Day 0. Jan 1st is Day 1.
+</ol>
+</%method>
+<%method help_elongation>
+<h4>MOON ELONGATION COLUMN</H4>
+Sun's H.A. - Moon's H.A. = Moon Elongation
+<Br>
+<h4>EHA: Elongation from your Moon's and Sun's Hour Angle Calculation check</h4>
+You did not calculate your elongation correctly from your Sun's HA and Moon's HA
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>Elongation can never be negative. If it is, add 360. This will make it
+positive.
+<li>Elongation can only go from 0 to 359.99. 360 is the same thing as 0.
+</ol>
+<h4>EDT: Elongation on that Date check</h4>
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>The calculation for Elongation depends on two things: Moon's HA and Sun's HA. Check to see if they are both correct.
+<li>If Sun's HA (SHC box) is red, please fix the Sun's HA calculation.
+<li>If Moon's HA (MHF box) is red, please fix the Moon's HA calculation.
+<h3>Otherwise, please see your TA.</h3>
+</%method>
+<%method help_fists>
+<h4>FISTS/HANDS COLUMN</h4>
+This is where you write down your measurement of the Moon. You may use either your FISTS or your HANDS, but please pick one and stick with it for the rest of the semester. 
+<br>
+Please write down a positive number and choose the direction (sign) from the pulldown menu.
+<h3> This project is not a guessing game. Do not randomly type in numbers in the hopes of getting something right. This is considered academic misconduct.</h3>
+<ol>
+<li>If you saw the Moon
+in the West direction, just type in the number (e.g. 3.2, 1.5, 5.4, etc...).
+<li>If you saw the Moon in the East direction, type in a negative before your number (e.g. -3.4, -4.6, etc...).
+<li>We encourage you to use two significant digits for your observations.
+</ol>
+</%method>
+<%method help_fists2>
+<h4>FISTS/HANDS COLUMN</h4>
+This is where you write down your measurement of the Moon. You may use either your FISTS or your HANDS, but please pick one and stick with it for the rest of the semester. 
+<br>
+Please write down a positive number and choose the direction (sign) from the pulldown menu.
+<h3> This project is not a guessing game. Do not randomly type in numbers in the hopes of getting something right. This is considered academic misconduct.</h3>
+<ol>
+<li>If you saw the Moon
+in the West direction, just type in the number (e.g. 3.2, 1.5, 5.4, etc...).
+<li>If you saw the Moon in the East direction, type in a negative before your number (e.g. -3.4, -4.6, etc...).
+<li>We encourage you to use two significant digits for your observations.
+</ol>
+</%method>
+<%method help_fists3>
+<h4>FISTS/HANDS COLUMN</h4>
+This is where you write down your measurement of the Moon. You may use either your FISTS or your HANDS, but please pick one and stick with it for the rest of the semester. 
+<br>
+Please write down a positive number and choose the direction (sign) from the pulldown menu.
+<h3> This project is not a guessing game. Do not randomly type in numbers in the hopes of getting something right. This is considered academic misconduct.</h3>
+<ol>
+<li>If you saw the Moon
+in the West direction, just type in the number (e.g. 3.2, 1.5, 5.4, etc...).
+<li>If you saw the Moon in the East direction, type in a negative before your number (e.g. -3.4, -4.6, etc...).
+<li>We encourage you to use two significant digits for your observations.
+</ol>
+</%method>
+<%method help_aveFist>
+<h4>FISTS/HANDS COLUMN</h4>
+This is the average of your three fist counts.
+<br>Make sure to keep track of the sign.
+<br>If your average is an integer value (1, 2, 3, etc.), make sure to add zero after the decimal place.
+</%method>
+<%method help_cloud>
+Enter the cloud cover you observed when you made your observation.
+</%method>
+<%method help_moonHA>
+<h4> MOON'S H.A. COLUMN</h4>
+FISTS (or HANDS) * Degrees per FIST (or HANDS) = Moon's H.A.
+<br>
+Please write down a positive number and choose the direction (sign) from the pulldown menu.
+<h4>MHF: Moon's HA from your Fist calculation check</h4>
+You did not calculate your Moon's HA correctly from your fists (hands).
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>If the Moon was East, your FIST/HAND should be negative.
+<li>Don't know how to take a measurement? <a href="http://www.astro.umn.edu/~ayoung/howtoobs.html" target ="new">Click 
+here.</a>
+<li>You might have mistaken East and West directions.
+<li>Try not to switch between FISTS and HANDS. Choose one and stick with it for the rest of the semester.
+<li>Did you change your 'Degrees per fists/hands'? If so, you should change your settings above.
+</ol>
+EXAMPLE:
+The Moon was 3.3 FISTS East. If each FIST is 10 degrees, then Moon's HA = -3.3 * 10 = -33.
+<h4>MHD: Moon's HA on that Date check</h4>
+<h4>Commonly Made Mistakes:</h4>
+Are you sure of the direction of the Moon? Was the Moon in the East or in the West?
+<h3>Otherwise, please see your TA</h3>
+</%method>
+<%method help_time>
+<h4>OBSERVATION CLOCK TIME COLUMN</h4>
+Look at your clock and write down the time you saw the Moon.
+<br>
+Use the AM/PM method here. 
+</%method>
+<%method help_date>
+<h4>OBSERVATION DATE COLUMN</h4>
+Type in the date of your observation.
+<br>
+The format is: MM-DD-YYYY
+</%method>
+<%method help_observation_time>
+<h4>OBSERVATION TIME COLUMN</h4>
+This column has the following information about your observation:
+<br>
+<li>Observation Date
+<li>Observation Clock Time
+<li>Decimal CST
+<h4>OBS: Observation period check</h4>
+You did not wait the appropriate amount of time before taking another observation (this is set by your TA).
+.
+<h4>Commonly Made Mistakes</h4>
+<ol>
+<li> Wait for the appropriate amount of time before taking another observation.
+</ol>
+<h4>CST: Central Standard Time check</h4>
+You did not calculate your CST correctly from your Clock Time.
+<h4>Commonly Made Mistakes:</h4>
+<li> Daylight Savings is between early April and late October. 
+<li> Here are two examples of  Clock Time to CST conversion:
+<li> 1. If you are in Daylight Savings, 6:35 PM --> 17:35 --> 17.58
+<li> 2. If not, then 6:35 PM --> 18:35 PM --> 18.58
+</%method>
+<%method help_phaseNumber>
+<h4>PHASE NUMBER COLUMN</h4>
+Write down the phase # that best represents what you saw in the sky.
+For example: 2.3, 4.0, 5.6, 7.5, etc...
+<h4>PHN: Phase Number/Sketch check</h4>
+Your phase number and phase sketch do not match.
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>When drawing the Moon phase on a piece of paper, you might mistake
+light for dark and dark for light.
+<li>Your phase sketch might not be matching your phase number. Either your phase sketch is wrong or your phase
+ number is wrong.
+</%method>
+<%method help_phaseSketch>
+<h4>PHASE SKETCH COLUMN</h4>
+Choose the image that best represents what you saw in the sky.
+<h4>PHN: Phase Number/Sketch check</h4>
+Your phase number and phase sketch do not match.
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>When drawing the Moon phase on a piece of paper, you might mistake
+light for dark and dark for light.
+<li>Your phase sketch might not be matching your phase number. Either your phase sketch is wrong or your phase
+ number is wrong.
+</%method>
+<%method help_submission_time>
+<h4>SUBMISSION TIME COLUMN</h4>
+The computer records the date and time you submitted your observation or made a modification.
+<h4>SUB: Submission time check</h4>
+You did not turn in your observation within the designated time period (this is set by your TA).
+<h4>Commonly Made Mistakes</h4>
+<ol>
+<li>You did not turn in your observations on time. Whenever you take an observation, you have 72 hours (unless
+ specified otherwise by your TA) to submit your observations on-line. Otherwise, it is rejected.
+<li>Consider this process as you would a time sheet: You write down your hours, you get paid. If you don't wri
+te down your hours, you don't get paid. 
+<li>If you do not submit your observations on-time, you will have no observations at all by the time the semester is over.
+</ol>
+</%method>
+<%method help_sunHA>
+<h4>SUN'S H.A. COLUMN</h4>
+[ CST - 12 ] * 15 = Sun's H.A.
+<br>
+Please write down a positive number and choose the direction (sign) from the pulldown menu.
+<h4>SHC: Sun's HA Calculation check</h4>
+You did not calculate the Sun's HA from your CST correctly.
+<br>
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>Order of operations makes a difference. Do the subtraction first (CST - 12) before you multiply by 15.
+<li>Did you calculate your CST correctly?
+</ol>
+</%method>
+
+<%method error_cst>
+<h4>CST: Central Standard Time check</h4>
+You did not calculate your CST correctly from your Clock Time.
+<h4>Commonly Made Mistakes:</h4>
+<li> Daylight Savings is between early April and late October. 
+<li> Here are two examples of  Clock Time to CST conversion:
+<li> 1. If you are in Daylight Savings, 6:35 PM --> 17:35 --> 17.58
+<li> 2. If not, then 6:35 PM --> 18:35 PM --> 18.58
+</%method>
+<%method error_day>
+<h4>DAY: Day Number check</h4>
+Your day number does not match your observation date.
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>Click <a href="http://kids.msfc.nasa.gov/Puzzles/calendar.html" target=new>HERE</a> for the list of day numbers.
+<li>30 days hath September, April, June, and November. All the rest have 31. Except for February which has 28 (unless it is a leap year, in which case it has 29 days).
+<li>There is no such thing as Day 0. Jan 1st is Day 1.
+</ol>
+</%method>
+<%method error_edt>
+<h4>EDT: Elongation on that Date check</h4>
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>The calculation for Elongation depends on two things: Moon's HA and Sun's HA. Check to see if they are both correct.
+<li>If Sun's HA (SHC box) is red, please fix the Sun's HA calculation.
+<li>If Moon's HA (MHF box) is red, please fix the Moon's HA calculation.
+<h3>Otherwise, please see your TA.</h3>
+</%method>
+<%method error_eha>
+<h4>EHA: Elongation from your Moon's and Sun's Hour Angle Calculation check</h4>
+You did not calculate your elongation correctly from your Sun's HA and Moon's HA
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>Elongation can never be negative. If it is, add 360. This will make it
+positive.
+<li>Elongation can only go from 0 to 359.99. 360 is the same thing as 0.
+</ol>
+</%method>
+<%method error_mhd>
+<h4>MHD: Moon's HA on that Date check</h4>
+<h4>Commonly Made Mistakes:</h4>
+Are you sure of the direction of the Moon? Was the Moon in the East or in the West?
+<h3>Otherwise, please see your TA</h3>
+</%method>
+<%method error_mhf>
+<h4>MHF: Moon's HA from your Fist calculation check</h4>
+You did not calculate your Moon's HA correctly from your fists (hands).
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>If the Moon was East, your FIST/HAND should be negative.
+<li>Don't know how to take a measurement? <a href="http://www.astro.umn.edu/~ayoung/howtoobs.html" target ="new">Click here.</a>
+<li>You might have mistaken East and West directions.
+<li>Try not to switch between FISTS and HANDS. Choose one and stick with it for the rest of the semester.
+<li>Did you change your 'Degrees per fists/hands'? If so, you should change your settings above.
+</ol>
+EXAMPLE:
+The Moon was 3.3 FISTS East. If each FIST is 10 degrees, then Moon's HA = -3.3 * 10 = -33.
+</%method>
+<%method error_obs>
+<h4>OBS: Observation period check</h4>
+You did not wait the appropriate amount of time before taking another observation (this is set by your TA).
+.
+<h4>Commonly Made Mistakes</h4>
+<ol>
+<li> Wait for the appropriate amount of time before taking another observation.
+</ol>
+</%method>
+<%method error_phn>
+<h4>PHN: Phase Number/Sketch check</h4>
+Your phase number and phase sketch do not match.
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>When drawing the Moon phase on a piece of paper, you might mistake
+light for dark and dark for light.
+<li>Your phase sketch might not be matching your phase number. Either your phase sketch is wrong or your phase number is wrong.
+</%method>
+
+<%method error_ave>
+<h4>AVE: Average Fist Count</h4>
+Your calculated average does not match the actual average of your fists.
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>Forgot to divide by 3.
+<li>Did not keep track of the negative or positive sign of the fist count.
+<li>You must have one significant digit after the decimal.
+</%method>
+
+<%method error_shc>
+<h4>SHC: Sun's HA Calculation check</h4>
+You did not calculate the Sun's HA from your CST correctly.
+<h4>Commonly Made Mistakes:</h4>
+<ol>
+<li>Order of operations makes a difference. Do the subtraction first (CST - 12) before you multiply by 15.
+<li>It is ok if the Sun's HA is negative. Leave it as it is.
+<li>Did you calculate your CST correctly?
+</ol>
+</%method>
+<%method error_sub>
+<h4>SUB: Submission time check</h4>
+You did not turn in your observation within the designated time period (this is set by your TA).
+<h4>Commonly Made Mistakes</h4>
+<ol>
+<li>You did not turn in your observations on time. Whenever you take an observation, you have 72 hours (unless specified otherwise by your TA) to submit your observations on-line. Otherwise, it is rejected.
+<li>Consider this process as you would a time sheet: You write down your hours, you get paid. If you don't write down your hours, you don't get paid. 
+<li>If you do not submit your observations on-time, you will have no observations at all by the time the semester is over.
+</ol>
+</%method>
+<%method error_up>
+<h4>UP: Moon Up check</h4>
+According to the computer, the Moon was not up when you made your observation.
+<h4>Commonly Made Mistakes:</h4>
+Are you sure you're looking at the Moon? You may have been looking at:
+<li> The Sun
+<li> Clouds
+<li> Spotlight
+</%method>

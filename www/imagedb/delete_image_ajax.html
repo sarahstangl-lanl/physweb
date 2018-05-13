@@ -1,0 +1,12 @@
+<%flags>
+ inherit => undef
+</%flags>
+<%args>
+ $uid => -1
+</%args>
+<%init>
+  my $g = $m->scomp('delete_image.html', @_, ajax => '1');
+  $g =~ s/^\s+//;
+  $g =~ s/\s+$//;
+</%init>
+<% $g %>

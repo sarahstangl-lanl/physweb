@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<clientConfig version="1.1">
+  <emailProvider id="physics.umn.edu">
+    <domain>physics.umn.edu</domain>
+    <domain>astro.umn.edu</domain>
+    <displayName>Physics Email</displayName>
+    <displayShortName>Physics</displayShortName>
+    <incomingServer type="imap">
+      <hostname>mail.physics.umn.edu</hostname>
+      <port>143</port>
+      <socketType>STARTTLS</socketType>
+      <authentication>password-encrypted</authentication>
+      <username>%EMAILLOCALPART%</username>
+    </incomingServer>
+    <incomingServer type="imap">
+      <hostname>mail.physics.umn.edu</hostname>
+      <port>993</port>
+      <socketType>SSL</socketType>
+      <authentication>password-encrypted</authentication>
+      <username>%EMAILLOCALPART%</username>
+    </incomingServer>
+    <outgoingServer type="smtp">
+      <hostname>mail.physics.umn.edu</hostname>
+      <port>587</port>
+      <socketType>STARTTLS</socketType>
+      <authentication>password-encrypted</authentication>
+      <username>%EMAILLOCALPART%</username>
+    </outgoingServer>
+    <documentation url="http://zzz.physics.umn.edu/computing/accounts/email/settings">
+      <descr lang="en">Email settings</descr>
+    </documentation>
+    <enable visiturl="https://mail.physics.umn.edu/">
+           <instruction lang="en">Web mail is also available here.</instruction>
+    </enable>
+    <enable visiturl="https://mail.umn.edu/">
+           <instruction lang="en">If you want forward your university email to your physics account, remember to set this up.</instruction>
+    </enable>
+  </emailProvider>
+</clientConfig>

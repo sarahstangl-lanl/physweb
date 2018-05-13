@@ -1,0 +1,38 @@
+<%init>
+# this hacky mess finds the first bit after /research/ in the path and uses it as the research area for the story
+#my @bits = split /[\/\.]/, $r->uri;
+#my $section = '';
+#while( defined(my $item = shift @bits) ) {
+#    if($item eq 'research') {
+#       $section = shift @bits;
+#       last;
+#    }
+#}
+</%init>
+%#<& "/mason/db/stories/researchfeature.comp", subtype=>$section &>
+<% $m->call_next %>
+<%method titlemenu_above>
+   <& /mason/titlemenu.comp:begin, type=>"above" &>
+   <&| /mason/titlemenu.comp:item, link=>'/research/index.html'  &>Overview</&>
+   <&| /mason/titlemenu.comp:item, link=>'/research/cosmology.html'  &>Cosmology</&>
+   <&| /mason/titlemenu.comp:item, link=>'/research/biological.html'  &>Biology</&>
+   <&| /mason/titlemenu.comp:item, link=>'/research/cm/'  &>Condensed Matter</&>
+   <&| /mason/titlemenu.comp:item, link=>'/research/particle/'  &>Elementary Particles</&>
+   <&| /mason/titlemenu.comp:item, link=>'/research/space.html'  &>Space and Planets</&>
+   <&| /mason/titlemenu.comp:item, link=>'/research/nuclear.html'  &>Nuclear</&>
+   <&| /mason/titlemenu.comp:item, link=>'/research/education.html'  &>Education</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+
+<%method whereamifilter>
+<%args>
+$partsref
+</%args>
+<%perl>
+# Hard code research breadcrumbs to end at research, regardless of subtrees
+my $newparts = [ { 'original' => 'research', 'display' => 'Research' } ];
+return @$newparts;
+</%perl>
+</%method>
+
+%# vim: set syntax=mason:

@@ -1,0 +1,115 @@
+<%args>
+    $colspan,
+    @values,
+    $id => undef
+</%args>
+
+<div style="display: none; border: 1px solid grey; padding-left: 0.5em; padding-right: 0.5em; margin-top: 0.2em; height: 15em;" id="<% $id %>">
+<table style="min-width: 20em; width: 100%" border="0" cellspacing="0" cellpadding="5" class="rowmagic">
+
+% for my $row (@values) {
+
+<tr class="magic tablehead2">
+<th colspan="<% $colspan %>"><input type="checkbox" name="mailto_alltas" value="1" style="float: left; margin-right: -15px;" alt="All TAs">TAs</th>
+</tr>
+% my $found = 0;
+% foreach my $row (@tas) {
+% my $selected = grep { $row->{'uid'} eq $_ } @bcc_tas;
+<tr class="magic"><td><input type="checkbox" name="mailto_ta" value="<% $row->{'uid'} |u %>"<% ($selected ? ' CHECKED="checked"' : '') %> alt="<% $row->{'first_name'} |u %> <% $row->{'last_name'} |u %> (TA)"></td><td><% $row->{'first_name'} |h %> <% $row->{'last_name'} |h %></td><td><% findemail($row) |h %></td><td></td></tr>
+% $found = 1;
+% }
+% if (!$found) {
+<tr><td colspan="4" align="center"><em></em></td></tr>
+% }
+
+% }
+
+
+<tr class="magic tablehead2"><th colspan="4"><input type="checkbox" name="mailto_alltas" value="1" style="float: left; margin-right: -15px;" alt="All TAs">TAs</th></tr>
+% my $found = 0;
+% foreach my $row (@tas) {
+% my $selected = grep { $row->{'uid'} eq $_ } @bcc_tas;
+<tr class="magic"><td><input type="checkbox" name="mailto_ta" value="<% $row->{'uid'} |u %>"<% ($selected ? ' CHECKED="checked"' : '') %> alt="<% $row->{'first_name'} |u %> <% $row->{'last_name'} |u %> (TA)"></td><td><% $row->{'first_name'} |h %> <% $row->{'last_name'} |h %></td><td><% findemail($row) |h %></td><td></td></tr>
+% $found = 1;
+% }
+% if (!$found) {
+<tr><td colspan="4" align="center"><em>No TAs found [<a
+href="/people/assoc_edit.html?type=TA&id=<% $classid |u
+%>" onclick="day = new Date(); id = day.getTime();
+window.open('/people/assoc_edit.html?type=TA&id=<% $classid |u
+%>&skel=1', 'EditTAList' +
+id,'scrollbars=yes,location=0,width=500,height=450,left=100,top=100')
+; return false;" target="_blank">Edit</a>]</em></td></tr>
+% }
+<tr class="tablehead2"><th colspan="4">Sections (Students and TAs)</th></tr>
+% $found = 0;
+% foreach my $row (@sections) {
+% $found = 1;
+% my $selected = grep { $row->{'section'} eq $_ } @bcc_sections;
+<tr class="magic"><td><input type="checkbox" name="mailto_section" value="<% $row->{'section'} |u %>"<% ($selected ? ' CHECKED="checked"' : '') %>></td><td><% $row->{'section'} |h %></td><td></td><td></td></tr>
+% }
+% if (!$found) {
+<tr><td colspan="4" align="center"><em>No sections found</em></td></tr>
+% }
+<tr class="magic tablehead2"><th colspan="4"><input type="checkbox" name="mailto_allstudents" value="1" style="float: left; margin-right: -15px;" alt="All Students">Students</th></tr>
+% foreach my $row (@students) {
+% my $selected = grep { $row->{'x500'} eq $_ } @bcc_x500s;
+% $hasstudents=1;
+<tr class="magic"><td><input type="checkbox" name="mailto_student" value="<% $row->{'x500'} |u %>" alt="<% $row->{'dispname'} |h %>"<% ($selected ? ' CHECKED="checked"' : '') %>></td><td><% $row->{'dispname'} |h %></td><td><% ($row->{'x500'} ? $row->{'x500'} . '@umn.edu' : '') |h %></td><td><% $row->{'section'} |h %></td></tr>
+% }
+% if (!$hasstudents) {
+<tr><td colspan="4" align="center"><em>No students found</em></td></tr>
+% }
+</table>
+<script type="text/javascript" language="javascript">
+//<![CDATA[
+var selectedMagic = Array();
+
+$$('#mailto_selector input').each(function (obj) {
+  var func = function (e) {
+    var name = e.target.value;
+    if (e.target.name == 'mailto_section') {
+      name = "Section " + name;
+    } else {
+      name = e.target.alt;
+    }
+    
+    if (e.target.checked) {
+      window.selectedMagic.push(name);
+    } else {
+      window.selectedMagic = selectedMagic.without(name);
+    }
+
+    $('mailto_list').innerHTML = ": " + selectedMagic.join(', ');
+  };
+
+  // Call this in case we are starting with some already checked
+  func({target: obj});
+
+  obj.observe('change', func.bindAsEventListener());
+});
+
+var hide_mailto = function (e) { 
+  if ($('mailto_selector').visible() && e.target.checked) {
+    new Effect.BlindUp($('mailto_selector'), {
+      queue: 'end'
+    });
+  }
+};
+var show_mailto = function (e) {
+  if (!$('mailto_selector').visible() && e.target.checked) {
+    new Effect.BlindDown($('mailto_selector'), {
+      afterFinish: function () { $('mailto_selector').style.overflowY = "scroll"; },
+      queue: 'end'
+    });
+  }
+};
+
+// This will show the selector box if we are starting with it open...
+show_mailto({target: $('mailto_group_selection')});
+
+$('mailto_group_all').observe('click', hide_mailto);
+$('mailto_group_selection').observe('click', show_mailto);
+//]]>
+</script> 
+</div>

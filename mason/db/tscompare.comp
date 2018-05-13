@@ -1,0 +1,104 @@
+<%args>
+$a
+$a_uniquecol => undef
+$a_sortcols => undef
+$b
+$b_uniquecol => undef
+$b_sortcols => undef
+$keycol
+$cols => undef
+$tsargs => { }
+</%args>
+<%init>
+my @data;
+
+my $getsort = sub {
+    my ($row, $sortcols) = @_;
+    die "sortcols must be arrayref" if (defined $sortcols && ref $sortcols ne 'ARRAY');
+    return $row->{$keycol} unless (defined $sortcols);
+    return join('', map { $row->{$_} } @$sortcols);
+};
+
+die "cols must be arrayref" if (defined $cols && ref $cols ne 'ARRAY');
+die "a and b must be arrayrefs" unless (ref $a eq 'ARRAY' && ref $b eq 'ARRAY');
+
+die "Can't figure out cols unless both sets have at least one row" unless (defined $cols || (scalar @$a && scalar @$b));
+
+# Figure out column names
+unless (defined $cols) {
+    my $tmprow = { %{ $a->[0] }, %{ $b->[0] } };
+    $cols ||= [ keys %$tmprow ];
+}
+
+# Figure out unique columns (data must exist in every row)
+for my $col (@$cols) {
+    last if (defined $a_uniquecol && defined $b_uniquecol);
+    $a_uniquecol = $col if (! defined $a_uniquecol && exists $a->[0]->{$col} && ! exists $b->[0]->{$col} && (my $counta = grep { defined $_->{$col} } @$a) == scalar @$a);
+    $b_uniquecol = $col if (! defined $b_uniquecol && exists $b->[0]->{$col} && ! exists $a->[0]->{$col} && (my $countb = grep { defined $_->{$col} } @$b) == scalar @$b);
+}
+
+die "Failed to determine unique columns" unless (defined $a_uniquecol && defined $b_uniquecol);
+
+while (scalar @$a && scalar @$b) {
+    die "Missing $keycol for a: " . Dumper($a->[0]) unless (defined $a->[0]->{$keycol});
+    die "Missing $keycol for b: " . Dumper($b->[0]) unless (defined $b->[0]->{$keycol});
+    my $asort = $getsort->($a->[0], $a_sortcols);
+    my $bsort = $getsort->($b->[0], $b_sortcols);
+    if ($a->[0]->{$keycol} eq $b->[0]->{$keycol}) {
+        push @data, { %{shift @$a}, %{shift @$b} };
+    }
+    elsif (grep { $a->[0]->{$keycol} eq $_->{$keycol} } @$b) {
+        while ($a->[0]->{$keycol} ne $b->[0]->{$keycol}) {
+            push @data, shift @$b;
+        }
+    }
+    elsif (grep { $b->[0]->{$keycol} eq $_->{$keycol} } @$a) {
+        while ($a->[0]->{$keycol} ne $b->[0]->{$keycol}) {
+            push @data, shift @$a;
+        }
+    }
+    elsif ($asort gt $bsort) {
+        push @data, shift @$a;
+        push @data, shift @$b;
+    }
+    elsif ($asort lt $bsort) {
+        push @data, shift @$b;
+        push @data, shift @$a;
+    }
+    else {
+        die "Confused" . Dumper({
+            a => $a->[0],
+            anext => $a->[1],
+            b => $b->[0],
+            bnext => $b->[1],
+            data => \@data,
+        });
+    }
+}
+while (@$a || @$b) {
+    push @data, shift @$a if (@$a);
+    push @data, shift @$b if (@$b);
+}
+
+my $anydata = [
+    $cols,
+    map { my $o = $_; [ map { $o->{$_} } @$cols ] } @data,
+];
+
+my $ts = Tablesearch->new(
+    data => $anydata,
+    row_tagger => sub {
+        my $row = shift;
+        if (defined $row->{$a_uniquecol} && !defined $row->{$b_uniquecol}) {
+            return 'style="background-color: #9C9"';
+        }
+        elsif (defined $row->{$b_uniquecol} && !defined $row->{$a_uniquecol}) {
+            return 'style="background-color: #C99"';
+        }
+        return '';
+    },
+    %$tsargs,
+);
+$ts->display;
+
+</%init>

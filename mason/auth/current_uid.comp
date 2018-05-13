@@ -1,0 +1,13 @@
+<%doc>
+   Component: current_uid.comp
+        Date: 9/11/2002
+      Author: allan
+ Description: returns directory uid of current user
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+  return $session{'uid'};
+</%init>

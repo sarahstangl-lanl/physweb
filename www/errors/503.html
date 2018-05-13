@@ -1,0 +1,64 @@
+<%doc>
+   Component: dhandler
+        Date: 9/4/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+    $r->content_type('text/html');
+    $r->status(503);
+    
+    my $noretry = $r->pnotes('fiveohthree.noretry');
+</%init>
+
+<%method title>Resource temporarily unavailable</%method>
+
+<h2>Sorry!</h2>
+
+    <%perl>
+    my %info = $m->comp('/mason/request_info.comp');
+    my $count = 0;
+    </%perl>
+    <form method="POST" action="<% $info{'protocol'}."://".$info{'hostname'}.":".$info{port}.$info{uri}."?".$r->args() %>">
+    <%perl>
+    foreach my $p ( $r->body()) {
+        $count++;
+        </%perl>
+           <input type="hidden" name="<% $p|u %>" value="<% $r->body($p) |h %>">
+        <%perl>
+    }
+
+    if($noretry) {
+       </%perl>
+       <p>The webserver has gone into maintenance mode, and could not respond to your update. Please wait a few minutes and click refresh.</p>
+       <%perl>
+    } elsif($count > 0) { # provide a POST message and form if there is data for one...
+    </%perl>
+    <p>The webserver has gone into maintenance mode, and could not accept your update.  Please wait a few minutes, and click Re-try. Your submission will be re-attempted, without losing what you entered.</p>
+    <%perl>
+    if($r->headers_in->{'Content-type'} =~ qr|^multipart/form-data; boundary=(.+?)$|i) 
+    {
+        </%perl>
+        <p>You <u>will</u> need to re-upload any files, however as they cannot be re-tried.</p>
+        <%perl>
+    }
+    </%perl>
+    <p>If you navigate away from this page, or close this window, your update will be lost.</p>
+    <%perl>
+    } else {  # Else, just provide a message and refresh the query
+    </%perl>
+      <p>The webserver has gone into maintenance mode, and cannot respond to your query right now. Please wait a few minutes, and click Re-try. </p>
+    <%perl>
+    }
+    if(!$noretry) {
+        </%perl>
+        <input type="submit" value="Re-try">
+        <%perl>
+    }
+
+    </%perl>
+    </form>

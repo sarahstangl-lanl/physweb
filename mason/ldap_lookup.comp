@@ -1,0 +1,74 @@
+<%doc>
+    vim: set syntax=mason:
+
+</%doc>
+<%shared>
+use Net::LDAP;
+</%shared>
+
+<%method getuser>
+<%args>
+$server=>'ldap.spa.umn.edu'
+$x500=>undef
+$physid=>undef
+</%args>
+
+<%perl>
+my ($ldap,$user,$mesg);
+if($server eq 'ldap.spa.umn.edu') {
+    $ldap = Net::LDAP->new( 'ldap.spa.umn.edu' ) or return undef;
+    $mesg = $ldap->bind or return undef;
+    $mesg = $ldap->search( base => "ou=People,dc=physics,dc=umn,dc=edu", filter => "(uid=$physid)" );
+    if($mesg->count) {
+        $user = $mesg->entry(0);
+    }
+    $ldap->unbind;
+} elsif($server eq 'ldap.umn.edu') {
+    if ($ARGS{do_bind}) {
+        my %physdwa = do '/home/www/.physdwa.ldap';
+        $ldap = Net::LDAP->new( $physdwa{'host_uri'}, timeout => 5 ) or return undef;
+        $mesg = $ldap->bind( $physdwa{'bind_dn'}, password => $physdwa{'password'} ) or return undef;
+    }
+    else {
+        $ldap = Net::LDAP->new( 'ldap.umn.edu', timeout => 5 ) or return undef;
+        $mesg = $ldap->bind or return undef;
+    }
+    $mesg = $ldap->search( base => "o=University of Minnesota,c=US", filter => "(uid=$x500)" );
+    if($mesg->count) {
+        $user = $mesg->entry(0);
+    }
+    $ldap->unbind;
+}
+return $user;
+</%perl>
+</%method>
+
+<%method search>
+<%args>
+$server=>'ldap.spa.umn.edu'
+$filter
+$sizelimit => undef
+</%args>
+<%perl>
+my ($ldap,$mesg);
+if($server eq 'ldap.spa.umn.edu') {
+    $ldap = Net::LDAP->new( 'ldap.spa.umn.edu' ) or return undef;
+    $mesg = $ldap->bind or return undef;
+    $mesg = $ldap->search( base => "ou=People,dc=physics,dc=umn,dc=edu", filter => $filter, sizelimit => $sizelimit );
+    $ldap->unbind;
+} elsif($server eq 'ldap.umn.edu') {
+    if ($ARGS{do_bind}) {
+        my %physdwa = do '/home/www/.physdwa.ldap';
+        $ldap = Net::LDAP->new( $physdwa{'host_uri'}, timeout => 5 ) or return undef;
+        $mesg = $ldap->bind( $physdwa{'bind_dn'}, password => $physdwa{'password'} ) or return undef;
+    }
+    else {
+        $ldap = Net::LDAP->new( 'ldap.umn.edu', timeout => 5 ) or return undef;
+        $mesg = $ldap->bind or return undef;
+    }
+    $mesg = $ldap->search( base => "o=University of Minnesota,c=US", filter => $filter, sizelimit => $sizelimit );
+    $ldap->unbind;
+}
+return $mesg->entries;
+</%perl>
+</%method>

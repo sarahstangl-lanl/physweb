@@ -1,0 +1,45 @@
+<%doc>
+ vim: set syntax=mason:
+</%doc>
+<%method title>Elementary Particle</%method>
+
+<%method pageheading>
+<& 'PARENT:pageheading' &>
+</%method>
+
+<%args>
+$featrow=>undef
+</%args>
+
+%#Uncomment (remove %#) to enable this when the research faculty stories are done
+<& "/mason/db/stories/feature.comp", type=>'facultyresearch', subtype=>'particle', style_prefix=>'rf', readmore_path=>'/research/', featrow=>$featrow&>
+
+%# note the new random.comp wrapper around the image.comp component...
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'nimages/Brucebuilding.jpg',alt=>'CDMS Cryostat',credit=>'Courtesy CDMS',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'nimages/Danlabweb.jpg',alt=>'Asad Aboobaker',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'nimages/ElemPartExp.jpg',alt=>'CDMS detector',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'nimages/ElemPartExp2.jpg',alt=>'EBEX balloon',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'nimages/InteriorViewingArea.jpg',alt=>'EBEX group photo',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'nimages/NovaSite.jpg',alt=>'Hanany group',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'nimages/Soudan3.jpg',alt=>'EBEX gondola',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'nimages/KenNathanielFixed.jpg',alt=>'mandic Group',caption=>'' &> </&>
+
+%# if you remove the comment from the front of below (%#), it ads another image to the list of ones randomly chosen.
+%#<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'lemmon.jpg',alt=>'Mt. Lemmon Observitory',credit=>'Just for TESTING!!',caption=>'This is an example of another block you can add...' &> </&>
+
+<& /mason/random.comp:execute, name=>'image' &>
+
+
+<h3>Physics of Particles</h3>
+<p>
+Elementary particle physics, or high energy physics (HEP), is the study of the fundamental building blocks of the universe. Why is our universe composed of matter rather than antimatter? Why do seemingly superfluous heavier relatives accompany the quarks and the electrons that we need to explain ordinary matter?  Can we reconstruct the processes of the Big Bang and understand how the universe evolved into its present state? These are the questions that motivate the work of the faculty and graduate students who are engaged in HEP research.
+<p>
+The experimental particle physics group at the University of Minnesota is engaged on numerous fronts in this exciting worldwide campaign. Our group is led by nine professors and includes twelve postdoctoral research associates, eighteen graduate students, numerous undergraduate students, and a sizable technical staff. Their tools are wonderfully sophisticated (and expensive!)&nbsp;- particle accelerators, laboratories located deep underground, amazingly complex detectors, and powerful computer systems that process massive data samples.
+<p>
+The theory program has a strong phenomological component, focusing on heavy quark physics and quantum chromodynamics, with ties to the experimental group. There is also an interest in the cosmological aspects of supersymmetric gauge theories and Big Bang Nucleosythesis as a tool for discovering dark matter.  Minnesota theorists have contributed significantly to a totally new direction, brane world scenarios, which predict that the universe is confined to a brane (domain wall), embedded in a higher dimensional space-time.  
+
+<p>
+<& ../profiles.comp, group=>'hep' &>
+<& ../profiles.comp, type=>'Researchers', flag=>'research || postdoc', group=>'hep' &>
+<& ../profiles.comp, type=>'Graduate Students', flag=>'physgrad || astgrad', group=>'hep' &>
+

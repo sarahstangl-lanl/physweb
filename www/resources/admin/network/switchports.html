@@ -1,0 +1,159 @@
+<%args>
+  $search => "sw-s43-1"
+  $live => 0
+</%args>
+
+<%method title>Switch Ports</%method>
+
+<%init>
+
+use tablesearch;
+use physdb;
+use physswitch;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+unless ($auth) {
+    print "Must be admin\n";
+    return;
+}
+
+my ($switch_info, $errstr, $errhash);
+
+if ($live) {
+    my $sql = "SELECT net_hosts.computer_name FROM net_hosts WHERE type='eswitch'";
+    my $switches;
+    if ($search) {
+        $switches = physdb::queryarray("$sql AND net_hosts.computer_name LIKE ?", $search);
+    } else {
+        $switches = physdb::queryarray($sql);
+    }
+    if (scalar @$switches) {
+        ($switch_info, $errstr, $errhash) = physswitch::get_switch_info($switches);
+        if ($errstr) {
+            $m->comp('/mason/notice_box.comp', type => 'error', text => '', html => join('<br/>', map { "$_: " . $errhash->{$_} } keys %$errhash));
+        }
+    }
+}
+else {
+    my @switches;
+    my $oids = {
+        sysname => "sysName",
+        ifdesc  => "ifDescr",
+        type    => "ifType",
+        admin   => "ifAdminStatus",
+        oper    => "ifOperStatus",
+        hwas    => "hwas",
+        hispeed => "ifHighSpeed",
+        alias   => "ifAlias",
+        trunk   => "hpSwitchPortTrunkGroup",
+        vlanmem => "vlanmem",
+        lldprem => "lldpRemSysName",
+        lldpdes => "lldpRemSysDesc",
+    };
+    my $sql = "
+        SELECT
+            GROUP_CONCAT(DISTINCT hwa) AS hwas,
+            GROUP_CONCAT(DISTINCT vlan) AS vlanmem,
+            GROUP_CONCAT(DISTINCT vlan_name ORDER BY vlan_id) AS vlans,
+            GROUP_CONCAT(DISTINCT vlan_id ORDER BY vlan_id) AS vlanids,
+            p.*
+        FROM net_hosts h
+        JOIN net_switch_vlans l ON h.id = l.host_id AND l.current
+        JOIN net_switch_ports p ON h.id = p.host_id AND p.current
+        LEFT JOIN net_switch_port_hwas d ON d.host_id = p.host_id AND d.port = p.port AND d.current
+        LEFT JOIN net_switch_port_vlans v ON v.host_id = p.host_id AND v.port = p.port AND v.current
+        WHERE type = 'eswitch'";
+    my $group_by = "GROUP BY p.host_id, p.port";
+    if ($search) {
+        @switches = physdb::queryall("$sql AND h.computer_name LIKE ? $group_by", $search);
+    }
+    else {
+        @switches = physdb::queryall("$sql $group_by");
+    }
+    for my $switch (@switches) {
+        for my $oid (keys %$oids) {
+            my $val = $switch->{$oids->{$oid}};
+            if ($oid eq 'hwas' or $oid eq 'vlanmem') {
+                $val = defined $val ? [ split /,/, $val ] : undef;
+            }
+            $switch_info->{$switch->{sysName}}->{ports}->{$switch->{port}}->{$oid} = $val;
+        }
+        my @vlans = split /,/, $switch->{vlans};
+        my @vlan_ids = split /,/, $switch->{vlanids};
+        for (my $i = 0; $i < scalar(@vlans); $i++) {
+            $switch_info->{$switch->{sysName}}->{vlans}->{$vlan_ids[$i]} = $vlans[$i];
+        }
+    }
+}
+</%init>
+
+<table width="100%"><tr><td><form action="switchports.html" method="GET" style="display: inline;">
+    <input type="text" name="search" value="<% $search |h %>">
+    <input type="submit" value="Search">
+</form></td><td align="right">
+% if ($live) {
+[<a href="?search=<% $search |u %>&live=0">Fetch cached data</a>]</td></tr></table>
+% }
+% else {
+[<a href="?search=<% $search |u %>&live=1">Fetch live data</a>]</td></tr></table>
+% }
+<%perl>
+for my $switch_name (sort keys %$switch_info) {
+    my $switch = $switch_info->{$switch_name};
+    print "<h3>$switch_name</h3>";
+    my @data = ([qw/Port Desc Alias Link Speed Status LLDP Hosts VLANs Trunk/]);
+    for my $port_num (sort { sprintf("%05d", $a) <=> sprintf("%05d", $b); } keys %{$switch->{ports}}) {
+        my $port = $switch->{ports}->{$port_num};
+        next unless (defined $port->{type} && $port->{type} eq '6');
+        next if (defined $port->{alias} && $port->{alias} =~ /oobm/);
+        if (defined $port->{lldpdes} && $port->{lldpdes} =~ /^HP/) {
+            delete $port->{$_} for (qw/hwamap hwas vlanmem/);
+            $port->{lldprem} = '<a href="?search=' . $port->{lldprem} . '">' . $port->{lldprem} . '</a>';
+        }
+        delete $port->{'vlanmem'} unless (defined $port->{oper} && $port->{oper} == 1);
+        push @data, [
+            $port_num,
+            (defined $port->{ifdesc} ? $port->{ifdesc} : 'Error'),
+            (defined $port->{alias} ? $port->{alias} : 'Error'),
+            (defined $port->{oper} ? $port->{oper} == 1 ? 'Up' : 'Down' : 'Error'),
+            (defined $port->{hispeed} ? $port->{hispeed} : 'Error'),
+            (defined $port->{admin} ? $port->{admin} == 1 ? 'Enabled' : 'Disabled' : 'Error'),
+            (defined $port->{lldprem} ? $port->{lldprem} : '') . (defined $port->{lldpdes} ? ' (' . $port->{lldpdes} . ')' : ''),
+            ($port->{hwas} ? join('<br/>', map { $m->comp('SELF:hwalink', hwa => $_) } @{$port->{hwas}}) : ''),
+            ($port->{vlanmem} ? join('<br/>', map { "$switch->{vlans}->{$_} ($_)" } @{$port->{vlanmem}}) : ''),
+            (defined $port->{trunk} ? $port->{trunk} : ''),
+        ];
+    }
+    my $verbatim = sub { return shift; };
+    my $ts = Tablesearch->new(
+        data => \@data,
+        prefix => $switch_name,
+        no_limit => 1,
+        hide_header => 1,
+        field_params => {
+            map {
+                lc $_ => {
+                    name => $_,
+                    data_format => $verbatim,
+                }
+            } (@{$data[0]})
+        },
+    );
+    $ts->display;
+}
+</%perl>
+
+<%method hwalink>
+<%args>
+$hwa
+</%args>
+<%perl>
+use physdb;
+my $host = physdb::queryfirstrow("SELECT d.*, h.id AS host_id, h.computer_name, h.room, h.building FROM net_interfaces i JOIN net_hosts h ON h.id = i.host_id LEFT JOIN net_dns d ON i.id = d.interface_id WHERE i.hwa = ?", $hwa);
+return "$hwa not found" unless ($host);
+return '<a href="host.html?id=' . $host->{host_id} . '" title="' . $hwa . '">' . (defined $host->{hostname} ? $host->{hostname} . '.' . $host->{domain} : $host->{computer_name}) . '</a> ('. $host->{building} . " ". $host->{room} . ')';
+</%perl>
+</%method>
+
+<br/>
+[<a href="edit_switchports_form.html">Add New Switch (Port)</a>]

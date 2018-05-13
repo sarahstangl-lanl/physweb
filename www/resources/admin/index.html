@@ -1,0 +1,189 @@
+
+<%DOC>
+   vim: set syntax=mason:
+   Component: index.html
+        Date: 2008.07.30
+      Author: nick
+     Changed: 2008.07.30 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp');
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $doormgr = $m->comp('/mason/auth/auth_check_door_mgr.comp');
+my $dirauth = $m->comp('/mason/auth/auth_check_directory.comp');
+my $keyring = $m->comp('/mason/auth/auth_check_keyring.comp');
+my $web = $m->comp('/mason/auth/auth_check_web.comp');
+my $classes = $m->comp('/mason/auth/auth_check_classes.comp');
+my $visitor_acc_adm = $m->comp('/mason/auth/auth_check_visitor.comp');
+my $colloq = $m->comp('/mason/auth/auth_check.comp', auth_type => 'scheduler');
+my $gradapp = $m->comp('/mason/auth/auth_check.comp', auth_type => 'gradapp');
+my ($sql, $query);
+
+</%INIT>
+
+<%method title>Administrative Functions</%method>
+
+<%method meta>
+<style type="text/css">
+.adminsection { float:left; width:200px; height:270px; padding-bottom: 1em; }
+.adminsectionheader { font-size:12pt; font-weight:bold; text-align:left; border-bottom:3px solid #D0D0D0; margin-right:40px; padding-left:5px; padding-bottom:3px; }
+.adminsectionitem { font-size:10pt; margin: 5px 0px 5px 0px; padding-left: 10px; }
+.adminsearchtext { padding:0px 3px 5px 20px; width:190px; display:table-cell; }
+.adminsearchinput { padding:0px 3px 5px 10px; width:240px; display:table-cell; }
+.admingroupheader { font-size:15pt; margin:15px 0px 20px 0px; text-align:left; padding:2px 3px 6px 8px; border-bottom:6px solid #D0D0D0; }
+.adminothergroup { padding-left:20px; }
+</style>
+<script type="text/javascript">
+function setEdit(e) {
+  if(e.which == 16) document.getElementById('input_edit').value = '1';
+}
+function unsetEdit(e) {
+  document.getElementById('input_edit').value = '';
+}
+document.onkeydown = setEdit;
+document.onkeyup = unsetEdit;
+</script>
+</%method>
+
+% if ($dirauth || $admin_auth) {
+<div style="margin-top:40px;" class="admingroupheader">Quick Search</div>
+<div>
+% if ($dirauth || $admin_auth) {
+    <div>
+        <form method="GET" action="people/index.html">
+        <div class="adminsearchtext"><img src="/images/b_usrlist.png" /> Search for a person:</div>
+        <div class="adminsearchinput">
+          <input type="text" name="search" id="search" class="search" />
+          <input type="submit" value="Go" />
+        </div>
+        </form>
+    </div>
+% }
+<%perl> if($admin_auth) { </%perl>
+    <div>
+        <form method="GET" action="network/hosts.html">
+        <div class="adminsearchtext"><img src="/images/s_host.png" /> Search for a host:</div>
+        <div class="adminsearchinput">
+        <input type="text" name="search" class="search" title="Hold shift when submitting to edit host" />
+        <input type="submit" value="Go" /></div>
+        <input type='hidden' id='input_edit' name='edit'>
+        </form>
+    </div>
+<%perl> } </%perl>
+</div>
+% }
+<div class="admingroupheader">Objets d'Admins</div>
+<div class="adminothergroup">
+% if ($dirauth || $colloq || $visitor_acc_adm || $web || $admin_auth) {
+    <div class="adminsection">
+      <div class="adminsectionheader">People</div>
+% if ($dirauth || $admin_auth) {
+      <div class="adminsectionitem"><a href="people/quickadd_form.html?uid=new">Add new directory entry</a></div>
+      <div class="adminsectionitem">- <a href="people/makepdf.html">Get printed directory</a></div>
+<!--      <div class="adminsectionitem">- <a href="/people/inactive.html">List inactive entries</a></div> -->
+<!--      <div class="adminsectionitem">- <a href="/people/unpublished.html">List unpublished entries</a></div> -->
+<!--      <div class="adminsectionitem"><a href="http://www.physics.umn.edu/people/interests.html?skel=1">Faculty Research Interests</a></div> -->
+      <div class="adminsectionitem"><a href="/resources/admin/people/sympalists.html">Mailing Lists</a></div>
+% }
+% if ($colloq || $admin_auth) {
+      <div class="adminsectionitem"><a href="/resources/scheduling/">Event Scheduling Tool</a></div>
+% }
+% if ($visitor_acc_adm || $admin_auth) {
+      <div class="adminsectionitem"><a href="/resources/admin/people/visitors.html">Visitor Accounts</a></div>
+% }
+% if ($admin_auth || $web) {
+      <div class="adminsectionitem"><a href="/resources/admin/myfilesadmin/">MyPhys Files Administration</a></div>
+% }
+    </div>
+% }
+% if ($admin_auth) {
+    <div class="adminsection">
+      <div class="adminsectionheader">Network</div>
+      <div class="adminsectionitem"><a href="/resources/admin/network/hosts.html" title="Network Devices">Network Devices</a></div>
+      <div class="adminsectionitem"><a href="/resources/admin/network/traffic.html" title="Network Traffic">Network Traffic</a></div>
+      <div class="adminsectionitem"><a href="/resources/admin/network/networks.html" title="Networks">Networks</a></div>
+      <div class="adminsectionitem"><a href="/resources/admin/network/switchports.html" title="Switch Ports">Switch Ports</a></div>
+      <div class="adminsectionitem"><a href="http://paranoia.spa.umn.edu:20617/">Arkeia Network Backup</a></div>
+      <div class="adminsectionitem"><a href="https://cups.physics.umn.edu/">CUPS Print Server</a></div>
+    </div>
+% }
+% if ($admin_auth || $web) { 
+    <div class="adminsection">
+      <div class="adminsectionheader">Site</div>
+      <div class="adminsectionitem"><a href="https://support.physics.umn.edu/rt3/">RT Ticket System</a></div>
+      <div class="adminsectionitem"><a href="http://zzz.physics.umn.edu/admin">Admin Wiki Area</a></div>
+%     if($admin_auth) {
+      <div class="adminsectionitem"><a href="http://zzz.physics.umn.edu/physnet/">PhysNet Wiki</a></div>
+      <div class="adminsectionitem"><a href="https://monitor.physics.umn.edu/phpmyadmin/">phpMyAdmin</a></div>
+      <div class="adminsectionitem"><a href="https://monitor.physics.umn.edu/phpldapadmin/">phpldapadmin</a></div>
+      <div class="adminsectionitem"><a href="http://support.physics.umn.edu/svn">Subversion Repository</a></div>
+      <div class="adminsectionitem"><a href="https://crashplan.spa.umn.edu:4285/">Crashplan Admin</a></div>
+      <div class="adminsectionitem"><a href="http://paranoia.spa.umn.edu:20617/">Arkeia Admin</a></div>
+      <div class="adminsectionitem"><a href="dw_lookup.html">Data Warehouse Query Form</a></div>
+%     }
+    </div>
+% } 
+% if ($admin_auth) {
+    <div class="adminsection">
+      <div class="adminsectionheader">Monitoring</div>
+      <div class="adminsectionitem"><a href="http://monitor.physics.umn.edu/smokeping.cgi">SmokePing</a></div>
+      <div class="adminsectionitem"><a href="http://monitor.physics.umn.edu/cricket">Cricket</a></div>
+      <div class="adminsectionitem"><a href="https://nagios.physics.umn.edu/">Nagios</a></div>
+      <div class="adminsectionitem"><a href="http://nagios.physics.umn.edu/physpanel/index.html">PhysPanel</a></div>
+      <div class="adminsectionitem"><a href="http://monitor.physics.umn.edu/physmon/graphs.php">PhysGraphs</a></div>
+      <div class="adminsectionitem"><a href="http://monitor.physics.umn.edu/physmon/graphs2.php">PhysGraphs2</a></div>
+      <div class="adminsectionitem">Hadoop: <a href="http://hdfs-nn1:50070/">NN1</a> | <a href="http://hdfs-nn2:50070/">NN2</a></div>
+      <div class="adminsectionitem"><a href="http://monitor.physics.umn.edu/ganglia">Ganglia</a></div>
+      <div class="adminsectionitem"><a href="/resources/admin/network/smscheckin.html">SMS Test Checkin</a></div>
+    </div>
+% }
+% if ($admin_auth || $doormgr || $classes || $keyring) {
+    <div class="adminsection">
+      <div class="adminsectionheader">Building</div>
+%     if ($admin_auth || $doormgr) {
+      <div class="adminsectionitem"><a href="/resources/admin/doormgmt/">Keycard Lock Management</a></div>
+%     }
+%     if ($admin_auth || $classes) {
+      <div class="adminsectionitem"><a href="/resources/admin/roomschedule.html">Room Schedule</a></div>
+%     }
+%     if ($keyring || $admin_auth) {
+      <div class="adminsectionitem"><a href="/resources/admin/keyring/">Key Management</a></div>
+%     }
+%     if ($admin_auth || $web) { 
+      <div class="adminsectionitem">Tate Foyer <a href="/resources/foyer/display1.html" target="_blank">Display&nbsp;1</a> and <a href="/resources/foyer/display2.html" target="_blank">Display&nbsp;2</a></div>
+      <div class="adminsectionitem">Tightrope <a href="http://160.94.138.139/FrontDoor/Login.aspx" target="_blank">login</a> &amp; <a href="http://160.94.138.139/Carousel/Public/WebDisplay.aspx?ChannelID" target="_blank">preview</a></div>
+%     }
+%     if ($admin_auth) { 
+      <div class="adminsectionitem"><a href="https://monitor.physics.umn.edu/netbotz/">Camera Event Viewer</a></div>
+%     }
+    </div>
+% }
+    <div class="adminsection">
+      <div class="adminsectionheader">Schooly Things</div>
+%     # access to students is too complex to control here!
+      <div class="adminsectionitem"><a href="/resources/admin/students/">Student Advising, Progress, Appointments and TA Scheduling</a></div>
+%     if ($admin_auth || $gradapp) {
+      <div class="adminsectionitem"><a href="/resources/myphys/gradreview/">Grad Program Reviews</a></div>
+      <div class="adminsectionitem"><a href="/grad/physics/application/">Archived Grad Applications</a></div>
+%     }
+   </div>
+% if(0) {
+    <div class="adminsection" style="width:250px">
+      <div class="adminsectionheader">Cameras</div>
+      <div class="adminsectionitem"><a href="http://netcam-135-1/">netcam-135-1 (Demo hall)</a></div>
+      <div class="adminsectionitem"><a href="http://netcam-17-1/">netcam-17-1 (Gated storage area)</a></div>
+      <div class="adminsectionitem"><a href="http://netcam-ld-1/">netcam-ld-1 (Loading dock)</a></div>
+      <div class="adminsectionitem"><a href="http://netbot-137-01/">netbot-137-01 (Computer lab)</a></div>
+      <div class="adminsectionitem"><a href="http://netbot-481-01/">netbot-481-01 (Upstairs server room)</a></div>
+      <div class="adminsectionitem"><a href="http://netbot-s43-01/">netbot-s43-01 (Server room)</a></div>
+      <div class="adminsectionitem"><a href="http://netbot-s43-02/">netbot-s43-02 (Support dept entryway)</a></div>
+    </div>
+% }
+</div>
+

@@ -1,0 +1,86 @@
+<%args>
+$student
+</%args>
+
+<%shared>
+
+# Global admin
+my $admin = $m->comp('/mason/auth/auth_check.comp', auth_type => [ qw/sysadm moonproject_admin/ ]);
+
+# Store show all sections in session
+$session{'moonproject_show_all_sections'} = $m->request_args->{'show_all_sections'} if (defined $m->request_args->{'show_all_sections'});
+
+my $show_all_sections = $session{'moonproject_show_all_sections'};
+$show_all_sections = 0 unless (defined $show_all_sections);
+$show_all_sections = 1 if ($r->uri =~ /(ta_list|admin_list|settings)/);
+
+# Store term in session
+if (!exists $session{moonproject_year} || !exists $session{moonproject_term} || defined $m->request_args->{year} || defined $m->request_args->{term}) {
+    $session{moonproject_year} = $m->request_args->{year} || $m->comp('/mason/this_year.comp');
+    $session{moonproject_term} = $m->request_args->{term} || $m->comp('/mason/this_quarter.comp');
+}
+
+# Store section filter in session
+if ($m->request_args->{studentfilter}) {
+    $session{moonproject_sectionfilter} = $m->request_args->{studentfilter};
+}
+
+my $year = $session{moonproject_year};
+my $term = $session{moonproject_term};
+my $errmsg = '';
+my $msg = '';
+my $current_term = ucfirst($term) . " " . $year;
+
+# Validate quarter, year
+my $all_classids = $m->comp('/mason/db/moonproject/get_classids.comp', year => $year, term => $term, admin => 1);
+unless (@$all_classids) {
+    $year = $session{moonproject_year} = $m->comp('/mason/this_year.comp');
+    $term = $session{moonproject_term} = $m->comp('/mason/this_quarter.comp');
+    $all_classids = $m->comp('/mason/db/moonproject/get_classids.comp', year => $year, term => $term, admin => 1);
+    $errmsg = "There are no AST 1001 sections for '$current_term'. Defaulting to current semester.";
+    $current_term = ucfirst($term) . " " . $year;
+}
+# Get TA-specific classids
+my $classids = $m->comp('/mason/db/moonproject/get_classids.comp', year => $year, term => $term, admin => ($admin && $show_all_sections));
+unless (@$classids) {
+    if ($admin) {
+        $show_all_sections = 1;
+        $classids = $all_classids;
+        $msg = "You are not a TA for any sections. Showing results for all sections.";
+    }
+    else {
+        $errmsg = "You are not a TA for any sections.";
+    }
+}
+</%shared>
+
+<%method titlemenu_below>
+    <& /mason/titlemenu.comp:begin, type=>"below"&>
+    <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /index/ ? 1 : 0), link => 'index.html' &>Overview</&>
+    <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /student_list/ ? 1 : 0), link => 'student_list.html' &>Student List</&>
+% if ($m->request_args->{student}) {
+    <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /observations/ ? 1 : 0), link => 'observations.html?student=' . $m->request_args->{student} &>Observations</&>
+% }
+% if ($admin) {
+    <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /ta_list/ ? 1 : 0), link => 'ta_list.html' &>TA List</&>
+    <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /admin_list/ ? 1 : 0), link => 'admin_list.html' &>Admin List</&>
+    <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /data_dump/ ? 1 : 0), link => 'data_dump.html' &>Data Dump</&>
+% }
+    <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /report/ ? 1 : 0), link => 'report.html' &>Report</&>
+    <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /settings/ ? 1 : 0), link => 'settings.html' &>Settings</&>
+    <& /mason/titlemenu.comp:end &>
+</%method>
+<%method title>Moon Project Admin - <% $current_term %></%method>
+
+<%init>
+$m->comp('/mason/quarter_selector2.comp', url => $r->uri, year => $year, quarter => $term, template => '<a href="%u?year=%y&term=%q">%t</a>');
+if ($msg) {
+    $m->comp('/mason/notice_box.comp', text => $msg);
+}
+if ($errmsg) {
+    $m->comp('/mason/notice_box.comp', type => 'error', text => $errmsg);
+}
+if (@$classids) {
+    $m->call_next(classids => $classids, admin => $admin, show_all_sections => $show_all_sections, student => $student);
+}
+</%init>

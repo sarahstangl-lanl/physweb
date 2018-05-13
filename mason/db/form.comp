@@ -1,0 +1,242 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: form.comp
+        Date: 2009.02.19
+      Author: rubin
+     Changed: 2009.02.19 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$name
+</%ARGS>
+
+<%INIT>
+use CGI::FormBuilder;
+use physdb::form;
+use MIME::Lite;
+use File::Slurp;
+
+</%INIT>		
+<%perl>
+
+if(!$name) {
+    print "<h1>No name</h1>\n";
+    print "<p><b>Sorry, we have no form by this name.</b></p>\n";
+    return;
+}
+
+$name =~ s/\.html$//; #remove any trailing .html
+my $form_def = new Form(name=>$name);
+my $formid = $form_def->get('id');
+
+if(!$formid) {
+    print "<h1>". _h($name)."</h1>\n";
+    print "<p><b>Sorry, we have no form by this name.</b></p>\n";
+    return;
+}
+
+#print "Dumping:<BR><PRE>";
+#print Dumper($form_def);
+#my %a = $m->request_args;
+#print Dumper(\%a);
+#print "</PRE>";
+
+my %formargs;
+my @columns;
+
+foreach my $column ($form_def->columns()) {
+    next if $column eq 'id';
+    next if !defined $form_def->get($column);
+    $formargs{$column} = $form_def->get($column);
+    #push @columns, $formargs{$column};
+}
+#print Dumper(\@columns);
+#return;
+
+$formargs{'stylesheet'} = 1;
+$formargs{'enctype'} = 'multipart/form-data';
+my $form = CGI::FormBuilder->new(
+    %formargs
+    );
+
+
+# Go over every field in the form, and tell formbuilder about it
+foreach my $field ($form_def->fields()) {
+    my %field_args;
+
+    # Build field args hash from each column in mysql
+    foreach my $col ($field->columns()) {
+        if($col eq 'options' and defined($field->get($col))) { #turn options text into array
+            my @in_opts = split /[\n\r]+/, $field->get($col);
+            my @opt;
+            foreach my $io (@in_opts) {
+               my ($name, $desc) = split /\|\s*/, $io;
+               if(defined $desc) {
+                   # If we think we are going to get a checkbox or radio button, force formbuilders output into
+                   # one line per option by hardcoding a <BR>. Otherwise its very hard to read the form!
+                   if($field->get('type') eq 'checkbox' 
+                      || $field->get('type') eq 'radio' 
+                      || (!defined $field->get('type'))) {
+                          # escape the content if its supposed to be
+                          if(!defined $field->get('cleanopts') || $field->get('cleanopts') == 1) {
+                            $desc =  $m->interp->apply_escapes($desc, 'h');
+                          }
+                          # then add a br thats not escaped
+                          $desc .= "<BR>";
+                          # then tell formbuilder not to escape the label again.
+                          $field_args{'cleanopts'} = 0;
+                   }
+                   push @opt, [$name, $desc]; #option with label
+               }
+               else {
+                   push @opt, [$name]; #option without label
+               }
+            }
+            $field_args{$col} = \@opt;
+        }
+        elsif($col eq 'htmlattr' and defined($field->get($col))) {
+            # formbuilder wants this as each attr, but db stores it
+            # as line-sperated foo=bar values.
+            my @in_lines = split /[\n\r]+/, $field->get($col);
+            my @attr;
+            foreach my $line (@in_lines) {
+                my ($htmlattr, $htmlval) = split /\=/, $line;
+                if($htmlval && $htmlattr) {
+                    $field_args{$htmlattr} = $htmlval;
+                }
+            }
+        }
+        else {
+            if(defined($field->get($col))) { # dont set ones that are NULL in the db
+                my $attrval = $field->get($col);
+                $attrval = "pform_$attrval" if($col eq 'name');
+                # note, hack below prevents sending a size="" which is not valid
+                $field_args{$col} = $attrval if($col ne 'size'|| $attrval ne "");
+            }
+        }
+    }
+    # Setup physform class for all our forms
+    $field_args{'class'} = "physform";
+    # ALSO add class fb_text if its a textarea or <input type=text> block, so they can be set wide without
+    # breaking windows firefox radio buttons, which dont like to be wide.
+    if($field_args{'type'} eq 'textarea' || (!defined $field_args{'type'} && !defined $field_args{'options'}) ) {
+        $field_args{'class'} .= " fb_text";
+    }
+    # Create field
+    $form->field(%field_args);
+}
+
+if($form->submitted && $form->validate) {
+    my $field = $form->fields;
+    my @field_test = $form->fields;
+    my @submitted_attachments;
+    my @submitted_fields;
+
+    # email is validated during form definition, so we don't do it here.
+    my $dest = $form_def->get("email");
+
+    physdb::query("INSERT INTO form_reply (form_id, submitted) VALUES (?,now())", $formid);
+    my $reply_id = $dbh->last_insert_id(undef, undef, undef, undef);
+
+    foreach my $f (@field_test) {
+        #mason can pass args as arrays, so we flatten that out into a flat string here
+        my @forcelist = ($f->value);
+        my $value = join(', ', @forcelist);
+
+        #We prefix all the field names with pform_ to avoid namespace conflicts.. so remove it here so it doesnt end up in email/db
+        my $unprefixed_field_name;
+        if($f->name =~ /^pform_(.*)$/) {
+            $unprefixed_field_name = $1;
+        }
+        else {
+            die("Couldn't find prefix in formbuilder field");
+        }
+
+        if(ref $f->value eq 'Fh') {
+            #print "It is a file\n<BR>";
+            my $file = $f->value;
+            my $mime = $form->{params}->uploadInfo($file)->{'Content-Type'};
+            my $contents = read_file( $file, {binmode => ':raw'} );
+            #print "DEBUG: Got contents, its ". length($contents). " bytes long<BR>\n";
+            my %file_obj = ( #name=> $f->name,
+                             #fh=>$file,
+                             filename=>''.$file, #todo - prefix all attachments with form name, maybe applicant name?
+                             mime=>$mime,
+                             contents=>$contents);
+            #print "Saving file info: ". Dumper(\%file_obj). "<BR>\n";
+            push @submitted_attachments, \%file_obj;
+            push @submitted_fields, { name => $unprefixed_field_name, value=> ''.$f->value. ' (attached)' };
+            physdb::query("INSERT INTO form_reply_fields (form_reply_id, field_name, type, submitted, value, file_name, file_mime, file_contents) VALUES (?, ?, ?, NOW(),?, ?, ?, ?)", 
+                                                 $reply_id, $unprefixed_field_name, $f->type, $value, ''.$file, $mime, $file_obj{contents});
+        }
+        else {
+            physdb::query("INSERT INTO form_reply_fields (form_reply_id, field_name, type, submitted, value) VALUES (?, ?, ?,NOW(),?)", 
+                                                 $reply_id, $unprefixed_field_name, $f->type, $value);
+
+            push @submitted_fields, { name => $unprefixed_field_name, value=> $value };
+        }
+
+    }
+    #print "DUMPING submitted fields: <pre>". Dumper(\@submitted_fields). "<BR>\n";
+    my $body = join("\n", map { $_->{name} . ": ". $_->{value}} @submitted_fields);
+
+    if($dest) {
+        #Create new multipart message
+        my $msg = MIME::Lite->new(
+            From => 'noreply@physics.umn.edu',
+            To   => $dest,
+            Subject => "SPA Form results: $name",
+            Type => "multipart/mixed",
+        );
+        $msg->attach(
+            Type => "TEXT",
+            Data => $body,
+        );
+        #Add attachments
+        foreach my $file (@submitted_attachments) {
+            $msg->attach(
+                Type => $file->{mime},
+                Data => $file->{contents},
+                Filename => $file->{filename},
+                Disposition => 'attachment',
+            )
+        }
+        $msg->send();
+
+        #Lets verify that the email sent!
+        if(!$msg->last_send_successful) {
+            </%perl>
+            <h2>Submission Error</h2>
+            Oh No! We encountered an error submitting your form. I have sent the developers an email about the problem. Please try back later.
+            <%perl>
+            $r->status(500);
+            $m->comp('/mason/500.comp');
+            return;
+        }
+    }
+    #else {
+        #print "DEBUG: Not sending email. dest was empty<BR>\n";
+    #}
+
+    my $confirmation = $form_def->get("confirmation_template");
+    # TODO: replace template vars with submission vars
+    </%perl>
+    <h2>Submission Accepted</h2>
+    <% $confirmation |h %>
+    <%perl>
+} 
+else {
+    </%perl> 
+      <div class="fb_form_container">
+        <h1 class="fb_form_title">FORM: <%  $form->title %> </h1>
+        <%perl>
+        $m->out($m->content);
+        $m->out($form->render());
+        </%perl> 
+      </div>
+    <%perl>
+}
+
+</%perl>

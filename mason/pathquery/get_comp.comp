@@ -1,0 +1,8 @@
+<%init>
+    my $comp = $m->notes('pathquery-comp');
+    return $comp;
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

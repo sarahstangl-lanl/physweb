@@ -1,0 +1,156 @@
+%# ~~NOSITEMAP~~
+<%doc>
+   vim: set syntax=mason:
+</%doc>
+
+<%args>
+$subject=>''
+$realname=>''
+$citizenship=>''
+$Permstreet=>''
+$PermCity=>''
+$PermState=>''
+$PermZip=>''
+$Permtelephone=>''
+$Currentstreet=>''
+$CurrentCity=>''
+$CurrentState=>''
+$CurrentZip=>''
+$Curtelephone=>''
+$Email=>''
+$sex=>''
+$Race=>''
+$birthday=>''
+$College=>''
+$yearends=>''
+$yearbegins=>''
+$Major=>''
+$overallGPA=>''
+$mathcredits=>''
+$chemistrycredits=>''
+$physicscredits=>''
+$biologycredits=>''
+$otherscicredits=>''
+$otherscinames=>''
+$years=>''
+$otheryear=>''
+$graduation=>''
+$PrevREU=>''
+$PrevREUProgram=>''
+$Undecided=>''
+$Biophysics=>''
+$CosmicRays=>''
+$SpacePhysics=>''
+$ParticlePhysics=>''
+$PhysicsEd=>''
+$CM=>''
+$Cosmology=>''
+$Disability=>''
+$ProfAName=>''
+$ProfACollege=>''
+$ProfAAddress=>''
+$ProfATel=>''
+$ProfAFax=>''
+$ProfAEmail=>''
+$ProfBName=>''
+$ProfBCollege=>''
+$ProfBAddress=>''
+$ProfBTel=>''
+$ProfBFax=>''
+$ProfBEmail=>''
+</%args>
+
+<%init>
+use Mail::Sendmail;
+my $to='reu@physics.umn.edu';
+#Give address values entered
+my $Permaddress = $Permstreet . ' ' . $PermCity . ', ' . $PermState . ' ' . $PermZip;
+my $Curaddress = $Currentstreet . ' ' . $CurrentCity . ', ' . $CurrentState . ' ' . $CurrentZip;
+if($otheryear && $years eq "other") {
+	$years = $years . ' - ' . $otheryear;
+}
+my $resInterests = '';
+if($Undecided) { 
+	$resInterests = $Undecided;
+} else {
+	my @list = ($Cosmology, $Biophysics, $CM, $CosmicRays, $ParticlePhysics, $SpacePhysics, $PhysicsEd);
+	foreach(@list) {
+		if($_ && $resInterests) {
+			$resInterests = $resInterests . ', ' .  $_;
+		} elsif($_ && $resInterests eq '') {
+			$resInterests = $_;
+		}
+	}
+}
+</%init>
+
+<%perl>
+if (!$Email) {
+    print '<h3>Application Error</h3>Please go back and include an e-mail address';
+    return;
+}
+
+# Email them the confirmation
+my $message = <<END;
+Below is the contents of your online application:
+
+subject: $subject
+realname: $realname
+citizenship: $citizenship
+Permanent Address: $Permaddress
+Permanent Telephone: $Permtelephone
+Current Address: $Curaddress
+Current Telephone: $Curtelephone
+Email: $Email
+Sex: $sex
+Race: $Race
+Birthday: $birthday
+College: $College
+Current school year ends: $yearends
+Next year begins: $yearbegins
+Major: $Major
+overallGPA: $overallGPA
+mathcredits: $mathcredits
+chemistrycredits: $chemistrycredits
+physicscredits: $physicscredits
+biologycredits: $biologycredits
+otherscicredits: $otherscicredits
+otherscinames: $otherscinames
+Year in School: $years
+graduation: $graduation
+PrevREU: $PrevREU
+PrevREUProgram: $PrevREUProgram
+Research Programs: $resInterests
+Disability: $Disability
+ProfAName: $ProfAName
+ProfACollege: $ProfACollege
+ProfAAddress: $ProfAAddress
+ProfATel: $ProfATel
+ProfAFax: $ProfAFax
+ProfAEmail: $ProfAEmail
+ProfBName: $ProfBName
+ProfBCollege: $ProfBCollege
+ProfBAddress: $ProfBAddress
+ProfBTel: $ProfBTel
+ProfBFax: $ProfBFax
+ProfBEmail: $ProfBEmail
+END
+
+my %mail = ( To      => $to,
+             Cc      => $Email,
+             From    => $Email,
+             Subject => $subject,
+             Message => $message,
+           );
+if(sendmail(%mail)) {
+    $m->redirect('reuthanku.html');
+} else {
+    if ($Mail::Sendmail::error =~ /Domain of sender address .* does not exist/) {
+        print '<h3>Application Error</h3>Please go back and include a <b>valid</b> e-mail address';
+        return;
+    } else {
+        print("Failed to send mail: <b>" . $m->interp->apply_escapes("$Mail::Sendmail::error", 'h') . "</b>");
+        return;
+    }
+}
+</%perl>

@@ -1,0 +1,54 @@
+<%doc>
+  vim: set syntax=mason:
+</%doc>
+<%args>
+$frame=>0
+</%args>
+    <!-- Left Column -->
+    <div id="leftcol" <%perl>if($frame) {</%perl>style="padding-top: 0; margin-top: 0px;"<%perl> }</%perl>>
+        <div id="leftcontent">
+            <& theme_menu.comp &>
+            <& SELF:quicklinks &>
+            <& SELF:related_sites &>
+            <& SELF:login &>
+        </div> <!-- leftcontent -->
+<%method related_sites>
+        <div id="related_sites">
+            <&| /mason/menu.comp:begin, level=>1 &>Related Sites</&>
+            <&| /mason/menu.comp, link=>'http://www.astro.umn.edu', left_nest=>1, level=>1, title=>"Minnesota Institute for Astrophysics" &>Astrophysics Institute</&>
+            <&| /mason/menu.comp, link=>'http://www.ftpi.umn.edu',  left_nest=>1, level=>1, title=>'Fine Theoretical Physics Institute'  &>Theory Institute</&>
+            <&| /mason/menu.comp, link=>'http://www.hstm.umn.edu' , left_nest=>1, level=>1, title=>"History of Science, Technology, &amp; Medicine" &>History of Science</&>
+            <& /mason/menu.comp:end &>
+        </div>
+</%method>
+    </div> <!-- leftcol -->
+
+<%method quicklinks>
+        <div id="quicklinks">
+            <&| /mason/menu.comp:begin, level=>1 &>Quick Links</&>
+            <&| /mason/menu.comp, link=>'http://zzz.physics.umn.edu', left_nest=>1, level=>1, title=>"Physics Intranet" &>Physics Intranet</&>
+            <&| /mason/menu.comp, link=>'/events/calendar/', level=>1, left_nest=>1, title=>'Calendar of Colloquia and Seminars'  &>Calendar</&>
+            <&| /mason/menu.comp, link=>'https://climate-diversity.dl.umn.edu/', left_nest=>1, level=>1, title=>"Climate and Diversity" &>Climate and Diversity</&>
+            <&| /mason/menu.comp, link=>'/about/contact/' , level=>1, left_nest=>1,  title=>"Physics Contact information" &>Contact&nbsp;Us</&>
+            <& /mason/menu.comp:end &>
+        </div>
+</%method>
+
+<%method contact_box>
+        <div class="address">
+              <div class="contact_information_hdr">CONTACT INFORMATION</div>
+              <div class="contact_information_bdy">
+                 School of Physics &amp; Astronomy<br />
+                 Tate Lab Room 148<br /> 
+                 116 Church Street S.E.<br />
+                 Minneapolis, MN, 55455<br />
+              </div> <!-- contact_information_bdy -->
+              <div class="contact_information_bdy">
+                 Phone: 612-624-7375<br />
+                 Fax: 612-624-4578<br />
+                 <a href="/about/contact/">Contact</a> | <a href="/people/">Directory</a>
+              </div> <!-- contact_information_bdy -->
+        </div> <!-- address -->
+</%method>
+
+

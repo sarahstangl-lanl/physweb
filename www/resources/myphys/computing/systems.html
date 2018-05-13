@@ -1,0 +1,94 @@
+<%doc>
+vim:set syntax=mason:
+
+</%doc>
+<%args>
+$show => 'linux'
+</%args>
+
+<%method title>Computing Resources</%method>
+<p>
+This lists systems run by Physics IT; it does not include any managed directly within a research group or by individuals.
+</p>
+
+<%perl>
+
+    my %ts_views = (
+            'servers' => "hosts.os IN ('linux','freebsd') AND hosts.type='server'",
+            'linuxwks' => "hosts.os='linux' AND hosts.type='workstation'",
+            'windows' => "hosts.os='windows' AND hosts.type='workstation'",
+            );
+
+    # Sanitize
+    $show = "servers" unless($ts_views{$show});
+
+
+    $m->comp('/mason/db/tablesearch.comp',
+    		table              => 'webdb.net_hosts hosts',
+        	field_params       => {
+                                    'id' => {
+                                                hidden => 1,
+                                            },
+                                    'computer_name' => 	{
+                                                        	'hidden'            => 1,
+                                                    	},
+                                    'description' => {
+                                        'name' => 'Group',
+                                        },
+                                    'uname' => {
+                                        'name' => 'OS',
+                                        'data_format' => sub {
+                                            my ($os, $version) = split /\s/, shift,2;
+                                            return $os;
+                                        },
+                                    },
+                                    'model' => {
+                                        'model' => 'Model/CPU',
+                                        'data_format' => sub {
+                                            my $model = shift;
+                                            $model =~ s/\|/\<br\>\<small\>/;
+                                            return "$model</small>";
+                                        },
+                                    },
+                                    'memvalue'       =>   {
+                                                            'name'              => 'RAM (MB)',
+                                    },
+                                  },
+            header_format      => 'ucfirst',
+            field_list         => [
+                'hosts.id',
+                #'IFNULL(CONCAT(computer_name, \'.\', dns.domain), computer_name) AS host',
+                'computer_name AS system',
+                'groups.description',
+                'cluster AS condor',
+                'CONCAT(building, \' \', room) AS location',
+                'runlog.cpucount AS cores',
+                'CAST(runlog.memory AS UNSIGNED) AS memvalue',
+                'CONCAT(runlog.system_model, \'|\', runlog.cpu) AS model',
+                'hosts.purpose',
+                'runlog.uname AS os',
+                'computer_name',
+            ],
+            excluded_search_fields => [
+                'GROUP_CONCAT(CONCAT_WS(",", data.description, data.value) ORDER BY data.description)',
+                'SUM(data.value)',
+            ],
+            where              => "WHERE admin_uid='616' AND group_owner!='' AND group_owner!='sysadm' AND DATEDIFF(now(), runlog.rundate) < '1 month' AND ($ts_views{$show})",
+            joins              => [
+                                    'webdb.net_interfaces interfaces'   => 'hosts.id = interfaces.host_id',
+                                    'webdb.net_dns dns'                 => 'interfaces.id = dns.interface_id',
+                                    'webdb.net_interfaces interfaces_2' => 'interfaces.host_id = interfaces_2.host_id AND interfaces_2.id < interfaces.id',
+                                    'cfengine.runlog runlog' => 'cfengine.runlog.host_id = hosts.id',
+                                    'webdb.groups groups' => 'groups.name = hosts.group_owner',
+            ],
+            #filter_field => 'group_owner',
+            extra_url_args => [ 'show' ],
+            excel_link => 1,
+            default_sort_field => 'system',
+            default_sort_dir   => 'asc',
+            group_by           => 'GROUP BY computer_name, interfaces.id HAVING COUNT(interfaces_2.id) = 0', # Only return first row for hosts with multiple interfaces
+            debug => 0,
+	);
+
+</%perl>
+

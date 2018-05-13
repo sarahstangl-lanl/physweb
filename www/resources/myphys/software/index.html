@@ -1,0 +1,122 @@
+<%doc>
+   Component: index.html
+        Date: 12/19/2002
+      Author: allan
+ Description:
+ Edited: 03/01/2010 by JZ
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+</%init>
+
+<%once>
+use File::stat;
+</%once>
+
+<%method subtitle>Software downloads</%method>
+
+<script type="text/javascript">
+    function ajaxlistdir(dirname){
+        if (document.getElementById("hold-"+dirname).style.display == 'none'){
+            //current being hidden, so populate
+            var xhr;
+            try {
+                xhr = new ActiveXObject('Msxml2.XMLHTTP');
+            } catch (e) {
+                try {
+                    xhr = new ActiveXObject('Microsoft.XMLHTTP');
+                } catch (e2) {
+                    try {
+                        xhr = new XMLHttpRequest();
+                    } catch (e3) {
+                        xhr = false;
+                    }
+                }
+            }
+
+            xhr.onreadystatechange  = function() {
+                if(xhr.readyState  == 4) {
+                    if(xhr.status  == 200) {
+                        var holder = document.getElementById("hold-"+dirname);
+                        holder.innerHTML = xhr.responseText; //push in the retrieved data
+                        document.getElementById("hold-"+dirname).style.display = ''; //show the display element
+                    } else {
+                        alert("Error code " + xhr.status);
+                    }
+                }
+            };
+
+            var url = dirname+"?list=true";
+            xhr.open("GET", url, true);
+            xhr.send(null);
+        } else {
+            //hide the showing element
+            document.getElementById("hold-"+dirname).style.display = 'none';
+        }
+    }
+</script>
+
+<style type="text/css" media="screen">
+    .hold-indent {
+        text-indent: 20px;
+        margin-left: 20px;
+    }
+</style>
+
+<p>
+General information on available software in the School or College can be found on the Physics Computing Wiki at <a href="http://zzz.physics.umn.edu/computing/software/home">http://zzz.physics.umn.edu/computing/software/home</a>.
+</p>
+
+<p>Please make sure you follow the license terms for each piece of software. Some items are licensed for use on computers owned by UofM only, not personally-owned. There should be further information on the specific Physics wiki page for each of the packages.</p>
+
+<i>.iso</i> files are CD or DVD images. On Windows, you can open the ISO file directly using a tool such as <a href="http://www.slysoft.com/en/virtual-clonedrive.html">Virtual CloneDrive</a>, and install the software from there; or you can burn the image to CD or DVD before using the created disk to install the software. Windows 7 already has the ability to burn ISO images (just right-click on the downloaded file). On Physics linux systems, you can burn the image using <tt>k3b</tt>.
+<p>
+<i>.dmg</i> files are self-mounting images for Mac OS.
+</p>
+<p>
+<i>.zip</i> and <i>.7z</i> are archive formats, which first need to be unpacked, after which an installer file will have to be run.
+</p>
+<hr>
+<table style="width: 100%">
+<tr><th align="left">Filename</th><th align="left">Size</th><th align="left">Date</th></tr>
+<%perl>
+sub list($) {
+    my($path) = @_;
+    $path .= '/' if($path !~ /\/$/);
+
+    ## loop through the files contained in the directory
+    for my $eachFile (glob($path.'*')) {
+        if (($eachFile ne '.') || ($eachFile ne '..')){
+            ## if the file is a directory
+            if( -d $eachFile) {
+                my $st = stat($eachFile) or die "No $eachFile: $!";
+                my $filetime = $st->mtime;
+                my ($sec,$min,$thishour,$day,$month,$year,$wday,$yday,$isdst) = CORE::localtime($filetime);
+                my $filedate = Date_to_Text($year+1900,$month+1,$day);
+                $eachFile =~ s/\/home\/www\/downloads\///g;
+                $eachFile =~ s/ /%20/g;
+                my $output = "<tr><td><a href='javascript:ajaxlistdir(&quot;".$eachFile."&quot;);'>".$eachFile."</a></td><td>Directory</td><td>".$filedate."</td></tr><tr class='hold-indent' id='tr-hold-$eachFile' xxstyle='display: none;'><td style=\"width: 50%\" colspan=3><div style=\"display: none;\" id=\"hold-$eachFile\">&nbsp;</div></tr>";
+                $m->out($output);
+            } else {
+                #what is the nature of this file?
+                my $st = stat($eachFile) or die "No $eachFile: $!";
+                my $filesize = int(($st->size)/1024/1024);
+                my $filetime = $st->mtime;
+                my ($sec,$min,$thishour,$day,$month,$year,$wday,$yday,$isdst) = localtime($filetime);
+                my $filedate = Date_to_Text($year+1900,$month+1,$day);
+                $eachFile =~ s/\/home\/www\/downloads\///g;
+                $eachFile =~ s/ /%20/g;
+                my $output = "<tr><td><a href=".$eachFile.">".$eachFile."</a></td><td>".$filesize." MB</td><td>".$filedate."</td></tr>";
+                $m->out($output);
+            }
+        }
+    }
+}
+
+list("/home/www/downloads");
+</%perl>
+
+</table>

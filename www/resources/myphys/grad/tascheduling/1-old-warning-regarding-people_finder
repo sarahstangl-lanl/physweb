@@ -1,0 +1,14 @@
+
+<%DOC>
+   Component: 1. warning -- moving this directory without fixing the peoplefinder_plugin will break stuff
+        Date: 2009.01.28
+      Author: clayton
+     Changed: 2009.01.28 by clayton
+
+No longer true: peoplefinder_plugin used to be called within the scheule display
+which used a peoplefinder search bar, but not an issue since converting to std tablesearch.
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+

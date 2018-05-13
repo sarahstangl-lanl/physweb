@@ -1,0 +1,31 @@
+<%doc>
+   Component: index.html
+        Date: 9/10/2002
+      Author: allan
+ Description: main display of news and events
+</%doc>
+
+<%args>
+$when=>'top'
+$view=>''
+$story=>''
+</%args>
+
+<%init>
+my $auth = $m->comp('/mason/auth/auth_check_events.comp');
+my $uri = $r->uri;
+if ($view =~ /normal/) { $auth=0; }
+
+</%init>
+
+<%method title>Research Spotlight</%method>
+
+<%perl> if(!$story) { </%perl>
+           <& /mason/db/stories/storyblog.comp, when=>$when, view=>$view, type=>'spotlight', args=>{ year => 'all' }, menu=>0 &>
+<%perl> } else { </%perl>
+           <& /mason/db/stories/story.comp, story=>$story, auth=>$auth, type=>'spotlight' &>
+           <div class="readmore">[<a href="<% $uri |h %>">Back to Research Spotlights</a>]</div>
+<%perl> } </%perl>
+
+
+%# vim: set syntax=mason:

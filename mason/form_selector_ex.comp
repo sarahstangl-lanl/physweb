@@ -1,0 +1,42 @@
+<%doc>
+   Component: form_selector.comp
+        Date: 9/9/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$name=>'selector'
+$id=>''
+@options=>()
+$labels=>''
+$selected=>''
+$sep=>','
+$extra=>''
+</%args>
+
+<%init>
+my $idstr;
+if($id) { $idstr = "id=\"$id\""; }
+my $output = "<select name=\"$name\" $idstr $extra >";
+my ($key, $value, $option,$item,$label);
+foreach (@options) {
+  if (ref $_) {
+    ($key, $value) = @{$_};
+  } else {
+    $key = $value = $_;
+  }
+  $item = "<option value=\"". $m->interp->apply_escapes($key, 'h')."\">".$m->interp->apply_escapes($value, 'h')."</option>\n";
+  if ($key eq $selected ) {
+    $item =~ s/<option/<option selected/;
+  }
+  $output .= $item;
+}
+$output .= "</select>\n";
+</%init>
+
+<% $output %>
+
+<%filter>
+s/\n//go
+</%filter>

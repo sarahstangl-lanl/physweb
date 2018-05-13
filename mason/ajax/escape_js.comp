@@ -1,0 +1,28 @@
+
+<%DOC>
+   Component: escape_js.comp
+        Date: 2007.09.26
+      Author: clayton
+     Changed: 2007.09.26 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+use Encode qw(encode FB_PERLQQ);
+</%INIT>
+
+<%perl>
+    my $string = shift;
+    $string =~ s{([\x00-\x29\x2C\x3A-\x40\x5B-\x5E\x60\x7B-\x7F])}
+                {'%' . uc(unpack('H2', $1))}eg; # XXX JavaScript compatible
+    $string = encode('ascii', $string, sub { sprintf '%%u%04X', $_[0] });
+    return $string;
+</%perl>
+		
+<%filter>
+s/.//gos
+</%filter>

@@ -1,0 +1,194 @@
+
+<%DOC>
+   vim: set syntax=mason: 
+   Component: render_class.comp
+        Date: 2005.02.08
+      Author: allan
+     Changed: 2005.02.08 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+    $classid
+    $showall=>0
+    $item=>''
+    $urlitem=>''
+    $nocontrols=>0
+    $noauth=>0
+    $type=>'post'
+    $headings=>1
+    $copyto=>undef
+    $copyto_text=>undef
+    $download=>0 #force download as file vs inline if its type=downloads
+</%ARGS>
+
+<%INIT>
+    my ($class, $section, $title, $year, $quarter, $location, $time, $date, $url, $flags, $hidden, $parent_classid, $parent_name, $parent_section);
+    my $manual_url = "http://zzz.physics.umn.edu/admin/private/classpages";
+    my $quieturl = $r->uri.'?';
+    my $linkchar = '=';
+    for my $arg ($m->request_args) {
+        $quieturl .= $arg.$linkchar;
+        $linkchar = ($linkchar eq '=' ? '&' : '=');
+    }
+    $quieturl .= 'noauth=1';
+    
+    # Any type of elevated authorization -- instructor, ta, global class...
+    my $auth_any = $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, always_include_tas=>1);
+    # Class edit level authorization
+    my $auth_edit = ($auth_any && ($auth_any ne 'ta'));
+    # TA level authorization
+    my $auth_ta = ($auth_any && ($auth_any eq 'ta'));
+    # General class admin level
+    my $auth_classadmin = $m->comp('/mason/auth/auth_check_classes.comp');
+    # auth_archive has 0 for no access, "student" for limited access, other for full access
+    my $auth_archive = $m->comp('/mason/auth/auth_check_classarchive.comp', classid => $classid, area => $type);
+    $noauth = 1 if $noauth;
+    $nocontrols = 1 if !($auth_edit || $auth_ta);
+    $nocontrols = 1 if ($type eq 'feedback' && $auth_any);
+    
+    my $sth = $dbh->prepare('SELECT c.name, c.section, c.title, c.year, c.quarter,
+                                    c.location, c.time, c.date, c.url, c.flags, c.hidden, p.classid as parent_classid,
+                                    p.name as parent_name, p.section as parent_section
+                               FROM classlist c
+                               LEFT JOIN classlist p ON c.parent IS NOT NULL
+                                                    AND c.parent = p.classid
+                              WHERE c.classid=? 
+                              LIMIT 1');
+    $sth->execute($classid)
+        or die 'Failed to get class info: ' . $sth->errstr;
+
+    if (my $row_ref = $sth->fetchrow_arrayref()) {
+        ($class, $section, $title, $year, $quarter, $location, $time, $date, $url, $flags, $hidden, $parent_classid, $parent_name, $parent_section) = @$row_ref;
+    } # end of test for classlist lookup
+    
+    #
+    # only allow access to historic classes for selected users
+    #
+    my $archived = $m->comp('/mason/db/classes/check_classarchive.comp', year=>$year, quarter=>$quarter) || $hidden;
+    if ($archived && !$auth_archive) {
+        # only permit access to the description page if archived
+        $type="index";
+    }
+    
+    # Do ta check if in TA area
+    if ($type eq 'ta') {
+        $m->comp('/mason/auth/auth_block_editclass.comp', classid => $classid, always_include_tas => 1);
+    }
+
+    # Only allow instructors to see anonymous feedback (ignoring taedit flag)
+    if ($type eq 'feedback') {
+        return unless ($m->comp('/mason/auth/member_check.comp', type => 'instructor', uid => $session{'uid'}, memberof => $classid));
+    }
+
+    # take care of content-type if the .html was omitted in request...
+    $r->content_type("text/html");
+    
+    #my $template = ($year == 0);
+
+</%INIT>
+
+
+<p>
+
+% # what exactly is the point if the if title check? document
+% if ($title) {
+%   if ($type eq 'ta' ) {
+%       # TA discussion section
+       <a href="/classes/edit_classitem_form.html?classid=<% $classid %>&amp;item_type=<% $type %>">Post New Item</a>
+%   } 
+
+<%perl>
+if ($noauth) { $auth_edit=0; }
+
+# Show stuff from this class unless theres a parent, in that case, use that.
+my $content_classid = $classid;
+$content_classid = $parent_classid if($parent_classid);
+
+#NOTE:
+#You also need to add these types to the classes/dhandler as well or they will not be passed through to here!
+if ($type eq 'index') {
+    $m->comp('/mason/db/classes/classindex.comp', classid=>$classid, parent=>$parent_classid, archived=>$archived);
+} 
+elsif ($type eq 'edit') {
+    $m->comp('/www/classes/edit_classlist_form.html', classid=>$classid);
+} 
+elsif ($type eq 'talist') {
+    $m->comp('/www/classes/talist.html', %ARGS, classid=>$classid);
+} 
+elsif ($type eq 'scores') {
+    $m->comp('/www/classes/view_scores.html', classid=>$classid);
+} 
+elsif ($type eq 'class_list') {
+     $m->comp('/www/classes/classlist.html', %ARGS, classid=>$classid);
+} 
+elsif ($type eq 'manage_scores') {
+    $m->comp('/www/classes/manage_scores.html', classid=>$classid);
+} 
+elsif ($type eq 'update_clicker') {
+    $m->comp('/www/classes/update_clicker.html', classid=>$classid);
+}
+elsif ($type eq 'email') {
+    $m->comp('/www/classes/email_form.html', %ARGS, classid=>$classid);
+} 
+elsif ($type eq 'view_item') {
+    $m->comp('/mason/db/classes/viewashtml.comp', id=>$item);
+} 
+elsif ($type eq 'downloads') {
+    $urlitem =~ /^(\d+)/;
+    $m->comp('/mason/db/classes/get_file.comp', classid=>$content_classid, id=>$1, download=>$download);
+} 
+else {
+    if ($item) {
+        # used to render a single item (never used?)
+        $m->comp('/mason/db/classes/render_item.comp',
+            entryid=>$item,
+            expand=>1,
+            enforce_type=>$type,
+            enforce_classid=>$classid,
+            auth_edit=>$auth_edit,
+            auth_any=>$auth_any,
+            auth_archive=>$auth_archive
+            );
+    }
+    else {
+        if ($auth_edit && !$nocontrols) {
+           print '<table width="100%" border=0 cellspacing=0 cellpadding=0 class="classitem" style="margin-bottom: 2px;"><tr><th bgcolor="#d0d0d0" align="left">';
+           print '<a href="/classes/edit_classitem_form.html?classid='.$classid.'&amp;item_type=' . $m->interp->apply_escapes($type, 'u') . '&amp;redirect_type=' . $m->interp->apply_escapes($type, 'u');
+           print '">Add new "'. $m->interp->apply_escapes($type, 'h') .'" item</a></th></tr></table>';
+        }
+        my $sth = $dbh->prepare('SELECT entryid FROM classdata WHERE classid=? AND parentid=? AND ((item_type=?) OR ?=1) ORDER BY if(item_type=\'syllabus\', 0, 1) ASC, priority DESC, post_date DESC');
+        $sth->execute($content_classid, 0, $type, $showall)
+            or die 'Unable to grab entries: ' . $dbh->errstr;
+        my $item_count = 0;
+        while (my $row_ref = $sth->fetchrow_arrayref) {
+            my ($entryid) = @$row_ref;
+            if ($entryid) {
+                $m->comp('/mason/db/classes/render_item.comp',
+                         entryid=>$entryid,
+                         uri_base=>"/classes/$year/".lc($quarter)."/$class".($section ? ".$section/" : "/"),
+                         noauth=>$noauth,
+                         nocontrols=>$nocontrols,
+                         base_type=>$type,
+                         enforce_type=>$type,
+                         enforce_classid=>$content_classid,
+                         auth_edit=>$auth_edit,
+                         auth_any=>$auth_any,
+                         auth_archive=>$auth_archive,
+                         copyto=>$copyto,
+                         copyto_text=>$copyto_text
+                         );
+                $item_count++;
+            }
+        }
+        if (!$item_count) {
+            print '<p>No items are posted in this area. Choose another area from the menu.</p>';
+        }
+    }
+}
+} 
+else {
+    print '<p class="error">Couldn\'t find that class</p>';
+}
+</%perl>

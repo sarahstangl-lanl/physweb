@@ -1,0 +1,55 @@
+<%doc>
+   Component: delete_story.html
+        Date: 9/9/2002
+      Author: allan
+ Description: delete an story
+</%doc>
+
+<%args>
+$eventid
+</%args>
+<%init>
+# Connect to the database, if we haven't
+# already done so
+
+my $auth = $m->comp('/mason/auth/auth_check_events.comp');
+my $successful_delete;
+
+if ($auth) {
+
+  # Now update the entry
+  my $sql = "DELETE FROM stories ";
+     $sql .= "WHERE eventid=? ";
+  my $sth = $dbh->prepare($sql);
+  $successful_delete = $sth->execute($eventid);
+
+}
+</%init>
+
+<%method title>Stories update</%method>
+
+% if ($successful_delete) {
+<%perl>
+  if($session{'story_edit_referer'}) {
+    $m->comp('/mason/redirect.comp',url=>$session{'story_edit_referer'});
+  } else {
+    $m->comp('/mason/redirect.comp', url=>"/resources/admin/news");
+  }
+</%perl>
+%#<& /mason/redirect.comp, url=>'index.html' &>
+
+% } else {
+
+% if ($auth) {
+
+The story was not deleted successfully. Error message: </P>
+<pre>
+<% $DBI::errstr %>
+</pre>
+
+% } else {
+
+You aren't authorized to make updates!
+
+% }
+% }

@@ -1,0 +1,168 @@
+<%doc>
+   Component: application.html
+        Date: 10/16/2002
+      Author: jenny
+ Description:
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+</%init>
+<h2 title>2013 RET Application</h2>
+
+<h3>Application deadline: March 1, 2013</h3>
+
+<form action="apply_submit.html" METHOD=POST>
+<input TYPE=hidden NAME=subject VALUE="2010 RET Application">
+<!--<input TYPE=hidden NAME=recipient VALUE="reu@physics.umn.edu">-->
+<input TYPE=hidden NAME=required
+VALUE="name,school,workphone,email">
+<input TYPE=hidden NAME=redirect VALUE="/outreach/ret/retthanku.html">
+
+<h4>Application form<p></h4>
+
+<table>
+<tr valign="top">
+<td>1. Name</td>
+<td><input TYPE=text NAME=name VALUE="" SIZE=50><br/>
+<small>Last, First, MI</small><p></td>
+</tr>
+<tr valign="top">
+<td>2. High School</td>
+<td><input TYPE=text NAME=school VALUE="" SIZE=20></td><td></td>
+</tr>
+<tr><td></td><td></td><td></td></tr>
+<tr valign="top">
+<td>3.Phone</td>
+<td><input TYPE=text NAME=workphone VALUE="" SIZE=15></td><td></td>
+</tr>
+</table>
+<br/>
+4. Work Address<br/>
+<input TYPE=text NAME=workstreet VALUE="" SIZE=50><br/>
+<small>Street</small><br/>
+<input TYPE=text NAME=workcity VALUE="" SIZE=50><br/>
+<small>City</small><br/>
+<table>
+<tr>
+<td><input TYPE=text NAME=workstate VALUE="" SIZE=2></td><td><input TYPE=text NAME=workzip VALUE="" SIZE=10></td></tr>
+<tr>
+<td><small>State</small></td><td><small>Zip Code</small></td>
+</tr>
+</table>
+<table>
+<tr valign="top">
+<td>5. Home Phone</td>
+<td><input TYPE=text NAME=homephone VALUE="" SIZE=15></td>
+</tr>
+</table>
+
+<p>
+6.Home Address <br/>
+<input TYPE=text NAME=homeStreet VALUE="" SIZE=50><br/>
+<small>Street</small><br/>
+<input TYPE=text NAME=homecity VALUE="" SIZE=50><br/>
+<small>City</small><br/>
+<table>
+<tr>
+<td><input TYPE=text NAME=homestate VALUE="" SIZE=2></td><td><input TYPE=text NAME=homezip VALUE="" SIZE=10></td></tr>
+<tr>
+<td><small>State</small></td><td><small>Zip Code</small></td>
+</tr>
+</table>
+<table>
+<tr valign="top">
+<td>7.Email address</td>
+<td><input TYPE=text NAME=email Value="" Size=50><p></td><td></td>
+</tr>
+</table>
+<table>
+<tr valign="top">
+<td>8. Citizenship</td>
+<td><input TYPE=text NAME=Citizenship Value="" Size=15></td></tr>
+<tr valign="top">
+<td>9. Number of years teaching</td>
+<td><input TYPE=text NAME=yearsteaching Value="" Size=5></td>
+</tr>
+<tr valign="top">
+<td>10. Number of years teaching physics/physical science</td>
+<td><input TYPE=text NAME=yearsphysics Value="" Size=5></td><td></td>
+</tr>
+<tr valign="top">
+<td>11. Subjects taught</td>
+<td><input TYPE=text NAME=subject Value="" Size=50>
+</table>
+<table>
+<tr valign="top">
+<td>12. What courses will you will teach in 2013-2014?<br/> 
+<small>(include grade level and level of course: AP, conceptual, etc.)</small></td><td></td></tr>
+<tr valign="top"><td colspan=3><input TYPE=text NAME=teaching Value="" Size=100></td><td></td><td></td></tr>
+<tr valign="top"><td colspan=3><input TYPE=text NAME=teaching2 Value="" Size=100></td><td></td><td></td></tr>
+<tr valign="top"><td colspan=3><input TYPE=text NAME=teaching3 Value="" Size=100></td><td></td><td></td></tr>
+</table>
+<table>
+<tr valign="top">
+<td>13. Education:</td><td></td><td></td></tr>
+<tr><td><small>Degree</small></td><td><small>Field</small></td><td><small>Year</small> awarded</td></tr>
+<tr><td><input TYPE=text NAME=Education Value="" Size=40></td>
+<td><input TYPE=text NAME=Education2 Value="" Size=40></td>
+<td><input TYPE=text NAME=Education3 Value="" Size=10></td></tr>
+<tr><td><input TYPE=text NAME=Education4 Value="" Size=40></td>
+<td><input TYPE=text NAME=Education5 Value="" Size=40></td>
+<td><input TYPE=text NAME=Education6 Value="" Size=10></td></tr>
+<tr><td><input TYPE=text NAME=Education7 Value="" Size=40></td>
+<td><input TYPE=text NAME=Education8 Value="" Size=40></td>
+<td><input TYPE=text NAME=Education9 Value="" Size=10><p></td></tr>
+</table>
+<table>
+<tr valign="top">
+<td colspan=2>14. Physics courses taken</td>
+<td><input TYPE=text NAME=formalcourse VALUE="" SIZE=50></td><td></td>
+</tr>
+<tr valign="top">
+<td colspan=3>15. What research experience do you have?</td><td></td><td></td></tr>
+<tr><td colspan=3><input TYPE=text NAME=experience VALUE="" SIZE=100></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td></tr>
+<tr valign="top">
+<td colspan=3>16. Briefly describe why you want to participate
+in this program and <br/>how you think it will help your teaching.</td></tr>
+<tr valign="top">
+<td colspan=3>
+<textarea NAME=whyparticipate Value="" cols=40 rows=10 maxlength=3000></textarea>
+</td> </tr>
+
+</table>
+17. Where did you learn of this opportunity?<br/>
+<ul>
+<input TYPE=radio NAME=wherelearn VALUE="Physics Website">UMN Physics website<br/>
+<input TYPE=radio NAME=wherelearn VALUE="Other UMN Website">other UMN website<br/>
+<input TYPE=radio NAME=wherelearn VALUE="Faculty Colleague at my school">faculty colleague at your school<br/>
+<input TYPE=radio NAME=wherelearn VALUE="Faculty Colleague at another school">faculty colleague at another school<br/>
+<input TYPE=radio NAME=wherelearn VALUE="other">other<br/>
+If other, please indicate where:<br/>
+<input TYPE=text NAME=otherwhere VALUE="" SIZE=50><br/>
+</ul>
+<table>
+<tr valign="top">
+<td colspan=3 align="center">
+<input Type=Submit Name=submit Value="Send form"> <input type=reset
+Name=clearform Value="Clear Form">
+</td>
+</tr>
+</table>
+</form>
+<p>
+If you prefer to mail all your materials, send them to:<br/>
+<center><a href="mailto:reu@physics.umn.edu">Annie Bartels</a><br/>
+RET Program Coordinator<br/>
+School of Physics & Astronomy<br/>
+University of Minnesota<br/>
+116 Church Street S.E.<br/>
+Minneapolis, MN 55455<br/>
+(612) 624-1625</center>
+<p>
+<b>Questions?</b> Write to <a href="mailto:reu@physics.umn.edu">reu at physics.umn.edu</a>
+
+

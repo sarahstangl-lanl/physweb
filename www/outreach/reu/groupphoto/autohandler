@@ -1,0 +1,14 @@
+<% $m->call_next %>
+<%method submenu4>
+   <& /mason/menu.comp:begin, level=>4 &>
+   <&| /mason/menu.comp, link=>'/outreach/reu/groupphoto/2006.html', level=>4  &>2006</&>
+   <&| /mason/menu.comp, link=>'/outreach/reu/groupphoto/2005.html', level=>4  &>2005</&>
+   <&| /mason/menu.comp, link=>'/outreach/reu/groupphoto/2004.html', level=>4  &>2004</&>
+   <&| /mason/menu.comp, link=>'/outreach/reu/groupphoto/2003.html', level=>4  &>2003</&>
+   <&| /mason/menu.comp, link=>'/outreach/reu/groupphoto/2002.html', level=>4  &>2002</&>
+   <&| /mason/menu.comp, link=>'/outreach/reu/groupphoto/2001.html', level=>4  &>2001</&>
+<& /mason/menu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+
+

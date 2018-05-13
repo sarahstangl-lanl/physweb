@@ -1,0 +1,52 @@
+<%doc>
+   Component: ldap_connect.comp
+        Date: 6/8/2004
+      Author: allan
+ Description: connect to ldap server
+</%doc>
+
+<%args>
+$user
+$pw
+$extret
+</%args>
+
+<%init>
+use Net::LDAP;
+</%init>
+
+<%perl>
+# Connect to the database
+my $host = [ qw(ldaps://ldap.spa.umn.edu ldaps://ldap2.spa.umn.edu ldaps://ldap3.spa.umn.edu) ];
+if ($user !~ /^\w*$/) { return 0; }
+my $dn = 'uid=' . $user . ',ou=People,dc=physics,dc=umn,dc=edu';
+my $mesg;
+my $ldap;
+if ($ldap = Net::LDAP->new( $host , timeout => 2 )) {
+  if ($ldap) {
+    $mesg = $ldap->bind( $dn, password=>$pw);
+    if ($mesg->code eq 0) {
+      # VALID!
+      $ldap->unbind();
+      return 1;
+    } else {
+      # Failed... Bad password or bad server?
+      if ($ldap->bind()) {
+        $ldap->unbind();
+        return 0;
+      } else {
+        if ($extret) { $$extret = 'CONNFAIL'; }
+        $ldap->unbind();
+        return 0;
+      }
+    }
+    
+    $ldap->unbind();
+  }
+} elsif ($extret) {
+  # Connection Failed! Give a little extra info if wanted
+  $$extret = 'CONNFAIL';
+}
+return 0;
+
+</%perl>

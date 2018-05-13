@@ -1,0 +1,59 @@
+<%args>
+$x500
+$classid => undef
+$message => undef
+</%args>
+<%init>
+my $dw_dbh = $m->comp('/mason/dw_dbh.comp');
+my $dispname;
+my $emplid;
+
+my $dw_get_student = $dw_dbh->prepare("
+    SELECT a.EMAILID_1, a.LAST_NAME, a.FIRST_NAME, a.MIDDLE_NAME, a.EMPLID
+      FROM    PS_DWSA_DEMO_ADDR a
+     WHERE   a.EMAILID_1 = ?");
+
+$dw_get_student->execute($x500 . '@umn.edu') or die "Failed to fetch student info: " . $dw_get_student->errstr;
+
+my $class = $classid ? physdb::queryfirstrow("SELECT * FROM webdb.classlist WHERE classid=?", $classid) : undef;
+if ($classid && !$class) {
+    warn "No class found for classid $classid. This should not happen..";
+    $$message = "No class found for classid $classid. This should not happen.." if (ref $message);
+    return 0;
+}
+
+#If we find them in datawarehouse
+if (my $student = $dw_get_student->fetchrow_hashref) {
+    warn "Got a DW student:" . Dumper($student);
+    $dispname = $student->{LAST_NAME} . ", " . $student->{FIRST_NAME} . ($student->{MIDDLE_NAME} ne ' ' ? " $student->{MIDDLE_NAME}" : "");
+    $emplid = $student->{EMPLID};
+}
+#Next try looking in umn ldap
+elsif(my $umn = $m->comp("/mason/ldap_lookup.comp:getuser", server => 'ldap.umn.edu', x500 => $x500, do_bind => 1)) {
+    $dispname = $umn->get_value("displayName");
+    $emplid = $umn->get_value("umnEmplId");
+}
+#Lastly give up and return 0
+else {
+    warn "No match for student '$x500' in dw or ldap";
+    $$message = "No match for student '$x500'" if (ref $message);
+    return 0;
+}
+
+#Make sure there is a display name
+unless ($dispname) {
+    warn "No display name for student '$x500'";
+    $$message = "No display name for student '$x500'" if (ref $message);
+    return 0;
+}
+
+physdb::query("INSERT INTO grades.users (dispname, x500) VALUES (?, ?) ON DUPLICATE KEY UPDATE dispname=?", $dispname, $x500, $dispname);
+my $userid = physdb::queryone("SELECT id FROM grades.users WHERE x500 = ?", $x500);
+
+#Only add to class if a classid was passed in
+if($classid && $userid) {
+    physdb::query("INSERT IGNORE INTO grades.classlist (classid, userid, studentid, section, auto_added) VALUES (?,?,?,?,0)",
+                                $classid, $userid, $emplid, $class->{section});
+}
+return $userid;
+</%init>

@@ -1,0 +1,39 @@
+<%DOC>
+   Component: upload.html
+        Date: 2005.08.10
+      Author: allan
+     Changed: 2005.11.02 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id => $session{'gradappid'}
+</%ARGS>
+
+<%init>
+    my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+    if (!$auth) {
+        $id = $session{'gradappid'};
+    }
+    if (!$id) { $m->redirect('index.html?notloggedin=1'); }
+</%init>
+
+<%method title>Upload Supplementary Materials</%method>
+<p>
+We accept supplementary material uploads in Adobe PDF and JPEG image formats. Note, the maximum file size which can be uploaded is 16MB.
+</p>
+<p>
+<form enctype="multipart/form-data" method="POST" name="edit" action="saveupload.html">
+<input type="hidden" name="id" value="<% $id |h %>"/>
+<table border=0>
+<tr valign="top"><td>File to upload:</td><td>
+<input type="file" size=20 name="file">
+<tr valign="top"><td>File description:</td><td><input type=text name="description" value="" size=40>
+<br/>eg, "transcript from <i>University name</i>", "GRE scores"</td></tr>
+</td></tr>
+
+</table>
+<p>
+<input type="submit" value="Upload file">
+</form>

@@ -1,0 +1,39 @@
+<%doc>
+   Component: user_menu.comp
+        Date: 7/29/2003
+      Author: allan
+ Description: provides a menu of usernames from the directory
+</%doc>
+
+<%args>
+$query=>''
+$selected=>''
+$menuname=>'user'
+$auth=>''
+</%args>
+
+<%init>
+  my $sql = "SELECT last_name,first_name,x500,uid FROM directory WHERE 1=1 ";
+  if ($query) {$sql .= " AND $query"; }
+  if ($auth) { $sql  .= " AND uid IN (SELECT uid FROM groupmembers WHERE groupname='$auth') "; }
+  $sql .= " ORDER BY last_name, first_name";
+
+  my $sth = $dbh->prepare($sql);
+  $sth->execute()
+    or die 'Unable to grab users for user_menu: ' . $dbh->errstr;
+
+  my $menu = "<select name=\"".$menuname."\">";
+  $menu .= "<option ";
+  if ($selected eq "") {$menu .= "selected ";}
+  $menu .= "value=\"\">(nobody)";
+
+  while (my $row_ref = $sth->fetchrow_arrayref()) {
+    my ($lastname, $firstname, $x500, $uid) = @$row_ref;
+    $menu .= "<option ";
+    if ($uid eq $selected) {$menu .= "selected ";}
+    $menu .= "value=\"" . $m->interp->apply_escapes($uid, 'h') . "\">".$m->interp->apply_escapes($firstname, 'h')." ".$m->interp->apply_escapes($lastname, 'h').($x500 ? " (" . $m->interp->apply_escapes($x500, 'h') .")" : '');
+  }
+  $menu .= "</select>";
+
+  return $menu;
+</%init>

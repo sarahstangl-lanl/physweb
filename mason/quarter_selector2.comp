@@ -1,0 +1,82 @@
+<%doc>
+Quarter selector - creates "menu" of available quarters/semesters, with current one selected.
+
+"style" can be either "calendar" or "academic"
+</%doc>
+
+<%args>
+$quarter=>''
+$url=>'index.html'
+$year=>''
+$style=>'acad'
+$header=>'yes'
+#$template=>'<a href=\"%u?quarter=%q&amp;year=%y\">fall</a>'
+$template=>'<a href="%u/%y/%q">%t</a>'
+</%args>
+
+<%init>
+my $output;
+my $fallyear = $year;
+
+$template =~ s/%u/$url/g;
+
+my $last = $template;
+my $next = $template;
+
+# quick hack to disappear navigation for stupid year values, see RT#42269
+# leaving lurking year 2101 problem, oh dear... sorry future bunker dweller
+return if ($year<2000 || $year>2100);
+
+if ($style !~ /calendar/i ) {
+  if ($quarter =~ /fall/i) { $year = $year + 1; }
+  $fallyear = $year - 1;
+  $last =~ s/%q/summer/g;
+  $last =~ s/%y/$fallyear/g;
+  $next =~ s/%q/fall/g;
+  $next =~ s/%y/$year/g;
+} else {
+  $last =~ s/%q/fall/g;
+  $last =~ s/%y/$year/g;
+  $next =~ s/%q/spring/g;
+  $next =~ s/%y/($year+1)/g;
+}
+$last =~ s/%t/&laquo;/g;
+$next =~ s/%t/&raquo;/g;
+
+my $fall = "<i>fall $fallyear</i>";
+my $spring = "<i>spring $year</i>";
+my $summer = "<i>summer $year</i>";
+
+if ($quarter ne "fall") {
+  $fall = $template;
+  $fall =~ s/%q/fall/g;
+  $fall =~ s/%t/fall $fallyear/g;
+  $fall =~ s/%y/$fallyear/g;
+}
+
+if ($quarter ne "spring") {
+  $spring = $template;
+  $spring =~ s/%t/spring $year/g;
+  $spring =~ s/%q/spring/g;
+  $spring =~ s/%y/$year/g;
+}
+if ($quarter ne "summer") {
+  $summer = $template;
+  $summer =~ s/%t/summer $year/g;
+  $summer =~ s/%q/summer/g;
+  $summer =~ s/%y/$year/g;
+}
+
+if ($style =~ /calendar/i ) {
+  if ($year) {$output = $year." - ";}
+  $output .= $spring." - ".$summer." - ".$fall;
+} else {
+  #$output = $last." ".$fallyear." ".$fall." - ".$year." ".$spring." - ".$summer." ".$next;
+  $output = "$last $fall - $spring - $summer $next";
+}
+if ($header ne "no") {
+  $output = "<h4>".$output."</h4>";
+}
+</%init>
+
+<% $output %>

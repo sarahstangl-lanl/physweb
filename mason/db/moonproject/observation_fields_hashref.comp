@@ -1,0 +1,6 @@
+<%init>
+my @fields_array = @{$m->comp('/mason/db/moonproject/observation_fields.comp')};
+my %fields_hash = @fields_array;
+#print "Key: $_ and Value: $fields_hash{$_}\n" foreach (keys%fields_hash);
+return \%fields_hash;
+</%init>

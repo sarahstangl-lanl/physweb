@@ -1,0 +1,228 @@
+
+<%DOC>
+   Component: admin_findta.html
+        Date: 2007.08.09
+      Author: clayton
+     Changed: 2007.08.09 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $admin_year => ''
+  $admin_semester => ''
+  @search_slots => ()
+</%ARGS>
+
+<%INIT>
+  my $auth_admin = $m->comp('/mason/auth/auth_check_ta_admin.comp');
+  if (!$auth_admin) { $m->redirect('not_authorized.html'); }
+
+  my %config = $m->comp('/mason/db/tascheduling/config.comp');
+</%INIT>
+
+<%method meta>
+<style type="text/css">
+table tr.odd td:hover th,
+table tr.even td:hover th,
+table tr td.hover th {
+    background:   #CCFFCC;
+    color:   #000000;
+}
+
+.odd :hover,
+.even :hover,
+.hover {
+    background: #CCFFCC;
+    color: #000000;
+}
+</style>
+<script type="text/javascript"
+charset="utf-8">
+function formReset() {
+  if (confirm('Are you sure?')) {
+  marked_data = new Array;
+
+    var rows = document.getElementsByTagName('tr');
+    for ( var i = 0; i < rows.length; i++ ) {
+        // ... with the class 'odd' or 'even' ...
+        if ( 'odd' != rows[i].className.substr(0,3) && 'even' != rows[i].className.substr(0,4) ) {
+            continue;
+        }
+        
+        var data = rows[i].getElementsByTagName('td');
+        for ( var j = 0; j < data.length; j++) {
+            var checkbox = data[j].getElementsByTagName('input')[0];
+            if ( checkbox ) {
+                    checkbox.checked = false;
+            }
+        }
+    }
+  }
+  return false;
+}
+
+/**
+ * This array is used to remember mark status of data in browse mode
+ */
+var marked_data = new Array;
+
+/**
+ * Gee, thanks phpMyAdmin!
+ * enables highlight and marking of rows in data tables
+ * Changed to work for grids of checkboxes
+ *
+ */
+function PMA_markRowsInit() {
+    // for every table row ...
+    var rows = document.getElementsByTagName('tr');
+    for ( var i = 0; i < rows.length; i++ ) {
+        // ... with the class 'odd' or 'even' ...
+        if ( 'odd' != rows[i].className.substr(0,3) && 'even' != rows[i].className.substr(0,4) ) {
+            continue;
+        }
+
+        // Do not set click events if not wanted
+        if (rows[i].className.search(/noclick/) != -1) {
+            continue;
+        }
+        var data = rows[i].getElementsByTagName('td');
+        for ( var j = 0; j < data.length; j++) {
+        // ... add event listeners ...
+        // ... to highlight the row on mouseover ...
+        if ( navigator.appName == 'Microsoft Internet Explorer' ) {
+            // but only for IE, other browsers are handled by :hover in css
+            data[j].onmouseover = function() {
+                this.className += ' hover';
+            }
+            data[j].onmouseout = function() {
+                this.className = this.className.replace( ' hover', '' );
+            }
+        }
+
+            // ... and to mark the box on click ...
+            data[j].onmousedown = function() {
+                var unique_id;
+                var checkbox;
+
+                checkbox = this.getElementsByTagName( 'input' )[0];
+                if ( checkbox && checkbox.type == 'checkbox' ) {
+                    unique_id = checkbox.name + checkbox.value;
+                } else if ( this.id.length > 0 ) {
+                    unique_id = this.id;
+                } else {
+                    return;
+                }
+
+                if ( typeof(marked_data[unique_id]) == 'undefined' ) {
+                    marked_data[unique_id] = checkbox.checked;
+                }
+
+                if ( typeof(marked_data[unique_id]) == 'undefined' || !marked_data[unique_id] ) {
+                    marked_data[unique_id] = true;
+                } else {
+                    marked_data[unique_id] = false;
+                }
+
+                if ( marked_data[unique_id] ) {
+                    this.className += ' marked';
+                } else {
+                    this.className = this.className.replace(' marked', '');
+                }
+
+                if ( checkbox && checkbox.disabled == false ) {
+                    checkbox.checked = marked_data[unique_id];
+                }
+            }
+
+            // ... and disable label ...
+            var labeltag = data[j].getElementsByTagName('label')[0];
+            if ( labeltag ) {
+                labeltag.onclick = function() {
+                    return false;
+                }
+            }
+            // .. and checkbox clicks
+            var checkbox = data[j].getElementsByTagName('input')[0];
+            if ( checkbox ) {
+                checkbox.onclick = function() {
+                    // opera does not recognize return false;
+                    this.checked = ! this.checked;
+                }
+            }
+        }
+    }
+}
+window.onload=PMA_markRowsInit;
+</script>
+</%method>	
+
+<%method title>TA Scheduling</%method>
+
+<h3 style="border-bottom: 1px solid black; margin-bottom: 0.25em;">Find TAs By Schedule: <% ($admin_semester eq 'spring' ? 'Spring' : 'Fall') |h %> <% $admin_year |h %></h3>
+
+% if (@search_slots) {
+<h4>Matches</h4>
+[<a href="#sform">Jump to Search Form</a>]
+% my $matches = 0;
+<%perl>
+  my @sql_slot = ();
+  foreach (@search_slots)
+  {
+    my ($day, $period) = split('\|', $_);
+    push(@sql_slot, '(taschedule_busy.day=' . scalar($day+1) . ' AND taschedule_busy.slot=' . $dbh->quote($period) . ')');
+  }
+  my $sql = 'SELECT taschedule.uid, COUNT(taschedule_busy.slot) AS conflicts, directory.first_name, directory.last_name, directory.x500, directory.physid FROM taschedule
+            LEFT JOIN taschedule_busy ON (taschedule.uid=taschedule_busy.uid AND taschedule.year=taschedule_busy.year AND taschedule.semester=taschedule_busy.semester AND (' . join(' OR ', @sql_slot) . '))
+            LEFT JOIN directory ON (taschedule.uid=directory.uid)
+            WHERE taschedule.year=? AND taschedule.semester=?
+            GROUP BY uid
+            HAVING conflicts = 0
+            ORDER BY conflicts ASC';
+</%perl>
+% my $query = $dbh->prepare($sql);
+% $query->execute($admin_year, $admin_semester);
+<table>
+<tr><th>Last</th><th>First</th><th>x500</th><th>PhysID</th><th></th></tr>
+% while (my $result = $query->fetchrow_hashref())
+% {
+<tr><td><% $$result{'last_name'} |h %></td><td><% $$result{'first_name'} |h %></td><td><% $$result{'x500'} |h %></td><td><% $$result{'physid'} |h %></td><td><a href="index.html?admin_semester=<% $admin_semester |u %>&amp;admin_year=<% $admin_year |u %>&amp;admin_schedule=<% $$result{'uid'} |u %>">View Schedule</a></td></tr>
+% $matches = 1;
+% }
+</table>
+
+% if (!$matches) {
+No Matches Found
+% }
+
+<hr>
+% }
+<a name="sform">
+Matches TAs <i>without</i> the selected slots busy.
+<form action="admin_findta.html?admin_year=<% $admin_year |u %>&amp;admin_semester=<% $admin_semester |u %>" method="POST">
+<table>
+<tr><th></th><th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th></tr>
+% my $time = $m->comp('time.comp', 'start_time'=>$config{'start_time'}, 'period_length'=>$config{'period_length'}, 'period_break'=>$config{'period_break'});
+% my $row = 0;
+% my $i = 0;
+% for (my $period=0; $period<$config{'periods'}; $period++) {
+<tr class="<% ($period % 2 ? 'even' : 'odd') %>"><th style="text-align: right;"><% &$time() |h %></th>
+% for (my $day=0; $day<$config{'days'}; $day++) {
+% my $value = '';
+% if ($search_slots[$i])
+% {
+%   my ($cday, $cperiod) = split('\|', $search_slots[$i]);
+%   if (($cday == $day) && ($cperiod == $period)) {
+%   $value = ' checked';
+%   $i++;
+% } }
+<td align="center"><input type="checkbox" name="search_slots" value="<% $day %>|<% $period %>"<% $value %>></td>
+% }
+</tr>
+% $row++;
+% }
+</table>
+<small>NOTE: Clicking around the checkboxes works, too.</small><br/>
+
+<input type="reset" value="Clear" onclick="return formReset();"> <input type="submit" value="Search">
+</form>

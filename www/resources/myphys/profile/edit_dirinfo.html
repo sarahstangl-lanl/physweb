@@ -1,0 +1,101 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: edit_profile.html
+        Date: 8/30/2002
+      Author: allan
+ Description: update profile data from form
+</%doc>
+
+<%args>
+$uid => ''
+$email=>''
+#$emailforward=>''
+$www=>''
+$research_www=>''
+$address=>''
+$home_phone=>''
+$cell_phone=>''
+$pager_phone=>''
+$sshkeys=>''
+$room_type =>''
+$room =>''
+$room_building=>''
+$room_phone=>''
+$room2_type =>''
+$room2 =>''
+$room2_building=>''
+$room2_phone=>''
+$cilogon=>''
+</%args>
+
+<%init>
+use Email::Valid;
+use physdb::directory;
+#use Data::Dumper;
+
+my ($error,$sql,$sth,$phys80, $successful_insert);
+
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+unless ($uid) {
+    $m->out("Error calling form: no uid");
+    return;
+}
+
+
+# Either its them, or they have directory or profile edit access...
+my $auth = $m->comp('/mason/auth/auth_check.comp',auth_type=>'directory')
+         ||$m->comp('/mason/auth/auth_check.comp', auth_type=>'profiles');
+if (!$auth && $session{'uid'} ne $uid) { $error = "Not authorized\n";}
+
+my $directory = new Directory( uid => $uid );
+
+#Make sure theres a profile table entry already
+$m->comp('/mason/db/profile/ensure_entry.comp',uid=>$uid);
+
+# Now update the entry
+$directory->set( email => $email,
+                 www => $www,
+                 research_www => $research_www,
+                 address => $address,
+                 home_phone => $home_phone,
+                 cell_phone => $cell_phone,
+                 pager_phone => $pager_phone,
+                 room => $room,
+                 room_building => $room_building,
+                 room_type => $room_type,
+                 room_phone => $room_phone,
+                 room2 => $room2,
+                 room2_building => $room2_building,
+                 room2_type => $room2_type,
+                 room2_phone => $room2_phone,
+                 sshkeys => $sshkeys,
+                 cilogon => $cilogon,
+                );
+if($directory->save()) {
+    my $logstr = $directory->changes_as_str();
+    $m->comp('/mason/db/auditlog/addevent.comp', type=>"directory",
+        text=>"changed ".$logstr, directory_uid=>$uid);
+}
+else {
+    # Find the (first) error
+    my $saveerror = $directory->firsterror();
+    my ($error_key, $err_message) = $saveerror->first_column();
+    $m->comp("/mason/formhandler.comp:redir_error", form=>"edit_dirinfo_form.html", err_key => $error_key, err_message => $err_message);
+}
+</%init>
+
+<h2 title>Directory update</h2>
+
+<%perl>
+if (!$error) {
+    $m->comp('/mason/redirect.comp', url=>"index.html?uid=".$directory->get("uid")."&msg=Directory info saved");
+} else { #error
+    </%perl>
+    Update failed: </P>
+    <pre> <% $error |h%> </pre>
+    <%perl>
+}
+</%perl>
+
+

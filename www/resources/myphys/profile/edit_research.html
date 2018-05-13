@@ -1,0 +1,66 @@
+<%doc>
+         vim: set syntax=mason:
+   Component: edit_research.html
+        Date: 
+      Author: allan
+ Description: update profile data from form
+</%doc>
+
+<%args>
+$uid=>''
+$physid=>''
+$summary=>''
+$research1=>''
+$reshead1=>''
+$research2=>''
+$reshead2=>''
+$research3=>''
+$reshead3=>''
+$research4=>''
+$reshead4=>''
+</%args>
+
+<%init>
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+my $x500 = $m->comp('/mason/db/directory/uid_to_x500.comp',uid=>$uid);
+
+my $auth = $m->comp('/mason/auth/auth_check_profile.comp', x500=>$x500, uid=>$uid);
+my $successful_insert;
+my $error;
+
+if (!$auth) { $error = "Not authorised";}
+
+if (!$error) {
+
+$m->comp('/mason/db/profile/ensure_entry.comp',uid=>$uid);
+
+
+  # now update the profile part...
+  my $sql = "UPDATE profiles ";
+  $sql .= "SET summary=?, research1=?, research2=?, research3=?, research4=?, reshead1=?, reshead2=?, reshead3=?, reshead4=? ";
+  $sql .= "WHERE uid='$uid' ";
+  my $sth = $dbh->prepare($sql);
+  $successful_insert = $sth->execute($summary, $research1, $research2, $research3, $research4, $reshead1, $reshead2, $reshead3, $reshead4);
+  }
+  if (!$successful_insert) {$error = $DBI::errstr;}
+
+</%init>
+
+<%method title>Profile update</%method>
+
+% if (!$error) {
+
+% if(!$physid) {  # fix 404 if $physid isnt set from the caller
+%    $physid='index';
+% }
+%   $m->comp('/mason/redirect.comp', url=>"index.html");
+
+% } else {
+
+Update failed: </P>
+<pre>
+<% $error %>
+</pre>
+
+% }

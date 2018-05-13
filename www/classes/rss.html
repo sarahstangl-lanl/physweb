@@ -1,0 +1,21 @@
+<%DOC>
+   Component: rss.html
+        Date: 2008.09.03
+      Author: clayton
+     Changed: 2008.09.03 by clayton
+
+Description ... 
+</%DOC>
+\
+<%flags>
+  inherit=>undef
+</%flags>
+\
+<%ARGS>
+  $classid=>undef
+</%ARGS>
+\
+<%INIT>
+  if(!$classid) { $m->redirect("/classes/"); }
+  $m->comp('/mason/db/classes/rss_render_class.comp', classid=>$classid);
+</%INIT>

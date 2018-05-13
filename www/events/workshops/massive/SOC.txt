@@ -1,0 +1,24 @@
+<h3>Scientific Organizing Committee</h3>   
+
+<table>
+<tr>
+<td>Dave Arnett</td><td>University of Arizona</td></tr>
+<tr>
+<td>Kris Davidson</td><td>University of Minnesota</td></tr>
+<tr>
+<td>Alexander Heger</td><td>University of Minnesota</td></tr>
+<tr>
+<td>Roberta Humphreys</td><td>University of Minnesota</td></tr>
+<tr>
+<td>Norbert Langer</td><td>University of Bonn, Germany</td></tr>
+<tr>
+<td>Vuk Mandic</td><td>University of Minnesota</td></tr>
+<tr>
+<td>Peter Meszaros</td><td>Penn State University</td></tr>
+<tr>
+<td>Yong Qian</td><td>University of Minnesota</td></tr>
+<tr>
+<td>Stephen Smartt</td><td>Queen's University, UK</td></tr>
+<tr>
+<td>Stan Woosley</td><td>University of California, Santa Cruz</td></tr>
+</table>

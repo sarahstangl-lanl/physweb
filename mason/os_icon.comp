@@ -1,0 +1,22 @@
+<%args>
+    $name
+</%args>
+<%init>
+    my $filename = 'os_unknown.png';
+    my $clip = '';
+    
+    if ($name =~ /WinXP/) {
+        $filename = 'os_windows.png';
+    } elsif ($name =~ /Vista/) {
+        $filename = 'os_windows_vista.png';
+    } elsif ($name =~ /Linux/) {
+        $filename = 'os_linux.png';
+    } elsif ($name =~ /FreeBSD/) {
+        $filename = 'os_freebsd.png';
+    } elsif ($name =~ /Mac OS X/) {
+        $filename = 'os_apple.png';
+    } elsif ($name =~ /OSF1/) {
+        $filename = 'os_tru64.gif';
+    }
+</%init>
+<img src="/images/<% $filename %>" alt="OS Icon">

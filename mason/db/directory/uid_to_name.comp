@@ -1,0 +1,31 @@
+<%doc>
+   Component: uid_to_name.comp
+        Date: 9/11/2002
+      Author: allan
+ Description: returns full name for user
+</%doc>
+
+<%args>
+  $uid => $session{'uid'}
+</%args>
+
+<%init>
+my $return;
+if ($uid && defined($dbh)) {
+  unless ($return = $m->cache->get($uid) ) {
+    my $sth = $dbh->prepare('SELECT first_name, last_name FROM directory WHERE uid=? LIMIT 1');
+    $sth->execute($uid)
+      or die 'Unable to fetch user information: ' . $sth->errstr;
+    if (my $row = $sth->fetchrow_hashref()) {
+      $return = $row->{'first_name'} . ' ' . $row->{'last_name'};
+    }
+    $m->cache->set($uid,$return,'5 min');
+  }
+}
+
+return $return;
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

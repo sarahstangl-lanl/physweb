@@ -1,0 +1,40 @@
+<%DOC>
+   Component: auth_check_ta.comp
+        Date: 2007.08.01
+      Author: clayton
+     Changed: 2007.08.01 by clayton
+
+Description ... 
+</%DOC>
+
+<%args>
+    $year => (1900 + (CORE::localtime)[5])
+    $semester => $m->comp('/mason/this_quarter.comp')
+    $uid => $session{'uid'}
+</%args>
+
+<%method .description>
+    <%args>
+        $uid
+        $name => 'TA'
+    </%args>
+    <%init>
+        my $year = (1900 + (localtime)[5]);
+        my $semester = $m->comp('/mason/this_quarter.comp');
+        my $appt_db = $m->comp('/mason/db/students/is_ta.comp', uid => $uid, year => $year, semester => $semester);
+        my $grader_flag =  $m->comp('/mason/auth/auth_check.comp', uid => $uid, auth_type => 'physuggrader');
+    </%init>
+    <% $name %> access comes from either the
+    <a href="/resources/admin/students/semester=<% $semester |u %>/year=<% $year |u %>/appointments.html?uid=<% $uid |u %>">Appointment database</a>
+    or the
+    <a href="/resources/admin/people/edit_entry_form.html?uid=<% $uid | u %>#flags">Physics Grader flag</a>.
+    
+    <br/>Currently <% $m->comp('/mason/db/directory/uid_to_name.comp', uid => $uid) %> <b>is<% (!$appt_db ? ' not' : '') %></b>
+    in the Appointment database as a TA and <b>is<% (!$grader_flag ? ' not' : '') %></b> a Physics Grader.
+</%method>
+
+<%init>
+    my $auth = $m->comp('/mason/auth/auth_check.comp', uid => $uid, auth_type => 'physta');
+  
+    return $auth;
+</%init>

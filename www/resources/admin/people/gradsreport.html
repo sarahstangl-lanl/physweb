@@ -1,0 +1,109 @@
+<%init>
+$dbh->{TraceLevel} = 1;
+$m->comp('/mason/auth/auth_block.comp', internal => 1);
+if (!$m->comp('/mason/auth/auth_check.comp', auth_type => [ 'sysadm', 'directory' ])) { print "You are not authorized to view this page"; return; }
+my $dw_dbh = $m->comp('/mason/dw_dbh.comp');
+</%init>
+
+<%method no_search_box></%method>
+
+<%method title>
+Physics Grads Report
+</%method>
+
+<b>Experimental report - do not trust!</b>
+<p>
+<%perl>
+print "<p>The first table lists all physics grads (acad_plan of 067631508 067660207 067660208) as currently found in Data Warehouse, which trails Peoplesoft data by 1-2 days. ";
+print "The second table lists people marked as physics grads in the directory but not marked as such in Data Warehouse.</p>";
+
+# Arrays of arrayrefs for anydata
+my (@dw_data, @phys_data);
+
+# Column names for anydata
+push(@dw_data, [ qw/emplid name x500 directory physgrad credits/ ]);
+push(@phys_data, [ qw/emplid name x500 uid physid/ ]);
+
+# Fetch physmajors from directory
+my $phys_sth = $dbh->prepare("SELECT a.emplid, a.uid, a.physid, a.x500, a.last_name, a.first_name, b.groupname FROM directory AS a JOIN groupmembers AS b ON a.uid = b.uid AND b.groupname = 'physgrad'") or die "Failed to prepare directory query: " . $dbh->errstr;
+$phys_sth->execute() or die "Failed to execute query on directory: " . $phys_sth->errstr;
+
+# Store physmajors in hash
+my $phys_students = ();
+while (my $phys_student = $phys_sth->fetchrow_hashref) {
+    $phys_students->{$phys_student->{'emplid'}} = $phys_student;
+}
+
+# Fetch physmajors from data warehouse
+my $dw_sth = $dw_dbh->prepare("SELECT DISTINCT b.EMPLID, b.LAST_NAME, b.FIRST_NAME, a.INTERNET_ID, a.TOT_CUMULATIVE FROM PS_DWSA_CURR_STDNT_VW a JOIN PS_DWSA_DEMO_ADDR b on a.EMPLID = b.EMPLID WHERE a.ACAD_PLAN ='067660207' OR a.ACAD_PLAN ='067660208' OR a.ACAD_PLAN ='067631508' ORDER BY b.LAST_NAME ASC, b.FIRST_NAME") or die $dw_dbh->errstr;
+$dw_sth->execute() or die "Failed to execute query on dw: " . $dw_sth->errstr;
+
+# Generate datawarehouse table data
+while ( my $row = $dw_sth->fetchrow_hashref() ) {
+    my $phys_student = $phys_students->{$row->{'EMPLID'}};
+    $phys_student->{'dw'} = 1 if ($phys_student);
+    push(@dw_data, [
+        $row->{'EMPLID'},
+        $row->{'LAST_NAME'} . ', ' . $row->{'FIRST_NAME'},
+        $row->{'INTERNET_ID'},
+        $phys_student ? 'Yes' : 'No',
+        $phys_student ? $phys_student->{'groupname'} ? 'Yes' : 'No' : 'N/A',
+        $row->{'TOT_CUMULATIVE'},
+    ]);
+}
+
+# Generate extra directory physmajors table data
+while (my ($emplid, $phys_student) = each %$phys_students) {
+    push(@phys_data, [
+        $phys_student->{'emplid'},
+        $phys_student->{'last_name'} . ', ' . $phys_student->{'first_name'},
+        $phys_student->{'x500'},
+        $phys_student->{'uid'},
+        $phys_student->{'physid'},
+    ]) unless ($phys_student->{'dw'});
+}
+
+print "<h2>Physics Grads from Data Warehouse</h2>";
+
+$m->comp('/mason/db/tablesearch.comp',
+        data => \@dw_data,
+        prefix => 'dw',
+        field_params => { 
+            emplid => { name => 'Student ID' },
+            x500 => { name => 'X.500' },
+            name => { url => 'user.html?x500=$row{x500}' },
+            directory => { 
+                name => 'In directory',
+                data_format => sub { my ($value, $self, $row) = @_; return ($value eq 'No' ? '<span style="color: red;">No</span>' : $value); },
+            },
+            physmajor => {
+                name => 'Marked as physmajor',
+                data_format => sub { my ($value, $self, $row) = @_; return ($value eq 'No' ? '<span style="color: red;">No</span>' : $value); },
+            },
+            acad_plan => { name => 'Academic Plan' },
+        },
+        excel_link => 1,
+        excel_filename => 'physmajors',
+        header_format => 'ucfirst',
+        default_sort_field => 'name',
+);
+
+print "<h2>Physics Grads from Directory but not Data Warehouse</h2>";
+
+$m->comp('/mason/db/tablesearch.comp',
+        data => \@phys_data,
+        prefix => 'phys',
+        field_params => { 
+            emplid => { name => 'Student ID' },
+            uid => { name => 'Directory ID' },
+            x500 => { name => 'X.500' },
+            physid => { name => 'Physics ID' },
+            name => { url => 'user.html?uid=$row{uid}' },
+        },
+        excel_link => 1,
+        excel_filename => 'physmajors',
+        header_format => 'ucfirst',
+        default_sort_field => 'name',
+);
+
+</%perl>

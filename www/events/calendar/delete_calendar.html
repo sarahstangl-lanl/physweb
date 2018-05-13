@@ -1,0 +1,81 @@
+<%doc>
+   vim:set syntax=mason:
+   Component: delete_calendar.html
+        Date: 9/9/2002
+      Author: allan
+ Description: delete an event from the calendar
+</%doc>
+%# ~~NOSITEMAP~~
+
+<%args>
+$eventid=>undef
+$areatag=>'spa'
+$confirm=>''
+</%args>
+
+<%init>
+return if($m->comp('/mason/db/dbcheck.comp'));
+if(!defined($eventid)) {
+    $m->out("No eventid sent to delete!");
+    return;
+}
+
+my $access = ($m->comp('/mason/auth/auth_check_calendar.comp', eventid=>$eventid) || $m->comp('/mason/auth/auth_check_sysadm.comp'));
+my $tpl_access = ($m->comp('/mason/auth/auth_check_calendar_full.comp', eventid=>$eventid) || $m->comp('/mason/auth/auth_check_sysadm.comp'));
+
+
+my $successful_delete;
+
+if ($access) {
+  if ($confirm) {
+  my ($sql, $sth);
+  # Is this a template?
+  my ($class, $title);
+  $sql = "SELECT calendar.class, calendar.title FROM calendar WHERE eventid = ? LIMIT 1";
+  $sth = $dbh->prepare($sql);
+  if ($sth->execute($eventid)) {
+    my $row_ref = $sth->fetchrow_arrayref;
+    if (defined($row_ref)) {
+      ($class, $title) = @$row_ref;
+    }
+  }
+
+  if (($class eq 'template') && (!$tpl_access)) {
+    my $error = "No access to templates!";
+  } else {
+    $m->comp('/mason/db/auditlog/addevent.comp', type=>"calendar", text=>"Deleting calendar entry $eventid of type $class named $title");
+    # Now update the entry
+    my $sql = "DELETE FROM calendar ";
+       $sql .= "WHERE eventid=? ";
+    my $sth = $dbh->prepare($sql);
+    $successful_delete = $sth->execute($eventid);
+    #GoogleCal::delete_entry($eventid);
+  }
+
+  } else {
+    my $error = "Deletion not confirmed!";
+  }
+}
+</%init>
+
+<%method title>Calendar update</%method>
+
+% if ($successful_delete) {
+
+<& /mason/redirect.comp, url=>'/events/calendar/' . $m->interp->apply_escapes($areatag) . '.all/thisweek/' &>
+
+% } else {
+
+% if ($access) {
+
+The entry was not deleted successfully. Error message: </P>
+<pre>
+<% $DBI::errstr %>
+</pre>
+
+% } else {
+
+You aren't authorized to make updates!
+
+% }
+% }

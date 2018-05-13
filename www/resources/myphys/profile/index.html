@@ -1,0 +1,51 @@
+<%doc>
+    vim:set syntax=mason:
+</%doc>
+
+<%args>
+$uid => ''
+</%args>
+
+<%init>
+
+if(!$uid) {
+    $uid = $session{'uid'};
+}
+$m->comp('/mason/auth/auth_block.comp', internal=>'yes');
+confess("No uid but internal?") if(!$session{'uid'});
+
+use physdb::directory;
+my $directory = new Directory( uid=>$uid );
+</%init>
+
+<%method subtitle>Profile</%method>
+%#<%method subtitle>
+%#<%init>
+%# use physdb::directory;
+%# my $directory = new Directory( uid=>$session{'uid'} );
+%#</%init>
+%#<% $directory->get("first_name") %> <% $directory->get("last_name") %>
+%#</%method>
+
+<%perl>
+my $profile_url = 'http://www.physics.umn.edu/people/';
+if($directory->get("physid")) {
+    $profile_url .= $directory->get("physid");
+}
+elsif($directory->get("x500")) {
+    $profile_url .= $directory->get("x500");
+}
+else {
+    $m->out("You do not have a physics ID or x500 set in the department directory. Please contact directory\@physics.umn.edu to have this resolved.");
+    return;
+}
+$profile_url .= ".html";
+</%perl>
+<p>Below is a preview of <% $session{'uid'} eq $uid ? "your" : $directory->fullname() . "'s"%> MyPhys profile. Your actual profile page is at <a href="<% $profile_url %>"><% $profile_url %></a>. Use the menu links above to make changes to your Directory information.
+<div style="padding: 2em; margin: 1em; margin-left: 0; background: #eee; border: 1px solid black;">
+<h1 style="font-size: 23pt; padding-top: 0;"><% $directory->get("first_name") %> <% $directory->get("last_name") %></h1>
+<%perl>
+  $m->comp("/mason/db/directory/show_profile.comp", uid=>$directory->get('uid'), showmenu=>0);
+</%perl>
+<br clear="all" />
+</div>

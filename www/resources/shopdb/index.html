@@ -1,0 +1,56 @@
+<%method title><% $title %></%method>
+
+<%args>
+$search=>''
+</%args>
+
+<%shared>
+my $title = "Shop Dashboard";
+$m->comp('/mason/db/shopdb/build_auth.comp');
+</%shared>
+
+<%init>
+
+my $auth_args = $session{'shopdb-auth'};
+my $foreman = $auth_args->{'foreman'};
+my $machinist = !(!$auth_args->{'machinist_id'});
+my $shop_person = $foreman || $machinist;
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+</%init>
+
+<%perl>
+
+# Args to pass to each joblist.html
+my %common_args = (
+    %ARGS,
+);
+
+# Don't show job list if not shop customer
+if (!$shop_person && !$auth_args->{'customer_id'}) {
+    print '<p><h4>Welcome to the Physics R&D Shop job submission site.</h4></p><p>Click on the "NEW JOB" menu item above to get started.</p>';
+}
+else {
+    # Views for machinists
+    if (($machinist && !$foreman && !$ARGS{customer_id}) || ($foreman && $ARGS{machinist_id})) {
+        my $machinist_id;
+        if ($foreman) {
+            $machinist_id = $common_args{'machinist_id'} = $ARGS{machinist_id};
+        }
+        else {
+            $machinist_id = $auth_args->{'machinist_id'};
+        }
+        print '<table width="100%" cellspacing="0" cellpadding="0"><tr><td style="padding-right: 20px; width: 400px;" valign="top">';
+        $m->comp('/mason/db/shopdb/machinist_hours.comp', machinist_id => $machinist_id);
+        print '</td><td valign="top">';
+        $m->comp('joblist.html', %common_args);
+        print '</td></tr></table>';
+
+    }
+    # Views for everyone else
+    else {
+        $m->comp('joblist.html', %common_args);
+    }
+}
+
+</%perl>

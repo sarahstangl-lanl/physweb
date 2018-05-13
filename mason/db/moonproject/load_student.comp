@@ -1,0 +1,11 @@
+<%args>
+$student
+</%args>
+<%init>
+warn "Student:";
+warn Dumper($student);
+$session{'moonproject_gradesid'} = $student->{gradesid};
+$session{'moonproject_x500'} = $session{'x500'};
+$session{'moonproject_contract'} = $student->{accepted_contract};
+$session{'moonproject_fistdegrees'} = $student->{fistdegrees};
+</%init>

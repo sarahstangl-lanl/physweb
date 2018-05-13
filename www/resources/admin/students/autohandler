@@ -1,0 +1,513 @@
+<%args>
+    $uid => undef
+</%args>
+
+<%shared>
+    my %defaults = (
+        'year' => undef,
+        'semester' => undef,
+        'mode' => undef,
+    );
+
+    # Used by the title to make the names sane
+    my $modes = { 
+                  advisor     => "Advising",
+                  progreport  => "Progress Reports",
+                  appointment => "Appointments", 
+                  ta          => "TA Scheduling", 
+    };
+        
+    
+    #if (defined($session{'students_area'}{'last_year'}) && defined($session{'students_area'}{'last_semester'})) {
+    #    $defaults{'year'} = $session{'students_area'}{'last_year'};
+    #    $defaults{'semester'} = $session{'students_area'}{'last_semester'}; 
+    #}
+    
+    my $pq_comp = $m->comp('/mason/pathquery/get_comp.comp');
+    my $query = $m->comp('/mason/pathquery/getref.comp', defaults => \%defaults);
+    my %args = $m->request_args();
+    
+    # If this winds up enabled, we should really redirect so the url matches...
+    #
+    #$session{'students_area'}{'last_year'} = $query->{'year'};
+    #$session{'students_area'}{'last_semester'} = $query->{'semester'};
+    
+    my $faculty = $m->comp('/mason/auth/auth_check.comp', auth_type=>'physfac');
+    my $gradfac = $m->comp('/mason/auth/auth_check.comp', auth_type=>'physgrfac');
+    my $staff = $m->comp('/mason/auth/auth_check.comp', auth_type=>'staff');
+    my $directory_editor = $m->comp('/mason/auth/auth_check.comp', auth_type=>'directory');
+    my $advisor_uid = ($args{'uid'} ? $m->comp('/mason/db/students/progress_report.comp:query_advisor', uid => $args{'uid'}, max_year=>$query->{'year'}, max_semester=>$query->{'semester'}) : 0);
+       
+    my %auths = (
+        canadvisor => (($gradfac || $faculty || $staff)),
+        advisor => (($gradfac || $faculty || $staff)) &&
+                    (!$args{'uid'} || ($advisor_uid && ($advisor_uid eq $session{'uid'}))),
+        progreport => $m->comp('/mason/auth/check_groups.comp', allow => ['gradoffice','sysadm']),
+        appointment => $m->comp('/mason/auth/check_groups.comp', allow => ['appointment','sysadm']),
+	    #Return if ID auth'd as tasched or as admin
+        ta => $m->comp('/mason/auth/auth_check_ta_admin.comp'),
+    );
+   
+    # Redirect user out if they lack auth
+    if (!$auths{'canadvisor'} && !$auths{'advisor'} && !$auths{'progreport'} && !$auths{'appointment'} && !$auths{'ta'}) { $m->redirect('../index.html'); }
+
+    # Redirect to index if an invalid year/semester is chosen
+    if (($query->{'year'} && $query->{'year'} !~ /^\d+$/) || ($query->{'semester'} && $query->{'semester'} !~ /^(spring|summer|fall)$/)) {
+        my $dhandler_arg = $m->dhandler_arg;
+        (my $parent = $r->uri) =~ s/\Q$dhandler_arg\E/index.html/;
+        $m->redirect("$parent?message=Invalid%20semester%20chosen");
+    }
+    
+    # Don't allow the user to select a mode they don't have access to
+    if (!$auths{$query->{'mode'}}) { $query->{'mode'} = undef; }
+    
+    # Select a default mode
+    
+    if (!$query->{'mode'}) {
+        if ($auths{'ta'}) {
+            $query->{'mode'} = 'ta';
+        } elsif ($auths{'progreport'}) {
+            $query->{'mode'} = 'appointment';
+        } elsif ($auths{'appointment'}) {
+            $query->{'mode'} = 'appointment';
+        } else {
+            $query->{'mode'} = 'advisor';
+        }
+    }
+    
+    #
+    # Init TableSearch
+    #
+    
+    use tablesearch;
+        
+    my %urlquery = $m->comp('/mason/pathquery/get.comp');
+
+    my $filter_print = '';
+
+    my $filter_ = $m->comp({store => \$filter_print}, '/mason/db/filter_builder.comp',
+        selected => \%urlquery,
+        filters => $m->comp('/mason/db/students/filters.comp', auths => \%auths, mode => $query->{'mode'}, year => $query->{'year'}, semester => $query->{'semester'}),
+        print => 1,
+        print_enable_change => 1,
+        include_where => 1
+    );
+    
+    my %filter = %$filter_;
+    
+    my $make_auto_complete = sub {
+        my ($name) = @_;
+        return '
+            <script type="text/javascript">
+            new InPlaceEditor(\'$id\',
+                              \'/resources/admin/students/appointments-js.html\',
+                              { parameters: { save: 1, name: \'' . $name . '\', uid: \'$row{student_uid}\', year: \'' . $query->{'year'} . '\', semester: \'' . $query->{'semester'} . '\' } });
+            </script>
+        ';
+    };
+    
+    my $default_page = 'progress';
+    if ($query->{'mode'} eq 'ta') {
+        $default_page = 'ta_scheduling';
+    } elsif ($query->{'mode'} eq 'appointment') {
+        $default_page = 'appointments';
+    }
+    
+    # Check if the mode matches any of the arguments
+    my $modecheck = sub { return scalar(grep { $query->{'mode'} eq $_ } @_) };
+    
+    # Approver applet for advising view
+    my $approver = sub {
+        my ($text, $disp_format, $row) = @_;
+        my $ret;
+        
+        $ret = $m->interp->apply_escapes($text, 'h');
+        
+        $ret .= ' <small>[<a href="appointments.html?uid=' . $row->{'student_uid'} . '&amp;advisor_approval=' . ($text eq 'yes' ? 'no' : 'yes') . '&amp;save=1&amp;go_back=1">' . ($text eq 'yes' ? 'un' : '') . 'approve</a>]';
+        $ret .= ' [<a href="appointments.html?uid=' . $row->{'student_uid'} . '">add comment</a>]</small>';
+        
+        return $ret;
+    };
+    
+    # Change advisor bit
+    my $change_advisor = sub {
+        my ($text, $disp_format, $row) = @_;
+        if ($args{'excel'} == 1) {
+            return $row->{'advisor_full_name'} ? $row->{'advisor_full_name'} : "None";
+        }
+        else {
+            return ($row->{'advisor_full_name'} ? ( '<a href="mailto:'.$row->{'advisor_email'}.'">'.$row->{'advisor_full_name'} .'</a> ') : "None") . '<a href="change_advisor.html?uid=' . $row->{'student_uid'} . '"><img src="/images/change_icon_18.png" alt="Change Advisor" title="Change Advisor" style="border: none;" /> </a>';
+        }
+    };
+
+    # Edit directory entry bit
+    my $student_name = sub {
+        my ($text, $disp_format, $row) = @_;
+        if ($args{'excel'} == 1) {
+            return $row->{'student_full_name'};
+        }
+        else {
+            return $row->{'student_full_name'}. ($directory_editor ? ' <a href="/resources/admin/people/edit_entry_form.html?uid='.$row->{'student_uid'}.'"><img src="/images/imgsel_edit.png" style="border: none;" alt="Edit Directory" title="Edit Directory" /></a>' : '')
+        }
+    };
+
+    my $student_status = sub {
+        my ($text, $disp_format, $row) = @_;
+        my @status;
+        if($row->{'group_physgrad'}) {
+            push @status, "Grad";
+        }
+        if($row->{'group_physmajor'}) {
+            push @status, "Phys Major";
+        }
+        if($row->{'group_underg'}) {
+            push @status, "Undergrad";
+        }
+        return join(', ', @status);
+    };
+
+    # Degree plans formatter
+    my $majors_formatter = sub {
+        if ($args{'excel'} == 1) {
+            return shift;
+        }
+        else {
+            return join('<br />', split(/,/, $_[0]));
+        }
+    };
+    
+    # (Attempt to) handle weird gradprogress year stuff (spring of year X is really on year X-1)
+    my $gradprog_year = $query->{'year'};
+    my $gradprog_semester = $query->{'semester'};
+    $m->comp('/mason/db/students/progress_report.comp:map_academic_year', max_year => \$gradprog_year, max_semester => \$gradprog_semester);
+    
+    my $ts = new Tablesearch(
+         table               => 'directory AS d',
+         joins               => [
+                                  # The gradprogress subquery is so that we grab the latest record. We don't want to only grab
+                                  # 2009, for example, because then if they have not submitted it yet, we cannot properly do
+                                  # filters such as List only my students
+                                  'gradprogress AS g' => ['d.uid = g.uid AND g.record_year = (SELECT MAX(record_year) FROM gradprogress g2 WHERE g2.uid = d.uid AND record_year <= ?)', $gradprog_year],
+                                  'directory AS adv' => ['adv.uid = g.advisor'],
+                                  'taschedule AS t' => ['d.uid = t.uid AND t.year = ? AND t.semester = ?', $query->{'year'}, $query->{'semester'}],
+                                  'appointment AS a' => ['d.uid = a.uid AND a.year = ? AND a.semester = ?', $query->{'year'}, $query->{'semester'}],
+                                  'groupmembers AS group_physgrad' => ['group_physgrad.uid = d.uid AND group_physgrad.groupname = \'physgrad\'' ],
+                                  'groupmembers AS group_physmajor' => ['group_physmajor.uid = d.uid AND group_physmajor.groupname = \'physmajor\'' ],
+                                  'groupmembers AS group_underg' => ['group_underg.uid = d.uid AND group_underg.groupname = \'underg\'' ],
+                                  "(SELECT m.uid, GROUP_CONCAT(DISTINCT m.ACAD_PLAN_LDESC ORDER BY m.ACAD_PLAN_LDESC ASC) AS majors FROM webdb.majors m GROUP BY m.uid) AS m" => ['m.uid = d.uid'],
+                                  @{$filter{'join'}}
+                                ],
+         where               => $filter{'where'},
+         field_list          => ['d.uid AS student_uid', 'd.first_name AS student_first_name', 'd.last_name AS student_last_name',
+                                 'concat(d.last_name, \', \', d.first_name) AS student_full_name',
+                                 'g.record_year', 'advisor_update_time', 
+                                 'a.certainty',
+                                 'a.ta_amt', 'a.ra_amt', 'a.fellowship',
+                                 "CONCAT_WS(' + ', IF(a.ta_amt,CONCAT_WS(' ', a.ta_amt, 'TA'),NULL), IF(a.ra_amt,CONCAT_WS(' ', a.ra_amt, 'RA'),NULL), IF(a.fellowship,CONCAT_WS(' ', a.fellowship, 'Fellowship'),NULL)) AS appt_summary",
+                                 # Tested this and it has minimal impact on how long the query takes, otherwise I was going to only include it when needed
+                                 "CONCAT_WS(' and ', IF(a.ta_amt,CONCAT(TRIM(TRAILING '.0' FROM ROUND(LEFT(a.ta_amt,1)/RIGHT(a.ta_amt,1)*100,1)), '% Teaching Assistant'),NULL), 
+                                                     IF(a.ra_amt,CONCAT(TRIM(TRAILING '.0' FROM ROUND(LEFT(a.ra_amt,1)/RIGHT(a.ra_amt,1)*100,1)), '% Research Assistant'),NULL),
+                                                     IF(a.fellowship,CONCAT(TRIM(TRAILING '.0' FROM ROUND(LEFT(a.fellowship,1)/RIGHT(a.fellowship,1)*100,1)), '% Fellowship'),NULL))
+                                            AS appt_summary_long",
+                                 "CONCAT(TRIM(TRAILING '.0' FROM ROUND((IF(a.ta_amt,LEFT(a.ta_amt,1)/RIGHT(a.ta_amt,1),0) + IF(a.ra_amt,LEFT(a.ra_amt,1)/RIGHT(a.ra_amt,1),0) + IF(a.fellowship,LEFT(a.fellowship,1)/RIGHT(a.fellowship,1),0)) * 100,1)),'%') AS appt_total",
+                                 'a.advisor_approval',
+                                 'adv.uid AS advisor_uid', 'CONCAT(adv.last_name,\', \',adv.first_name) AS advisor_full_name', 'adv.first_name AS advisor_first_name',' adv.last_name AS advisor_last_name', 'adv.email AS advisor_email', 
+                                 'd.physid', 'a.physics_payroll', 
+                                 'group_physgrad.groupname as group_physgrad',
+                                 'group_physmajor.groupname as group_physmajor',
+                                 'group_underg.groupname as group_underg',
+                                 '1 as student_status',
+                                 'm.majors',
+                                 @{$filter{'fields'}}],
+         field_params        => {
+                                  'student_uid'         => {
+                                                     'hidden' => 1,
+                                                     'auth' => 1,
+                                                   },
+                                  'physid'      => {
+                                                     'hidden' => 1,
+                                                     'auth' => 1,
+                                                   },
+                                  'student_first_name' => {
+                                                     'hidden' => 1,
+                                                     'auth' => 1,
+                                                   },
+                                  'student_last_name' => {
+                                                     'hidden' => 1,
+                                                     'auth' => 1,
+                                                   },
+                                  'student_full_name' =>   {
+                                                     'name'   => "Student Name",
+                                                     'url'    => $default_page . '.html?uid=$row{student_uid}',
+                                                     'auth'   => 1,
+                                                     'data_format' => $student_name,
+                                                   },
+                                  'appt_summary'=> {
+                                                     'auth' => $modecheck->('advisor', 'progreport', 'appointment'),
+                                                   },
+                                  'appt_summary_long' => {
+                                                     'hidden' => 1,
+                                                     'auth' => $modecheck->('advisor', 'progreport', 'appointment'),
+                                                         },
+                                  'appt_total' =>  {
+                                                     'hidden' => 1,
+                                                     'auth' => $modecheck->('advisor', 'progreport', 'appointment'),
+                                                   },
+                                  'ta_amt'      => {
+                                                     'html_id'     => 'students_ta_amt_$incr',
+                                                     'html_append' => $make_auto_complete->('ta_amt'),
+                                                     'hidden'      => ($query->{'mode'} eq 'advisor'),
+                                                     'auth'        => $modecheck->('progreport', 'appointment', 'ta'),
+                                                   },
+                                  'ra_amt'      => {
+                                                     'html_id'     => 'students_ra_amt_$incr',
+                                                     'html_append' => $make_auto_complete->('ra_amt'),
+                                                     'hidden'      => ($query->{'mode'} eq 'advisor'),
+                                                     'auth'        => $modecheck->('progreport', 'appointment'),
+                                                   },
+                                  'fellowship'  => {
+                                                     'name'       => 'Fellowship',
+                                                     'html_id'     => 'students_fellowship_$incr',
+                                                     'html_append' => $make_auto_complete->('fellowship'),
+                                                     'hidden'      => ($query->{'mode'} eq 'advisor'),
+                                                     'auth'        => $modecheck->('progreport', 'appointment'),
+                                                   },
+                                  'certainty'   => {
+                                                     'html_id'     => 'students_certainty_$incr',
+                                                     'html_append' => $make_auto_complete->('certainty'),
+                                                     'hidden'      => ($query->{'mode'} eq 'advisor'),
+                                                     'auth'        => $modecheck->('progreport', 'appointment'),
+                                                   },
+                                  'physics_payroll' => {
+                                                     'html_id'     => 'students_physics_payroll_$incr',
+                                                     'html_append' => $make_auto_complete->('physics_payroll'),
+                                                     'hidden'      => ($query->{'mode'} eq 'advisor'),
+                                                     'auth'        => $modecheck->('progreport', 'appointment'),
+                                                       },
+                                  'advisor_approval' => {
+                                                     'auth'        => $modecheck->('advisor', 'appointment'),
+                                                     'data_format' => ($modecheck->('advisor') ? $approver : undef),
+                                                        },
+                                  'record_year' => {
+                                                     'name'        => 'Last PR Year',
+                                                     'auth'        => $modecheck->('advisor', 'progreport'),
+                                                   },
+                                  'advisor_full_name' =>     {
+                                                     'name'        => 'Advisor Name',
+                                                     'auth'        => $modecheck->('progreport', 'appointment'),
+                                                     'data_format' => $change_advisor,
+                                                     #'url'         => 'mailto:$row{advisor_email}',
+                                                   },
+                                  'advisor_uid' =>     {
+                                                     'hidden'      => 1,
+                                                     'auth'        => $modecheck->('progreport', 'appointment'),
+                                                     'url'         => 'mailto:$row{advisor_email}',
+                                                   },
+                                  'advisor_email'=> {
+                                                     'hidden'      => 1,
+                                                     'auth'        => $modecheck->('progreport', 'appointment'),
+                                                   },
+                                  'advisor_update_time' => {
+                                                     'name'        => 'Last PR Advisor Comment',
+                                                     'auth'        => $modecheck->('advisor', 'progreport'),
+                                                           },
+                                  'student_status' => {
+                                                      'name'       => 'Directory Status',
+                                                      'auth'       => $modecheck->('appointment'),
+                                                      'data_format'=> $student_status,
+                                                      },
+                                  'majors'         => {
+                                                      'name'       => 'Degree Plans',
+                                                      'auth'       => $modecheck->('progreport', 'appointment'),
+                                                      'data_format'=> $majors_formatter,
+                                                      'nowrap'     => 1,
+                                                      },
+                                  %{$filter{'field_params'}}
+                                },
+         header_format       => 'ucfirst_all',
+         default_sort_field  => 'student_full_name',
+         default_sort_dir    => 'asc',
+         #filter_field       => 'type',
+         hide_search         => 1,
+         pathquery           => 1,
+         require_field_auth  => 1,
+         debug               => 0,
+    );
+    
+    $ts->import_request_args($query);
+    $ts->import_request_args(); # reimport the query args because we want them to shadow the pathquery ones
+    $ts->sanitize_request_args(); # Needed to convert sort_reverse into sort_order
+        
+    #
+    # End TableSearch init
+    #
+    
+    # We wait to redirect if POST so that any action stuff gets finished.
+    # This allows a form to post with a next set, but still have the form handling code run. Yay!
+    my $redirect_later = ($r->method() eq 'POST');
+    my $redirect_url;
+    
+    if ($args{'next'} || $args{'prev'}) {
+        my @sqlargs = $ts->sql(no_limit => 1);
+        my $sql = shift @sqlargs;
+        
+        my $result = $dbh->prepare($sql) or die 'Unable to prepare ts: ' . $dbh->errstr;
+        $result->execute(@sqlargs) or die 'Unable to query ts: ' . $dbh->errstr;
+        
+        my $uid = $args{'uid'};
+        my $grabnext = 0;
+        while (my $row = $result->fetchrow_hashref()) {
+            if (($row->{'student_uid'} eq $args{'uid'}) && $args{'prev'}) {
+                last;
+            }
+            
+            $uid = $row->{'student_uid'};
+            
+            if ($grabnext) { last; }
+            
+            if (($row->{'student_uid'} eq $args{'uid'}) && $args{'next'}) {
+                $grabnext = 1;
+            }
+        }
+
+        $redirect_url = $m->scomp('/mason/makeurl.comp',
+            nargs => {prev => undef, next => undef, uid => $uid},
+            no_dargs => 1,
+            full => 0,
+        );
+        
+        if (!$redirect_later) {
+            $m->redirect($redirect_url);
+        }
+    }
+    
+    # Ugly hack (I think...? Or maybe better than alternatives? Who knows...)
+    # Allows us to go back to the same table page when viewing a specific student
+    my $cur_page = '';
+    if ($args{'uid'}) { 
+        my $cur_row = 0;
+        {
+            my @sqlargs = $ts->sql(no_limit => 1);
+            my $sql = shift @sqlargs;
+            
+            my $result = $dbh->prepare($sql);
+            $result->execute(@sqlargs) or die 'Unable to query ts2: ' . $dbh->errstr;
+            
+            while (my $row = $result->fetchrow_hashref()) {
+                if ($row->{'student_uid'} eq $args{'uid'}) { last; }
+                $cur_row++;
+            }
+        }
+        
+        $cur_page = '?page=' . (int($cur_row / $ts->{limit}) + 1);
+    }
+    
+    # They want us to go back to the student list after processing this request
+    if ($args{'go_back'}) {
+        $redirect_later = 1;
+        $redirect_url = 'index.html?' . $cur_page;
+    }
+    
+</%shared>
+
+<%method titlemenu_above>
+    <%perl>
+        my $mode = $query->{'mode'};
+    </%perl>
+
+    <& /mason/titlemenu.comp:begin, type=>"above" &>
+%    if ($auths{'progreport'} || $auths{'canadvisor'}) {
+    <&| /mason/titlemenu.comp:item, link=>$m->scomp('/mason/makeurl.comp', pathquery => { mode => 'advisor' }), selected => ($mode eq 'advisor') &>Advising</&> 
+%    }
+%    if ($auths{'progreport'}) { 
+    <&| /mason/titlemenu.comp:item, link=>$m->scomp('/mason/makeurl.comp', pathquery => { mode => 'progreport' }), selected => ($mode eq 'progreport')  &>Progress Reports</&> 
+
+%    }
+%    if ($auths{'appointment'}) {
+    <&| /mason/titlemenu.comp:item, link=>$m->scomp('/mason/makeurl.comp', pathquery => { mode => 'appointment' }), selected => ($mode eq 'appointment')  &>Appointments</&> 
+
+%    }
+%    if ($auths{'ta'}) {
+    <&| /mason/titlemenu.comp:item, link=>$m->scomp('/mason/makeurl.comp', pathquery => { mode => 'ta' }), selected => ($mode eq 'ta')  &>TA Scheduling</&> 
+%    }
+
+    <& /mason/titlemenu.comp:end &>
+        
+</%method>
+
+<%method title>
+<% $modes->{$query->{'mode'}} |h %>
+</%method>
+
+<%method titlemenu_below>
+    <%perl>
+    my %args = $m->request_args();
+    my $uid = $args{'uid'};
+    </%perl>
+     <div id="titlesearchbar">
+    <& 'usersearchbox.comp', mode => $query->{'mode'}, year => $query->{'year'}, semester => $query->{'semester'}, auths => \%auths &>
+    </div>
+
+
+        <& /mason/titlemenu.comp:begin, type=>"below" &>
+    <&| /mason/titlemenu.comp:item, link=>'index.html', selected=>($pq_comp eq 'index.html') &>Student List</&>
+%   if($pq_comp eq 'change_advisor.html') {
+    <&| /mason/titlemenu.comp:item,  selected=>1 &>Change Advisor</&>
+%   }
+%   if($pq_comp eq 'progress_comment_form.html') {
+    <&| /mason/titlemenu.comp:item,  selected=>1 &>Progress Comment</&>
+%   }
+%     if ($uid) {
+%         if ($auths{'progreport'} || $auths{'advisor'}) {
+            <&| /mason/titlemenu.comp:item, link=>'progress.html?uid=' . $uid, selected=>($pq_comp eq 'progress.html') &>Progress Report</&>
+%         }
+%         if ($auths{'appointment'} || $auths{'advisor'}) {
+            <&| /mason/titlemenu.comp:item, link=>'appointments.html?uid=' . $uid, selected=>($pq_comp eq 'appointments.html') &>Appointments</&>
+%         }
+%         if ($auths{'ta'}) {
+            <&| /mason/titlemenu.comp:item, link=>'ta_scheduling.html?uid=' . $uid, selected=>($pq_comp eq 'ta_scheduling.html') &>TA Scheduling</&>
+%         }
+%     }
+    <& /mason/titlemenu.comp:end &>
+</%method>
+
+<%method whereamifilter>
+    <%doc>
+        The whereami.comp hooks this if it exists, and lets you do stuff to the breadcrumbs
+        in cases like this, where they aren't ideal. Here we just delete any with "=" in the display name.
+    </%doc>
+    <%args>
+      $partsref
+    </%args>
+    <%perl>
+      my @newparts;
+      #Filter out paths containing pathquery shit
+      foreach my $item (@$partsref) {
+        if(! ($item->{'display'} =~ /=/) ) {
+            push @newparts, $item;
+        }
+      }
+      pop @newparts;
+      return @newparts;
+    </%perl>
+</%method>
+
+<%perl>
+    my $ret;
+
+    if ($ARGS{'message'}) {
+        $m->comp('/mason/notice_box.comp', text => $ARGS{'message'});
+    }
+
+    if ($query->{'year'} && $query->{'semester'}) {
+        $ret = $m->call_next(uid => $uid, semester => $query->{'semester'}, year => $query->{'year'},
+            ts => $ts, filter_print => $filter_print, auths => \%auths);
+    } else {
+        $m->comp('pick_semester.html');
+    }
+
+    if ($redirect_later && $redirect_url && ($ret ne 'noredirect')) {
+        $m->redirect($redirect_url);
+    }
+</%perl>
+

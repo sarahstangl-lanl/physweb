@@ -1,0 +1,31 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: classmenu.comp
+        Date: 2005.02.08
+      Author: allan
+     Changed: 2005.02.08 by allan
+
+returns comma-separated list of possible values from templates ... 
+</%DOC>
+
+<%ARGS>
+$type=>'name'
+</%ARGS>
+
+<%INIT>
+my $sql = "SELECT $type FROM classlist WHERE year=? GROUP BY $type ORDER BY $type";
+my $sth = $dbh->prepare($sql);
+my $success = $sth->execute(0);
+my ($list,$item);
+if ($success) {
+  while (my $row_ref = $sth->fetchrow_arrayref) {
+    if (defined($row_ref)) {
+      ($item) = @$row_ref;
+      $list .= $item."_";
+    }
+  }
+  chop($list);
+}
+</%INIT>		
+
+% return $list;

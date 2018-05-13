@@ -1,0 +1,20 @@
+[webdb]
+user = mccool
+password = VokGilalIg
+host = dylan.spa.umn.edu
+port = 33063
+
+[supportdb]
+user = mccool
+password = VokGilalIg
+host = dylan.spa.umn.edu
+port = 33063
+
+
+[webdb_reader]
+user = webdb_reader
+password = Isgobubbeo
+host = dylan.spa.umn.edu
+port = 33063
+
+

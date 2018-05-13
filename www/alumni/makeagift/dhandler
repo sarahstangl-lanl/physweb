@@ -1,0 +1,68 @@
+<%doc>
+   vim: set syntax=mason:
+   Compontent: dhandler
+         Date: 7/3/2007
+    Author: Alex
+    Description: pull up article by id.
+
+    This dhandler accepts 3 types of path entries:
+    1)  /200/article_name.html  -  display the details of a specific award using the story's id. (200)
+    2)  /grad.html or undergrad.html - show a list of grad or undergrad scholarships
+    3)  /anythingelse.html - show a list of students who were awarded the anythingelse scholarship.
+</%doc>
+
+<%args>
+$view=>''
+</%args>
+
+<%shared>
+  my $arg = $m->dhandler_arg;
+  $arg =~ /[^-a-zA-Z0-9_.]/go;
+  my $wantedid = $arg; 
+  $wantedid =~ s/.html//;
+  my $story;
+  my $type;
+  my $subtype = "";
+  if($wantedid =~ /[0-9]+/) {
+     $story = $wantedid;
+  } elsif($wantedid =~ /[a-zA-Z]+/) { 
+     if($wantedid =~ /^(undergrad|grad)$/) {
+        $type = $wantedid."_scholarship";
+     } else {
+        $type = "student_award";
+        $subtype = $wantedid;
+     }
+  }
+  my $auth = $m->comp('/mason/auth/auth_check_events.comp');
+  my $uri = $r->uri;
+  
+
+</%shared>
+
+
+<%init>
+
+$r->content_type("text/html");
+</%init>
+
+<h2>Giving to <% $type eq "undergrad_scholarship"?"Undergrad":"Graduate" |h %> Scholarships</h2>
+<%perl>
+if($story) {
+  # Just viewing a single story
+  if ($view =~ /normal/) { $auth=0; }
+  $m->comp("/mason/db/stories/story.comp", story=>$story, auth=>$auth);
+  </%perl><div class="readmore" style="clear: both">[<a href="/alumni/makeagift/">More Scholarship Awards</a>]</div><%perl>
+} else {
+  # Show the list of stuff for this type/subtype
+  # linkothertype is a hackish thing to link to a different main type list, but with the same subtype.
+  if($type eq "student_award") {
+    $m->comp("/mason/db/stories/storyblog.comp", type=>$type, subtype=>$subtype, auth=>$auth, view=>$view, posted=>0, menu=>0, args=>{ year => 'all' });
+  } else {
+    $m->comp("/mason/db/stories/storyblog.comp", type=>$type, subtype=>$subtype, auth=>$auth, view=>$view, posted=>0, altreadmore=>'Details & Award Winners', menu=>0, args=>{ year => 'all' });
+  }
+  </%perl><div class="back" >[<a href="/alumni/makeagift/">More ways to support Physics</a>]</div><%perl>
+}
+
+</%perl>
+%# vim: set syntax=mason: 
+

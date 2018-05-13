@@ -1,0 +1,25 @@
+<%DOC>
+   Component: auth_check_ta_admin.comp
+        Date: 2007.08.01
+      Author: clayton
+     Changed: 2007.08.01 by clayton
+
+Description ... 
+</%DOC>
+
+<%method .name>TA Scheduling</%method>
+<%method .description></%method>
+
+<%ARGS>
+    $uid => $session{'uid'}
+</%ARGS>
+
+<%INIT>
+  my $auth = $m->comp('/mason/auth/auth_check.comp', auth_type=>'tasched', uid => $uid) ||
+             $m->comp('/mason/auth/auth_check.comp', auth_type=>'sysadm', uid => $uid);
+</%INIT>		
+
+<%perl>
+  return $auth;
+</%perl>
+		

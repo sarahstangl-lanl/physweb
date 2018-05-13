@@ -1,0 +1,19 @@
+<%doc>
+    vim: set syntax=mason:
+</%doc>
+% $m->comp('/mason/auth/auth_block.comp', internal=>'yes');
+<% $m->call_next %>
+<%method titlemenu_above>
+% my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+   <& /mason/titlemenu.comp:begin, level=>4 &>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/audits/siteaudits.html'  &>Site Audits</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/audits/dooraudits.html'  &>Door Audits</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/audits/loginaudits.html'  &>Login Audits</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/audits/hostaudits.html'  &>Host Audits</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/audits/dhcpaudits.html'  &>DHCP Audits</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/audits/webmailaudits.html'  &>Webmail Audits</&>
+   <&| /mason/titlemenu.comp:item, link=>'/resources/admin/audits/websessions.html'  &>Web Sessions</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+

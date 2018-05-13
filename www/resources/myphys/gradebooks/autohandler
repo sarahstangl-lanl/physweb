@@ -1,0 +1,46 @@
+<%doc>
+   Component: autohandler
+        Date: 9/11/2002
+      Author: allan
+ Description: check access to gradebook area
+</%doc>
+
+<%args>
+$filename=>''
+</%args>
+
+<%init>
+my $uri = $r->uri;
+my $remote_host = $r->connection->get_remote_host();
+
+$m->comp('/mason/auth/auth_block.comp');
+
+my $directory = "/home/groups/grades/templates";
+my $file = $directory."/".$filename;
+my $data;
+my $problem = "You don't have sufficient access rights for this area. Please check your access permissions with the Physics front office.";
+my $mimetype = "application/octet-stream";
+#if ($filename =~ /.doc$/i) { $mimetype = "application/msword";}
+#if ($filename =~ /.xls$/i) { $mimetype = "application/ms-excel";}
+
+
+my $test;
+my $auth = $m->comp('/mason/auth/auth_check_gradebook_upload.comp');
+if ($auth) { $problem = ''; }
+
+# revoke access again if not a "secure" workstation...
+if (!$m->comp('/mason/auth/auth_check_managed.comp',remote_host=>$remote_host)) {
+  $problem = "This area may only be accessed using a secure windows or linux workstation under Physics IT management";
+}
+</%init>
+
+% if (!$problem) {
+%   $m->call_next;
+% } else {
+
+<%method title>Access denied</%method>
+
+<p>
+<b><% $problem %></b>
+</p>
+% }

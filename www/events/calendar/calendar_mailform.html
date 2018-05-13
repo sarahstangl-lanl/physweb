@@ -1,0 +1,138 @@
+<%doc>
+   Component: calendar_mailform.html
+        Date: 1/21/04
+      Author: allan
+ Description:
+</%doc>
+%# ~~NOSITEMAP~~
+
+<%args>
+$when=>'thisweek'
+$getevent=>''
+$areatag=>'spa'
+</%args>
+
+<%init>
+use Text::Format;
+use Data::Dumper;
+
+if ($areatag ne 'spa') { print 'This currently can only be used for Physics and Astronomy.'; }
+
+my $auth = ($m->comp('/mason/auth/auth_check_calendar.comp', areatag=>$areatag) || $m->comp('/mason/auth/auth_check_sysadm.comp'));
+
+my ($eventid, $date, $title, $location, $speaker, $subject, $info, $abstract, $status, $uid, $mod_date);
+my $row_ref;
+my $mailbody;
+my $time;
+my $add_days;
+my ($sql, $sth);
+my $wrapper;
+my $lastdate = "";
+my ($year,$month,$day);
+my $daterange;
+my ($hour,$minute,$second,$ampm);
+my $areaid;
+
+$sql = 'SELECT areaid FROM calendar_areas WHERE tag=?';
+$sth = $dbh->prepare($sql);
+$sth->execute($areatag);
+
+if ($row_ref = $sth->fetchrow_arrayref) {
+  ($areaid) = @$row_ref;
+}
+
+  $sql = "SELECT eventid, date, title, location, speaker, subject, info, abstract, status, uid, mod_date FROM calendar WHERE class='calendar' AND areaid=?";
+  if ($when eq "thisweek") {
+    $sql .= " AND WEEK(date)=WEEK(now()) AND YEAR(date)=YEAR(now())";
+    $add_days = 0;
+  } else {
+    $sql .= " AND WEEK(date)=WEEK(now() + INTERVAL 7 DAY) AND YEAR(date)=YEAR(now())";
+    $add_days = 7;
+  }
+  $sql .= " ORDER BY date, title";
+$sth = $dbh->prepare($sql);
+$sth->execute($areaid);
+
+</%init>
+
+<%method title>Send Calendar Email</%method>
+
+<%perl>
+
+if (!$auth) { $m->comp('/mason/redirect.comp',url=>'calendar.html');}
+
+# create header...
+$wrapper = Text::Format->new;
+$mailbody = $wrapper->center("University of Minnesota");
+$mailbody .= $wrapper->center("School of Physics and Astronomy");
+$mailbody .= $wrapper->center("Calendar of Colloquia and Seminars");
+
+($year,$month,$day) = Add_Delta_Days(Monday_of_Week(Week_of_Year(Today())), $add_days);
+$daterange = Date_to_Text_Long($year,$month,$day);
+#($year,$month,$day) = #Add_Delta_Days(Monday_of_Week(Week_of_Year(Today())),4);
+#$daterange .= " - ".Date_to_Text_Long($year,$month,$day);
+$mailbody .= $wrapper->center("Week of ".$daterange);
+  $mailbody .= "\n";
+
+#$m->out("<table width=\"100%\" border=0>");
+
+while ($row_ref = $sth->fetchrow_arrayref) {
+
+  my ($eventid, $date, $title, $location, $speaker, $subject, $info, $abstract, $status, $uid, $mod_date) = @$row_ref;
+  ($date,$time) = split(" ",$date);
+  ($hour,$minute,$second) = split(":",$time);
+  if ($hour>11) {$ampm="pm";} else {$ampm="am";}
+  if ($hour>12) {$hour-=12;}
+  $time = $hour.":".$minute." ".$ampm;
+  if ($hour eq "00") { $time = "";}
+  if ($date ne $lastdate) {
+    $lastdate = $date;
+    ($year,$month,$day) = split("-",$date);
+    $date = Date_to_Text_Long($year,$month,$day);
+    $mailbody .= $date."\n\n";
+  }
+  $time =~ s/\s+/ /g;
+  $location =~ s/\s+/ /g;
+  if ($title) {
+    $mailbody .= uc($title)." - ".$time." - ".$location."\n";
+  }
+  if ($speaker) {
+    $wrapper->firstIndent(0);
+    $wrapper->bodyIndent(4);
+    $mailbody .= $wrapper->format("Speaker: ".$speaker);
+  }
+  if ($subject) {
+    $wrapper = Text::Format->new;
+    $wrapper->firstIndent(0);
+    $wrapper->bodyIndent(4);
+    $mailbody .= $wrapper->format("Subject: ".$subject);
+  }
+  if ($info) {
+    $wrapper = Text::Format->new;
+    $wrapper->bodyIndent(4);
+    $mailbody .= $wrapper->format($info)."\n";
+  }
+  if (length($abstract)>10) {
+    $wrapper = Text::Format->new;
+    $wrapper->firstIndent(6);
+    $wrapper->bodyIndent(4);
+    my @abstract = split("\r\n\r\n",$abstract);
+    $mailbody .= $wrapper->paragraphs(@abstract)."\n";
+  }
+  $mailbody .= "\n";
+}
+</%perl>
+<form method=post action="calendar_mailsend.html">
+
+Destination: <input type=text name="address" value="" size=70>
+<p>
+From: <input type=text name="from" value="<% $m->comp('/mason/db/directory/uid_to_email.comp', uid=>$session{'uid'}) %>" size=70>
+<p>
+Subject: <input type=text name="subject" value="Physics Calendar, week of <% $daterange %>" size=70>
+<p>
+<textarea name="body" cols=75 rows=40
+wrap="virtual"><% $mailbody %></textarea>
+<p>
+<input type="submit" value="Send Message">
+<input type="reset" value="Cancel Changes">
+</form>

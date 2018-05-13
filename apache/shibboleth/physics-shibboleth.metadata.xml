@@ -1,0 +1,132 @@
+
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" ID="_928638bd5d411f2f4b7754165aa7da1c" entityID="https://www.physics.umn.edu/shibboleth/default.html">
+
+  <md:SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol urn:oasis:names:tc:SAML:1.1:protocol urn:oasis:names:tc:SAML:1.0:protocol">
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:KeyName>shibboleth.spa.umn.edu</ds:KeyName>
+        <ds:X509Data>
+          <ds:X509SubjectName>emailAddress=net@physics.umn.edu,CN=shibboleth.spa.umn.edu,OU=School of Physics and Astronomy,O=University of Minnesota,L=Minneapolis,ST=Minnesota,C=US</ds:X509SubjectName>
+          <ds:X509Certificate>MIIEDjCCAvYCCQC1r3x6/95KpDANBgkqhkiG9w0BAQUFADCByDELMAkGA1UEBhMC
+VVMxEjAQBgNVBAgMCU1pbm5lc290YTEUMBIGA1UEBwwLTWlubmVhcG9saXMxIDAe
+BgNVBAoMF1VuaXZlcnNpdHkgb2YgTWlubmVzb3RhMSgwJgYDVQQLDB9TY2hvb2wg
+b2YgUGh5c2ljcyBhbmQgQXN0cm9ub215MR8wHQYDVQQDDBZzaGliYm9sZXRoLnNw
+YS51bW4uZWR1MSIwIAYJKoZIhvcNAQkBFhNuZXRAcGh5c2ljcy51bW4uZWR1MB4X
+DTExMDkyOTIxMzc0OVoXDTMwMDcxMDIxMzc0OVowgcgxCzAJBgNVBAYTAlVTMRIw
+EAYDVQQIDAlNaW5uZXNvdGExFDASBgNVBAcMC01pbm5lYXBvbGlzMSAwHgYDVQQK
+DBdVbml2ZXJzaXR5IG9mIE1pbm5lc290YTEoMCYGA1UECwwfU2Nob29sIG9mIFBo
+eXNpY3MgYW5kIEFzdHJvbm9teTEfMB0GA1UEAwwWc2hpYmJvbGV0aC5zcGEudW1u
+LmVkdTEiMCAGCSqGSIb3DQEJARYTbmV0QHBoeXNpY3MudW1uLmVkdTCCASIwDQYJ
+KoZIhvcNAQEBBQADggEPADCCAQoCggEBANIt4K4YYvp9OQw2UdbnsSvJR/WY1D/s
+8c4KKJ04kJUsTxzGX/rRNarEEbL+YzZR1BztMsKzTb7FOlaaBCDSl3/1idiOIYya
+lk7ZPHDpR2IWwR4snO5RRSmc0rYuX3A4g9ysZJsoDs6B+qtnzfmwYO6MavycFwyf
+3dNvuN0MQpNjnn7pccaV3XXGyp67olLed2SqxpRlEjb79qdfJpAUcPn1ZO6ihYcM
+ueC7A4BNsZF4u28omE4B4HySQs3UXmCc6E/EVcFxfX/PZK4CDHUxjVZW0Jzr9VEq
+Zk3FOOznBgIsbVlyAZG/FyYOxEbQs6CxW9vokI0I/uLFL2NXBT8T53kCAwEAATAN
+BgkqhkiG9w0BAQUFAAOCAQEAoe5nmvk5yIA+a2Z6V7fTjAnwBgkjZthw9imyFRmD
+bvKgXFw6qiaBuGJx/gE9rRBhNYBou+qH9nxNxsnWal5ngthT6J+Y+acl995xKDAz
+2E9MlSLDC/dgCw84znyMPWZzXkCrJ3jH/k0sR36Bt7M9I/nbKOT3EKMB7jLoUj1t
+UahgUb5jUpsAyAJKk9lkA3lbzGCLUgTKg22fKTNLqm1x0BMpQmRmL803zXReIRX1
+X5YkO0Ci3+Lb1taW2ZkdgobWSP3BOEAmizbLihkcqKLaXwAURTyJlmyHVaxEoPYT
+6pwZJYUPnKsxgsaYGoHThl7q9Rg09jwPCu61BtDXqopEEg==
+</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:KeyDescriptor use="encryption">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:KeyName>shibboleth.spa.umn.edu</ds:KeyName>
+        <ds:X509Data>
+          <ds:X509SubjectName>emailAddress=net@physics.umn.edu,CN=shibboleth.spa.umn.edu,OU=School of Physics and Astronomy,O=University of Minnesota,L=Minneapolis,ST=Minnesota,C=US</ds:X509SubjectName>
+          <ds:X509Certificate>MIIEDjCCAvYCCQC1r3x6/95KpDANBgkqhkiG9w0BAQUFADCByDELMAkGA1UEBhMC
+VVMxEjAQBgNVBAgMCU1pbm5lc290YTEUMBIGA1UEBwwLTWlubmVhcG9saXMxIDAe
+BgNVBAoMF1VuaXZlcnNpdHkgb2YgTWlubmVzb3RhMSgwJgYDVQQLDB9TY2hvb2wg
+b2YgUGh5c2ljcyBhbmQgQXN0cm9ub215MR8wHQYDVQQDDBZzaGliYm9sZXRoLnNw
+YS51bW4uZWR1MSIwIAYJKoZIhvcNAQkBFhNuZXRAcGh5c2ljcy51bW4uZWR1MB4X
+DTExMDkyOTIxMzc0OVoXDTMwMDcxMDIxMzc0OVowgcgxCzAJBgNVBAYTAlVTMRIw
+EAYDVQQIDAlNaW5uZXNvdGExFDASBgNVBAcMC01pbm5lYXBvbGlzMSAwHgYDVQQK
+DBdVbml2ZXJzaXR5IG9mIE1pbm5lc290YTEoMCYGA1UECwwfU2Nob29sIG9mIFBo
+eXNpY3MgYW5kIEFzdHJvbm9teTEfMB0GA1UEAwwWc2hpYmJvbGV0aC5zcGEudW1u
+LmVkdTEiMCAGCSqGSIb3DQEJARYTbmV0QHBoeXNpY3MudW1uLmVkdTCCASIwDQYJ
+KoZIhvcNAQEBBQADggEPADCCAQoCggEBANIt4K4YYvp9OQw2UdbnsSvJR/WY1D/s
+8c4KKJ04kJUsTxzGX/rRNarEEbL+YzZR1BztMsKzTb7FOlaaBCDSl3/1idiOIYya
+lk7ZPHDpR2IWwR4snO5RRSmc0rYuX3A4g9ysZJsoDs6B+qtnzfmwYO6MavycFwyf
+3dNvuN0MQpNjnn7pccaV3XXGyp67olLed2SqxpRlEjb79qdfJpAUcPn1ZO6ihYcM
+ueC7A4BNsZF4u28omE4B4HySQs3UXmCc6E/EVcFxfX/PZK4CDHUxjVZW0Jzr9VEq
+Zk3FOOznBgIsbVlyAZG/FyYOxEbQs6CxW9vokI0I/uLFL2NXBT8T53kCAwEAATAN
+BgkqhkiG9w0BAQUFAAOCAQEAoe5nmvk5yIA+a2Z6V7fTjAnwBgkjZthw9imyFRmD
+bvKgXFw6qiaBuGJx/gE9rRBhNYBou+qH9nxNxsnWal5ngthT6J+Y+acl995xKDAz
+2E9MlSLDC/dgCw84znyMPWZzXkCrJ3jH/k0sR36Bt7M9I/nbKOT3EKMB7jLoUj1t
+UahgUb5jUpsAyAJKk9lkA3lbzGCLUgTKg22fKTNLqm1x0BMpQmRmL803zXReIRX1
+X5YkO0Ci3+Lb1taW2ZkdgobWSP3BOEAmizbLihkcqKLaXwAURTyJlmyHVaxEoPYT
+6pwZJYUPnKsxgsaYGoHThl7q9Rg09jwPCu61BtDXqopEEg==
+</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:ArtifactResolutionService Binding="urn:oasis:names:tc:SAML:2.0:bindings:SOAP" Location="https://www.physics.umn.edu/Shibboleth.sso/Artifact/SOAP" index="1"/>
+    <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:SOAP" Location="https://www.physics.umn.edu/Shibboleth.sso/SLO/SOAP"/>
+    <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://www.physics.umn.edu/Shibboleth.sso/SLO/Redirect"/>
+    <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu/Shibboleth.sso/SLO/POST"/>
+    <md:SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact" Location="https://www.physics.umn.edu/Shibboleth.sso/SLO/Artifact"/>
+    <md:ManageNameIDService Binding="urn:oasis:names:tc:SAML:2.0:bindings:SOAP" Location="https://www.physics.umn.edu/Shibboleth.sso/NIM/SOAP"/>
+    <md:ManageNameIDService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://www.physics.umn.edu/Shibboleth.sso/NIM/Redirect"/>
+    <md:ManageNameIDService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu/Shibboleth.sso/NIM/POST"/>
+    <md:ManageNameIDService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact" Location="https://www.physics.umn.edu/Shibboleth.sso/NIM/Artifact"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu/Shibboleth.sso/SAML2/POST" index="1"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign" Location="https://www.physics.umn.edu/Shibboleth.sso/SAML2/POST-SimpleSign" index="2"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact" Location="https://www.physics.umn.edu/Shibboleth.sso/SAML2/Artifact" index="3"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:PAOS" Location="https://www.physics.umn.edu/Shibboleth.sso/SAML2/ECP" index="4"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:1.0:profiles:browser-post" Location="https://www.physics.umn.edu/Shibboleth.sso/SAML/POST" index="5"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:1.0:profiles:artifact-01" Location="https://www.physics.umn.edu/Shibboleth.sso/SAML/Artifact" index="6"/>
+
+    <!-- staging sites -->
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4430/Shibboleth.sso/SAML2/POST" index="7"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4431/Shibboleth.sso/SAML2/POST" index="8"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4432/Shibboleth.sso/SAML2/POST" index="9"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4433/Shibboleth.sso/SAML2/POST" index="10"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4434/Shibboleth.sso/SAML2/POST" index="11"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4435/Shibboleth.sso/SAML2/POST" index="12"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4436/Shibboleth.sso/SAML2/POST" index="13"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4437/Shibboleth.sso/SAML2/POST" index="14"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4438/Shibboleth.sso/SAML2/POST" index="15"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4439/Shibboleth.sso/SAML2/POST" index="16"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4440/Shibboleth.sso/SAML2/POST" index="17"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4441/Shibboleth.sso/SAML2/POST" index="18"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4442/Shibboleth.sso/SAML2/POST" index="19"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4443/Shibboleth.sso/SAML2/POST" index="20"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4444/Shibboleth.sso/SAML2/POST" index="21"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4445/Shibboleth.sso/SAML2/POST" index="22"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4446/Shibboleth.sso/SAML2/POST" index="23"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4447/Shibboleth.sso/SAML2/POST" index="24"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4448/Shibboleth.sso/SAML2/POST" index="25"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4449/Shibboleth.sso/SAML2/POST" index="26"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4450/Shibboleth.sso/SAML2/POST" index="27"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4451/Shibboleth.sso/SAML2/POST" index="28"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4452/Shibboleth.sso/SAML2/POST" index="29"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4453/Shibboleth.sso/SAML2/POST" index="30"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4454/Shibboleth.sso/SAML2/POST" index="31"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4455/Shibboleth.sso/SAML2/POST" index="32"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4456/Shibboleth.sso/SAML2/POST" index="33"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4457/Shibboleth.sso/SAML2/POST" index="34"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4458/Shibboleth.sso/SAML2/POST" index="35"/>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://www.physics.umn.edu:4459/Shibboleth.sso/SAML2/POST" index="36"/>
+    <!-- end staging sites -->
+
+  </md:SPSSODescriptor>
+   <md:Organization> 
+      <md:OrganizationName xml:lang="en">University of Minnesota, School of Physics and Astronomy</md:OrganizationName> 
+      <md:OrganizationDisplayName xml:lang="en">School of Physics and Astronomy</md:OrganizationDisplayName> 
+      <md:OrganizationURL xml:lang="en">http://www.physics.umn.edu/</md:OrganizationURL> 
+   </md:Organization> 
+ 
+   <md:ContactPerson contactType="support"> 
+      <md:GivenName>Authentication Support</md:GivenName> 
+      <md:EmailAddress>net@physics.umn.edu</md:EmailAddress> 
+   </md:ContactPerson> 
+   <md:ContactPerson contactType="administrative"> 
+      <md:GivenName>Alex</md:GivenName> 
+      <md:SurName>Schumann</md:SurName> 
+      <md:EmailAddress>schum172@umn.edu</md:EmailAddress> 
+   </md:ContactPerson> 
+</md:EntityDescriptor>

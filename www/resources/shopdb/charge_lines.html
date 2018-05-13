@@ -1,0 +1,389 @@
+<%args>
+    $ajax => undef
+    $type => undef
+    $job_id => undef
+    $job_item => undef
+    $line_id => undef
+    $get_updated_ed_html => 0
+</%args>
+
+<& '/mason/ajax/js.comp' &>
+
+<%init>
+    use tablesearch;
+    use JSON;
+    use ShopDb::Form::LaborLine;
+    use ShopDb::Form::MaterialLine;
+    use ShopDb::Form::ChargeLineBulkUpdate;
+
+    if ($type ne 'material' && $type ne 'labor') {
+        print "Bad charge line type $type";
+        return;
+    }
+
+    my @columns;
+    my $typeupper = ucfirst($type);
+    my $package = "ShopDb::Form::${typeupper}Line";
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $auth_args = $session{'shopdb-auth'};
+
+    unless ($job_id || $job_item) {
+        print "job_id or job_item is required";
+        return;
+    }
+
+    $job_item ||= $schema->resultset('Jobs')->find($job_id);
+
+    unless ($job_item) {
+        print "Invalid job_id $job_id";
+        return;
+    }
+
+    my $job_auth = $m->comp('/mason/db/shopdb/check_job_auth.comp', job_item => $job_item);
+    unless ($job_auth && ($job_auth eq 'foreman' || $job_auth eq 'machinist')) {
+        print "You are not authorized to view charge lines for job " . $job_item->job_id;
+        return;
+    }
+
+    $job_id = $job_item->job_id;
+
+    my $form = $package->new(item_id => $line_id, job_item => $job_item, schema => $schema, auth_args => $auth_args);
+
+    # Allow material lines roweditor unit field to be updated in case new unit is added by an ajax request
+    if ($type eq 'material' && $get_updated_ed_html) {
+        # Clear out already-generated template output
+        $m->clear_buffer;
+        print $form->field('unit')->render;
+        # Prevent displaying remainder of template
+        $m->abort;
+        return;
+    }
+
+    my @job_ids = ( $job_id );
+    my @child_jobs = $job_item ? $job_item->child_jobs : ();
+    for (@child_jobs) {
+        push(@job_ids, $_->job_id);
+    }
+
+    my $rs = $schema->resultset($typeupper.'Lines')->search({
+        'me.job_id' => \@job_ids,
+    });
+
+    if ($form->has_auth()) {
+        $rs = $rs->search({}, {
+            '+select' => (\'\'\' AS edit'),
+            '+as'     => 'edit',
+        });
+    }
+
+    if ($line_id) {
+        $rs = $rs->search({
+            "${type}_line_id" => $line_id
+        });
+    }
+
+    if ($type eq 'material') {
+        if ($auth_args->{'foreman'}) {
+            @columns = (qw|
+                description
+                charge_date
+                quantity
+                unit
+                unit_cost
+                extended_cost
+                machinist
+                bill_date
+                paid_date
+                finalized
+            |);
+        }
+        else {
+            @columns = (qw|
+                description
+                charge_date
+                quantity
+                unit
+                unit_cost
+                extended_cost
+                machinist
+            |);
+        }
+    } else { # Labor line
+        if ($auth_args->{'foreman'}) {
+            @columns = (qw|
+                description
+                charge_date
+                charge_hours
+                labor_rate
+                extended_cost
+                machinist
+                bill_date
+                paid_date
+                finalized
+            |);
+        }
+        else {
+            @columns = (qw|
+                description
+                charge_date
+                charge_hours
+                machinist
+            |);
+        }
+    }
+
+    if (@child_jobs) {
+        $rs = $rs->search({}, {
+            '+select'   => 'job.project_name',
+            '+as'       => 'project_name',
+            'join'      => 'job',
+        });
+        unshift(@columns, 'job_id');
+    }
+
+    unshift(@columns, 'edit'); # Edit comes first
+
+    $rs = $rs->with_ts_fields();
+
+    my $ts = new Tablesearch(
+        prefix              => ($type eq 'material' ? 'ml_' : 'll_'),
+        resultset           => $rs,
+        columns             => \@columns,
+        field_params        => {
+            'edit'              => {
+                'data_format'       => sub {
+                    my ($text, $format, $row) = @_;
+                    my $class = '';
+                    # Can't modify billed charge lines
+                    if (!$row->{'bill_date'}) {
+                        my @classes;
+                        if ($auth_args->{'foreman'} || $row->{'machinist_id'} eq $auth_args->{'machinist_id'}) {
+                            if ($row->{'active'}) {
+                                push @classes, (qw/roweditor_edit roweditor_inactive/);
+                            }
+                            else {
+                                push @classes, 'roweditor_active';
+                            }
+                        }
+                        if ($auth_args->{'foreman'}) {
+                            push @classes, 'roweditor_checkbox';
+                        }
+                        $class = join(' ', @classes);
+                    }
+                    return "<span style=\"display:none\" class=\"$class\"></span>";
+                },
+                'html_class'        => 'roweditor_edit',
+                'width'             => 55,
+                'name'              => '',
+                'nowrap'            => 1,
+                'no_sort'           => 1,
+            },
+            'quantity'          => {
+                'width'             => 50,
+                'name'              => 'Qty',
+            },
+            'charge_date'       => {
+                'width'             => 100,
+            },
+            'bill_date'         => {
+                'width'             => 100,
+            },
+            'paid_date'         => {
+                'width'             => 100,
+            },
+            'machinist'         => {
+                'url'               => 'machinist.html?machinist_id=$row{machinist_id}',
+                'width'             => 75,
+            },
+            'job_id'            => {
+                'name'              => 'Project Name',
+                'data_format'       => sub { my ($text, $format, $row) = @_; return $row->{'project_name'}; },
+                'url'               => 'job.html?job_id=$row{job_id}',
+                'width'             => 100,
+            },
+            'description'       => {
+                'width'             => 100,
+            },
+            'charge_hours'      => {
+                'width'             => 50,
+            },
+            'labor_rate'        => {
+                'data_format'       => sub {
+                    my ($text, $format, $row, $ts) = @_;
+                    $ts->currency_formatter($text) . "/hr";
+                },
+                'width'             => 75,
+            },
+            'unit'              => {
+                width               => 50,
+            },
+            'unit_cost'         => {
+                'data_format'       => sub {
+                    my ($text, $format, $row, $ts) = @_;
+                    $ts->currency_formatter($text, undef, 3);
+                },
+                'width'             => 75,
+            },
+            'extended_cost'     => {
+                'data_format'       => 'currency',
+                'width'             => 75,
+            },
+            'finalized'         => {
+                'data_format'       => sub {
+                    my ($text, $format, $row) = @_;
+                    return '<input type="checkbox" class="roweditor-checkbox" enabled="' . ($auth_args->{foreman} && !$row->{bill_date} ? 1 : 0) . '" disabled="DISABLED"' . ($text ? ' checked="CHECKED"' : '') . ' />';
+                },
+                'width'             => 15,
+            },
+        },
+        prerow              => sub {
+            my ($row, $self) = @_;
+            unless ($self->{tmp}->{inactive} || $row->{active}) {
+                $self->{tmp}->{inactive} = 1;
+                $self->{tmp}->{oddeven} = 'odd';
+                return '<tr><td colspan="' . scalar($self->column_names) . '"><i>Inactive ' . $typeupper . ' Lines</i></td></tr>';
+            }
+            return '';
+        },
+        header_format       => 'ucfirst_all',
+        extra_url_args      => [ 'job_id' ],
+        row_tagger          => sub {
+            my ($row) = @_;
+            return 'data-line_id="' . $row->{$type.'_line_id'} . '" data-type="' . $typeupper . '"'; },
+        html_table_id       => "table_${type}_lines",
+        hide_search         => 1,
+        hide_header         => 1,
+        no_limit            => 1,
+        no_calc_found_rows  => 1,
+        default_sort_field  => 'charge_date',
+        default_sort_dir    => 'asc',
+        sort_prefix_field   => 'active',
+        sort_prefix_dir     => 'desc',
+        ajax_url            => 'charge_lines.html',
+        ajax_parameters     => { job_id => $job_id, type => $type, ajax => 1 },
+        ajax_pre_callback   => 'pre' . $typeupper . 'Submit();',
+        ajax_post_callback  => 'load' . $typeupper .'RowEditor();',
+        data_wrapper_form   => 1,
+    );
+
+    if ($line_id) {
+        my $arr = $ts->dump(undef, escape_format => 'html');
+        # XXX make sure we have a row....?
+        my $row = $arr->{'data'}->[0];
+
+        return $row;
+    }
+
+    if ($ajax) {
+        # Clear out already-generated template output
+        $m->clear_buffer;
+        $ts->display;
+        # Prevent displaying remainder of template
+        $m->abort;
+        return;
+    }
+    else {
+        print '<span>';
+        $ts->display();
+        print '</span>';
+    }
+</%init>
+
+<%perl>
+if ($job_item && $form->has_auth) {
+    my $bulk_update_form = ShopDb::Form::ChargeLineBulkUpdate->new(
+        auth_args => $auth_args,
+        prefix => "${type}_",
+        charge_lines_table_id => "table_${type}_lines",
+        job_item => $job_item,
+        success_callback => "job.refreshData(\$A(['summary', 'audits', '$type']));",
+        reset_on_success => 1,
+    );
+</%perl>
+
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td width="50%">
+<table cellpadding="3" cellspacing="0" style="padding-top: 5px"><tr>
+    <td valign="middle"><a href="#" id="add_<% $type %>_line">Add <% ucfirst($type) %> Line</a></td>
+% if ($auth_args->{'foreman'}) {
+    <td>|</td>
+    <td valign="middle"><a href="#" id="check_all_<% $type %>">Check all</a></td>
+    <td>|</td>
+    <td valign="middle"><a href="#" id="clear_all_<% $type %>">Clear all</a></td>
+    <td>|</td>
+    <td valign="middle">With selected:</td>
+    <td valign="middle"><% $bulk_update_form->render %></td>
+% }
+</tr></table>
+</td><td width="50%" align="right" style="padding-right: 10px;">
+<%perl>
+if ($type eq 'labor' && $job_item && $auth_args->{'machinist_id'}) {
+    my @job_ids = ( $job_item->job_id, map { $_->get_column('job_id') } $job_item->child_jobs->all );
+    my $row = $schema->resultset('JobTotals')->search({ job_id => \@job_ids }, {
+        select => [ { sum => 'total_charge_hours' } ],
+            as => [ 'total_charge_hours' ],
+    })->single;
+    my $charge_lines = $schema->resultset('LaborLines')->search(
+    {
+        'me.active' => 1,
+        'me.job_id' => { -in => [ @job_ids ] },
+        'me.machinist_id' => $auth_args->{'machinist_id'},
+    },
+    {
+        select => [ { sum => 'me.charge_hours' } ],
+        as => [ 'charge_hours' ],
+    })->single;
+    print "My charge hours: " . sprintf("%0.2f", ($charge_lines->get_column('charge_hours') || 0)) . " | Total charge hours: " . sprintf("%0.2f", ($row->get_column('total_charge_hours') || 0));
+}
+</%perl>
+</td></tr></table>
+
+<& '/mason/ajax/jsload.comp', file=>'RowEditor.js' &>
+
+<script type="text/javascript">
+function pre<% $typeupper %>Submit() {
+    $('table_<% $type %>_lines').roweditor.cleanup();
+}
+
+function load<% $typeupper %>RowEditor() {
+$('table_<% $type %>_lines').roweditor = new RowEditor(
+    'table_<% $type %>_lines',
+    'charge_line.html',
+    <% to_json(\@columns) %>,
+    {
+        newID: 'add_<% $type %>_line',<% $auth_args->{foreman} ? "
+        checkAllID: 'check_all_" . $type . "',
+        clearAllID: 'clear_all_" . $type . "'," : '' %>
+        columnDefaults: {
+            machinist: '<% $auth_args->{machinist_id} ? $schema->resultset('Machinists')->find($auth_args->{machinist_id})->shortname : '' %>'
+        },
+        parameters: {
+            ajax: 1,
+            prefix: '<% ($type eq 'material' ? 'ml_' : 'll_') %>',
+            type: '<% $type %>',
+            <% ($auth_args->{'foreman'} && @child_jobs) ? 'parent_' : '' %>job_id: '<% $job_id %>'
+        },
+        activeParameters: {
+            ajax: 1,
+            set_active: 1,
+            job_id: '<% $job_id %>'
+        },
+        inactiveParameters: {
+            ajax: 1,
+            set_active: 0,
+            job_id: '<% $job_id %>'
+        },
+        postSuccessCallback: job.refreshData.bind(job, $A(['summary', 'audits', '<% $type %>'])),
+        useFormDivs: true,
+        skipUpdates: true,
+        tdClassName: 'tableitem',
+        hiddenAttributes: $H({line_id: 'line_id'})
+    }
+);
+}
+load<% $typeupper %>RowEditor();
+</script>
+<%perl>
+    print $form->render;
+}
+</%perl>

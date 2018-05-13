@@ -1,0 +1,40 @@
+<%DOC>
+   Component: auth_check_student.comp
+        Date: 2008.11.03
+      Author: clayton
+     Changed: 2008.11.03 by clayton
+
+Description ... 
+</%DOC>
+	
+<%args>
+  $classid
+</%args>
+
+<%init>
+  my $auth = 0;
+  my $return = 0;
+
+  if ((defined($dbh)) && ($session{'x500'})) {
+    my $sth = $dbh->prepare('SELECT count(*) 
+                               FROM grades.classlist AS gc 
+                               JOIN grades.users AS u 
+                                 ON (gc.userid = u.id) 
+                               JOIN classlist AS cl ON cl.classid=gc.classid
+                              WHERE u.x500=? 
+                                AND (cl.classid=? OR cl.parent=?)');
+    $sth->execute($session{'x500'}, $classid, $classid)
+      or die 'Query failed - error: ' . $sth->errstr;
+
+    if (my $result = $sth->fetchrow_arrayref()) {
+      my ($count) = @$result;
+      $return = $count;
+    }
+  }
+
+  return $return?1:0;
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

@@ -1,0 +1,69 @@
+<%flags>
+inherit => undef
+</%flags>
+
+<%args>
+$uid => -1
+$job_id => undef
+</%args>
+
+<%init>
+
+my $result;
+my $auth_args = $session{'shopdb-auth'};
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+$m->comp('/mason/db/shopdb/build_auth.comp');
+my $job_item;
+my $referer = $r->headers_in->{'Referer'};
+my $req = Apache2::Request->new($r);
+my $upload = $req->upload('file');
+my $filename;
+my $attachment;
+
+if (!defined($job_id)) {
+    $result = "Invalid parameters.";
+}
+elsif (!($job_item = $schema->resultset('Jobs')->find({ job_id => $job_id }))) {
+    $result = "Invalid job id.";
+}
+elsif (!(
+    $auth_args->{'foreman'} || $auth_args->{'machinist_id'} ||
+    ($auth_args->{'customer_id'} && (
+        $auth_args->{'customer_id'} eq $job_item->customer_id ||
+        $auth_args->{'customer_id'} eq $job_item->pi_id
+    )))) {
+    $result = "You do not have permission to attach files to job $job_id.";
+}
+elsif (!(defined($upload) && ($filename = $upload->filename))) {
+    $result = "No file specified to attach.";
+}
+else {
+    my $fh = $upload->fh;
+    my $data = do { local $/; <$fh> };
+    $schema->txn_do( sub {
+        $attachment = $schema->resultset('Attachments')->create({
+            filename => $filename,
+            size => $upload->size,
+            data => $data,
+            mime_type => $upload->type,
+            upload_date => \'NOW()',
+            modified_date => \'NOW()',
+            uploader_uid => $auth_args->{'uid'},
+        });
+        $job_item->add_to_attachments($attachment);
+    });
+}
+
+</%init>
+
+<script language="javascript">
+% if ($result) {
+parent.uploader.uploadFail(<% scalar($uid) %>);
+% }
+% else {
+parent.job.addAttachment('<% $filename |h %>', <% $attachment->attachment_id %>);
+parent.job.isDirty = true;
+parent.uploader.uploadComplete(<% scalar($uid) %>);
+% }
+</script>
+

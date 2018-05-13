@@ -1,0 +1,129 @@
+
+<%DOC>
+   Component: su.html
+        Date: 2007.08.20
+      Author: clayton
+     Changed: 2007.08.20 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $new_x500 => undef
+  $new_physid => undef
+  $name => undef
+  $dest => undef
+</%ARGS>
+
+<%INIT>
+use Apache2::ServerUtil;
+use Apache2::Cookie;
+
+$m->comp('/mason/ajax/js.comp');
+
+my $port = $r->get_server_port();
+my $s = Apache2::ServerUtil->server;
+my $site = $s->dir_config('SiteName');
+my %cookies = Apache2::Cookie->fetch($r);
+my $cookie_name = $site eq 'htphysics' ? 'UMNPHYS_SESSION_ID' : "UMNPHYS_STAGING_${port}_SESSION_ID";
+
+if ($m->comp('/mason/auth/auth_check_sysadm.comp')) {
+    my $old_x500 = $session{'x500'};
+    my $old_physid = $session{'physid'};
+    my $old_uid = $session{'uid'};
+
+    if ($name) {
+        my $result = $m->comp('/mason/ajax/people_finder.comp', limit=>1, include_shop_customers => 1, name=>$name);
+  
+        if (my $row = $result->fetchrow_hashref()) {
+            $session{'uid'} = $row->{'uid'};
+            $session{'x500'} = $row->{'x500'};
+            $session{'physid'} = $row->{'physid'};
+    
+            $m->comp('/mason/db/auditlog/addevent.comp', type=>'change_user (su)', text=>$old_x500.'/'.$old_physid. ' as ' . $session{'x500'} . '/' . $session{'physid'} . ' (' . $name . ')');
+        }    
+    } 
+    elsif ($new_x500 || $new_physid) {
+        # These may get overwritten later if we find a matching directory entry
+        $session{'uid'} = undef;
+        $session{'x500'} = $new_x500;
+        $session{'physid'} = $new_physid;
+        my $query = $dbh->prepare('SELECT uid, physid, x500 FROM directory WHERE (x500 = ? AND x500 != \'\') OR (physid = ? AND physid != \'\') LIMIT 1');
+        $query->execute($new_x500, $new_physid);
+        if (my $row = $query->fetchrow_hashref()) {
+            $session{'uid'} = $row->{'uid'};
+            $session{'x500'} = $row->{'x500'};
+            $session{'physid'} = $row->{'physid'};
+        }
+  
+        $m->comp('/mason/db/auditlog/addevent.comp', type=>'change_user (su)', text=>$old_x500.'/'.$old_physid. ' as ' . $session{'x500'} . '/' . $session{'physid'});
+    }
+
+    if (($session{'x500'} ne $old_x500) || ($session{'physid'} ne $old_physid)) {
+        # Update session bits for wiki
+        my $query = $dbh->prepare('UPDATE sessions SET x500=?, physid=? WHERE id=?');
+        $query->execute($session{'x500'}, $session{'physid'}, $cookies{$cookie_name}->value);
+  
+        # Fake switch to physauth
+        # This allows a logout to return to old credentials! (when using cookieauth)
+        $session{'physauth'} = 1;
+        undef($session{'shibauth'});
+        undef($session{'display_name'});
+        if($dest) { 
+            $m->redirect($dest); 
+        }
+        $m->redirect('/');
+    }
+
+    $session{'old_x500'} = $old_x500;
+    $session{'old_physid'} = $old_physid;
+    $session{'old_uid'} = $old_uid;
+}
+else {
+    if($session{'old_uid'}) {
+        print "Changing you back...\n";
+        $session{'uid'} = $session{'old_uid'};
+        $session{'x500'} = $session{'old_x500'};
+        $session{'physid'} = $session{'old_physid'};
+
+        undef($session{'shibauth'});
+        undef($session{'display_name'});
+        $session{'physauth'} = 1;
+
+        $session{'old_uid'} = undef;
+        $session{'old_x500'} = undef;
+        $session{'old_physid'} = undef;
+
+        # Update session bits for wiki
+        my $query = $dbh->prepare('UPDATE sessions SET x500=?, physid=? WHERE id=?');
+        $query->execute($session{'x500'}, $session{'physid'}, $cookies{$cookie_name}->value);
+  
+        # Fake switch to physauth
+        # This allows a logout to return to old credentials! (when using cookieauth)
+        $session{'physauth'} = 1;
+        undef($session{'shibauth'});
+        undef($session{'display_name'});
+        if($dest) { 
+            $m->redirect($dest); 
+        }
+        $m->redirect('/');
+        return;
+    }
+}
+</%INIT>		
+		
+<%method title>Change User</%method>
+
+<p>
+
+<form action="su.html" method="POST">
+User: <input type="text" name="name" id="name" size="30">
+<& '/mason/ajax/complete_people.comp', include_shop_customers => 1 &>
+<p><b>OR</b>
+<p>
+x500: <input type="text" name="new_x500">
+physid: <input type="text" name="new_physid">
+<p><input type="submit" value="Change">
+<input type="hidden" name="dest" value="<% $dest %>">
+</form>
+<p><small>(If physid and x500 refer to two different directory entries, the behavior is undefined. You may, however, leave one blank and the other one will be filled in for you if a matching directory entry exists.)</small>

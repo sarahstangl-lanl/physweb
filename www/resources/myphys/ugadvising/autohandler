@@ -1,0 +1,26 @@
+<% $m->call_next %>
+<%method title>Undergraduate Advising System</%method>
+
+<%method titlemenu_below>
+<%perl>
+use physdb::uga_student;
+use physdb::directory;
+
+my %args = $m->request_args;
+
+my $auth_office = $m->comp('/mason/auth/auth_check.comp', auth_type => ['undergradoffice', 'sysadm']);
+my $student = new Directory( uid=> $args{'uid'} );
+my $uga_student = new uga_student(uid => $args{'uid'});
+
+</%perl>
+<& /mason/titlemenu.comp:begin, type=>"below" &>
+<&| /mason/titlemenu.comp:item,  link=>'/resources/myphys/ugadvising/index.html' &>Search Students</&>
+% if($args{'uid'}) {
+<&| /mason/titlemenu.comp:item,  link=>'/resources/myphys/ugadvising/report_form.html?uid='._u($args{'uid'}) &>Report: <% $student?$student->fullname():"Error" |h%></&>
+% }
+% if($auth_office) {
+<&| /mason/titlemenu.comp:item,  link=>'/resources/myphys/ugadvising/audits.html' &>Change Log</&>
+% }
+<& /mason/titlemenu.comp:end &>
+</%method>
+

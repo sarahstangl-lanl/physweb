@@ -1,0 +1,75 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: delete_classitem.html
+        Date: 2003.07.17
+      Author: allan
+     Changed: 2003.07.17 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$entryid=>''
+$confirm=>''
+$classid=>''
+$redirect_type=>'index'
+</%ARGS>
+
+<%INIT>
+return if $m->comp('/mason/db/dbcheck.comp');
+
+$m->comp('/mason/auth/auth_block_editclass.comp',classid=>$classid);
+my $error;
+
+# make sure we don't get an invalid id and delete all parentid=zero!!
+if ($entryid > 0) {
+
+    if ($confirm) {
+        # Now update the entry
+        
+        # !!! We do this in reverse order so if one fails, we don't
+        # have a bunch of dangling, unreferenced entries. Instead we remove
+        # the children first and work our way up to the item itself.
+        # (Someone could see it in the process of being deleted,
+        #  though let's say that is better than leaving unreferenced data.)
+        
+        my ($sql, $sth);
+        
+        $sql = 'DELETE webdbblob.class_files FROM webdbblob.class_files
+            JOIN classdata AS c ON (c.entryid = webdbblob.class_files.entryid)
+            WHERE c.parentid=?';
+        $sth = $dbh->prepare($sql);
+        $sth->execute($entryid)
+            or die 'Failed to delete child files: ' . $dbh->errstr;
+        
+        $sql = 'DELETE FROM classdata WHERE parentid=?';
+        $sth = $dbh->prepare($sql);
+        $sth->execute($entryid)
+            or die 'Failed to delete child items: ' . $dbh->errstr;
+        
+        $sql = 'DELETE FROM webdbblob.class_files WHERE entryid=?';
+        $sth = $dbh->prepare($sql);
+        $sth->execute($entryid)
+            or die 'Failed to delete item file: ' . $dbh->errstr;
+        
+        $sql = 'DELETE FROM classdata WHERE entryid=?';
+        $sth = $dbh->prepare($sql);
+        $sth->execute($entryid)
+            or die 'Failed to delete item: ' . $dbh->errstr;
+    } else {
+        $error = "Deletion not confirmed!";
+    }
+}
+</%INIT>		
+		
+<%method title>Class List update</%method>
+
+% if (!$error) {
+% $m->comp('/mason/redirect.comp', url=>$m->comp('/mason/db/classes/make_classlink.comp', classid=>$classid, fullurl=>1, type=>$redirect_type));
+% } else {
+
+<pre>
+<% $error %>
+</pre>
+
+% }

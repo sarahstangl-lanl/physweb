@@ -1,0 +1,7 @@
+<%init>
+    return $m->comp('/mason/auth/auth_check.comp', auth_type=>'appointment');
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

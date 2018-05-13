@@ -1,0 +1,104 @@
+<%doc>
+        Date: 9/10/2002
+ Description: produces news items for front page
+</%doc>
+
+<%args>
+$limit=>'2'
+$type=>'news'
+$thumbs=>'0'
+$rssurl=>''
+$moreurl=>''
+$rotate=>'0'
+$facebookpage=>undef
+$twitterpage=>undef
+</%args>
+
+<%init>
+
+return if $m->cache_self(expire_in => '60 sec', key => $limit);
+
+my ($eventid, $event_date, $post_date, $modified_date, $start_date, $kill_date, $headline, $author, $summary, $text, $caption, $url);
+my $sql_where = "
+                  WHERE ( type=? 
+                    AND start_date <= now() 
+                    AND (kill_date >= now() OR kill_date IS NULL) 
+                    AND priority <> 'none' 
+                  ) ";
+
+my $sql_order;
+if($rotate) {
+   $sql_order = "         ORDER BY rand() ";
+} 
+else {
+   $sql_order = "         ORDER BY priority DESC, post_date DESC ";
+}
+
+my $sql = "SELECT eventid, event_date, post_date, 
+                  modified_date, start_date, kill_date, headline, 
+                  summary, text, url, images.imageid, images.size_x, images.size_y, images.alt
+             FROM stories
+             LEFT OUTER JOIN images 
+               ON images.parentid=stories.eventid 
+              AND images.category='stories'
+
+            $sql_where
+
+            $sql_order
+
+            LIMIT ?
+           ";
+
+my ($sth, $row_ref);
+
+</%init>
+
+<%perl>
+if (defined($dbh)) {
+    $sth = $dbh->prepare($sql);
+    my $status = $sth->execute($type, $limit);
+    if ($status) {
+        while ($row_ref = $sth->fetchrow_arrayref) {
+          my ($eventid, $event_date, $post_date, $modified_date, $start_date, $kill_date, $headline, $summary, $text,$url) = @$row_ref;
+            my $urltitle = $headline;
+            $urltitle =~ s/[^-a-zA-Z0-9_]+/_/go;
+            my $image = $m->scomp('/mason/db/images/insert_thumb.comp', category=>'stories', parentid=>$eventid, mischtml=>'border="none" class="frontpagestoryimage"');
+            </%perl>
+             <h4 class="event"><% $headline %></h4>
+            <%perl>
+            if (($image) && ($thumbs)) {
+              $m->out($image);
+            }
+            $summary = $m->comp('/mason/format_wikitext.comp', text=>$summary, class=>"small news");
+            if ($text || $url) {
+               my $morelink = " <a href=\"/about/news/".$eventid."/$urltitle.html\" class=\"readmore\">More&nbsp;&raquo;</a>";
+                $summary =~ s/\<\/p\>$/$morelink<\/p>/m;
+            }
+            $m->out($summary);
+          }
+      }
+} else {
+    $summary = $m->comp('/mason/format_wikitext.comp', text=>"Please check back later.", class=>"small news");
+  </%perl>
+    <h4 class="event">Articles Unavailable</h4>
+    <% $summary %>
+  <%perl>
+}
+if ($rssurl) {
+  my $uctype=ucfirst($type);
+</%perl>
+<div class="sectionendblock">
+<a href="<% $rssurl %>" class="rsslink" title="Subscribe to <% $uctype %>"><img class="rssicon" src="/images/feed-icon-14x14.png" width="14" height="14" alt="Subscribe to <% $uctype %>" /></a>
+% if($facebookpage) {
+    <a href="<% $facebookpage %>" class="facebooklink" title="Visit us on Facebook"><img class="facebookicon" src="/images/ico_facebook_14.gif" width="14" height="14" alt="Visit us on Facebook" /></a>
+% }
+% if($twitterpage) {
+    <a href="<% $twitterpage %>" class="twitterlink" title="Follow us on Twitter"><img class="twittericon" src="/images/ico_twitter_14.gif" width="14" height="14" alt="Follow us on Twitter"></a>
+%}
+%   if ($moreurl) {
+| <a class="frontpagefulllink" href="<% $moreurl %>">More <% $uctype %>&nbsp;&raquo;</a>
+</div> <!-- sectionendblock -->
+%   }
+% }
+<br clear="all" />
+

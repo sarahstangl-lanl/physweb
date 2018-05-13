@@ -1,0 +1,22 @@
+<%DOC>
+   Component: directory_add_lookup.comp
+        Date: 2008.10.03
+      Author: clayton
+     Changed: 2008.10.03 by clayton
+
+Description ... 
+</%DOC>
+\
+<%ARGS>
+  $textbox_id
+  $statusbox_id
+</%ARGS>
+\
+% $m->comp('/mason/ajax/js.comp');
+% $m->comp('/mason/ajax/jsload.comp', file=>'DirectoryAddLookup.js');
+<script type="text/javascript">
+  new DirectoryAddLookup('<% $textbox_id %>',
+    '<% $statusbox_id %>',
+    '/include/lookup_emplid.html');
+</script>
+

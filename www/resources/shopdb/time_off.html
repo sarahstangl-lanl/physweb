@@ -1,0 +1,261 @@
+<%args>
+$leave_id => undef
+$leave_type => undef
+$hours => undef
+$date => undef
+$action => undef
+$machinist_id => undef
+</%args>
+<%init>
+use DateTime::Format::Strptime;
+use tablesearch;
+my $auth_args = $session{'shopdb-auth'};
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+my $machinist;
+my $admin = $auth_args->{admin} || $auth_args->{foreman};
+my $errmsg;
+my $leave;
+my $dates = $m->comp('/mason/db/shopdb/date_range.comp');
+for (my $i=0;$i<1;$i++) {
+    if ($admin) {
+        if ($machinist_id) {
+            $machinist = $schema->resultset('Machinists')->with_directory_info->find($machinist_id);
+            unless ($machinist) {
+                $errmsg = "Invalid machinist_id " . _h($machinist_id);
+                last;
+            }
+        }
+    }
+    else {
+        $machinist_id = $auth_args->{machinist_id};
+        unless ($machinist_id) {
+            $errmsg = "You do not have permission to access this page.";
+            last;
+        }
+        $machinist = $schema->resultset('Machinists')->with_directory_info->find($machinist_id);
+    }
+    if ($r->method eq 'POST' || $ARGS{action}) {
+        my $pattern = DateTime::Format::Strptime->new( pattern => '%F' );
+        unless (!$date || (my $dt = $pattern->parse_datetime($date))) {
+            $errmsg = "Invalid date " . _h($date);
+            last;
+        }
+        unless (!$hours || $hours =~ /^(\d+(\.\d+)?|\.\d+)?$/) {
+            $errmsg = "Invalid hours " . _h($hours);
+            last;
+        }
+        unless (!$action || $action =~ /^(delete|update)$/) {
+            $errmsg = "Invalid action " . _h($action);
+            last;
+        }
+        unless (!$leave_type || $schema->resultset('LeaveTypes')->find({ leave_type_id => $leave_type })) {
+            $errmsg = "Invalid leave_type " . _h($leave_type);
+            last;
+        }
+        if ($leave_id) {
+            unless ($action) {
+                $errmsg = "No action provided";
+                last;
+            }
+            $leave = $schema->resultset('Leaves')->find($leave_id);
+            unless ($leave) {
+                $errmsg = "Invalid leave_id " . _h($leave_id);
+                last;
+            }
+            unless ($admin || $leave->machinist_id == $machinist_id) {
+                $errmsg = "You do not have permission to modify leave_id " . _h($leave_id);
+                last;
+            }
+            if ($r->method eq 'POST' && $action eq 'update') {
+                unless ($hours && $date && $leave_type) {
+                    $errmsg = "hours, date, and leave_type are required to update";
+                    last;
+                }
+                $leave->update({
+                    date => $date,
+                    hours => $hours,
+                    leave_type_id => $leave_type,
+                });
+                $m->redirect('time_off.html?' . _args(%{ $dates->{url_args} }));
+            }
+            elsif ($action eq 'delete') {
+                $leave->delete;
+                $m->redirect('time_off.html?' . _args(%{ $dates->{url_args} }));
+            }
+        }
+        elsif ($leave_type) {
+            my $type = $schema->resultset('LeaveTypes')->find($leave_type);
+            unless ($type) {
+                $errmsg = "Invalid leave type " . _h($leave_type);
+                last;
+            }
+            unless ($hours && $date) {
+                $errmsg = "hours and date are required for new entries";
+                last;
+            }
+            unless ($machinist_id) {
+                $errmsg = "machinist_id is required";
+                last;
+            }
+            $type->create_related('leaves', {
+                machinist_id => $machinist_id,
+                date => $date,
+                hours => $hours,
+            });
+            if ($admin) {
+                $machinist = undef;
+                $machinist_id = undef;
+            }
+        }
+    }
+}
+if ($errmsg) {
+    print "<h3>" . _h($errmsg) . "</h3>";
+    print '<a href="time_off.html">Reload page</a>';
+    return;
+}
+</%init>
+<h2><% !$auth_args->{machinist_id} ? 'Time Off for ' . ( $machinist ? $machinist->get_column('display_name') : 'all Machinists') : 'My Time Off' %></h2><br/>
+<%perl>
+my $rs;
+my $columns = [ qw/edit label date hours/ ];
+my $admin_search_terms = [ ];
+my $machinist_search_terms = [ ];
+if ($ARGS{date_filter} && $ARGS{date_filter} eq 'Clear filter') {
+    push @$admin_search_terms, (
+        'leaves.date' => { '!=' => undef },
+    );
+}
+else {
+    push @$admin_search_terms, (
+        'leaves.date' => { '>=' => $dates->{start_date}->ymd, '<=' => $dates->{end_date}->ymd },
+    );
+    push @$machinist_search_terms, (
+        'me.date' => { '>=' => $dates->{start_date}->ymd, '<=' => $dates->{end_date}->ymd },
+    );
+}
+if (!$machinist) {
+    $rs = $schema->resultset('Machinists')->with_directory_info->search_rs($admin_search_terms,
+        {
+            '+select' => [ \'""', qw/leaves.leave_id leaves.date leaves.hours leave_type.label/ ],
+            '+as' => [ qw/edit leave_id date hours label/ ],
+            join => { 'leaves' => 'leave_type' },
+            order_by => { -asc => [ qw/display_name date/ ] },
+        }
+    );
+    $columns = [ qw/edit display_name label date hours/ ];
+}
+else {
+    $rs = $machinist->search_related_rs('leaves', $machinist_search_terms,
+        {
+            '+select' => [ \'""', qw/leave_type.label/ ],
+            '+as' => [ qw/edit label/ ],
+            join => 'leave_type',
+            order_by => { -asc => [ qw/date/ ] },
+        },
+    ),
+}
+my $ts = Tablesearch->new(
+    resultset => $rs,
+    field_params => {
+        leave_id => { hidden => 1 },
+        machinist_id => { hidden => 1 },
+        leave_type_id => { hidden => 1 },
+        label => {
+            name => 'Type',
+            width => 150,
+        },
+        date => {
+            width => 150,
+        },
+        hours => {
+            width => 50,
+            data_format => sub { my $value = shift; return '' unless defined ($value); return sprintf("%.02f", $value); },
+        },
+        display_name => {
+            name => 'Machinist',
+            data_format => sub {
+                my ($value, $code, $row, $ts) = @_;
+                if (!exists $ts->{tmp}->{lastrow} || $ts->{tmp}->{lastrow}->{machinist_id} != $row->{machinist_id}) {
+                    return $value;
+                }
+                return '';
+            },
+        },
+        edit => {
+            name => '',
+            width => 30,
+            data_format => sub {
+                my ($value, $code, $row, $ts) = @_;
+                return '' unless ($row->{leave_id});
+                return '<a href="?' . _args(%{ $dates->{url_args} }, action => 'update', leave_id => $row->{leave_id}) . '"><img src="/images/b_edit.png" alt="Edit" title="Edit" border="0" /></a>' . " <a onclick='return confirm(\"Are you sure you want to delete leave for " . _h($row->{display_name}||$row->{date}) . "?\");' href=\"?" . _args(%{ $dates->{url_args} }, action => 'delete', leave_id => $row->{leave_id}) . '"><img src="/images/b_drop.png" alt="Delete" title="Delete" border="0" /></a>';
+            },
+        },
+    },
+    header_format => 'ucfirst_all',
+    columns => $columns,
+    no_sort => 1,
+    hide_header => 1,
+    no_limit => 1,
+    debug => 0,
+    postrow => sub { my ($row, $ts) = @_; $ts->{tmp}->{lastrow} = $row; return ''; },
+);
+</%perl>
+<table cellpadding="3" cellspacing="0">
+<tr><td valign="top">
+% $ts->display;
+</td><td valign="top">
+<form action="time_off.html" method="POST">
+% while (my ($key, $value) = each %{ $dates->{url_args} }) {
+%   next if ($key =~ /^(machinist_id|leave_type|date|hours)$/);
+    <input type="hidden" name="<% $key |h %>" value="<% defined $value ? $value : '' |h %>"/>
+% }
+% if ($leave) {
+    <input type="hidden" name="leave_id" value="<% $leave->leave_id %>"/>
+    <input type="hidden" name="action" value="update"/>
+% }
+
+% if ($machinist_id) {
+<input type="hidden" name="machinist_id" value="<% $machinist_id |h %>"/>
+% }
+
+<table cellpadding="3" cellspacing="0">
+% unless ($machinist_id) {
+<tr><th align="right">Machinist</th><td><select name="machinist_id">
+% my @machinists = $schema->resultset('Machinists')->with_directory_info->search({}, { order_by => \'display_name' })->all;
+% for my $mach (@machinists) {
+<option value="<% $mach->machinist_id %>"<% $leave && $leave->machinist_id eq $mach->machinist_id ? ' SELECTED' : '' %>><% $mach->get_column('display_name') %></option>
+% }
+</select></td></tr>
+% }
+<tr><th align="right">Leave type</th><td><select name="leave_type">
+% my @leave_types = $schema->resultset('LeaveTypes')->search->all;
+% for my $type (@leave_types) {
+<option value="<% $type->leave_type_id %>"<% $leave && $leave->leave_type_id eq $type->leave_type_id ? ' SELECTED' : '' %>><% $type->label %></option>
+% }
+</select></td></tr>
+<tr><th align="right">Date</th><td><input type="text" name="date" id="date" value="<% $leave ? $leave->date : '' %>"/><% $m->comp('/mason/ajax/calendar.comp', id => 'date', name => 'date') %></td></tr>
+<tr><th align="right">Hours</th><td><input type="text" name="hours" value="<% $leave ? $leave->hours : '' %>"/></td></tr>
+<tr><td colspan="2" align="right"><input type="submit" name="insert" value="<% $leave ? 'Update' : 'Add' %> time off"/></td></tr>
+</table>
+</form>
+</td>
+</tr></table>
+% return; # unless ($admin);
+<h2>Time Off Audits</h2>
+<%perl>
+my $audit_rs = $schema->resultset('AuditEntries')->with_directory_info->search_rs({ result_type => 'Leaves' }, { order_by => { -desc => 'entry_date' } });
+my $audit_ts = Tablesearch->new(
+    resultset => $audit_rs,
+    columns => [ qw/display_name action_type value entry_date/ ],
+    hide_search => 1,
+    header_format => 'ucfirst_all',
+    field_params => {
+        display_name => {
+            name => 'Name',
+        },
+    },
+);
+$audit_ts->display;
+</%perl>
+<%method title>Shop Time Off</%method>

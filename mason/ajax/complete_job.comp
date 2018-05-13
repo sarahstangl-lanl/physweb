@@ -1,0 +1,80 @@
+
+<%ARGS>
+  $id           => 'job_id'                     # HTML ID of completer input element
+  $dropdown_ids => [ ]                          # HTML ID(s) of extra completer argument(s)
+  $url          => '/include/complete_job.html' # URL to post query to
+  $paramName    => 'search'                     # Argument name for completer input value
+  $ddParamName  => ''                           # Argument name for extra completer values
+  $recent       => 0                            # 1 = pass 'recent=1' as parameters on dropdown
+                                                # 0 = use dropdown_ids values as parameters
+  $sort_order   => 'ASC'                        # Sort order for jobs (ASC or DESC by job_id)
+  $frequency    => 0.2
+  $job_id                                       # Current job_id or undef if none
+  $no_dropdown_button => 0                      # Prevents adding a dropdown button
+  $dd_min_width => undef                        # Minimum dropdown width
+  $after_update_js => undef                     # Additional javascript to execute after selection
+  $limit        => 10                           # Maximum number of results to return (set to zero/undef for infinite)
+</%ARGS>
+
+<%INIT>
+  $m->comp('js.comp');
+  $m->comp('jsload.comp', file => 'input_hint.js');
+  $m->comp('jsload.comp', file => 'editablecompleter.js');
+  $dropdown_ids = [ $dropdown_ids ] unless (ref $dropdown_ids);
+  $sort_order = 'ASC' unless ($sort_order =~ /^(ASC|DESC)$/i);
+  $limit ||= 0;
+</%INIT>
+<script type="text/javascript">
+/* <![CDATA[ */
+  completerElement = $('<% $id |h %>');
+  completerElement.value = '<% $m->comp('/mason/ajax/job_to_jobfinder.comp', job_id => $job_id) %>';
+  completerElement.observe('keypress', function (e) {
+      switch(e.keyCode) {
+          case Event.KEY_TAB:
+          case Event.KEY_RETURN:
+              Event.stop(e);
+          default:
+              this.jobElement.value = '';
+      }
+  }.bind(completerElement));
+  jobElement = new Element('input', { id: completerElement.id + '_value', type: 'hidden', name: completerElement.name, value: '<% $job_id || '' |h %>' });
+  completerElement.validateMethod = function() {
+      if (this.value && this.value != this.title && !this.jobElement.value) {
+          this.errorMsg = "Invalid job. You must choose a job from the list."; 
+          return false;
+      }
+      return true;
+  };
+  completerElement.jobElement = jobElement;
+  completerElement.name = completerElement.name + '_display';
+  completerElement.parentNode.appendChild(jobElement);
+  acParams = 'sort_order=<% $sort_order %>&limit=<% $limit |u %>';
+% if ($recent) {
+  acParams += '&recent=1';
+% }
+  ec = new EditableCompleter({
+        textArea: '<% $id |h %>',
+        dropdown: [ <% join(', ', map { "'$_'"; } @$dropdown_ids) %> ],
+        url: '<% $url %>',
+        paramName: '<% $paramName %>',
+        ddParamName: '<% $ddParamName %>',
+        noDropdownButton: <% $no_dropdown_button %>,
+        ddMinWidth: <% $dd_min_width ? "'$dd_min_width'" : 'null' %>, 
+        acOptions: {
+             defaultParams: acParams,
+             frequency: <% $frequency %>,
+             select: null,
+             afterUpdateElement: function(el, li) {
+                 $("<% $id |h %>_value").value = li.id;
+                 if (el.clearError)
+                     el.clearError();<% $after_update_js ? "
+                 $after_update_js" : '' %>
+             }
+        }
+  });
+  ec.onClickRender = function() { this.completer.hasFocus = true; this.completer.onObserverEvent(); }
+  $('<% $id |h %>').writeAttribute('title', 'Job # or project name');
+  Event.observe($('<% $id |h %>'), 'click', ec.onClickRender.bind(ec));
+  hintInput('<% $id |h %>');
+/* ]]> */
+</script>

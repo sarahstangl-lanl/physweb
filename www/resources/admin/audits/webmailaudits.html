@@ -1,0 +1,37 @@
+
+<%DOC>
+   Component: webmailaudits.html
+        Date: 2008.07.30
+      Author: nick
+     Changed: 2008.12.02 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp');
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+
+if (!$admin_auth) { print "<H2>You must be an
+administrator to view this page.</H2>"; return; }
+
+</%INIT>		
+
+<%method title>Webmail Audits</%method>
+
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+             table               => 'squirrelmail_logging.user_activity',
+             field_params        => {
+                                      'id' => { 'header_format' => 'uc' },
+                                    },
+             filter_field        => 'event',
+             header_format       => 'ucfirst_all',
+             default_sort_field  => 'date',
+             default_sort_dir    => 'desc',
+             no_calc_found_rows  => 1, # This disables use of SQL_CALC_FOUND_ROWS to make it faster
+        );
+</%perl>

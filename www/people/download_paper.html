@@ -1,0 +1,30 @@
+<%doc>
+   Component: download_paper.html
+      Author: allan
+ Description: retrieve a file from the publications database
+ ~~NOSITEMAP~~
+</%doc>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%args>
+$paperid=>undef
+</%args>
+
+<%init>
+if(!$paperid) { $m->redirect("/people/"); }
+my $sql = "SELECT filename, filedata, mime_type FROM papers WHERE paperid = ?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($paperid);
+my $row = $sth->fetchrow_arrayref;
+my ($filename, $filedata, $mime_type);
+if (defined($row)) {
+  ($filename, $filedata, $mime_type) = @$row;
+  $r->content_type($mime_type);
+  $r->headers_out->unset('Content-Length');
+  $r->headers_out->set('Content-Disposition' => "file; filename=\"$filename\"");
+  $m->out($filedata);
+}
+</%init>

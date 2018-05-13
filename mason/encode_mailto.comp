@@ -1,0 +1,36 @@
+<%doc>
+   Component: encode_mailto.comp
+        Date: 4/2003
+      Author: allan
+ Description: encode email into HTML to discourage spam harvesting
+</%doc>
+
+<%args>
+$email => ''
+</%args>
+
+<%init>
+use HTML::Entities;
+my $x500 = $session{'x500'};
+my $physid = $session{'x500'};
+</%init>
+
+<%perl>
+  if ($x500 || $physid) {
+    # obfuscate email with HTML entities to discourage spam - no need if logged in
+    #$email = encode_entities($email,"\1-\400");
+    $email = "<a href=\"mailto:".$email."\">".$email."</a>";
+  } else {
+    #$email =~ s/\@/ \@ /g;
+    # encode for further obfuscation...
+    $email = encode_entities($email,"\1-\400");
+    # convert space characters to non-breaking...
+    #$email =~ s/\&\#64;/\&nbsp;at\&nbsp;/g;
+    $email =~ s/\&\#64;/\&nbsp;\&#64;\&nbsp;/g;
+  }
+  return $email;
+</%perl>
+
+<%filter>
+s/.//gos
+</%filter>

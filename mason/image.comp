@@ -1,0 +1,37 @@
+<%doc>
+   Component: image.comp
+        Date: 2/28/2002
+      Author: allan
+ Description:
+</%doc>
+% my $real_filename = $path."/".$filename;
+% my ($imgx,$imgy) = Image::Size::imgsize($real_filename);
+% my $imgsize = "width=\"$imgx\" height=\"$imgy\"";
+
+<table class="<% $class %>" cellspacing="4" cellpadding="0" align="<% $align %>" border="0" width="<% $imgx %>">
+<tr>
+<td><img src="<% $filename %>" alt="<% $alt %>" <% $imgsize %> /></td>
+</tr>
+% if ($caption) {
+<tr><td bgcolor="#dddddd"><i><% $caption %></i></td></tr>
+% }
+% if ($credit) {
+<tr><td align="<% $align %>"><font size="-1"><% $credit %></font></td></tr>
+% }
+
+</table>
+
+<%args>
+$filename
+$alt=>''
+$credit=>''
+$caption=>''
+$align=>'right'
+$class=>'image_comp'
+</%args>
+
+<%init>
+my $uri = $r->uri;
+my $path = $r->filename;
+while (chop($path) ne "/") {};
+</%init>

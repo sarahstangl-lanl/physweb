@@ -1,0 +1,55 @@
+<%method title>
+OOPS!
+</%method>
+
+<%init>
+use Data::Dumper;
+
+my $err = $r->pnotes('error');
+$r->content_type("text/html"); # generate html even if the url that generated the error is not .html
+$r->status(500);
+
+</%init>
+
+<%perl>
+
+return if ($m->comp('/mason/500.comp'));
+
+if ($r->dir_config('SiteName') ne "htphysics" && $r->dir_config('SiteName') ne "production") { # This is staging
+    </%perl>
+    <h2>Staging site dumping full details:</h2>
+    <% $r->uri |h %>
+    <h3>Error</h3>
+<%perl>
+    eval { print $err->as_html };
+    if ($@) {
+        print "<pre>$err</pre>";
+    }
+</%perl>
+
+    <h3>Details</h3>
+    <pre>
+    <h4>URI:</h4>
+    <% $r->uri |h %>
+    <h4>Headers:</h4>
+    <% Dumper($r->headers_in) |h %>
+    <h4>Args:</h4>
+    <% Dumper(\%ARGS) |h %>
+    <h4>Session:</h4>
+    <% Dumper(\%session) |h %>
+    </pre>
+    <%perl>
+}
+else { # Live site. Apologize and send us a ticket
+    </%perl>
+    <h2>The website encountered an error, and cannot complete your request</h2>
+    <h3>We are very sorry, you seem to have found a bug :(</h3>
+    <p>I have logged the error for the website maintainer to look at. </p>
+    <%perl>
+
+    </%perl>
+    <p>You might want to try clicking the back button and trying your request again, or <a href="http://zzz.physics.umn.edu/computing/contact">contact us</a> with a detailed account of what page you were on, and what you were doing. </p>
+    <%perl>
+}
+
+</%perl>

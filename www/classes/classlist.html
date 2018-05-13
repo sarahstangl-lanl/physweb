@@ -1,0 +1,82 @@
+
+<%DOC>
+   Component: classlist.html
+        Date: 2009.01.22
+      Author: nick
+     Changed: 2009.01.22 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$classid=>undef
+$message=>''
+$add_student=>undef
+$add_student_x500=>undef
+$remove_student=>undef
+$remove_student_userid=>undef
+</%ARGS>
+<%init>
+    $m->redirect('index.html') if(!defined($classid));
+    return if $m->comp('/mason/db/dbcheck.comp');
+    my $auth = $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, always_include_tas=>1, distinguish_child_ta=>1);
+    if(!$auth) {
+        print "Access denied";
+        return;
+    }
+
+    if($add_student) {
+        my $grade_user_id = $m->comp("/mason/db/classes/addstudent.comp", x500=>$add_student_x500, classid=>$classid, message=>\$message);
+        if ($grade_user_id) {
+            warn "Successfully added $add_student_x500 to grades.users, got $grade_user_id back\n<br>";
+        }
+        else {
+            warn "Aww, did not add $add_student_x500 to grades.users";
+        }
+        $m->redirect("class_list.html?message=$message");
+        return;
+    }
+    if($remove_student) {
+        warn "Removing $remove_student_userid from grades.classlist";
+
+        #Let them remove a student from the classlist only if they were added by us (not auto-added)
+        physdb::query("DELETE FROM grades.classlist WHERE classid=? AND userid=? AND auto_added=0", $classid, $remove_student_userid);
+        $m->redirect("class_list.html");
+        return;
+    }
+
+    my $tauid = undef;
+    $tauid = $session{'uid'} if($auth eq 'child_ta');
+    my $ts_students = $m->comp("/mason/db/classes/studentlist.comp:students", classid=>$classid, tauid=>$tauid);
+</%init>
+
+% $m->comp('/mason/notice_box.comp', text => $message, type => 'error') if ($message);
+
+<h2>Students</h2>
+<div style="width:90%;">
+<%perl>
+    $ts_students->{field_params}->{email} = {
+        data_format => sub {
+            my ($field_value, $coderef, $row) = @_;
+            return $field_value if ($m->request_args->{'studentsexcel'} == 1);
+            my $field = "<a href=\"mailto:". _u($field_value). "\">". _h($field_value). "</a>";
+            if($row->{auto_added} == 0) {
+                $field .= '<form style="display: inline;" method="post" action="class_list.html">
+                              <input type="hidden" name="remove_student_userid" value="'._h($row->{userid}).'" />
+                              <input type="hidden" name="classid" value="'._h($classid).'" />
+                              <input type="submit" name="remove_student" value="Remove" />
+                              </form>';
+            }
+            return $field;
+        }
+    };
+    $ts_students->display();
+</%perl>
+</div>
+
+<h2>Add a student</h2>
+Class lists are pulled nightly from peoplesoft, but you can add an extra student here if necessary:
+<form method="post" action="class_list">
+    X500: <input type="text" name="add_student_x500" value="" />
+    <input type="submit" name="add_student" value="Add" />
+</form>

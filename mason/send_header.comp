@@ -1,0 +1,19 @@
+<%doc>
+   Component: send_header.comp
+        Date: 9/12/2002
+      Author: allan
+ Description: send generic HTML header for site
+</%doc>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN"
+"http://www.w3.org/TR/REC-html40/loose.dtd">
+<html>
+<head>
+<link rel="stylesheet" href="/main.css" TYPE="text/css">
+<title>Physics at Minnesota: <!--& SELF:title &--></title>
+<!-- BEGIN METAINFO -->
+<meta http-equiv="Content-Type" content="text/html; charset=us-ascii">
+<meta name="description" content="School of Physics and Astronomy, University of Minnesota">
+<meta name="keywords" content="Physics Astronomy University Minnesota">
+<link rev="made" href="mailto:webmaster@www.physics.umn.edu">
+<!-- END METAINFO -->
+</head>

@@ -1,0 +1,85 @@
+<%method title><% $title |h %></%method>
+
+<%args>
+    $ajax => undef
+    $customer_id => undef
+</%args>
+
+<%shared>
+    use ShopDb::Schema;
+    use ShopDb::Form::Customer;
+    use PhysAjax;
+
+    my %args = $m->request_args;
+    $m->comp('/mason/db/shopdb/build_auth.comp');
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $auth_args = $session{'shopdb-auth'};
+    unless (!$args{'customer_id'} || $auth_args->{'foreman'} || $auth_args->{'machinist_id'}) {
+        if ($args{'ajax'}) {
+            print_ajax({ msg => "You are not authorized to modify customers" });
+            return;
+        }
+        $m->redirect('index.html');
+    }
+
+    my $title;
+    my $customer = $schema->resultset('Customers')->with_directory_info->find({ customer_id => $args{'customer_id'} });
+
+    if (!defined($customer)) {
+        $title = 'Shop Dashboard';
+    } else {
+        $title = 'Shop Customers: ' . $customer->get_column('customer_display_name');
+    }
+</%shared>
+
+<%init>
+    my $form = ShopDb::Form::Customer->new({
+        action => 'customer.html',
+        name => 'customer_form',
+        item_id => undef,
+        schema => $schema,
+        customer_item => $customer,
+        auth_args => $session{'shopdb-auth'},
+        active => [ $customer ? 'customer_update' : 'customer_add' ],
+    });
+
+
+    if ($r->method eq 'POST') {
+        $form->process(params => \%ARGS);
+    }
+
+    if ($form->is_valid) {
+        if ($ajax) {
+            print_ajax({ msg => "OK", uid => $form->item->directory_uid });
+            return;
+        }
+        $m->redirect('customer.html?' . _args(customer_id => $form->item->customer_id, ajax => $ajax));
+    }
+</%init>
+
+% if ($customer_id) {
+<table width="100%">
+<tr><td width="300" valign="top">
+% }
+
+<%perl>
+if ($ajax) {
+    $m->clear_buffer;
+    print '<h2>Customer Information</h2><p>' . $form->render . '</p>';
+    $m->abort;
+    return;
+}
+</%perl>
+
+<h2>Customer Information</h2>
+<p>
+% print $form->render();
+</p>
+
+% if ($customer_id) {
+</td><td valign="top">
+<& 'index.html', customer_id => $customer_id &>
+</td></tr>
+</table>
+% }
+

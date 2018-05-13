@@ -1,0 +1,19 @@
+
+<%ARGS>
+$recipient => ''
+$comment => ''
+$message => ''
+$email => ''
+</%ARGS>
+
+<%INIT>
+    use strict;
+    
+    $m->comp('/mason/auth/auth_block.comp');
+</%INIT>
+
+<%method title>
+MyPhysFiles upload
+</%method>
+
+% $m->comp('/mason/myfiles/upload.comp', recipient=>$recipient, comment=>$comment, message=>$message, email=>$email, adminmode=>1 );

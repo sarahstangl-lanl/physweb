@@ -1,0 +1,4 @@
+<%init>
+$m->comp('/mason/auth/auth_block.comp', internal => 1);
+$m->call_next;
+</%init>

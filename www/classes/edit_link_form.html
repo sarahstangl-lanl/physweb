@@ -1,0 +1,93 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: edit_link_form.html
+        Date: 2003.08.27
+      Author: allan
+     Changed: 2003.08.27 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$entryid=>'new'
+$parentid=>'0'
+$item_type=>''
+$redirect_type=>'index'
+$classid
+</%ARGS>
+
+<%INIT>
+return if $m->comp('/mason/db/dbcheck.comp');
+
+$m->comp('/mason/auth/auth_block_editclass.comp', classid=>$classid, itemid=>($parentid ? $parentid : $entryid));
+
+# set up classdata variables
+my ($entry_type, $post_date, $modified_date, $priority, $attach_data, $attach_text);
+
+if ($entryid ne "new") {
+
+  # Now fetch the entry
+  my $sql = "SELECT parentid, item_type, post_date, modified_date, priority, attach_data, entry_type, attach_text FROM classdata WHERE entryid = ? LIMIT 1";
+  my $sth = $dbh->prepare($sql);
+  $sth->execute($entryid);
+
+  my $row_ref = $sth->fetchrow_arrayref;
+  ($parentid, $item_type, $post_date, $modified_date, $priority, $attach_data, $entry_type, $attach_text) = @$row_ref;
+} else {
+  $priority = '100';
+  $item_type="image";
+}
+
+</%INIT>		
+		
+<%method title>Edit Link</%method>
+<small>
+% $m->comp('/mason/db/classes/insert_helplink.comp');
+</small><p>
+Use this form to attach links to URLs on other web sites.
+% if ($entryid ne "new") {
+<form method="POST" action="delete_classitem.html">
+<input type=hidden name="classid" value="<% $classid |u %>">
+<input type=hidden name="parentid" value="<% $parentid |u %>">
+<input type=hidden name="redirect_type" value="<% $redirect_type |u %>">
+<input type=hidden name="entryid" value="<% $entryid %>">To remove this item from the database - <input type=submit value="Delete Link"><br>
+<input type="checkbox" name="confirm">&nbsp;Check this box to confirm deletion.
+</form>
+<p>
+% }
+
+
+<form enctype="multipart/form-data" method="POST" name="edit" action="edit_link.html">
+
+<input type=hidden name="entryid" value="<% $entryid |u %>">
+<input type=hidden name="classid" value="<% $classid |u %>">
+<input type=hidden name="parentid" value="<% $parentid |u %>">
+<input type=hidden name="redirect_type" value="<% $redirect_type |u %>">
+<table border=0 width="100%">
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Link Contents</th></tr>
+
+
+
+
+<tr valign="top"><td colspan=2>
+
+% $m->comp('/mason/db/classes/insert_link.comp',entryid=>$entryid,edit=>'0');
+
+</td></tr>
+
+<tr valign="top"><td>Placement:</td><td><& '/mason/db/classes/postplacement_control.comp', classid=>$classid, parentid=>$parentid, entryid=>$entryid, item_type=>$item_type &>
+</td></tr>
+<tr valign="top"><td>URL:</td><td><input type=text name="url" value="<% $attach_data %>" size=50>
+</td></tr>
+<tr valign="top"><td>Caption:</td><td>
+<input type="text" size=50 name="caption" value="<% $attach_text %>">
+</td></tr>
+
+</table>
+<p>
+<input type="submit" value="Update Link">
+<input type="reset" value="Cancel Changes">
+
+
+</form>
+

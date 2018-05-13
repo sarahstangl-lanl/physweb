@@ -1,0 +1,42 @@
+<%init>
+    my @current_semester = (1900 + (CORE::localtime)[5], $m->comp('/mason/this_quarter.comp'));
+    my @prev_semester = $m->comp('/mason/prev_quarter.comp', year => $current_semester[0], semester => $current_semester[1]);
+    my @next_semester = $m->comp('/mason/next_quarter.comp', year => $current_semester[0], semester => $current_semester[1]);
+    my @next2_semester = $m->comp('/mason/next_quarter.comp', year => $next_semester[0], semester => $next_semester[1]);
+    
+    my $current_semester_url = $m->scomp('/mason/makeurl.comp', 'pathquery' => {'year' => $current_semester[0], 'semester' => $current_semester[1]});
+    my $prev_semester_url = $m->scomp('/mason/makeurl.comp', 'pathquery' => {'year' => $prev_semester[0], 'semester' => $prev_semester[1]});
+    my $next_semester_url = $m->scomp('/mason/makeurl.comp', 'pathquery' => {'year' => $next_semester[0], 'semester' => $next_semester[1]});
+    my $next2_semester_url = $m->scomp('/mason/makeurl.comp', 'pathquery' => {'year' => $next2_semester[0], 'semester' => $next2_semester[1]});
+</%init>
+
+<h3>Pick Active Semester</h3>
+
+<table width="100%" style="padding: 4em;"><tr>
+
+<td align="center"><h4 style="text-align: center"><a href="<% $prev_semester_url |h %>">
+    <% ucfirst($prev_semester[1]) %> <% $prev_semester[0] %>
+</a></h4></td>
+
+
+<td align="center"><h4 style="text-align: center"><big><a href="<% $current_semester_url |h %>">
+    <% ucfirst($current_semester[1]) %> <% $current_semester[0] %>
+</a></big></h4></td>
+
+<td align="center"><h4 style="text-align: center"><big><a href="<% $next_semester_url |h %>">
+    <% ucfirst($next_semester[1]) %> <% $next_semester[0] %>
+</a></big></h4></td>
+
+<td align="center"><h4 style="text-align: center"><a href="<% $next2_semester_url |h %>">
+    <% ucfirst($next2_semester[1]) %> <% $next2_semester[0] %>
+</a></h4></td>
+
+</tr>
+<tr>
+<td align="center"><small>Previous Semester</small></td>
+<td align="center"><small>Current Semester</small></td>
+<td align="center"><small>Next Semester</small></td>
+<td align="center"><small>Next Semester+1</small></td>
+</tr>
+
+</table>

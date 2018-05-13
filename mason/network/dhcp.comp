@@ -1,0 +1,27 @@
+<%ARGS>
+$hwa=>''
+</%ARGS>
+
+<%INIT>
+my $rows = physdb::query("SELECT inet_ntoa(leased_ip) AS ip, timestamp FROM accounting.dhcp_accounting WHERE hwa=? ORDER BY timestamp DESC LIMIT 4", $hwa);
+</%INIT>
+
+<%perl>
+if($rows) {
+    my $oddeven = 0;
+    </%perl>
+    <table border=0 cellpadding=0 cellspacing=1>
+    <%perl>
+    while(my $row = $rows->fetchrow_hashref()) {
+        $oddeven = $oddeven ? 0 : 1;
+        </%perl>
+        <tr class="<% $oddeven ? "odd" : "even" %>">
+        <td> <% "$row->{ip}" |h%> at <% $row->{'timestamp'}|h %></td>
+        </tr>
+        <%perl>
+    }
+    </%perl>
+    </table>
+    <%perl>
+}
+</%perl>

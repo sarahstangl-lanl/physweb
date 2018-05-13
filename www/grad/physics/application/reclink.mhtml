@@ -1,0 +1,36 @@
+
+<%DOC>
+   Component: reclink.mhtml
+        Date: 2005.12.15
+      Author: allan
+     Changed: 2005.12.15 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id
+$recemail
+$recname
+$recdata
+$recnumber
+$recpos
+$recinst
+</%ARGS>
+
+<%INIT>
+if ($recdata) {
+  $recname = "<a href=\"getletter.html?id=$id&recno=$recnumber\">$recname</a>";
+}
+
+</%INIT>		
+		
+<tr>
+<td><% $recname %></td>
+<td><% $recemail %></td>
+<td><% $recpos %></td>
+<td><% $recinst %></td>
+</tr>
+
+
+

@@ -1,0 +1,358 @@
+<%DOC>
+   Component: parse_excel_to_db.comp
+        Date: 2008.08.11
+      Author: clayton
+     Changed: 2008.08.11 by clayton
+
+ARGS:
+  inputfile          input file name or IO handle
+  classid            classid
+  only_store_e       only store assignments which have or have once had the e flag set (default yes)
+  column_ref_by_name reference columns/assignments by their assignment name/header rather than by their position (D, E, F...)
+                     (default yes)
+  name_sanity_check  don't just use the column ids for assignments -- also sanity check column header to make sure
+                     it has not changed. (default yes -- ONLY USED WHEN column_ref_by_name IS OFF)
+  send_update_email  Send e-mail to students notifying them of updated grades (default yes)
+
+# TODO: Make this transactional (even if we have to kinda fake it and hope...)
+# Some documentation on this: http://zzz.physics.umn.edu/admin/private/webgrades
+</%DOC>
+
+<%ARGS>
+$inputfile
+$classid
+$name_sanity_check=>1
+$only_store_e=>1
+$column_ref_by_name=>1
+$send_update_email=>1
+$info=>undef
+$auditmbox=>'grademail@physics.umn.edu'
+$reportto=>$m->comp('/mason/db/directory/uid_to_email.comp');
+</%ARGS>
+
+<%INIT>
+  use Spreadsheet::ParseExcel;
+  use Spreadsheet::ParseExcel::Utility qw(int2col);
+  use Mail::Sendmail;
+
+  my $oExcel = new Spreadsheet::ParseExcel;
+
+  my $basedir = "/home/admin/grades/mail";
+  my ($name,$email,$studentid,$section);
+  my ($message,$report);
+  my $from = "grades\@physics.umn.edu";
+  my $instructor;
+  my %mail;
+  my (@row1,@row2);
+  my $thiscell;
+  my $verbose = 0;
+  my (@assnids);
+  my ($gradeuserid);
+  my $updatemail;
+  my $maximum_pos;
+
+  if ($info) {
+    $info->{'students'} = 0;
+    $info->{'emailok'} = 0;
+    $info->{'emailfail'} = 0;
+    $info->{'instructor'} = '';
+  }
+
+  # Users
+
+  my $lookup_user = $dbh->prepare('SELECT id 
+                                     FROM grades.users 
+                                    WHERE (x500=? OR x500 IS NULL) 
+                                      AND (physid=? OR physid IS NULL) 
+                                      and (email=? OR email IS NULL) 
+                                      AND NOT (x500 IS NULL AND physid IS NULL AND email IS NULL) LIMIT 1');
+
+  # Assignments
+
+  my $lookup_assignment_by_loc = $dbh->prepare('SELECT id, name, legacy_email_flag FROM grades.assignments WHERE legacy_excel_column=? AND classid=? LIMIT 1');
+  my $lookup_assignment_by_name = $dbh->prepare('SELECT id, name, legacy_email_flag FROM grades.assignments WHERE name=? AND classid=? LIMIT 1');
+  my $create_assignment = $dbh->prepare('INSERT INTO grades.assignments (classid, name, legacy_excel_column, legacy_email_flag) VALUES(?,?,?,?)');
+  my $set_email_flag = $dbh->prepare('UPDATE grades.assignments SET legacy_email_flag=1 WHERE id=? LIMIT 1');
+  my $update_max_possible = $dbh->prepare('UPDATE grades.assignments SET max_possible=? WHERE id=? LIMIT 1');
+
+  # Grades
+
+  my $lookup_latest_grade = $dbh->prepare('SELECT value, textvalue FROM grades.grades WHERE assignmentid=? AND userid=? ORDER BY created DESC LIMIT 1');
+  my $add_grade = $dbh->prepare('INSERT INTO grades.grades (assignmentid, userid, value, textvalue, created_by, note) VALUES(?,?,?,?,?,?)');
+
+  my $date = strftime("%d-%b-%k:%M", CORE::localtime);
+
+  if ($verbose) {print "Processing web grades input file\n";}
+  $report = "Processing web grades input file at ".$date."\n";
+
+  # For recent enough modules this should allow IO handles as well as filename...
+  my $oBook = $oExcel->Parse($inputfile);
+
+  my($iR, $iC, $oWkS, $oWkC);
+
+  if ($oBook->{File}) { $report .= "FILE  :".$oBook->{File}."\n"; }
+  $report .= "SHEETS:".$oBook->{SheetCount} ."\n";
+  $report .= "AUTHOR:".$oBook->{Author} ."\n"
+    if defined $oBook->{Author};
+
+  my ($sth, $class);
+
+  # Lookup class information
+  $sth = $dbh->prepare('SELECT year, quarter, name, section FROM webdb.classlist WHERE classid=? LIMIT 1');
+  $sth->execute($classid)
+    or die 'Class information lookup failed: ' . $sth->errstr;
+
+  my ($classinfo, $classdetailed);
+  if ($classinfo = $sth->fetchrow_hashref()) {
+    my $name = $classinfo->{'name'};
+    $name =~ s/ //g;
+    $class = lc($name) . ($classinfo->{'section'} ? '.' : '') . $classinfo->{'section'};
+    $classdetailed = $classinfo->{'name'} . ($classinfo->{'section'} ? '.' : '') . $classinfo->{'section'} . ' (' . ucfirst($classinfo->{'quarter'}) . ' ' . $classinfo->{'year'} . ')';
+  } 
+  else {
+    # TODO: handle....
+    die "Invalid classid";
+  }
+
+  # AuditLog
+
+  $m->comp('/mason/db/auditlog/addevent.comp', type=>'grades_upload', text=>"Uploading for $classdetailed");
+
+  for(my $iSheet=0; $iSheet < $oBook->{SheetCount} ; $iSheet++)
+  {
+    $oWkS = $oBook->{Worksheet}[$iSheet];
+    $report .= "\n--------- SHEET:". $oWkS->{Name}. "\n";
+
+    # Iterate over every row
+    for(my $iR = $oWkS->{MinRow} ; defined $oWkS->{MaxRow} && $iR <= $oWkS->{MaxRow} ; $iR++)
+    {
+      undef($gradeuserid);
+
+      # Iterate over every column
+      for(my $iC = $oWkS->{MinCol} ; defined $oWkS->{MaxCol} && $iC <= $oWkS->{MaxCol} ; $iC++)
+      {
+        $oWkC = $oWkS->{Cells}[$iR][$iC];
+        if ($verbose) {
+            print "( $iR , $iC ) =>", ($oWkC->Value eq 'GENERAL' ? $oWkC->{Val} : $oWkC->Value), "\n" if($oWkC);
+        }
+        if ($oWkC) {
+          $thiscell = $oWkC->Value;
+          if ($thiscell eq 'GENERAL') {
+            # Sometimes formatted colums have problems (esp. from OpenOffice)
+            # This fixes that... http://www.annocpan.org/~KWITKNR/Spreadsheet-ParseExcel-0.2602/ParseExcel.pm#note_18
+            # (The fix is also included in newer versions of the perl module)
+            $thiscell = $oWkC->{Val};
+          }
+        } 
+        else {
+          $thiscell = "";
+        }
+
+        if ($iR == 0) {
+          # Save this row for column names
+          $row1[$iC] = $thiscell;
+        }
+        
+        if ($iR == 1) {
+          # Save this row so we can look it up later for if a column should be e-mailed or not
+          $row2[$iC] = $thiscell;
+          if ($iC == 3) {
+            $instructor = $thiscell;
+            if ($info) { 
+                $info->{'instructor'} = $instructor; 
+            }
+          }
+
+          if ($iC > 3) {
+            my $assn;
+            if ($column_ref_by_name) {
+              # Reference columns by the title in the first row
+              $lookup_assignment_by_name->execute($row1[$iC], $classid)
+                or die 'Assignment lookup failed: ' . $lookup_assignment_by_name->errstr;
+              if ($assn = $lookup_assignment_by_name->fetchrow_hashref()) {
+                $assnids[$iC] = $assn->{'id'};
+              }
+            } 
+            else {
+              # Reference columns by their column id
+              $lookup_assignment_by_loc->execute($iC, $classid)
+                or die 'Assignment lookup failed: ' . $lookup_assignment_by_loc->errstr;
+              if ($assn = $lookup_assignment_by_loc->fetchrow_hashref()) {
+                $assnids[$iC] = $assn->{'id'};
+
+                # Do a name sanity check if wanted
+                if ($name_sanity_check && ($assn->{'name'} ne $row1[$iC])) {
+                  # TODO: Handle this better! Spit out both values...
+                  die "Name sanity check failed!";
+                }
+              }
+            }
+
+            if ($assnids[$iC]) { $report .= 'Updating column: ' . $row1[$iC] . " (previously stored)\n"; }
+
+            # Update the assignment if it exists and does not already have the legacy email flag set 
+            if ($assn && !$assn->{'legacy_email_flag'} && ($thiscell eq 'e')) { $set_email_flag->execute($assn->{'id'}); }
+
+            # Create new assignment if it doesn't already exist AND
+            #   it has the store flag or we are storing all columns
+            if (!$assnids[$iC] && (!$only_store_e || ($thiscell eq 'e'))) {
+                if($row1[$iC] eq '') {
+                    print("Assignment in column ". int2col($iC). " has no name! Refusing to create empty assignment");
+                    return;
+                }
+                else {
+                    $create_assignment->execute($classid, $row1[$iC], $iC, ($row2[$iC] eq 'e'))
+                        or die 'Unable to create assignment: ' . $create_assignment->errstr;
+                    $assnids[$iC] = $dbh->last_insert_id(undef, undef, undef, undef);
+
+                    $report .= 'Storing column: ' . $row1[$iC] . " (new)\n";
+
+                    if (!$assnids[$iC]) {
+                        # TODO: Handle our massive failure here! (better)
+                        die 'Unable to create assignment!';
+                    }
+                }
+            }
+          }
+        } # END assignment creation/lookup (first two rows)
+
+        if ($iR > 1) {
+          # These should actually be individuals grades (or extra stuff that we ignore)
+          if ($iC == 0) {
+            $name = $thiscell;
+            $name =~ s/,/ /g; #/
+
+            # Clear various variables for this new row
+            $email       = '';
+            $message     = '';
+            $studentid   = '';
+            $section     = '';
+            $updatemail  = 0;
+            $maximum_pos = 0;
+          }
+          if ($iC == 1) {
+            $studentid = $thiscell;
+          }
+          if ($iC == 2) {
+            $section = $thiscell;
+          }
+
+          if ($iC == 3 && $thiscell =~ /^\s*MAXIMUM\s*$/) { # this is the maximum scores row
+            $maximum_pos = 1;
+          } 
+          elsif ($iC == 3 && $iR >= 3 && $thiscell) {  #extract any email address
+            $email = $thiscell;
+
+            my ($res, $x500, $physid, $email);
+            if ($thiscell =~ /^(.*)\@umn\.edu$/) {
+              $x500 = $1;
+            } 
+            elsif ($thiscell =~ /^(.*)\@physics\.umn\.edu$/) {
+              $physid = $1;
+            } 
+            else {
+              $email = $thiscell;
+            }
+ 
+            $lookup_user->execute($x500, $physid, $email)
+              or die 'User lookup failed: ' . $lookup_user->errstr;
+
+            if (my $row = $lookup_user->fetchrow_hashref()) {
+              $gradeuserid = $row->{'id'};
+            } 
+            else {
+                $report .= "WARNING: Unable to resolve student in row ". ($iR+1) ." '$thiscell'. Is column D in the format x500\@umn.edu? Skipping row...";
+                next;
+            }
+
+            if (!$gradeuserid) {
+               $report .= "ERROR: Could not get userid for $thiscell: " . $dbh->errstr. ". Skipping row...";
+               next;
+            }
+
+            if ($info) { 
+                $info->{'students'}++; 
+            }
+          } # END email address processing
+
+          if (($iC > 3) && $assnids[$iC]) {
+            # if we have an assignmentid then we can try to do something with this
+            if ($maximum_pos) {
+              # maximum possible row... store
+
+              $update_max_possible->execute($thiscell, $assnids[$iC])
+                or die 'Unable to update max possible score: ' . $update_max_possible->errstr;
+            } 
+            elsif ($gradeuserid) {
+              # grades userid ... we can try to store the grade
+
+              if ($thiscell eq '') { $thiscell = '(empty)'; }
+
+              my $result;
+              $lookup_latest_grade->execute($assnids[$iC], $gradeuserid)
+                or die 'Unable to lookup latest grade: ' . $lookup_latest_grade->errstr;
+              $result = $lookup_latest_grade->fetchrow_hashref();
+
+              # Insert the grade if we have none recorded or if it has changed
+              if (!$result ||
+                  ($result && (($result->{'value'} != int($thiscell)) || ($result->{'textvalue'} ne $thiscell)))) {
+                $updatemail = 1;
+                $add_grade->execute($assnids[$iC], $gradeuserid, int($thiscell), $thiscell, $session{'uid'}, undef)
+                  or die 'Unable to add grade: ' . $add_grade->errstr;
+              }
+            }
+          } # end of grades region
+        } # end of row>1 processing
+      } # end of column loop
+
+      if ($updatemail && $email && $send_update_email) {
+        $message = 'Quiz Scores for '.$class.' have been updated at https://www.physics.umn.edu/classes/' . $m->comp('/mason/db/classes/make_classlink.comp', year=>$classinfo->{'year'}, quarter=>$classinfo->{'quarter'}, name=>$classinfo->{'name'}, section=>$classinfo->{'section'}) . 'scores.html';
+        %mail = ('To'       =>$email,
+                 'From'     =>$from,
+                 'Bcc'      =>$auditmbox,
+                 'Subject'  =>'Physics Quiz Scores Posting Notification for '.$class,
+                 'Reply-To' =>$instructor,
+                 'Message'  =>$message,
+                 'smtp'     =>'smtp.physics.umn.edu'
+                );
+        $report .= "Sending:\n--------\n".$message."--------\n\n";
+        if (sendmail(%mail)) {
+          $report .="(mail sent OK)\n";
+          if ($info) { $info->{'emailok'}++; }
+        } 
+        else {
+          $report .= "(Error: ".$Mail::Sendmail::error.")\n";
+          if ($info) { $info->{'emailfail'}++; }
+        }
+      }
+
+    } # end of rows loop
+  } # end of sheets loop
+
+  #
+  # now send the report...
+  #
+
+  my $report_datetime = strftime("%B %d, %Y %l:%M%p", CORE::localtime);
+  my $reportstart = <<END;
+This is a receipt for the successful grades upload to $classdetailed at $report_datetime
+
+-----------------------------------------------
+
+Details:
+END
+
+  %mail = (To      => $reportto,
+           Cc      => $instructor,
+	   Bcc     => $auditmbox,
+           From    => $from,
+           Subject => 'Webgrades Receipt for '.$class,
+           Message => $reportstart.$report,
+           smtp    => 'smtp.physics.umn.edu'
+          );
+  sendmail(%mail) or die "Error sending final report:\n".$Mail::Sendmail::error;
+  print $reportstart.$report;
+
+</%INIT>
+
+

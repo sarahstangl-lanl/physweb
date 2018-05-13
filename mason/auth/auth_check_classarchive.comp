@@ -1,0 +1,43 @@
+<%doc>
+   Component: auth_check_classarchive.comp
+        Date: 9/2/2002
+      Author: allan
+ Description: checks if the user is a faculty member or has class editing rights
+</%doc>
+
+<%args>
+    $classid => undef
+    $area => undef
+</%args>
+
+<%init>
+    # these groups all have archive access
+    my $faculty = $m->comp('/mason/auth/auth_check.comp', auth_type=>'astfac') || $m->comp('/mason/auth/auth_check.comp', auth_type=>'physfac');
+    my $postdoc = $m->comp('/mason/auth/auth_check.comp', auth_type=>'postdoc');
+    my $instructor = $m->comp('/mason/auth/auth_check.comp', auth_type=>'instructor');
+    my $classadmin = $m->comp('/mason/auth/auth_check.comp', auth_type=>'classes');
+    my $undergradoffice = $m->comp('/mason/auth/auth_check.comp', auth_type=>'undergradoffice');
+
+    # student in class returns "student" to indicate limited access
+    my $student_area = 0;
+    if (($area eq 'scores') && $classid) {
+        $student_area = 'student'
+            if ($m->comp('/mason/auth/auth_check_student.comp', classid => $classid));
+    }
+
+    # a TA from the class also gets full/normal access
+    my $member_ta = 0;
+    if($classid) {
+        $member_ta = $m->comp('/mason/auth/member_check.comp',  type=>"TA", uid=> $session{'uid'}, memberof=>$classid) || $m->comp('/mason/auth/member_check.comp',  type=>"instructor", uid=> $session{'uid'}, memberof=>$classid);
+        #die("DEBUG: $member");
+    }
+
+</%init>
+
+<%perl>
+    return ($faculty || $postdoc || $instructor || $classadmin || $student_area || $member_ta || $undergradoffice);
+</%perl>
+
+<%filter>
+s/.//gos
+</%filter>

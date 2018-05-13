@@ -1,0 +1,173 @@
+<%args>
+$ajax => 0
+$delete_setting => undef
+$setting_id => undef
+$name => undef
+$value => undef
+$is_unique => undef
+</%args>
+
+<%init>
+use tablesearch;
+use PhysAjax;
+
+unless ($session{'shopdb-auth'}{'admin'}) {
+    if ($ajax) {
+        print_ajax({ result => 'error', message => 'You do not have permission' });
+        return;
+    }
+    $m->redirect('index.html');
+}
+
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+my $result_ok = sub {
+    my $setting = shift;
+    return {
+            result => 'ok',
+            update => [
+                '<span style="display:none" class="roweditor_edit roweditor_delete"></span>',
+                map { $setting->get_column($_) } (qw/name value is_unique/),
+            ],
+            attrs => {
+                setting_id => $setting->get_column('setting_id'),
+            },
+    };
+};
+
+my $validate = sub {
+    my $setting = shift;
+    my $errors = ();
+    if (defined($is_unique)) {
+        if ($is_unique !~ /^[01]$/) {
+            $errors->{'is_unique'} = 'is_unique can only be 0 or 1, not "' . $is_unique . '".';
+        }
+    }
+    else {
+        $errors->{'is_unique'} = 'is_unique is required.';
+    }
+    if (defined($name) && $name) {
+        unless ($setting) {
+            # Check for existing setting name that is marked unique
+            $setting = $schema->resultset('ShopDbSettings')->find({ name => $name });
+            if ($setting && $setting->is_unique) {
+                $errors->{'name'} = 'Setting "' . $name . '" already exists and is marked unique.';
+            }
+            # Check for duplicate name/value entry
+            $setting = $schema->resultset('ShopDbSettings')->find({ name => $name, value => $value });
+            if ($setting) {
+                $errors->{'value'} = 'A setting for "' . $name . '" with value "' . (defined $value ? $value : 'undef') . '" already exists.';
+            }
+        }
+    }
+    else {
+        $errors->{'name'} = 'Name is required.';
+    }
+    unless (defined($value) && $value) {
+        $errors->{'value'} = 'Value is required.';
+    }
+    return (keys %$errors) ?
+        { result => 'error', errors => $errors } :
+        undef;
+};
+
+if ($ajax) {
+    my ($result, $setting);
+    if ($setting_id) {
+        $setting = $schema->resultset('ShopDbSettings')->find({ setting_id => $setting_id });
+        if (!$setting) {
+            $result = { result => 'error', message => 'Invalid setting_id ' . $setting_id };
+        }
+        else {
+            if ($delete_setting) {
+                $schema->txn_do(sub { $setting->delete; });
+                $result = {
+                    result => 'ok',
+                };
+            }
+            else {
+                unless ($result = $validate->($setting)) {
+                    $schema->txn_do( sub {
+                        $setting->update({
+                            name => $name,
+                            value => $value,
+                            is_unique => $is_unique
+                        });
+                    });
+                    $result = $result_ok->($setting);
+                }
+            }
+        }
+    }
+    else {
+        unless ($result = $validate->($setting)) {
+            $schema->txn_do( sub {
+                $setting = $schema->resultset('ShopDbSettings')->create({
+                    name => $name,
+                    value => $value,
+                    is_unique => $is_unique,
+                });
+            });
+            $result = $result_ok->($setting);
+        }
+    }
+    # Force auth reload on successful change
+    if ($result->{'result'} eq 'ok') {
+        $m->comp('/mason/db/shopdb/build_auth.comp', 'reload-auth' => 1);
+    }
+    print_ajax($result);
+    return;
+}
+</%init>
+<%perl>
+
+my $ts = new Tablesearch(
+    table => 'shopdb.shopdb_settings',
+    field_list => [ '\'\' as edit', 'setting_id', 'name', 'value', 'is_unique' ],
+    field_params => {
+        edit => {
+            name => '',
+            width => '50',
+            html_class => 'roweditor_edit',
+            data_format => sub { return '<span style="display:none" class="roweditor_edit roweditor_delete"></span>'; },
+        },
+        setting_id => { hidden => 1, },
+    },
+    row_tagger => sub { my ($row) = @_; return 'data-setting_id="' . $row->{'setting_id'} . '"'; },
+    header_format => 'ucfirst',
+    html_table_id => 'settings_table',
+);
+
+</%perl>
+
+<table cellpadding="0" cellspacing="3">
+<tr><td>
+% $ts->display;
+</tr></td></table>
+
+<div style="padding-left: 10px; padding-bottom: 10px;"><a href="#" id="add_setting_link"><img src="/images/add.gif" alt="add" title="Add new setting" border="0" />&nbsp;Add setting</a></div>
+
+<& '/mason/ajax/js.comp' &>
+<& '/mason/ajax/jsload.comp', file=>'RowEditor.js' &>
+
+<script type="text/javascript">
+new RowEditor(
+    'settings_table',                                       // Table ID
+    'settings.html',                                        // Form action URL
+    [ 'edit', 'name', 'value', 'is_unique' ],               // Array of column names
+    {                                                       // Hash of roweditor config options
+        parameters: {                                       // Hash of parameters to submit alongside new/update form values
+            ajax: 1
+        },
+        tdClassName: 'tableitem',                           // HTML class to add to each row td
+        deleteParameters: {                                 // Hash of parameters to submit alongside delete form values
+            delete_setting: true
+        },
+        newID: 'add_setting_link',                          // ID of 'add new' button
+        hiddenAttributes: $H({setting_id: 'setting_id'})    // Hash of attributes to add as hidden inputs to forms
+                                                            // Each row must have an attribute named `'data-' + attribute.key`
+                                                            // Hidden input will be named `attribute.value` and have value `row.getAttribute('data-' + attribute.key)`
+    }
+);
+</script>
+<%method title>Shop Settings</%method>

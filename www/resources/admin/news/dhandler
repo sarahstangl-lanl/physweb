@@ -1,0 +1,73 @@
+<%doc>
+   Compontent: dhandler
+         Date: 7/3/2007
+    Author: Alex
+    Description: pull up article by id.
+</%doc>
+
+<%args>
+$view=>''
+$when=>'top'
+</%args>
+
+<%shared>
+  my $arg = $m->dhandler_arg;
+  $arg =~ /[^-a-zA-Z0-9_.]/go;
+  $arg =~ s/.html//g;
+  my ($type, $wanted_id) = split('/', $arg);
+  my $story;
+  
+  if (!$type || $type eq 'index') {
+    $m->redirect("general/");
+    $type = 'news';
+  }
+  elsif ($type eq 'general') {
+    $type = 'news';
+  }
+
+  # Support both formats: /about/news/$STORYID and /about/news/$CATEGORY/$STORYID
+  if ($wanted_id =~ /^[0-9]+$/) {
+     $story = $wanted_id;
+  } elsif ($type =~ /^[0-9]+$/) {
+     $story = $type;
+  }
+  
+  my $auth = $m->comp('/mason/auth/auth_check_events.comp');
+  my $uri = $r->uri;
+  
+</%shared>
+<%init>
+$r->content_type("text/html");
+if ($view =~ /normal/) { $auth=0; }
+</%init>
+
+<%method title>
+    News Management
+    <%perl>
+        my $fancytype = $type;
+        if($fancytype eq 'news') {
+            $fancytype = 'general';
+        }
+        $fancytype =~ s/[^0-9a-zA-Z]/ /g; # /
+        $fancytype = join(' ', map { ucfirst($_) } split(' ', $fancytype));
+        $m->out(" - ". ucfirst $fancytype);
+    </%perl>
+</%method>
+
+<%method titlemenu_below>
+<& /mason/titlemenu.comp:begin, type=>"below" &>
+% my %args = $m->request_args();
+<& /mason/db/stories/storyblog.comp:yearmenuitems, type=>$type, year=>$args{'year'}, args=>\%args  &>
+<& /mason/titlemenu.comp:end &>
+</%method>
+
+<%perl>
+if($story) {
+  $m->comp("/mason/db/stories/story.comp", story=>$story, auth=>$auth, type=>$type);
+} else {
+  $m->comp("/mason/db/stories/storyblog.comp", type=>$type, args=>\%ARGS, menu_level=>5);
+}
+
+</%perl>
+%# vim: set syntax=mason: 
+

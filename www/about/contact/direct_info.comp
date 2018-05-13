@@ -1,0 +1,59 @@
+# Physics Contact page data.
+# This file is used by both the website about/contact page, and the printed directory. Please edit it with care!
+#
+# Format:
+# Lines are either section header beginning without any spaces in front, or entries, starting with 1 space.
+#
+# Section Header:
+#  The header for a section (ie Astronomy). Must not have leading spaces
+# Contact Entry:
+#  Must be indented with 1 space. Contact entry consists of multiple fields.
+#  Each field is seperated by a pipe charactor (|). Fields are:
+#  Example: "Title:|name|room in tate lab if any|phone number"
+#
+#
+ General Information|PAN 250|624-7375|info@physics.umn.edu
+School of Physics and Astronomy
+ Head: Ronald Poling|PAN 421|624-7870
+ Associate Head: Lucy Fortson|PAN 354|624-9587
+ Director, Graduate Studies: Joseph Kapusta|MCNAMARA Suite 160 Rm. 147-1 |624-0506
+ Director, Undergraduate Studies: Jeremy Mans|PAN 427|625-8994
+ Finance and Administration: Ginny Olson|PAN 250B|624-5786
+ Payroll: MetteMarie Stewart|PAN 250|626-6509
+ Purchasing/Accounts Payable: Amy Nastrom Nordlander|PAN 250|626-8104|orders@physics.umn.edu
+ Assistant to the Head: Julie Murphy|PAN 250A |625-6928 
+ Computing and Networks: Jesse Bren|PAN 370|626-1139|net@physics.umn.edu
+ Communications: Jenny Allan|PAN 250|624-2852|jenny@physics.umn.edu
+ Assistant to Student Programs: Jennifer Kroschel|WILLIAMSON 145B|624-1625
+ Graduate Studies Information: Amanda Hawkinson|WILLIAMSON 145|626-5982|grad@physics.umn.edu
+ Undergraduate Studies Information:Kristina Cibuzar|WILLIAMSON 145|624-7375|ugrad@physics.umn.edu
+ Lecture/Demonstration: Brian Andersson|WILLEY 115|624-6584
+ Introductory Labs: Sean Albiston |WILLIAMSON |625-3598
+ Methods Lab: Kurt Wick|PAN 370|624-2831
+ Condensed Matter Physics: Shelley Frankel|PAN 212|626-0236
+ High Energy Physics:Andrea Stronghart|PAN 321|624-7886
+ Nuclear/Space Physics: Angela Stehr|MCNAMARA 160|624-8089
+ Fax|WILLIAMSON 145|624-4578
+ Website updates/requests|||web@physics.umn.edu
+ Keys/Access|<a href="http://www.physics.umn.edu/resources/forms/AccessRequestForm.html">Request Form</a>
+ Stock Room|PAN 241|
+Minnesota Institute for Astrophysics
+ Director: Evan Skillman|FRASER 335|624-9523
+ Executive Assistant: Terry Thibeault|FRASER 345|624-4811
+ <!--Coordinator: Kevin Roberts|FRASER 354|624-7053-->
+ Director, Graduate Studies: Terry J. Jones |FRASER 353|624-8009
+ Information, Graduate Studies: Terry Thibeault|FRASER 345|624-4811|tt@astro.umn.edu
+ Director, Undergraduate Studies: Liliya Williams|FRASER 345E|624-1084|
+ Fax|FRASER 345|626-2029
+History of Science Technology and Medicine
+ Director: Susan Jones||625-3838
+ Information: Julia Knoll|SHEPHERD 154|624-7069
+William I. Fine Theoretical Physics Institute
+ Director: Keith Olive|WBOB 130-10|624-7354
+ Associate Administrator: Meghan Murray|WBOB 130-11|624-8367
+ Information: RaeAnna Buchholz|WBOB 130-4|624-7366
+ Fax|WBOB 130-4|626-8606
+Other Facilities
+ NOvA Ash River Lab: Bill Miller||218-344-2400
+ Soudan Underground Lab: Jerry Meier||218-753-6611
+ Soudan Surface Building: Eileen Amos||218-753-8990

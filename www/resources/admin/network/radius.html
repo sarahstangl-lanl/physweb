@@ -1,0 +1,301 @@
+<%doc>
+   vim: set syntax=mason:
+   Author: Rubin
+</%doc>
+<%method title>Network Hosts</%method>
+<%init>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+use physdb;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+if(!$auth) {
+    print "Must be admin\n";
+    return;
+}
+</%init>
+
+<%args>
+$magic => undef;
+$search => undef;
+$sort => "start";
+$sort_reverse => 0;
+$searchfield => '';
+</%args>
+<%perl>
+
+sub is_ip {
+    my $str = shift;
+    if ($str =~ /^([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)$/  
+       and $1 < 256 and $2 < 256 
+       and $3 < 256 and $5 < 256) {
+      return 1;
+    }
+    return 0;
+}
+
+sub is_hwa {
+    my $str = shift;
+    if ( $str =~  /^[A-Fa-f0-9]{12}$/
+         || $str =~ /^([A-Fa-f0-9]{2}[:-]){5}[A-Fa-f0-9]{2}$/ ) {
+        return 1;
+    }
+    return 0;
+}
+
+sub bare_hwa {
+    my $hwa = shift;
+    $hwa =~ s/[^0-9AFa-f]//g;
+    return lc($hwa);
+}
+
+my @fields;
+my @tables = ('webdb.directory','accounting.radacct');
+foreach my $table (@tables) {
+  my $fieldlist = physdb::query("SHOW COLUMNS FROM $table");
+  $table =~ /.+\.(.+)/;
+  while (my $row = $fieldlist->fetchrow_hashref()) {
+      push @fields,($1.".".$row->{'Field'});
+  }
+}
+@fields = sort(@fields);
+#foreach my $field (@fields) { print "$field\n"; }
+
+# SQL Query
+my $hostlist_query =  <<"--end--";
+SELECT lower(concat(
+                    substr(accounting.radacct.CallingStationId, 1, 2),
+                    substr(accounting.radacct.CallingStationId, 4, 2),
+                    substr(accounting.radacct.CallingStationId, 7, 2),
+                    substr(accounting.radacct.CallingStationId, 10, 2),
+                    substr(accounting.radacct.CallingStationId, 13, 2),
+                    substr(accounting.radacct.CallingStationId, 16, 2)
+                )) AS hwa, accounting.radacct.CallingStationID as hwa_raw,
+        accounting.radacct.FramedIPAddress AS ip,
+        accounting.radacct.AcctStartTime,
+        accounting.radacct.AcctStopTime,
+        NASPortId as port,
+        accounting.radacct.UserName as username,
+        NASIPAddress,
+        net_hosts.computer_name from_nas,
+        webdb.directory.first_name,
+        webdb.directory.last_name,
+        webdb.directory.physid,
+        webdb.directory.x500,
+        webdb.directory.uid,
+        ServiceType,
+        CallingStationId,
+        net_rejectlist.mac AS rejected_mac
+
+FROM accounting.radacct
+
+LEFT OUTER JOIN webdb.directory ON directory.x500=radacct.UserName
+LEFT OUTER JOIN webdb.net_dns ON webdb.net_dns.ip = INET_ATON(accounting.radacct.NASIPAddress)
+LEFT OUTER JOIN webdb.net_interfaces ON webdb.net_interfaces.id = webdb.net_dns.interface_id
+LEFT OUTER JOIN net_rejectlist ON net_rejectlist.mac=net_interfaces.hwa
+LEFT OUTER JOIN webdb.net_hosts ON webdb.net_hosts.id = webdb.net_interfaces.host_id
+
+--end--
+
+# Build where block...
+my $where = "WHERE /* ServiceType='Login-User' AND  LOCATE('.', CallingStationId) = 0  AND */ 1=1 ";
+my $limit = "";
+if($magic && !$searchfield) {
+    if($magic =~ /^WHERE /) {
+       $where = $magic;
+    }
+    elsif(is_ip($magic)) {
+        # This slows things down. Is it worth it?
+        $where .= "  AND FramedIPAddress='$magic'";
+    }
+    elsif(is_hwa($magic)) {
+        my $hwa = bare_hwa($magic);
+#        $hwa =~ /([a-f0-9]{2}){6}/;
+#       print "DEBUG: looking for $hwa ($1:$2:$3:$4:$5:$6)<BR>\n";
+        $where .= " AND lower(concat(  
+                    substr(accounting.radacct.CallingStationId, 1, 2),
+                    substr(accounting.radacct.CallingStationId, 4, 2),
+                    substr(accounting.radacct.CallingStationId, 7, 2),
+                    substr(accounting.radacct.CallingStationId, 10, 2),
+                    substr(accounting.radacct.CallingStationId, 13, 2),
+                    substr(accounting.radacct.CallingStationId, 16, 2)
+                ))='$hwa' ";
+    }
+    else { # We dont know what it is, try a partial on everything ;)
+        $where .= " AND ( ";
+        $where .= " UserName LIKE '%${magic}%' ";
+        $where .= "      OR FramedIPAddress LIKE '%${magic}%' ";
+        $where .= "      OR 
+       lower(concat(  
+                    substr(accounting.radacct.CallingStationId, 1, 2),
+                    substr(accounting.radacct.CallingStationId, 4, 2),
+                    substr(accounting.radacct.CallingStationId, 7, 2),
+                    substr(accounting.radacct.CallingStationId, 10, 2),
+                    substr(accounting.radacct.CallingStationId, 13, 2),
+                    substr(accounting.radacct.CallingStationId, 16, 2)
+                )) 
+        LIKE '%${magic}%' ";
+        $where .= ")";
+    }
+}
+elsif($searchfield) {
+  print "DEBUG:  using searchfield\n";
+  $where .= " AND $searchfield = '$magic'";
+}
+else { # no args, show recent ('recent' set as arg)
+    $limit = " LIMIT 20";
+}
+my %sort_orders = ( 
+                    hwa => "ORDER BY accounting.radacct.CallingStationId DESC",
+                    ip => "ORDER BY accounting.radacct.FramedIPAddress DESC",
+                    start => "ORDER BY accounting.radacct.AcctStartTime DESC",
+                    stop => "ORDER BY accounting.radacct.AcctStopTime DESC",
+                    username => "ORDER BY accounting.radacct.UserName DESC",
+                    nasip => "ORDER BY accounting.radacct.NASIPAddress DESC",
+                   );
+
+my $order = $sort_orders{$sort};
+if(!$order) { die("Sorting by a keyword I don't know how to sort by: $sort"); }
+
+if($sort_reverse) { # hacky?  :)
+    $order =~ s/ASC/-TEMP-/g;
+    $order =~ s/DESC/ASC/g;
+    $order =~ s/-TEMP-/DESC/g;
+} 
+
+# always sort by name if all else matches (WTF does this mean?! Who wrote this? Lies?)
+if ($sort ne 'start') {
+    # WARNING Adding this makes the query dog ass slow unless there is an index (FIRST SORT COLUMN, AcctStartTime)
+    # If sort_reverse it is still painfully slow, but oh well
+    $order .= ", accounting.radacct.AcctStartTime DESC ";
+} 
+
+</%perl>
+<script type="text/javascript">
+function addfield() {
+fl=document.getElementById("fieldlist");
+magic=document.getElementById("magic");
+magic.value += fl.value;
+fl.selectedIndex = 0;
+magic.focus();
+}
+</script>
+<form method="GET" action="<% $m->base_comp->name() %>">
+<table border=0 cellpadding="5" cellspacing="0" width="100%">
+
+<tr><td colspan=4><input size="50" id="magic" type="text" name="magic" value="<% $magic|h%>">
+    <input type="submit" value="Search">
+    <input type="reset" value="Reset">
+    <select id="fieldlist" name="searchfield">
+% print "<option value=''".($searchfield ? "" : " selected")."></option>";
+% foreach my $field (@fields) { print "<option value='$field'".(($field eq $searchfield) ? " selected" : "").">$field</option>"; }
+    </select><button type="button" onclick="addfield();">Add to query</button>
+    </td><td colspan="5">
+<div class="embedmenu">
+<& SELF:embedmenu &>
+</div>
+<tr class="tablehead">
+%# name's must exist in %sort_orders, above!
+    <th><&| SELF:sortlink, name=>"username" &>Username</&></th>
+    <th><&| SELF:sortlink, name=>"hwa" &>HWA</&></th>
+    <th><&| SELF:sortlink, name=>"ip" &>IP</&></th>
+    <th><&| SELF:sortlink, name=>"nasip" &>From</&></th>
+    <th><&| SELF:sortlink, name=>"port" &>Port</&></th>
+    <th><&| SELF:sortlink, name=>"start" &>Start Time</&></th>
+    <th><&| SELF:sortlink, name=>"stop" &>Stop Time</&></th>
+</tr>
+<%perl>
+
+my $hostresult;
+eval { $hostresult = physdb::query("$hostlist_query $where $order $limit"); };
+if ($@) { print "<pre>$@</pre>"; }
+my $oddeven = "even";
+
+# Sort some blocks in a way that makes human sense...
+my (@rows, @sorted_rows);
+if($hostresult) {
+    while (my $row = $hostresult->fetchrow_hashref()) {
+        push @rows,($row);
+    }
+}
+@sorted_rows = @rows;
+
+# Display the list
+foreach my $row (@sorted_rows) {
+    $oddeven = ($oddeven eq "odd") ? "even" : "odd"; 
+    </%perl>
+        <tr class="<% $oddeven %>">
+           <td nowrap>
+               <%perl> 
+                 if($row->{'ServiceType'} eq 'Login-User' || $row->{'ServiceType'} eq '') {
+                     my $x500 = $row->{'x500'}; 
+                     $x500 = $row->{'username'} unless($x500); 
+                    </%perl>
+                    <a href="/resources/admin/people/index.html?magic=<%$row->{'username'}|u%>">
+                    <% $row->{'username'} %>
+                    </a>
+                    <%perl>
+                 }
+                 else {
+                    </%perl><% $row->{'ServiceType'}%>
+                    (<% $row->{'username'} %>)
+                    <%perl>
+                 }
+               </%perl>
+               </a>
+            </td>
+           <td nowrap>
+               <%perl>if($row->{'hwa_raw'} !~ /[.]+/) {</%perl>
+                    <span style="font-family: monospace;"><a href="traffic.html?magic=<% $row->{'hwa'} |h %>"><% $row->{'hwa'} |h %></a></span>
+                    <%perl>
+                   if (defined($row->{'rejected_mac'})){
+                        print "- [<a onclick='return confirm_delete(&nbsp;".$row->{'hwa'}."&nbsp;);' href='reject.html?mac=".$row->{'hwa'}."&delete=1' title='Toggle to Allowed'>Blocked</a>]";
+                   } else {
+                        print "- [<a href='reject.html?mac=".$row->{'hwa'}."' title='Toggle to Blocked'>Allowed</a>]";
+                   }
+               } else { </%perl>
+               <%perl> } </%perl>
+           </td>
+           <td nowrap><a href="traffic.html?magic=<% $row->{'ip'} |h %>"><% $row->{'ip'} |h %></a></td>
+           <td nowrap><% $row->{'from_nas'} |h %></td>
+           <td nowrap><% $row->{'port'}|h%></td>
+           <td nowrap><% $row->{'AcctStartTime'}|h%></td>
+           <td nowrap><% $row->{'AcctStopTime'}|h%></td>
+        </tr>
+    <%perl>
+}
+
+</%perl>
+</table>
+</form>
+
+<%method sortlink>
+<%args>
+$name
+$sort_reverse => 0
+</%args>
+<%perl>
+my %args = $m->request_args();
+my $sort_order = 0;
+my $sort_img = '';
+if($name eq $args{'sort'}) {
+  $sort_order = $args{'sort_reverse'} ? 0 : 1;
+  $sort_img = "<img src=\"/images/". ($args{'sort_reverse'} ? "s_asc.png" : "s_desc.png")."\" border=\"0\" />";
+}
+</%perl>
+<a href="?search=<% $args{'search'} |u%>&amp;magic=<% $args{'magic'} |u%>&amp;sort=<%$name |u%>&amp;sort_reverse=<% $sort_order %>"><% $m->content|h %></a> <% $sort_img%>
+</%method>
+
+<%method embedmenu>
+   <& /mason/menu.comp:begin, level=>5 &>
+   <& /mason/menu.comp:end &>
+</%method>
+
+<%method meta>
+<script type="text/javascript">
+function confirm_delete(mac) {
+  return confirm("Are you sure you want to delete " + mac + "?");
+}
+</script>
+</%method>

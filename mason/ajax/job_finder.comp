@@ -1,0 +1,61 @@
+<%ARGS>
+$search=>undef
+$recent=>0
+$job_id=>undef
+$parent_job_id=>undef
+$limit=>10
+$sort_order=>'ASC'
+</%ARGS>
+
+<%perl>
+    if (!$search && !$job_id && !$parent_job_id)
+    {
+      return '';
+    }
+
+    my $pf_dbh = $dbh;
+
+    # Allow use of webdb_test cnfgroup
+    if ($session{shopdb_instance} && $session{shopdb_instance} eq 'webdb_test') {
+        $pf_dbh = $m->comp('/mason/db/shopdb/schema.comp')->storage->dbh;
+    }
+
+    $sort_order = 'ASC' unless ($sort_order =~ /^(ASC|DESC)$/i);
+
+    my ($sql, @where_clauses, @exec_args);
+    if ($recent) {
+        $sql = "SELECT * FROM (SELECT * FROM `shopdb`.`jobs` ORDER BY `job_id` DESC " . ($limit ? ' LIMIT ' . $limit : '') . ") `recent`
+                LEFT JOIN `shopdb`.`customers` `customers` ON `recent`.`customer_id` = `customers`.`customer_id`
+                LEFT JOIN `webdb`.`directory` `directory` ON `directory`.`uid` = `customers`.`directory_uid`
+                ORDER BY `job_id` $sort_order";
+    }
+    else {
+        if ($job_id) {
+            push(@where_clauses, '`job_id` = ?');
+            push(@exec_args, $job_id);
+        }
+        else {
+            if ($parent_job_id) {
+                push(@where_clauses, ('`job_id` = ?', '`parent_job_id` = ?'));
+                push(@exec_args, ($parent_job_id, $parent_job_id));
+            }
+            if ($search) {
+                push(@where_clauses, ('`job_id` = ?', '`parent_job_id` = ?', '`project_name` LIKE ?'));
+                push(@exec_args, ($search, $search, "\%$search%"));
+            }
+        }
+        $sql = "SELECT * FROM `shopdb`.`jobs` `jobs`
+                LEFT JOIN `shopdb`.`customers` `customers` ON `jobs`.`customer_id` = `customers`.`customer_id`
+                LEFT JOIN `webdb`.`directory` `directory` ON `directory`.`uid` = `customers`.`directory_uid`
+                WHERE " . join(' OR ', @where_clauses) . ' ORDER BY `jobs`.`job_id` ' . $sort_order . ($limit ? ' LIMIT ' . $limit : '');
+    }
+    use Data::Dumper;
+    warn "job_finder:";
+    warn "  search = $search" if ($search);
+    warn Dumper({ SQL => $sql, ARGS => \@exec_args});
+    my $query = $pf_dbh->prepare($sql) or die "Failed to prepare: " . $pf_dbh->errstr;
+    $query->execute(@exec_args)
+      or die 'PF SQL ERROR: ' . $pf_dbh->errstr . ' /// QUERY: ' . $sql;
+
+    return $query;
+</%perl>

@@ -1,0 +1,73 @@
+<%doc>
+   vim: set syntax=mason:
+   author: Alex
+   purpose: delete myhost entries from db
+</%doc>
+<%init>
+use Data::Dumper;
+use physdb;
+# TODO  check logged in
+#    my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+    my $uid = $m->comp('/mason/auth/current_uid.comp');
+
+</%init>
+<%args>
+$id
+$iid
+$imsure=>0
+</%args>
+
+
+<%perl>
+if(!$imsure) {
+    my $msg = $m->interp->apply_escapes("Are you SURE you want to delete it? (Check the box)", 'u');
+    $m->redirect("edit_myhost_form.html?id="
+                 . $m->interp->apply_escapes($id, 'u')
+                 . "&amp;iid="
+                 .$m->interp->apply_escapes($iid,'u')
+                 ."&amp;err_key=imsure&amp;err_str=$msg"
+                );
+}
+my $query = "SELECT net_hosts.* \
+                   FROM net_hosts \
+                   LEFT OUTER JOIN net_interfaces \
+                                ON net_interfaces.host_id=net_hosts.id \
+                  WHERE net_hosts.id=?";
+my $host;
+if($iid) {
+   $query .= "AND net_interfaces.id=?";
+   $host = physdb::queryfirstrow($query, $id, $iid);
+}
+else {
+   $host = physdb::queryfirstrow($query, $id);
+}
+
+if(!$host) {
+    $m->out("Error: host/interface id not found");
+    return;
+}
+if($host->{"admin_uid"} eq $uid) {
+    print "This is your host";
+}
+#elsif($host->{'groupname'} is-a-group-you-admin ) {
+#    
+#}
+else {
+    $m->out("ERROR: You don't own this host! $host->{admin_uid}");
+    return;
+}
+print "<pre>";
+print "DEBUG: Deleting $id / $iid\n";
+# If this host has multiple interfaces, just delete this one and its dnses
+physdb::query("DELETE FROM net_dns where interface_id=?", $iid);
+physdb::query("DELETE FROM net_interfaces WHERE id=? and host_id=?", $iid, $id);
+my $msg = "Deleted interface";
+# otherwise, if we deleted the last interface, delete the host entry too.
+if (physdb::queryone("SELECT count(*) FROM net_interfaces WHERE host_id=?", $id) < 1) {
+    physdb::query("DELETE FROM net_hosts WHERE id=?", $id); 
+    $msg = "Host removed";
+} 
+print $msg;
+$m->redirect("myhosts.html?msg=$msg");
+</%perl>
+

@@ -1,0 +1,185 @@
+<%doc>
+   vim: set syntax=mason:
+   author: Alex
+   purpose: update db with new host/interface/dns values
+</%doc>
+<%init>
+    use Data::Dumper;
+    use physdb;
+    use physdb::host;
+    use physdb::interface;
+
+    my $newid = $ARGS{'id'};
+
+    my $user = $m->comp('/mason/auth/current.comp');
+    my $uid = $user->{'uid'};
+</%init>
+<%perl>
+sub redir_error
+{
+    my ($err_key, $err_str) = @_;
+    my $args = $m->request_args();
+    my @arglist = map {"in_$_=". $m->interp->apply_escapes($args->{$_}, 'u')} (keys %$args);
+    my $argstr = join '&amp;', @arglist;
+    $err_str = "Error (host not saved): ".$err_str;
+    $m->redirect("edit_myhost_form.html?id=$args->{id}&amp;iid=$args->{iid}&amp;$argstr&amp;err_key=$err_key&amp;err_str="
+                         .$m->interp->apply_escapes($err_str,'u'));
+    return 1;
+}
+
+my $msg = "";
+my $args = \%ARGS;
+
+my $host = new Host( id => $ARGS{'id'} );
+# note: iid is 'new' for creating new hosts...
+my $interface = $host->interface( $ARGS{'iid'} );
+
+my @host_update =  (
+                      'computer_name',
+                      'room',
+                      'os',
+                      'groupname',
+                      'group_owner',
+                      'admin_uid',
+                      'flag_expired',
+                      'building',
+                      'type',
+                      'text',
+                      'flag_disabled',
+         );
+
+if(!$ARGS{'computer_name'}) {
+   return redir_error("computer_name", "Computer name is required");
+}
+if($ARGS{'os'} eq 'unknown') {
+   return redir_error("os", "Please tell us which Operating System the device is using.");
+}
+if($ARGS{'type'} eq 'unknown') {
+   return redir_error("type", "Computer type must be set");
+}
+# The following check is invalid (MSI has prefix 44:8A:5B)
+#if($ARGS{'hwa'} =~ /^44/) { # ppp/dialup adapters start with 44*
+#    return redir_error("hwa", "The Hardware address you entered is from the wrong device. Please ensure you are looking at the ethernet adapter");
+#}
+# Remove non hex chars
+$ARGS{'hwa'} = lc($ARGS{'hwa'});
+$ARGS{'hwa'} =~ s/[^a-fA-F0-9]+//g;
+if(!($ARGS{'hwa'} =~ /^[a-f0-9]{12}$/)) {
+    return redir_error("hwa", "The Hardware address you entered is not valid. It should consist of 12 characters 0-9, A-F.");
+}
+if(!$ARGS{'accept_policy'}) {
+   return redir_error("accept_policy", "You must accept the policy statement");
+}
+
+if($ARGS{'groupname'} eq 'xxxchoosexxx') { #Magic string that they did not make a selection
+   return redir_error("groupname", "Please indicate if this device will be part of a group");
+}
+
+# Submit 0 instead of undef if no check boxes are checked
+$ARGS{'flag_disabled'} = 0 unless (exists $ARGS{'flag_disabled'});
+
+if (!defined($host->get('id'))) { # new host... set some values
+    $host->set('admin_uid' => $uid);
+    $interface->set('vlan' => 'dynamic');
+}
+
+# Check security access
+if($m->comp('/mason/auth/auth_check_group_mgr.comp', group=>$host->get('groupname'))) { #Its in a group they manage
+    #TODO: allow them to set this to another member of a group they are in
+    #if($ARGS{"people_finder"}) {
+    #   my $admin_query = $m->comp("/mason/ajax/people_finder.comp", name=>$ARGS{'people_finder'});
+    #   my $admin = $admin_query->fetchrow_hashref();
+    #   $ARGS{'admin_uid'} = $admin->{'uid'};
+    #}
+    #else {
+       $ARGS{'admin_uid'} = $host->get('admin_uid');
+    #}
+}
+elsif($host->get('admin_uid') eq $uid){ #its their registered host
+   # Stop them from changing the admin by overriding the parameter
+   $ARGS{'admin_uid'} = $host->get('admin_uid');
+} 
+else { #they shouldn't be here...
+    $m->out("Error: You don't own this host (or manage its group!)");
+    return;
+}
+
+my %hostvalues = map {$_ => $ARGS{$_}} @host_update;
+
+# Un-expire the host, if it has...
+$hostvalues{'flag_expired'} = 0;
+$host->set(%hostvalues);
+$interface->set( 'hwa' => $ARGS{'hwa'} );
+
+#Set cpu_family to unknown if not set
+if(!defined($host->get('cpu_family')) || ($host->get('cpu_family') eq '')) { 
+    $host->set('cpu_family' => 'unknown'); 
+}
+
+#If its a windows or mac, set that it needs bigfix, otherwise clear it.
+if($host->get('os') eq 'windows' || $host->get('os') eq 'mac') {
+    $host->set('security_status' => 'required');
+}
+else {
+    $host->set('security_status' => 'incompatable os');
+}
+
+#Saving a host here gets you a new try at compliance.
+$host->set('flag_noncompliant' => 0);
+$host->set('noncompliant_date' => undef); #set date back to null
+
+if(!$host->save()) {
+    my $saveerror = $host->firsterror();
+
+    my ($error_key, $error_message) = $saveerror->first_column();
+    my $error_object = $saveerror->object();
+    my $formname = $error_object->{'formid'} . "_" . $error_key;
+
+    redir_error($formname, $error_message);
+}
+else {
+   my $logstr = $host->changes_as_str();
+   my $ichanges = $interface->changes_as_str();
+   if($ichanges) {
+      $logstr .= ", " if $logstr;
+      $logstr .= $ichanges;
+   }
+
+   if($logstr ne "") {
+      $m->comp('/mason/network/auditlog.comp:log', host_id=>$host->get('id'), text=>"Changed: $logstr on ".$host->get("computer_name")." (".$host->get('id').")");
+      $msg = $host->get("computer_name") . " changes saved.";
+   } 
+   else {
+      $msg = $host->get("computer_name") . " had no changes.";
+   }
+}
+
+
+if($ARGS{'static'}) {
+    my $email = $user->{'email'};
+    if(!$email) {
+        $email = $session{'x500'} . '@umn.edu';
+    }
+    my $newid = $host->get("id");
+    my $iface_id = $interface->get('id');
+    my $text = 
+"
+Static address requested by $user->{first_name} $user->{last_name} for
+$ARGS{os} $ARGS{type} named \"$ARGS{computer_name}\" in $ARGS{building} $ARGS{room}
+
+Notes: 
+$ARGS{staticrequest}
+
+$ARGS{text}
+
+Host URL: http://www.physics.umn.edu/resources/admin/network/edit_host_form.html?id=$newid&iid=$iface_id
+";
+
+    $m->comp("/mason/send_mail.comp", to=>'net@physics.umn.edu', from=>$email, 
+                                      subject=>'Static host request for '. $ARGS{'computer_name'},
+                                      text=>"$text");
+    $msg .= "Static request sent.";
+}
+$m->redirect("myhosts.html?msg=$msg");
+
+</%perl>

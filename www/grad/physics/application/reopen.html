@@ -1,0 +1,68 @@
+
+<%DOC>
+   Component: reopen.html
+        Date: 2005.12.02
+      Author: allan
+     Changed: 2005.12.02 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id => undef
+$confirm =>''
+</%ARGS>
+
+<%INIT>
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+my $email = "Not found";
+my $status = "Can't find that application";
+if (!$auth) { $m->redirect("index.html");}
+#Anti crawl workaround
+if (!defined($id)) { $m->redirect("index.html"); }
+
+my $sql = "SELECT email FROM grad.gradapp WHERE id=?";
+my $sth = $dbh->prepare($sql);
+my $success = $sth->execute($id) or die 'Unable to grab app: ' . $dbh->errstr;
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+  ($email) = @$row_ref;
+}
+</%INIT>		
+		
+<%method title>Reopen Application...</%method>
+
+<small>
+<a href="appsummary.html?email=<% $email |u %>">Back to summary</a>
+</small>
+<p>
+<b>Reopen application <% $id %> for <% $email %></b>
+<p>
+
+% if (!$confirm) {
+  <form method="POST" action="reopen.html">
+  <input type="hidden" name="id" value="<% $id %>">
+  <input type="checkbox" name="confirm">Check this box to confirm reopen, then click button below.
+  <p>
+  <input type="submit" name="submit" value="Reopen Application">
+% } else {
+<%perl>
+  if ($email =~ /@/) {
+    my $sql = "UPDATE grad.gradapp SET confirm=0 WHERE email=?";
+    my $sth = $dbh->prepare($sql);
+    my $success = $sth->execute($email);
+    if ($success) {
+      my $message = "Your application (email address $email) for the University of\nMinnesota Physics Graduate Program has been reopened. You can update\nyour application data by reviewing your application at\nhttp://www.physics.umn.edu/grad/physics/application/";
+      $m->comp('/mason/send_mail.comp', to=>$email, subject=>"Graduate Program Application Reopened", from=>'grad@physics.umn.edu', cc=>'grad@physics.umn.edu', text=>$message);
+      $status = "Sending this message to $email:<p><tt>$message</tt>";
+      $m->comp('logevent.mhtml',text=>"Reopened application for ".$email);
+    } else {
+      $status = "Database error: ".$DBI::errstr;
+    }
+  } else {
+    $status = "Can't find that application...";
+  }
+</%perl>
+
+<% $status %>
+
+% }

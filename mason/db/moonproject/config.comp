@@ -1,0 +1,47 @@
+<%init>
+return {
+    dayNumber_min => 1,
+    dayNumber_max => 366,
+
+    cst_min => 0,
+    cst_max => 24,
+
+    phaseNumber_min => 0,
+    phaseNumber_max => 8,
+
+    moonHA_min => 0,
+    moonHA_max => 720,
+
+    sunHA_min => 0,
+    sunHA_max => 180,
+
+    elongation_min => 0,
+    elongation_max => 360,
+
+    sketches => [
+        { name => '0', src =>"/images/moonproject/moon00.jpg", number => 0 },
+        { name => '0.5', src =>"/images/moonproject/moon03.jpg", number => 0.5 },
+        { name => '1', src =>"/images/moonproject/moon05.jpg", number => 1 },
+        { name => '1.5', src =>"/images/moonproject/moon07.jpg", number => 1.5 },
+        { name => '2', src =>"/images/moonproject/moon08.jpg", number => 2 },
+        { name => '2.5', src =>"/images/moonproject/moon09.jpg", number => 2.5 },
+        { name => '3', src =>"/images/moonproject/moon10.jpg", number => 3 },
+        { name => '3.5', src =>"/images/moonproject/moon15.jpg", number => 3.5 },
+        { name => '4', src =>"/images/moonproject/moon16.jpg", number => 4 },
+        { name => '4.5', src =>"/images/moonproject/moon18.jpg", number => 4.5 },
+        { name => '5', src =>"/images/moonproject/moon20.jpg", number => 5 },
+        { name => '5.5', src =>"/images/moonproject/moon22.jpg", number => 5.5 },
+        { name => '6', src =>"/images/moonproject/moon23.jpg", number => 6 },
+        { name => '6.5', src =>"/images/moonproject/moon24.jpg", number => 6.5 },
+        { name => '7', src =>"/images/moonproject/moon25.jpg", number => 7 },
+        { name => '7.5', src =>"/images/moonproject/moon27.jpg", number => 7.5 },
+        { name => '8', src =>"/images/moonproject/moon00.jpg", number => 8 },
+    ],
+
+    cloudCover => [
+        { name => 'Clear', number => 0 },
+        { name => 'Partially Cloudy', number => 1 },
+        { name => 'Cloudy', number => 2 },
+    ],
+};
+</%init>

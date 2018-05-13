@@ -1,0 +1,29 @@
+<%doc>
+   Component: uid_to_x500.comp
+        Date: 9/6/2002
+      Author: allan
+ Description: returns x500 id of a directory uid
+</%doc>
+
+<%args>
+$uid=>undef
+</%args>
+
+<%init>
+  my $x500;
+  if ($session{'uid'} && ($session{'uid'} == $uid)) {
+    $x500 = $session{'x500'};
+  } else {
+    $x500 = $m->cache->get($uid);
+  }
+
+  if (!defined($x500)) {
+    my $sth = $dbh->prepare('SELECT x500 FROM directory WHERE uid = ? LIMIT 1');
+    $sth->execute($uid);
+    if (my $row_ref = $sth->fetchrow_arrayref()) {
+      ($x500) = @$row_ref;
+    }
+    $m->cache->set($uid, $x500, '5 min');
+  }
+  return $x500;
+</%init>

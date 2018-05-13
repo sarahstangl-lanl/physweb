@@ -1,0 +1,124 @@
+<%method title>Shop Estimate Charge Line</%method>
+
+<%args>
+    $ajax => undef
+    $type => undef
+    $line_id => undef
+    $job_estimate_id => undef
+    $category => undef
+    $delete_line => undef
+</%args>
+
+<%init>
+    use ShopDb::Schema;
+    use ShopDb::Form::EstimateLaborLine;
+    use ShopDb::Form::EstimateMaterialLine;
+    use PhysAjax;
+
+    my %result;
+    $result{'result'} = 'error';
+
+    my $print_error = sub {
+        if ($ajax) {
+            print_ajax({ result => 'error', message => shift @_ });
+        }
+        else {
+            print shift @_;
+        }
+    };
+
+    unless ($type eq 'material' || $type eq 'labor') {
+        $print_error->("Bad charge line type $type");
+        return;
+    }
+
+    my $typeupper = ucfirst($type);
+    my $package = "ShopDb::Form::Estimate${typeupper}Line";
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+    unless ($job_estimate_id) {
+        $print_error->("job_estimate_id is required");
+        return;
+    }
+
+    unless ($line_id || $category) {
+        $print_error->("category or line_id is required");
+        return;
+    }
+
+    my $line_item = $line_id ? $schema->resultset('Estimate' . $typeupper . 'Lines')->find({ "estimate_${type}_line_id" => $line_id }) : undef;
+
+    if ($line_id) {
+        unless ($line_item) {
+            $print_error->("Invalid line_id $line_id");
+            return;
+        }
+        $category = $line_item->category;
+    }
+
+    my $estimate_item = $line_item ? $line_item->job_estimate : $schema->resultset('JobEstimates')->find({ job_estimate_id => $job_estimate_id });
+
+    unless ($estimate_item) {
+        $print_error->("Invalid job_estimate_id $job_estimate_id");
+        return;
+    }
+
+    my $auth = $m->comp('/mason/db/shopdb/check_job_auth.comp', job_item => $estimate_item->job);
+    unless ($auth && $auth ne 'customer') { # Allow foreman/accounting/machinist
+        $print_error->("You are not authorized to modify charge lines on job estimate $job_estimate_id");
+        return;
+    }
+
+    my $form = $package->new(
+            item => $line_item,
+            job_item => $estimate_item->job,
+            estimate_item => $estimate_item,
+            schema => $schema,
+            auth_args => $session{'shopdb-auth'},
+            field_list => [ '+category' => { default => $category } ],
+    );
+
+    if ($r->method eq 'POST') {
+        if (defined $delete_line) {
+            if ($form->has_auth && $form->item) {
+                $result{'result'} = 'ok';
+
+                $schema->txn_do(sub {
+                    $form->item->delete;
+                });
+            }
+        } else {
+            $form->process(params => \%ARGS);
+
+            if ($form->is_valid) {
+                # Do something with a saved, good form
+                $result{'result'} = 'ok';
+
+                # Get the line_id if this a new entry
+                my $attr = 'estimate_'.$type.'_line_id';
+                $line_id = $form->item->$attr;
+
+                if (!$ajax) {
+                    $m->redirect($m->comp('/mason/makeurl.comp',
+                        path => 'estimate.html',
+                        dargs => { 'job_id' => $estimate_item->job_id }
+                    ));
+                } else {
+                    $result{'attrs'}{'line_id'} = $line_id;
+                }
+            } else {
+                foreach my $field ($form->error_fields()) {
+                    $result{'errors'}{$field->name} = $field->errors;
+                }
+            }
+        }
+    }
+
+    if ($ajax) {
+        print_ajax(\%result);
+        return;
+    }
+</%init>
+
+% print $form->render();

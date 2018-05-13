@@ -1,0 +1,39 @@
+<%args>
+    $type => 'notice'
+    $title => ''
+    $text
+    $html => ''
+    $pre => 0
+</%args>
+
+<%init>
+    my %types = (
+        'warning' => ['#FFD773', '#A67600'],
+        'error' => ['#FF6060', '#B13D3D'],
+        'success' => ['#8EFF99', '#6FCB78'],
+        'notice' => ['#f9f3d4', 'black'],
+    );
+    
+    my ($bg, $border) = @{$types{$type}};
+    my $padding = 'padding: 0.5em; margin: 0.5em;';
+    my ($prepre, $prepost);
+    
+    if ($pre) {
+        $prepre = '<pre style="padding: 0; margin: 0;">';
+        $prepost = '</pre>';
+        $padding = 'padding: 0.3em;';
+    } elsif ($title) {
+        $prepre = '<br>';
+    }
+    
+    $text =~ s/^[\n\s]+//;
+    $text =~ s/[\n\s]+$//;
+
+    $text = $m->interp->apply_escapes($text, 'h');
+    $text =~ s/\n/<br>/g;
+</%init>
+
+<div style="<% $padding %> border: 1px solid <% $border %>; background: <% $bg %>;">
+<b><% $title %></b>
+<% $prepre %><% $text %><% $html %><% $prepost %>
+</div>

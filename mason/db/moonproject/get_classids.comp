@@ -1,0 +1,18 @@
+<%args>
+$term => undef
+$year => undef
+$labs_only => 1
+$admin => undef
+</%args>
+<%init>
+$year ||= $session{moonproject_year}; #$m->comp('/mason/this_year.comp');
+$term ||= $session{moonproject_term}; #$m->comp('/mason/this_quarter.comp');
+my $lab_clause = $labs_only ? ' AND component = "LAB"' : '';
+my $ta_clause = '';
+my @args = ($year, $term);
+unless ($admin) {
+    $ta_clause = ' AND classid IN (SELECT memberof FROM members WHERE uid = ?)';
+    push @args, $session{uid};
+}
+return physdb::queryarray("SELECT classid FROM classlist WHERE name = 'Ast 1001' AND year = ? AND quarter = ? $lab_clause $ta_clause", @args);
+</%init>

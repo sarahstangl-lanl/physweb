@@ -1,0 +1,3 @@
+<%init>
+return $m->comp('/mason/auth/check_groups.comp', allow=>['staff', 'physfac', 'astfac', 'postdoc', 'physta_classes', 'physta']);
+</%init>

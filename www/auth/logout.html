@@ -1,0 +1,65 @@
+<%doc>
+   Component: logout.html
+        Date: 9/2/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$url=>''
+</%args>
+
+<%init>
+my $user = $session{'x500'};
+my $msg;
+
+my $port = $r->get_server_port();
+my $s = Apache2::ServerUtil->server;
+my $site = $s->dir_config('SiteName');
+my %cookies = Apache2::Cookie->fetch($r);
+my $cookie_name = $site eq 'htphysics' ? 'UMNPHYS_SESSION_ID' : "UMNPHYS_STAGING_${port}_SESSION_ID";
+
+</%init>
+
+<%method title>Physics Web Logout</%method>
+
+<%perl>
+
+if ($session{'shibauth'}) {
+    # They have cookieauth... Maybe from wiki?
+    # Clear auth and redirect to cookieauth logout
+    # don't clear cookieauth/physauth.
+    # The handler does that...
+    undef($session{'uid'});
+    undef($session{'x500'});
+    undef($session{'physid'});
+    $m->comp('/mason/redirect.comp', url=>'https://www.umn.edu/logout?desturl=' . $m->interp->apply_escapes($m->comp('/mason/fullurl.comp', url=>$url), 'u'));
+} 
+elsif ($session{'physid'} || $session{'x500'} || $session{'fauxauth'}) {
+    if ($session{'physid'} || $session{'x500'}) {
+        $m->comp('/mason/db/auditlog/addevent.comp',type=>"logout", user=>$session{'physid'}, text=> $session{'physid'}." logged out of physauth");
+    } else {
+        my $cookie = $cookies{$cookie_name};
+        my $query = $dbh->prepare('UPDATE websession.sessions SET fauxid=\'\' WHERE id=? LIMIT 1');
+        $query->execute($cookie->value());
+        $user = $session{'fauxid'};
+        $m->comp('/mason/db/auditlog/addevent.comp',type=>"logout", user=>$user, text=> $user." logged out of fauxauth");
+    }
+
+    # Now we are clearing the whole session on logout
+    # We have to do this kinda hacky because Apache::Session kinda sucks in this regard.
+    my $session_id = $session{'_session_id'};
+    tied(%HTML::Mason::Commands::session)->CLEAR();
+    $session{'_session_id'} = $session_id;
+
+    if ($url) { $m->comp('/mason/redirect.comp', url=>$url);}
+    $msg = "Goodbye, ".$user;
+    
+} 
+else {
+    $msg = "You weren't logged in!";
+}
+
+</%perl>
+
+<% $msg %>

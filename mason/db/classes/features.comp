@@ -1,0 +1,44 @@
+<%ARGS>
+  $type
+</%ARGS>
+
+<%INIT>
+  # This defines the various areas! Yay!
+  # title      -- area title (used in the header, menu, and such)
+  # post       -- who is allowed to post
+  # view       -- who is allowed to view
+  # anonymous  -- make posts anonymous
+  # cache      -- cache output (except for authorized users)
+  # cacheall   -- cache output (even for authorized users)
+
+  my %defaults = (
+    'title'            => 'Error',
+    'post'             => '', # no post by default
+    'view'             => '', # no view by default -- should be overridden later
+    'anonymous'        => 0,
+    'cache'            => 0,
+    'quickpost'        => 0,
+    'quickpost_title'  => 'Ask a Question',
+    'quickpost_submit' => 'Submit Question',
+  );
+  
+  my %overrides;
+
+  if ($type eq 'ask') {
+    %overrides = (
+      'title'            => 'Ask a Question',
+      'post'             => 'instructor|ta|student',
+      'view'             => '*',
+      'anonymous'    => 0,
+      'cache'            => 0,
+      'quickpost'        => 1,
+      'quickpost_title'  => 'Ask a Question',
+      'quickpost_submit' => 'Submit Question',
+    );
+  } else {
+    return 0;
+  }
+  
+  return \(%defaults, %overrides);
+</%INIT>		
+		

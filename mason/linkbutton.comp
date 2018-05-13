@@ -1,0 +1,8 @@
+<%args>
+$text
+$url
+$hpad=>'3rem'
+</%args>
+<div style="margin-bottom:10px; margin-top:20px; ">
+<a style="text-align:center; padding: 1rem <% $hpad %> 1rem; border-radius:14px; background-color: #003366; color:#FFF; transition: background-color 300ms ease-out 0s; font-weight:bold; font-size:140%;" href="<% $url |h %>"><% $text |h %></a>
+</div>

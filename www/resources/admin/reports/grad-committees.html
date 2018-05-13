@@ -1,0 +1,46 @@
+<%ARGS>
+    $display => 0
+    $alex_only => 0
+</%ARGS>
+
+<%method title>
+Grad Data Warehouse
+</%method>
+
+<%doc>
+This returns a report showing all graduate preliminary (PHD-P) committees
+faculty have served on, for which student, and in what position. Joins with the
+actual milestone (hopefully, assuming the join is right) to give details on the
+preliminary exam (milestone #30) specifically.
+</%doc>
+
+<%init>
+    use tablesearch;
+    
+    $m->comp('/mason/auth/auth_block.comp', internal=>1);
+    if ($session{'physid'} ne 'alex' && $session{'physid'} ne 'clayton') { print 'No Access'.$session{'physid'}; return; }
+    
+    my $dw_dbh = $m->comp('/mason/dw_dbh.comp');
+    
+    $dw_dbh->{LongReadLen} = 2000;
+    
+    my $ts = new Tablesearch(
+        dbh => $dw_dbh,
+        no_calc_found_rows => 1,
+        no_limit => 1,
+        debug => 1,
+        table => 'PS_DWGR_COMMITTEE a',
+        field_list => ['a.EMPLID', 'a.NAME', 'a.EMPLID_COMM_MBR', 'a.COMM_MBR_NAME', 'a.COMM_ROLE_DESCR',
+            'a.START_DT', 'a.END_DT', 'a.ACAD_PLAN_LDESC', 'b.MILESTONE_COMPLETE_DESCR', 'b.DATE_ATTEMPTED', 'b.DATE_COMPLETED'],
+        where => 'WHERE (a.ACAD_PLAN=011660208 OR a.ACAD_PLAN=067660208) AND a.COMMITTEE_TYPE=\'08 PHD-P\' AND b.MILESTONE_NBR=30' . ($alex_only ? ' AND a.EMPLID_COMM_MBR=\'3875292\'' : ''),
+        joins => ['PS_DWGR_MILESTONES b' => 'a.COMMITTEE_ID = b.COMMITTEE_ID'],
+    );
+ 
+    if ($display) {
+        $ts->display();
+    } else {
+        $ts->excel();
+    }
+
+    return;
+</%init>

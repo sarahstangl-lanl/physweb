@@ -1,0 +1,185 @@
+<%args>
+</%args>
+
+<%shared>
+my %current_args = @{ $m->current_args };
+my $classids = $current_args{classids};
+my $ta = $m->comp('/mason/db/moonproject/load_ta.comp');
+</%shared>
+
+<%init>
+(my $area = $m->dhandler_arg) =~ s/\.html$//;
+$m->redirect('index.html') unless (grep { /^$area$/ } (qw/student_list ta_list admin_list data_dump observations/));
+use tablesearch;
+$m->comp("SELF:$area");
+</%init>
+
+<%method observations>
+<%init>
+$m->redirect('index.html') unless ($current_args{student});
+unless (ref $current_args{student}) {
+    warn "student: $current_args{student}";
+    $current_args{student} = Moonproject::Student->new(gradesid => $current_args{student});
+}
+$m->comp('/mason/db/moonproject/print_observations.comp', %{ $m->request_args || {}}, classids => $classids, admin => $current_args{admin}, student => $current_args{student}, with_grades => ($ta->{showIntermediateGrades} eq 'yes' ? 1 : 0), ta => $ta);
+</%init>
+</%method>
+
+<%method student_list>
+% my $show_all_sections = $current_args{show_all_sections};
+<h2>Student List <span style="font-size: 13px;">
+% if ($current_args{admin}) {
+| <a href="?show_all_sections=<% $show_all_sections ? 0 : 1 %>">Show <% $show_all_sections ? 'only my' : 'all' %> students</a></span>
+% }
+</h2>
+<%perl>
+my $sort_pref = $ta ? $ta->{sortStudentsBy} : 'lastname';
+my $obs_column = sub {
+    my $column = shift;
+    my $color = ($column eq 'accepted' ? 'green' : $column eq 'total' ? 'black' : 'red');
+    return (
+        $column => {
+            name => $column eq 'needswork' ? 'Needs Work' : ucfirst($column),
+            data_format => sub { my ($value, $code, $row, $ts) = @_; return '<span style="color:' . $color . ';">' . ($row->{$column} || 0) . '</span>'; },
+        },
+    );
+};
+my $student_ts = new Tablesearch(
+    debug => 0,
+    prefix => 'student',
+    table => 'classlist c',
+    field_list => [ 'l.studentid', 'u.dispname', 'u.x500', 's.email', 'l.section', 'u.id', 'COUNT(o.id) AS total', 'SUM(taAccepted = "unset") AS unreviewed', 'SUM(taAccepted = "accepted") AS accepted', 'SUM(taAccepted = "needswork") AS needswork', 'SUM(taAccepted = "rejected") AS rejected' ],
+    joins => [
+        'grades.classlist l' => 'l.classid = c.classid',
+        'grades.users u' => 'l.userid = u.id',
+        'moonproject.student s' => 'u.id = s.userid',
+        'moonproject.observation o' => [ 'o.student = s.userid AND o.term = ? AND o.year = ? AND o.current', $session{'moonproject_term'}, $session{'moonproject_year'} ],
+    ],
+    field_params => {
+        dispname => {
+            name => 'Name',
+            url => 'observations.html?student=$row{id}',
+        },
+        id => {
+            hidden => 1,
+        },
+        studentid => {
+            name => 'Student ID',
+        },
+        email => {
+            data_format => sub {
+                my ($value, $code, $row, $ts) = @_;
+                my $email = $value || $row->{x500} . '@umn.edu';
+                return '<a href="mailto:' . _u($email) . '">' . _h($email) . '</a>';
+            },
+        },
+        (map { $obs_column->($_) } (qw/total unreviewed accepted needswork rejected/)),
+    },
+    where => [ 'c.classid ' . _in(@$classids) . ' AND u.id IS NOT NULL', @$classids ],
+    header_format => 'ucfirst_all',
+    excluded_search_fields => [ 'COUNT(o.id)', 'SUM(taAccepted = "unset")', 'SUM(taAccepted = "accepted")', 'SUM(taAccepted = "needswork")', 'SUM(taAccepted = "rejected")' ],
+    default_sort_field => ($sort_pref eq 'lastname' ? 'dispname' : 'studentid'),
+    filter_field => 'c.section',
+    filter_name_field => 'CONCAT("Section ", c.section)',
+    filter_join => [ 'WHERE c.classid ' . _in(@$classids), @$classids ],
+    group_by => 'GROUP BY u.id',
+    limit => 25,
+    excel_link => 1,
+    extra_url_args => [ grep { $_ !~ /^student/ } keys %{ $m->request_args || {} } ],
+);
+
+$student_ts->display;
+
+</%perl>
+</%method>
+
+<%method ta_list>
+<%perl>
+
+print "<h2>TA List</h2><br/>";
+my @ta_settings = @{$m->comp('/mason/db/moonproject/ta_settings.comp')};
+my %ta_settings = @ta_settings;
+my $ta_ts = new Tablesearch(
+    debug => 0,
+    prefix => 'ta',
+    table => 'classlist c',
+    field_list => [ 'c.section', 'd.x500', 'd.last_name', 'd.first_name', map { 't.' . $_ } grep { ! ref $_ } @ta_settings ],
+    joins => [
+        'members m' => 'm.memberof = c.classid',
+        'directory d' => 'm.uid = d.uid',
+        'moonproject.ta t' => 't.uid = d.uid',
+    ],
+    where => [ 'c.classid ' . _in(@$classids), @$classids ],
+    field_params => {
+        map {
+            my $col = $_;
+            $col => {
+                name => $ta_settings{$col}->{name},
+                data_format => sub {
+                    my ($value, $code, $row, $ts) = @_;
+                    return $ta_settings{$col}->{inflate}->($value) if (defined $value && exists $ta_settings{$col}->{inflate});
+                    return $value;
+                },
+            }
+        } keys %ta_settings
+    },
+    no_limit => 1,
+    hide_header => 1,
+    header_format => 'ucfirst_all',
+    default_sort_field => 'section',
+    extra_url_args => [ grep { $_ !~ /^ta/ } keys %{ $m->request_args || {} } ],
+    column_fetch_format => 'NAME',
+);
+
+$ta_ts->display;
+
+</%perl>
+</%method>
+
+<%method admin_list>
+<%perl>
+
+print "<h2>Admin List</h2><br/>";
+my $admin_ts = new Tablesearch(
+    debug => 0,
+    prefix => 'admin',
+    table => 'groupmembers m',
+    field_list => [ 'd.x500', 'd.last_name', 'd.first_name' ],
+    joins => [
+        'directory d' => 'm.uid = d.uid',
+    ],
+    where => [ 'm.groupname = "moonproject_admin"' ],
+    header_format => 'ucfirst_all',
+    hide_header => 1,
+    no_limit => 1,
+    default_sort_field => 'x500',
+    extra_url_args => [ grep { $_ !~ /^admin/ } keys %{ $m->request_args || {} } ],
+);
+
+$admin_ts->display;
+
+</%perl>
+</%method>
+
+<%method data_dump>
+<%perl>
+
+print "<h2>Data Dump</h2><br/>";
+my $data_dump_ts = new Tablesearch(
+    debug => 0,
+    prefix => 'admin',
+    table => 'moonproject.observation o',
+    field_list => [ 'o.phaseNumber', 'o.dayNumber', 'o.moonHA', 'o.sunHA', 'o.elongation', 'o.year', 'o.taAccepted' ],
+    where => [ 'o.taAccepted = "accepted" AND o.year = YEAR(NOW()) ' ],
+    header_format => 'ucfirst_all',
+    hide_header => 0,
+    no_limit => 1,
+    default_sort_field => 'elongation',
+    excel_link => 1,
+    extra_url_args => [ grep { $_ !~ /^data/ } keys %{ $m->request_args || {} } ],
+);
+
+$data_dump_ts->display;
+
+</%perl>
+</%method>

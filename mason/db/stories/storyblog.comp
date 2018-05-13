@@ -1,0 +1,320 @@
+<%doc>
+   Component: storyblog.comp
+        Date: 7/3/2007
+      Author: allan / alex
+ Description: display of news/events/features/etc in blog-type format
+</%doc>
+
+<%args>
+$when=>'top'    # how many stories to show
+$type=>'news'   # type of items to display (news/feature etc)
+$subtype=>''    # subtype
+$class=>''      # additional class to belong to
+#$auth=>0        # 1 to show  buttons, 0 not to 
+$posted=>1
+$readmore=>1
+$altreadmore=>'' # Force a Read More... (but with different text)
+$menu=>0         # Show a year menu based on post_date. If set to 'event_date', then do it based on event_date instead
+$showimage=>'thumb'   # thumb, full, or none
+%args=>()       # defaults to request args if not given
+$linksubtype=>''  # If set to something, a link will be added after
+                    # each article, linking to a its subtype.html
+$auth=>undef
+$rss=>1
+$menu_level=>4   # level to generate year links on (4 or 5)
+</%args>
+
+<%shared>
+my $sqlyear = " SELECT year(post_date) FROM stories WHERE type=? GROUP BY year(post_date) ORDER BY year(post_date) DESC";
+my $sqleventyear = " SELECT year(event_date) FROM stories WHERE type=? GROUP BY year(event_date) ORDER BY year(event_date) DESC";
+my %nargs = (year=>undef, page=>undef);
+</%shared>
+
+<%init>
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+my %r_args = $m->request_args();
+%args = (%args, %r_args);
+
+use POSIX qw(ceil);
+my $page = $args{'page'};
+if(!$page) {
+   $page = 1;
+}
+my $year = $args{'year'};
+$year = "recent" if(!$year);
+my $event_year = $args{'event_year'};
+my $view = $args{'view'};
+
+my $uri = $r->uri;
+my $row_ref;
+my ($date,$time);
+my ($sqlwhere, $sqlorder, $sqlselect, $sqllimit, $sqlcount);
+my $lastdate = "";
+my $count;
+my $authorlink;
+$auth = $m->comp('/mason/auth/auth_check_events.comp') unless (defined $auth);
+$subtype =~ s/[^_a-zA-Z0-9-]//go;
+$type =~ s/[^_a-zA-Z0-9-]//go;
+$page =~ s/[^0-9]//go; 
+$year =~ s/[^0-9a-zA-Z_-]//go;
+$event_year =~ s/[^0-9a-zA-Z_-]//go;
+
+$class = $type unless($class);
+
+$sqlselect = "SELECT eventid, type, subtype, priority, event_date, post_date, modified_date, start_date, kill_date, IF(headline>'',headline,'No Headline'), author, summary, text, url ";
+$sqlselect .= ", images.imageid, images.size_x, images.size_y, images.alt ";
+$sqlselect .= " FROM stories ";
+$sqlselect .= " LEFT OUTER JOIN images on images.parentid=stories.eventid and images.category='stories' ";
+
+$sqlcount = " SELECT count(*) as count FROM stories ";
+
+my @sqlyear_args = ($type);
+
+my @sqlwhere_args;
+
+$sqlwhere = " WHERE ( 1=1  ";
+$sqlwhere .= " AND type=? ";
+push @sqlwhere_args, $type;
+if ($subtype) { 
+  $sqlwhere .= " AND subtype=? "; push @sqlwhere_args, $subtype; 
+}
+if (!$auth or $view eq "normal") { 
+  $sqlwhere .= " AND start_date <= now() AND publish='Y' "; 
+}
+
+if ($event_year ne '' and $event_year ne "all") {
+  if ($event_year =~ /^[0-9]{4,}$/) {
+     $sqlwhere .= " AND year(event_date) = ? ";
+     push @sqlwhere_args, $event_year;
+  }
+} 
+elsif ($year ne "all") {
+  if ($year =~ /^[0-9]{4}$/) {
+     $sqlwhere .= " AND year(post_date) = ? ";
+     push @sqlwhere_args, $year;
+  } 
+  #else { #recent
+     #$sqlwhere  .= " AND post_date >= date_sub(now(), INTERVAL 6 MONTH) ";
+  #}
+}
+$sqlwhere .= " ) ";
+
+$sqlorder = "ORDER BY ";
+# jobs should always primary sort by priority... hack
+$sqlorder .= " priority DESC, " unless ($when && $type ne 'jobs');
+$sqlorder .= " post_date DESC ";
+
+my $numperpage;
+if($ARGS{'numperpage'}) {
+   $session{'storiesperpage'} = $ARGS{'numperpage'};
+} else {
+  $numperpage = $session{'storiesperpage'} if($session{'storiesperpage'});
+  $numperpage = 10 unless($numperpage);
+}
+$numperpage =~ s/[^0-9]//go; 
+if ($when =~ /top/) { $sqllimit .= " LIMIT ".$numperpage*($page-1).", $numperpage";}
+
+</%init>
+
+<%method title>
+News
+</%method>
+
+<%method yearmenuitems>
+    <%args>
+        $year => 'recent'
+        $type => ''
+        %args => ()
+    </%args>
+    <%perl>
+
+    if(defined($dbh)) {
+           my $sql = $sqlyear;
+           my $link_type = 'year';
+           my $selected = "0"; 
+           my %nargs;
+           $type = 'news' if "$type" eq '';
+           $selected = 1 if($year eq 'recent' or !$year);
+
+           my $linkurl = $m->scomp('/mason/makeurl.comp');
+           $m->comp("/mason/titlemenu.comp:item", link=>$linkurl, selected=>$selected, content=>"Recent");
+           my $sthyear = $dbh->prepare($sql);
+           #print "DEBUG: querying years for news type '$type'<br>\n";
+           $sthyear->execute($type);
+           my $row_ref;
+           while ($row_ref = $sthyear->fetchrow_arrayref) {
+               my ($dbyear) = @$row_ref;
+               $selected = "0"; $selected = 1 if "$year" eq "$dbyear";
+               %nargs = ($link_type=>$dbyear, page=>undef);
+               my $linkurl = $m->scomp('/mason/makeurl.comp', dargs=>\%args, nargs=>\%nargs);
+               $m->comp("/mason/titlemenu.comp:item", link=>$linkurl, selected=>$selected, content=>$dbyear);
+           }
+     }
+    </%perl>
+</%method>
+
+<%method eventmenuitems>
+   <%args>
+    $event_year => 'recent'
+    $type => ''
+    %args => ()
+   </%args>
+    <%perl>
+    if (defined($dbh)) {
+       my %nargs = (year=>undef, page=>undef);
+       my $sql = $sqleventyear;
+       my $link_type = 'event_year';
+       my $menu_year = $event_year;
+       my $selected = "0"; 
+       $selected = 1 if($menu_year eq 'recent' or !$menu_year);
+       my $linkurl = $m->scomp('/mason/makeurl.comp');
+       $m->comp("/mason/titlemenu.comp:item", link=>$linkurl, selected=>$selected, content=>"Recent");
+       my $sthyear = $dbh->prepare($sql);
+       $sthyear->execute($type);
+       my $row_ref;
+       while ($row_ref = $sthyear->fetchrow_arrayref) {
+           my ($dbyear) = @$row_ref;
+           $selected = "0"; $selected = 1 if "$menu_year" eq "$dbyear";
+           %nargs = ($link_type=>$dbyear, page=>undef);
+           $linkurl = $m->scomp('/mason/makeurl.comp', dargs=>\%args, nargs=>\%nargs);
+           $m->comp("/mason/titlemenu.comp:item", link=>$linkurl, selected=>$selected, content=>$dbyear);
+       }
+    }
+    </%perl>
+</%method>
+
+<%perl>
+if($dbh) {
+   if ($auth and $view ne "normal") {
+       my $addstr = $type;
+       $addstr =~ s/_/ /go; #/
+       </%perl>
+       <div class="admin_links" style="clear:both;">
+       <small>
+       <a href="/resources/admin/news/edit_story_form.html?type=<%$type%>">Add new <%$addstr%></a>
+%#     |  <a href="<% $uri %>?view=normal">View as regular user</a>
+       </small>
+       </div>
+       <%perl>
+   }
+
+
+   my $sthcount = $dbh->prepare($sqlcount.$sqlwhere);
+   $sthcount->execute(@sqlwhere_args);
+   if($row_ref = $sthcount->fetchrow_arrayref) {
+       my ($total_count) = @$row_ref;
+       my $numpages = ceil($total_count / $numperpage);
+ 
+       if($numpages > 1) {
+           </%perl><div class="story_pagelinks"><%perl>
+           $m->out("Page: ");
+           for(my $i=1;$i<=$numpages;$i++) {
+             my $pageclass = ""; $pageclass = "selected" if "$page" eq "$i";
+             %nargs = (page=>$i);
+             </%perl>
+             <a class="<%$pageclass%>" href="<% $m->scomp('/mason/makeurl.comp', dargs=>\%args, nargs=>\%nargs) |h %>"><%$i%></a>&nbsp;
+             <%perl>
+           }
+           </%perl></div><%perl>
+       }
+    }
+
+
+    my $sth = $dbh->prepare($sqlselect.$sqlwhere.$sqlorder.$sqllimit);
+    $sth->execute(@sqlwhere_args);
+
+    while ($row_ref = $sth->fetchrow_arrayref) {
+      my ($eventid, $dbtype, $subtype, $priority, $event_date, $post_date, $modified_date, $start_date, $kill_date, $headline, $author, $summary, $text, $url,  $imageid, $sizex, $sizey, $alt) = @$row_ref;
+      my ($year,$month,$day);
+      my ($hour,$minute,$second,$ampm);
+      if ($headline) {
+        $count++;
+        ($date,$time) = split(" ",$event_date);
+        ($hour,$minute,$second) = split(":",$time);
+        if ($hour>11) {$ampm="pm";} else {$ampm="am";}
+        if ($hour>12) {$hour-=12;}
+        $time = $hour.":".$minute."&nbsp;".$ampm;
+        if ($hour eq "00") { 
+          $time = "";
+        }
+        ($year,$month,$day) = split("-",$post_date);
+        $date = Date_to_Text_Long($year,$month,$day);
+        my $frontpage_str;
+        if($priority eq "none") {
+           $frontpage_str = "No";
+        } else {
+           $frontpage_str = "Yes, Priority: $priority";
+        }
+
+        my $image; my $imageclass;
+        if($showimage eq "full") {
+           $image = $m->scomp('/mason/db/images/insert_image.comp', category=>'stories', parentid=>$eventid);
+           $imageclass = "image";
+        } elsif($showimage eq "thumb" ) {
+           $image = $m->scomp('/mason/db/images/insert_thumb.comp', category=>'stories', parentid=>$eventid);
+           $imageclass = "thumb";
+        }
+        if($author) {
+          $authorlink = $m->comp('/mason/db/directory/user_to_linkedname.comp', uid=>$author);
+        }
+        my $urltitle = $headline;
+        $urltitle =~ s/[^-a-zA-Z0-9_]+/_/go;
+        $summary = $m->comp('/mason/format_wikitext.comp', text=>$summary);
+
+        # here we merge in the "More" link if required...
+        if (($readmore && ($text || $url)) || $altreadmore) {
+          my $morelink = " <a href=\"/about/news/$type/$eventid/$urltitle.html\" class=\"readmore\">".($altreadmore ? $altreadmore : 'More&nbsp;&raquo;')."</a>";
+          $summary =~ s/\<\/p\>$/$morelink<\/p>/m;
+        }
+
+        my $type_str=$type;
+        if($subtype) { $type_str .= "/$subtype";}
+
+        </%perl>
+          <div class="story story_<%$class%>">
+            <%perl> if ($image) {  </%perl>
+               <span  class="story_<%$imageclass%> story_<%$imageclass%>_<%$class%>"><% $image %></span>
+            <%perl> } </%perl>
+            <h4 class="story story_<%$class%>"><a name="<%$eventid%>" class="story_<%$class%>"><%$headline%></a></h4>
+            <% $summary %>
+
+            <%perl> if($posted or ($auth and $view ne "normal")) { </%perl>
+            <div class="story_info">
+                <div class="story_posted">Posted <% $date %>
+                <%perl> if ($author) { </%perl>
+                   by <% $authorlink %>
+                <%perl> } </%perl>
+                <%perl> if ($auth) { </%perl>
+                   | <a class="story_edit" href="/resources/admin/news/edit_story_form.html?eventid=<%$eventid|u%>" title="Type: <%$type_str%>, Frontpage: <%$frontpage_str%>">Edit</a>
+                <%perl> } </%perl>
+                </div> <!-- posted -->
+
+            </div> <!-- story_info -->
+            <%perl> } </%perl>
+
+            <%perl> if ($linksubtype) { </%perl>
+               <p class="story_readmore readmore">[<a href="<% $subtype %>.html"><% $linksubtype %></a>]</p>
+            <%perl> } </%perl>
+
+          </div> <!-- story -->
+        <%perl>
+     } #if headline
+   } #while
+} #dbh
+if (!$count) {
+  $m->out("<div class=\"story story_$class\"><p>Nothing found</p></div>");
+#  $m->out("<!-- ($sqlselect.$sqlwhere.$sqlorder.$sqllimit) -->");
+}
+# vim: set syntax=mason:   
+</%perl>
+
+%#}
+
+%if ($rss) {
+%  my $uctype=join(' ', map { ucfirst($_) } split('_', $type));
+<br clear="all" />
+<a href="/rss/<% $type %>" class="rsslink" title="Subscribe to <% $uctype %>"><img class="rssicon" src="/images/feed-icon-14x14.png" width="14" height="14" al
+t="Subscribe to <% $uctype %>"><% $uctype %> RSS Feed</a>
+% }
+

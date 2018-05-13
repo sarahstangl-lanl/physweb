@@ -1,0 +1,274 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: dhandler
+        Date: 9/4/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%method js></%method>
+<%args>
+$uid
+$showedit => 0
+</%args>
+<%init>
+# we run this in "shared" so we can pass a name into the title method
+#my $arg = $m->dhandler_arg;
+#$arg =~ /[^-a-zA-Z0-9_.]/go;
+#my $wantedid = $arg; $wantedid =~ s/.html//;
+#my $wantedid = $uid;
+
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+use physdb::directory;
+my $directory = new Directory( uid => $uid );
+#-------------------
+my $uri = $r->uri;
+my ($physid, $x500, $email, $www, $research_www, $position, $room, $work_phone, $address, $home_phone, $cell_phone, $pager_phone);
+my ($firstname, $lastname, $bio, $education, $collaborators, $positions, $honors, $summary);
+my ($cvfilename, $cvmime_type, $research1, $research2, $research3, $research4);
+my ($reshead1, $reshead2, $reshead3, $reshead4);
+my ($paperid, $title, $authors, $journal, $abstract, $paper_url, $filename);
+my ($papers_ref, $papers_rowref, $num_papers);
+my ($sponsored_ref, $sponsored_rowref, $num_sponsored);
+my ($grads_ref, $grads_rowref, $num_grads);
+my ($profile_access, $x500_user, $internal_user);
+my $other_phones;
+my %groups;
+my $found = 0;
+
+my $sql = "SELECT physid, last_name, first_name, x500, email, www, research_www, position, room, work_phone, address, home_phone, cell_phone, pager_phone FROM directory WHERE uid=? LIMIT 1";
+
+if (defined($dbh)) {
+    my $sth = $dbh->prepare($sql);
+    $sth->execute($uid);
+    my $row_ref = $m->comp('/mason/apply_escapes.comp', $sth->fetchrow_arrayref);
+    if (defined($row_ref)) {
+      ($physid, $lastname, $firstname, $x500, $email, $www, $research_www, $position, $room, $work_phone, $address, $home_phone, $cell_phone, $pager_phone) = @$row_ref;
+      $found = 1;
+
+      $sql = "SELECT groupname as name FROM groupmembers WHERE uid=?";
+      my $gs = $dbh->prepare($sql);
+      $gs->execute($uid);
+      while(my $row = $gs->fetchrow_hashref) {
+         $groups{$row->{'name'}} = 1; 
+      }
+
+      if (!$physid) {
+        $physid = $x500;
+      }
+      # logged in as an x500 user
+      $x500_user = $session{x500};
+      # authorisation to edit profile...
+      $profile_access =   $m->comp('/mason/auth/auth_check_profile.comp',uid=>$uid);
+      # authorisation to view home address/phone
+      $internal_user = $m->comp('/mason/auth/auth_check_internal.comp');
+
+      # now run the profile query...
+      $sql = "SELECT bio, education, collaborators, positions, honors, summary, filename, mime_type, research1 FROM profiles WHERE uid = ? LIMIT 1";
+      $sth = $dbh->prepare($sql);
+      $sth->execute($uid);
+      $row_ref = $sth->fetchrow_arrayref;
+      if (defined($row_ref)) {
+          ($bio, $education, $collaborators, $positions, $honors, $summary, $cvfilename, $cvmime_type, $research1) = @$row_ref;
+      }
+
+      # now run the papers query
+      $sql = "SELECT paperid, title, authors, journal, abstract, url, filename FROM papers WHERE uid = ? ORDER BY priority DESC, pub_date DESC";
+      $sth = $dbh->prepare($sql);
+      $sth->execute($uid);
+      $papers_ref = $sth->fetchall_arrayref;
+      $num_papers = scalar(@$papers_ref);
+
+      # now run the sponsored query
+      $sql = "SELECT uid FROM directory WHERE sponsor = ? AND NOT inactive";
+      $sth = $dbh->prepare($sql);
+      $sth->execute($uid);
+      $sponsored_ref = $sth->fetchall_arrayref;
+      $num_sponsored = scalar(@$sponsored_ref);
+
+      # now run the grads query
+      $sth = $m->comp('/mason/db/students/progress_report.comp:query_by_advisor', advisor => $uid);
+      $grads_ref = $sth->fetchall_arrayref;
+      $num_grads = scalar(@$grads_ref);
+    } 
+}
+
+# take care of content-type if the .html was omitted in request...
+$r->content_type("text/html");
+
+</%init>
+
+<%perl>
+ </%perl> <h3><% $directory->get('position')|h  %></h3> <p><%perl>
+ my $loc1 = $directory->location_text('room');
+ my $loc2 = $directory->location_text('room2');
+ my $email1 = $directory->get('email');
+ if ($loc1) { print "$loc1<br/>\n"; }
+ if ($loc2) { print "$loc2<br/>\n"; }
+ # group all of email/www/cv onto one line...
+ if ($email1) { print $m->comp('/mason/encode_mailto.comp', email=>$email1); }
+ if ($email1 && $www) { print '  &bull;  '; }
+ if ($www) { print "<a href=\"$www\">$www</a>"; }
+ if (($email1 || $www) && $cvmime_type) { print '  &bull;  '; }
+ if ($cvmime_type) { print "<a href=\"/people/download_cv.html?uid=$uid&amp;filename=$cvfilename\">curriculum vitae</a>"; }
+ if ($email1 || $www || $cvmime_type ) { print '<br/>'; }
+ # end of group...
+  if ($profile_access || $internal_user) {
+  my $privateline = "";
+    if ( $address ) {
+        $privateline .= $address.", ";
+    }
+    if ( $home_phone ) {
+        $privateline .= $home_phone."&nbsp;(home) ";
+    }
+    if ( $cell_phone ) {
+        $privateline .= $cell_phone."&nbsp;(cell) ";
+    }
+    if ( $pager_phone ) {
+        $privateline .= $pager_phone."&nbsp;(pager) ";
+    }
+    if ( $privateline ) {
+        </%perl> <% $privateline %><%perl>
+    }
+  }
+
+</%perl>
+%#  if ($showedit && $profile_access) {
+%#    </%perl>
+%#    <p><small>
+%#    <%perl>if($uid && $uid eq $session{'uid'}) {</%perl>
+%#        <a href="/resources/myphys/">Go to MyPhys</a>
+%#    <%perl>} else {</%perl>
+%#        <a href="/resources/admin/people/user.html?uid=<% $uid %>&amp;physid=<%$physid%>&amp;x500=<%$x500%>">Directory Admin</a>
+%#    <%perl>} </%perl>
+%#
+%#    | <a href="/resources/myphys/profile/edit_dirinfo_form.html?uid=<% $uid |u%>">Edit directory information</a>
+%#    | <a href="/resources/myphys/profile/edit_profile_form.html?uid=<% $uid |u%>">Edit profile</a>
+%#    <%perl>
+%#    if($groups{'staff'}) {
+%#       </%perl>| <a href="/resources/myphys/profile/edit_research_form.html?uid=<% $uid |u%>">Edit activities</a><%perl>
+%#    }
+%#    else {
+%#       </%perl>| <a href="/resources/myphys/profile/edit_research_form.html?uid=<% $uid |u%>">Edit research</a><%perl>
+%#    }
+%#    </%perl>| <a href="/resources/myphys/profile/edit_paper_form.html?uid=<% $uid |u%>">Add a publication</a><%perl>
+%#    if ($groups{'faculty'}) {
+%#       </%perl>| <a href="/resources/myphys/profile/set_advisor_form.html?uid=<%$uid|u%>">Set Grad Students</a><%perl>
+%#    }
+%#    </%perl>
+%#    | <a href="/resources/myphys/profile_help.html">Profiles Help</a>
+%#    </small>
+%#    </p>
+%#    <%perl>
+%#  }
+<%perl>
+  $m->comp('/mason/db/images/insert_image.comp', category=>'profiles', parentid=>$uid);
+
+  if ($bio) {
+      $bio = $m->comp('/mason/format_wikitext.comp', text=>$bio);
+      $m->out($bio);
+  }
+  if ($summary) {
+      </%perl><div style="clear:both"><%perl>
+        </%perl> <h5>Summary of Interests</h5> <%perl>
+      $summary = $m->comp('/mason/format_text.comp', text=>$summary, paras=>0);
+      $m->out($summary);
+      if ($research_www) {
+         if($groups{'staff'}) {
+            </%perl> [<a href="<% $research_www %>">Activities Web Page</a>]</p> <%perl>
+         } else {
+            </%perl> [<a href="<% $research_www %>">Research Web Page</a>]</p> <%perl>
+         }
+      }
+      </%perl></div><%perl>
+  }
+  if ($research1) {
+    #<table border=0 cellspacing=0 cellpadding=0>
+    #  <tr><td>
+    $m->out("<div style=\"clear:both\">");
+    </%perl> <h3 class="profile_head">About My Work</h3><%perl>
+
+    $research1 = $m->comp('/mason/format_wikitext.comp', text=>$research1, img_category=>'profiles', img_parentid=>$uid);
+    $m->out($research1);
+    $m->out("</div>");
+  }
+
+  if ($groups{'physfac'} || $groups{'astfac'}) {
+     if($collaborators) {
+         </%perl>
+             <div style="clear:both">
+             <h3 class="profile_head">Advisees and Collaborators</h3>
+             <p>
+                 <%perl>
+                     $collaborators = text2html($collaborators, lines=>999); #~ s/\n/<br>\n/g;
+                 </%perl>
+                 <% $collaborators %>
+             </p>
+             </div>
+         <%perl>
+     }
+     else {
+         if (0 && ($num_grads || $num_sponsored)) {
+             </%perl>
+             <div style="clear:both">
+             <h3 class="profile_head">Advisees and Collaborators</h3>
+             <p>
+             <%perl>
+             my %sponsored_people;
+             foreach $grads_rowref (@$grads_ref) {
+               my ($x) = @$grads_rowref;
+               $sponsored_people{$m->comp('/mason/db/directory/uid_to_displayname.comp', uid=>$x)} = $m->comp('/mason/db/directory/user_to_linkedname.comp', uid=>$x, type=>'position');
+             }
+             foreach $sponsored_rowref (@$sponsored_ref) {
+               my ($x) = @$sponsored_rowref;
+               $sponsored_people{$m->comp('/mason/db/directory/uid_to_displayname.comp', uid=>$x)} = $m->comp('/mason/db/directory/user_to_linkedname.comp', uid=>$x, type=>'position');
+             }
+             foreach my $sponsored_person (sort keys %sponsored_people) {
+               $m->out("$sponsored_people{$sponsored_person}<br />\n");
+             }
+             </%perl> </p></div><%perl>
+         }
+     }
+  }
+
+  if ($num_papers) { #number of papers > 0
+    </%perl><h3 class="profile_head">Selected Publications</h3><%perl>
+    foreach $papers_rowref (@$papers_ref) {
+      ($paperid, $title, $authors, $journal, $abstract, $paper_url, $filename) = @$papers_rowref;
+      </%perl> <p><%perl>
+      if ($paper_url) {
+        $title = "<a href=\"$paper_url\">$title</a>";
+      }
+      if ($authors) {    
+         $m->out($authors);
+         $m->out(", ");
+      }
+      $m->out($title); 
+      $m->out(", ");
+      if ($journal) {
+          </%perl><i><% $journal %></i><%perl>
+      }
+      if ($abstract) {
+         </%perl> <small>[<a href="/people/papers.html?paperid=<% $paperid |u %>">abstract</a>]</small><%perl>
+      }
+      if ($filename) {
+        </%perl> <small>[<a href="/people/download_paper.html?paperid=<% $paperid |u %>">download&nbsp;<% $filename %></a>]</small><%perl>
+      }
+      if ($showedit && $profile_access) {
+        </%perl> <small>[<a href="/resources/myphys/profile/edit_paper_form.html?uid=<% $uid |u%>&amp;paperid=<% $paperid %>">edit</a>]</small><%perl>
+      }
+    </%perl></p><%perl>
+    }
+  }
+
+  if ($education) {
+     </%perl>
+     <h3 class="profile_head" style="clear: both;">Education</h3>
+     <p>
+     <%perl>
+     $education = text2html($education, lines=>1); #~ s/\n/<br>\n/g;
+     $m->out($education);
+  </%perl></p><%perl>
+  }
+</%perl>

@@ -1,0 +1,49 @@
+<%args>
+$ajax => undef
+$account_key => undef
+</%args>
+<%init>
+    use ShopDb::Form::Account;
+    use PhysAjax;
+    my @tssearchargs = grep { /^tssearch/ } keys %ARGS;
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $account = $account_key ? $schema->resultset('Accounts')->find({ account_key => $account_key}) : undef;
+    if (!$account) {
+        warn "Couldn't find account_key '$account_key'" if (defined $account_key);
+    }
+    else {
+        warn "Found account_key " . $account->account_key;
+    }
+    my $account_form = ShopDb::Form::Account->new(
+        item        => $account,
+        schema      => $schema,
+        auth_args   => $session{'shopdb-auth'},
+        active      => [ ($account ? 'account_update' : 'account_add') ],
+        name        => 'account_form',
+        field_list  => [ map { $_ => { type => 'Hidden', noupdate => 1, default => $ARGS{$_} } } @tssearchargs ],
+    );
+
+    if ($r->method eq 'POST') {
+        $account_form->process(params => \%ARGS, inactive => \@tssearchargs);
+    }
+
+    if ($account_form->is_valid) {
+        if ($ajax) {
+            print_ajax({msg => "OK", account_key => $account_form->item->account_key });
+            return;
+        }
+        if (exists $ARGS{tssearch_search}) {
+            $m->redirect('accounts.html?' . _args(map { (my $key = $_) =~ s/tssearch_//; ( $key => $ARGS{$_} ) } @tssearchargs));
+        }
+        else {
+            $m->redirect('account.html?account_key=' . _u($account_form->item->account_key));
+        }
+    }
+</%init>
+
+% $m->clear_buffer if ($ajax);
+<h2>EFS Chart String</h2>
+<p>
+% print $account_form->render();
+</p>
+% $m->abort if ($ajax);

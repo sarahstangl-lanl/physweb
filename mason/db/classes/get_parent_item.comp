@@ -1,0 +1,28 @@
+<%args>
+    $entryid
+    $parentid
+    $classid
+    $item_type
+</%args>
+
+<%doc>
+    # If we are given a parentid for a new item, we want to make sure the classid and item_type match that.
+    # So if we are look up the parentid, and override the other two.
+    # Usually want to use something like this:
+    
+    # Override classid and item_type if we are given a parent item and we're creating new
+    ($classid, $item_type) = $m->comp('/mason/db/classes/get_parent_item.comp', entryid=>$entryid, parentid=>$parentid, classid=>$classid, item_type=>$item_type); 
+</%doc>
+
+<%init>
+if (($entryid eq 'new') && ($parentid != 0)) {
+    my $sth = $dbh->prepare('SELECT classid, item_type FROM classdata WHERE entryid = ? LIMIT 1');
+    $sth->execute($parentid)
+        or die 'Unable to get parent item: ' . $dbh->errstr;
+
+    my $row_ref = $sth->fetchrow_arrayref;
+    ($classid, $item_type) = @$row_ref;
+}
+
+return ($classid, $item_type);
+</%init>

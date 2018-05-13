@@ -1,0 +1,237 @@
+
+<%DOC>
+   Component: index.html
+        Date: 2007.07.19
+      Author: clayton
+     Changed: 2007.07.19 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  @schedule => ()
+  $comment  => ''
+  $specialreq => ''
+  $admin_year => ''
+  $admin_semester => ''
+  $admin_schedule => ''
+  $admin_schedule_name => ''
+</%ARGS>
+
+
+<%INIT>
+  my ($uid, $year, $semester, %uid_info);
+  
+  my %config = $m->comp('/mason/db/tascheduling/config.comp');
+  
+  $uid = $session{'uid'};
+  $year = $config{'active_year'};
+  $semester = $config{'active_sem'};
+  
+  # ----------------------------------------------------------------------
+  
+  my $updated = 0;
+  my $auth = $m->comp('/mason/auth/auth_check_ta.comp', year => $year, semester => $semester);
+  my $auth_admin = $m->comp('/mason/auth/auth_check_ta_admin.comp');
+  if (!$auth && !$auth_admin) { $m->redirect('not_authorized.html'); }
+ 
+  my @daysofweek = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday');
+
+  # ----------------------------------------------------------------------
+
+  # DB Magic
+
+  my $update_db = sub {
+    my ($comment, $specialreq, @schedule) = (${$_[0]}, ${$_[1]}, @{$_[2]});
+    my ($query, $sql);
+
+    $sql = 'INSERT INTO taschedule (year, semester, uid, comment, specialreq, modified) VALUES (?,?,?,?,?,now())
+               ON DUPLICATE KEY UPDATE comment=?, specialreq=?, modified=now()';
+    $query = $dbh->prepare($sql);
+    $query->execute($year, $semester, $uid, $comment, $specialreq, $comment, $specialreq);
+
+    $sql = 'DELETE FROM taschedule_busy WHERE year=? AND semester=? AND uid=? LIMIT ?';
+    $query = $dbh->prepare($sql);
+    $query->execute($year, $semester, $uid, $config{'days'} * $config{'periods'});
+
+    $sql = 'INSERT INTO taschedule_busy (year, semester, uid, day, slot, class) VALUES (?,?,?,?,?,?)';
+    $query = $dbh->prepare($sql);
+    for(my $i = 0; $i < scalar(@schedule); $i++)
+    {
+      if (length($schedule[$i]) > 0)
+      {
+        my $day = $i % $config{'days'};
+        my $period = int($i / $config{'days'});
+        $query->execute($year, $semester, $uid, $day+1, $period, uc($schedule[$i]));
+      }
+    }
+  };
+
+  # ----------------------------------------------------------------------
+
+  my $fetch_db = sub {
+    my ($sql, $query_sched, $query_list, $result);
+    $sql = 'SELECT day+0 AS day, slot, class FROM taschedule_busy WHERE year=? AND semester=? AND uid=? ORDER BY slot ASC, day ASC';
+    $query_sched = $dbh->prepare($sql);
+    $query_sched->execute($year, $semester, $uid);
+
+#    $sql = 'SELECT year, semester, comment, specialreq FROM taschedule WHERE uid=? ORDER BY year DESC, semester DESC';
+#    $query_list = $dbh->prepare($sql);
+#    $query_list->execute($uid);
+
+    $sql = 'SELECT year, semester, comment, specialreq FROM taschedule WHERE uid=? AND year=? AND semester=? LIMIT 1';
+    $query_list = $dbh->prepare($sql);
+    $query_list->execute($uid, $year, $semester);
+
+    return ($query_sched, $query_list);
+  };
+
+  # ----------------------------------------------------------------------
+  
+  if ($auth_admin && $admin_schedule_name) {
+    my $who = $m->comp('/mason/ajax/people_finder.comp', name=>$admin_schedule_name, mode=>'tasched', pf_ta_year=>$admin_year, pf_ta_semester=>$admin_semester);
+    if (my $row = $who->fetchrow_hashref()) {
+      $admin_schedule = $row->{'uid'};
+    }
+  }
+  if ($auth_admin && $admin_schedule)
+  {
+    $uid = $admin_schedule;
+    if ($admin_year) {
+      $year = $admin_year;
+    }
+    if ($admin_semester) {
+      $semester = $admin_semester;
+    }
+
+    my $sql = 'SELECT last_name, first_name, x500, physid FROM directory WHERE uid=? LIMIT 1';
+    my $uinfo = $dbh->prepare($sql);
+    $uinfo->execute($uid);
+    if ($uinfo) {
+      my $res = $uinfo->fetchrow_hashref();
+      %uid_info = %$res;
+    }
+  } else {
+    $admin_schedule = '';
+  }
+
+  if (scalar(@schedule) > 0)
+  {
+    &$update_db(\$comment, \$specialreq, \@schedule);
+    $updated = 1;
+  }
+
+  my ($classes, $schedules) = &$fetch_db();
+  my $notes;
+</%INIT>
+
+
+
+<%method title>TA Scheduling</%method>
+
+
+% if (0) {
+% # To re-enable also needs change in fetchdb
+
+<h3 style="border-bottom: 1px solid black; margin-bottom: 0.25em;">View Schedule<% ($admin_schedule ? ': ' . $admin_schedule : '') %></h3>
+<table>
+<tr><th>Year</th><th>Semester</th><th>Status</th><th>Actions</th></tr>
+% my $haveschedules = 0;
+% while (my $schedule = $schedules->fetchrow_hashref()) {
+% $haveschedules = 1;
+<tr><td><% ${$schedule}{'year'} %></td><td><% (${$schedule}{'semester'} eq 'spring' ? 'Spring' : 'Fall') %></td><td>Awaiting Assignment</td><td>View</td></tr>
+% if (($$schedule{'semester'} eq $semester) && ($$schedule{'year'} == $year)) { $notes = $$schedule{'comment'}; }
+% } 
+% if (!$haveschedules) {
+<tr><td colspan="4">No Submitted Schedules Found</td></tr>
+% }
+
+</table>
+
+% }
+
+
+
+
+
+
+<h3 style="border-bottom: 1px solid black;">Submit Schedule: <% ($semester eq 'spring' ? 'Spring' : 'Fall') . ' ' . $year %></h3>
+
+% if (length($year) > 0) {
+
+% if ($updated) {
+<br/><i>Schedule has been saved.</i>
+% }
+
+
+% if ($admin_schedule) {
+<br/><h3 style="display: inline">Schedule for <% $uid_info{'last_name'} |h %>, <% $uid_info{'first_name'} |h %></h3>
+(<% ($uid_info{'x500'} ? $m->interp->apply_escapes($uid_info{'x500'}, 'h') : '<i>unavail</i>') %>@umn.edu, <% ($uid_info{'physid'} ? $m->interp->apply_escapes($uid_info{'physid'}, 'h') : '<i>unavail</i>') %>@physics.umn.edu)
+% } else {
+
+<ul>
+<li>Enter course codes only (ex. PHYS5001). This includes all seminars.</li>
+<li>Enter <strong>REQUIRED</strong> courses only. After teaching schedules are assigned, sign up for electives (ex. PE1001). Any elective course entered below will be ignored.</li>
+<li>If daycare or research is a concern, please say so in the critical comments box.</li>
+<li>If you change your class schedule after assignments are made, changes to your teaching schedule will be difficult and may not be possible.</li>
+</ul>
+
+% }
+
+% my $time = $m->comp('time.comp', 'start_time'=>$config{'start_time'}, 'period_length'=>$config{'period_length'}, 'period_break'=>$config{'period_break'});
+<form action="?" method="POST">
+<table>
+<tr><th></th><th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th><!--<td rowspan="<% $config{'periods'}+1 %>" valign="top">
+
+instructions...
+
+</td>--></tr>
+
+
+% my %time = %{$config{'start_time'}};
+% my $row = 0;
+% my $fetch = $classes->fetchrow_hashref();
+% for (my $period=0; $period<$config{'periods'}; $period++) {
+<tr><th style="text-align: right; white-space: nowrap;"><% &$time() %></th>
+% for (my $day=0; $day<$config{'days'}; $day++) {
+% my $value = '';
+% if ($fetch && ${$fetch}{'day'}-1 == $day && ${$fetch}{'slot'} == $period)
+% {
+%   $value = ${$fetch}{'class'};
+%   $fetch = $classes->fetchrow_hashref();
+% }
+<td><input type="text" size="8" maxlength="8" name="schedule" value="<% $value %>"></td>
+% }
+</tr>
+% %time = time_increment($config{'period_break'}, %time);
+% $row++;
+% }
+
+% my $schedule = $schedules->fetchrow_hashref();
+% my ($tload, $notes, $specialreq);
+% if ($schedule) {
+% $notes = $$schedule{'comment'};
+% $specialreq = $$schedule{'specialreq'};
+% }
+<tr><td>&nbsp;</td></tr>
+
+<tr><td align="right">Teaching Load:</td><td colspan="<% $config{'days'} %>">
+<input type="radio" name="specialreq" value="0.5" id="tload1"<% ($specialreq ne '0.25' ? ' CHECKED="checked"' : '') %>><label for="tload1"> 0.5 time</label> 
+<input type="radio" name="specialreq" value="0.25" id="tload2"<% ($specialreq eq '0.25' ? ' CHECKED="checked"' : '') %>><label for="tload2"> 0.25 time</label></td></tr>
+
+<tr><td align="right">Comments:</td><td colspan="<% $config{'days'} %>">
+<textarea cols="60" name="comment"><% $notes %></textarea></td></tr>
+
+<!--<tr><td align="right">Special Requests:</td><td colspan="<% $config{'days'} %>">
+<textarea cols="60" name="specialreq"><% $specialreq %></textarea></td></tr>-->
+
+<tr><td></td><td colspan="<% $config{'days'} %>"><input type="submit" value="Save Changes"<% ($admin_schedule ? ' DISABLED' : '') %>></td></tr>
+</table>
+</form>
+
+% } else {
+Registration is not currently active, please check back later.
+% }
+
+
+<br/>

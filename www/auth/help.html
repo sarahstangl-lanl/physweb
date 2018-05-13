@@ -1,0 +1,50 @@
+<%doc>
+   Component: help.html
+        Date: 9/11/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+    my $uid = $session{'uid'};
+    my $name = $m->comp('/mason/db/directory/current_user.comp') || "empty";
+    my $status = "You are not logged in";
+    if ($session{'uid'}) {
+        $status = "You are logged in as a Physics user";
+    } elsif ($session{'x500'} || $session{'physid'}) {
+        $status = "You are logged in as a non-Physics user";
+    }
+</%init>
+
+<%method title>Web Authentication Help</%method>
+
+<h4>Login Status</h4>
+<p><b><font color="green"><% $status %>.</font></b></p>
+% if ($session{'uid'}) {
+If you can't access a particular resource, then you may need additional rights added to your directory entry.
+% } elsif ($session{'x500'}) {
+If you are a Physics Department user, try logging in with your physics account instead of your X.500 account and check your <a href="/resources/myphys/">MyPhys</a> page. If the "Your X.500 Account" field is blank or incorrect, you can get it updated by sending an email to <a href="mailto:directory@physics.umn.edu">directory@physics.umn.edu</a>.
+% } elsif ($session{'physid'}) {
+If you are a Physics Department user, either you do not have a directory entry or your physics account is not tied to your directory entry.  Check to see if you are listed in the <a href="/people/">directory</a>.  If you are listed, contact <a href="mailto:net@physics.umn.edu">net@physics.umn.edu</a> with your name as it appears in the directory and your physics account name so we can fix the problem.  If you are not in the directory but should be, contact <a href="mailto:directory@physics.umn.edu">directory@physics.umn.edu</a> to be added.
+% }
+<p></p>
+
+<h4>Physics Department Users</h4>
+<p>For departmental users, logging in gives access to more resources, such as private documentation, directory information, or software downloads. You can also update your own directory information (home address, phone numbers, etc). If you have trouble accessing any area, check your login status.</p>
+<p></p>
+
+<h4>All University of Minnesota Users</h4>
+<p>Logging into the web site gives you access to some additional resources, such as copyrighted materials which aren't available to the world at large.</p>
+<p></p>
+
+<h4>Problems logging in</h4>
+<p>If you can't log in at all, first check our <a href="cookietest.html">cookie test page</a>. If that doesn't help, trying another browser (for example, Firefox instead of Internet Explorer) will often make the login succeed.</p>
+<p>If that doesn't help, call 1-HELP and ask if your internet account is blocked for any reason. University of Minnesota OIT Security will sometimes block accounts from login to the wireless network or modem pool (if they detect a virus infection, for example), and this block will also affect login to our web site.</p>
+<p>If you still have problems, <a href="http://zzz.physics.umn.edu/computing/contact">contact us</a>. We need to know your University Internet ID, what browser you're using, and what the 1-HELP helpdesk had to say.</p>
+<p></p>
+
+<h4>General Computing Help</h4>
+<p>Information regarding physics computing resources can be found in the <a href="http://zzz.physics.umn.edu/computing">Computer Support</a> section of the Physics Intranet. 

@@ -1,0 +1,60 @@
+<%method title>Timesheet Generator</%method>
+
+<%args>
+$yr=>undef;
+</%args>
+
+<%init>
+use Date::Calc qw(:all);
+use DateTime;
+use Data::Dumper;
+my ($sth, $results);
+if ($session{'uid'}) {
+  $sth = $dbh->prepare("SELECT last_name, first_name, emplid FROM directory WHERE uid = ?");
+  $sth->execute($session{'uid'});
+  $results = $sth->fetchrow_hashref;
+} 
+</%init>
+
+<p>
+<form action="gettimesheet.html" method="get">
+<table><tr><td>First Name:</td><td><input id="field1" type="text" name="first_name"<% $results ? ' value="'.$results->{'first_name'}.'"' : '' %>></td></tr>
+<tr><td>Last Name:</td><td><input id="field2" type="text" name="last_name"<% $results ? ' value="'.$results->{'last_name'}.'"' : '' %>></td></tr>
+<tr><td>U of M ID:</td><td><input id="field3" type="text" name="emplid"<% $results ? ' value="'.$results->{'emplid'}.'"' : '' %>></td></tr>
+<tr><td>Pay period:</td><td>
+<select name="start_date">
+<%perl>
+my ($year, $month, $day) = Today();
+if (defined($yr) && $yr =~ /^[0-9]+$/) { $year = $yr; $month = 1; $day = 1; }
+my $dd = Delta_Days(2009, 8, 31, $year, 1, 1);
+my $dt = DateTime->new(year => $year, month => $month, day => $day);
+my $curdt = DateTime->new(year => $year, month => 1, day => 1);
+$curdt->subtract(days => $dd%14);
+while ( $curdt->year <= $dt->year ) {
+	my $d = $dt->subtract_datetime($curdt);
+	print "<option value='".$curdt->epoch."'".($d->delta_months == 0 && $d->delta_days >= 0 && $d->delta_days < 14 ? " selected" : "").">";
+	print $curdt->format_cldr('MM/dd/yy')." - ";
+	$curdt->add(days => 13);
+	print $curdt->format_cldr('MM/dd/yy')."</option>\n";
+	$curdt->add(days => 1);
+}
+</%perl>
+</select></td></tr>
+<tr><td>Pay year:</td><td>
+<select onchange="window.location = 'timesheets.html?yr='+this.value;" name="yr">
+% for (my $i = -5; $i <= 5; $i++) {
+<option value="<% $year + $i %>"<% $i == 0 ? ' selected' : ''%>><% $year + $i %></option>
+% }
+</select></td></tr>
+</table>
+</p><p><input type="submit" value="Get timesheet">
+<button onclick="return clearForm();">Clear form</button>
+</form>
+<script language="Javascript">
+function clearForm() {
+    document.getElementById('field1').value = '';
+    document.getElementById('field2').value = '';
+    document.getElementById('field3').value = '';
+    return false;
+}
+</script>

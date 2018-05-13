@@ -1,0 +1,316 @@
+<%args>
+# What to call the 'hour' field
+$hour   => 'hour'
+
+# What to call the 'minute' field
+$minute  => 'minute'
+
+# What to call the 'second' field
+$second    => 'second'
+
+# What should be displayed in the selector
+$default => ''
+
+# hour range
+$hour_range => [8..20]
+
+# How should the values be displayed
+$format  => 'hour:minute'
+
+# If confirm is true, display as text only, and provide hidden fields.
+$confirm => 0
+
+</%args>
+
+
+<%once>
+
+## The format units each section of the date can be referred to as.
+my @hour_specifiers  = qw(hh);
+my @minute_specifiers = qw(mm);
+my @second_specifiers   = qw(ss);
+</%once>
+
+
+<%perl>
+
+## Internal mapping between variables and form elements.
+my $varmap = {
+  '_h' => $hour,
+  '_m' => $minute,
+  '_s' => $second,
+};
+
+## Get the actual units used in the format string..
+my @units = ();
+@units[0..2] = split /[^a-zA-Z0-9]/, $format;
+
+
+## Convert these units to the date parts to which they refer..
+my @selectors = ();
+
+##  Not doing it this way..yet.
+##  my $selectmap = {
+##    '_h' => \@hour_specifiers,
+##    '_m' => \@minute_specifiers,
+##    '_s' => \@second_specifiers,
+##  };
+
+
+## Use the 'selectors' array to avoid having multiple tests later when we
+## build the selection string.
+HOUR:
+for my $i (0..2) {
+  for (@hour_specifiers) {
+    if (lc($units[$i]) eq $_) { $selectors[$i] = '_h'; next HOUR; }
+  }
+}
+
+MINUTE:
+for my $i (0..2) {
+  for (@minute_specifiers) {
+    if (lc($units[$i]) eq $_) { $selectors[$i] = '_m'; next MINUTE; }
+  }
+}
+
+SECOND:
+for my $i (0..2) {
+  for (@second_specifiers) {
+    if (lc($units[$i]) eq $_) { $selectors[$i] = '_d'; next SECOND; }
+  }
+}
+
+## Figure out what the default date is..
+my ($dhour, $dminute, $dsecond) = (-1,-1,-1);
+if ($default eq 'today') {
+  ($dsecond, $dminute, $dhour) = (CORE::localtime)[0..2];
+} elsif ($default) {
+  ($dhour, $dminute, $dsecond) = split /[^a-zA-Z0-9]/, $default;
+}
+
+
+## Build up the string to return..
+my $str = '';
+
+
+for my $i (0..$#selectors) {
+  next unless my $var = $selectors[$i];
+
+  if ($confirm) {
+    $str .= qq{<hidden name="$varmap->{$var}" };
+
+    if ($var eq '_h') {
+      my $hh;
+      $hh = sprintf "%02d", $dhour;
+      $str .= qq{value="$dhour">&nbsp;$hh&nbsp;};
+
+    } elsif ($var eq '_m') {
+
+      my $mm;
+
+      $mm = sprintf "%02d", $dminute;
+      $str .= qq{value="$dminute">&nbsp;$mm&nbsp;};
+
+    } elsif ($var eq '_s') {
+
+      my $ss;
+      $ss = sprintf "%02d", $dsecond;
+      $str .= qq{value="$dsecond">&nbsp;$ss&nbsp;};
+
+    }
+
+  } else {
+
+    $str .= qq{<select name="$varmap->{$var}">};
+
+    if ($var eq '_h') {
+      for (@$hour_range) {
+        my $hh = '';
+        my $sel = $_ == $dhour ? 'selected' : '';
+        $hh = sprintf "%02d", $_;
+        $str .= qq{<option value="$_" $sel>$hh</option>};
+      }
+    }
+
+    if ($var eq '_m') {
+      for (0,5,10,15,20,25,30,35,40,45,50,55) {
+        my $mm;
+        my $sel = $_ == $dminute ? 'selected' : '';
+        $mm = sprintf "%02d", $_;
+        $str .= qq{<option value="$_" $sel>$mm</option>};
+      }
+    }
+
+
+    if ($var eq '_s') {
+      for (0,5,10,15,20,25,30,35,40,45,50,55) {
+        my $ss;
+        my $sel = $_ == $dsecond ? 'selected' : '';
+        $ss = sprintf "%02d", $_;
+        $str .= qq{<option value="$_" $sel>$ss</option>};
+      }
+    }
+    $str .= "</select>";
+  }
+
+}
+
+$m->out($str);
+return $str;
+
+</%perl>
+
+
+
+<%perl>
+
+=head1 NAME
+
+date_selector  - Display formatted date selectors.
+
+=head1 SYNOPSIS
+
+  <& /path/to/date_selector,
+    year => 'y', month => 'm', day => 'd',
+    default => 'today', format => 'mm-dd-yyyy' &>
+
+=head1 DESCRIPTION
+
+date_selector builds and displays a set of HTML select elements, from which a
+user can select a date.
+
+The format of the displayed date elements is highly configurable.
+
+=head1 USAGE
+
+date_selector accepts a number of parameters, and provides defaults for any
+that are missing. It should be called as a component (e.g. via $m->comp() or
+inside <& .. &>), and for convenience it returns the constructed selectors as
+well as displaying them.
+
+=head2 PARAMETERS
+
+Parameters accepted by date_selector. Defaults are in []s, notes in ()s.
+
+  year     What to call the 'year' field                  [f_year]
+  month    What to call the 'month' field                 [f_month]
+  day      What to call the 'day' field                   [f_day]
+  default  What date to display before selection          [none]    (1, 2)
+  format   How to display the selectors. See FORMATS      [yyyy-mm-dd]
+  year_range  Which years to display in the year selector [2000..2010] (2)
+  confirm  Display the date in confirmation mode, and     [0]
+           produce hidden fields for the values.
+
+Notes:
+
+(1) The default date must be specified in yyyy-mm-dd format. The only other
+acceptable value for default is 'today', which has the obvious result.
+
+(2) If a default value is specified which falls outside the year range, the
+first value in the year list will be displayed. This applies if the default is
+'today', also.
+
+=head2 EXAMPLES
+
+  # Display selectors for ordinal day, long month name, year, defaulting to
+  # today (8th June 2002)
+  <& /path/to/date_selector,
+    year => 'y', month => 'm', day => 'd',
+    default => 'today', format => 'ord-M-yyyy' &>
+
+  # Display selectors for year, month, day, defaulting to '2001-03-01'
+  <& /path/to/date_selector,
+    default => '2001-03-01', format => 'yyyy-mm-dd' &>
+
+  # As before, but in confirmation mode
+  <& /path/to/date_selector, confirm => 1,
+    default => '2001-03-01', format => 'yyyy-mm-dd' &>
+
+
+=head1 FORMATS
+
+Valid formats are made up from the following units, which may appear in any
+order, although they should probably all appear at most once ;). Synonyms
+are shown comma-separated on the same line. Items marked 'padded' will be
+padded with leading zeros to bring the character length up to that specified.
+
+ yyyy, year     Display the year as 4 digits, padded.
+ yy             Display the year as 2 digits, padded.
+
+ mm, month      Display the month as 2 digits, padded.
+
+ M,MON          Display the long English form of the month (January, etc)
+ m,mon          Display the short English form of the month (Jan, etc)
+
+ dd, day        Display the day of the month as 2 digits, padded.
+ do, ord        Display the ordinal day of the month (1st, 2nd etc)
+
+
+All numeric units are case-insensitive.
+
+These units must be combined with any non-alphanumeric separator (/:- etc).
+
+If any specifier is missing from the format, it will not be displayed on the
+page.
+
+Notes:
+
+1. Month values are passed in the selectors as numeric, even if the displayed
+value is English (e.g. 5 instead of May).
+
+2. Day values are passed in the selectors as numeric, even if the displayed
+value is ordinal (e.g. 2 instead of 2nd).
+
+3. Month values are 0-based but displayed 1-based. That is, January is given
+the value of 0 but will be displayed as 01 if a numeric format specifier is
+used. This allows month values to be used verbatim in localtime() comparisons
+and friends.
+
+4. Year values are passed verbatim: if a 2-digit year is displayed, it will
+be passed as 4 digits, not 2. If you pass in a year range of 99..102, the
+passed values will be 99,100,101,102 but displayed as 99,00,01,02.
+
+5. Variances from the format units listed will be silently ignored. This may
+result in a blank display!
+
+6. If you really wish to do something like 'yyyy-yyyy-yy' it will be displayed
+correctly, but probably won't work terribly well.
+
+
+Examples:
+
+To display the date '28th August 2002'
+
+  Format..        ..displays as
+  yyyy-mm-dd      2002 08 28
+  year-M-dd       2002 August 28
+  year-m-dd       2002 Aug 28
+  dd:mm:yy        28 08 02
+  dd/mm           28 08
+  dd#MON          28 August
+
+These will all result in passed values of year=2002 (where appropriate),
+month=7, day=28.
+
+
+=head1 TODO:
+
+ [x] Display default dates.
+ [ ] Padding between selectors.
+ [ ] Allow such plop as '28th Day of the Eighth Month in the Year 2002'
+ [x] 'Confirmation' mode.
+
+=head1 AUTHOR
+
+  Simon Drabble    <masondev@thebigmachine.org>
+
+This component is (C) 2002 Simon Drabble, and is distributed under the terms
+of the Gnu General Public Licence (GPL). It may be freely copied and modified
+provided this copyright notice remains intact. Use of this component indicates
+acceptance of these terms.
+
+=cut
+
+</%perl>
+
+

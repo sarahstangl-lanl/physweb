@@ -1,0 +1,28 @@
+<%doc>
+   Component: thumbnail.comp
+        Date: 9/5/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$image
+$type=>'jpeg'
+$width=>'100'
+$info=>0
+</%args>
+
+<%init>
+    use GD::Thumbnail;
+ 
+    my ($thumb,$data);
+    $type =~ s/pjpeg/jpeg/;
+    if (($type eq "jpeg") || ($type eq "gif") || ($type eq "png")) {
+        eval { # thumbnail can throw errors, so use eval block...
+            $thumb = GD::Thumbnail->new(force_mime=>$type);
+            $data  = $thumb->create($image, $width, $info);
+        };
+    }
+    
+    return $data;
+</%init>

@@ -1,0 +1,320 @@
+
+<%DOC>
+   Component: index.html
+        Date: 2003.07.15
+      Author: allan
+     Changed: 2003.07.15 by allan
+
+Description ... 
+
+List the classes for a specific term
+</%DOC>
+
+<%ARGS>
+$year=>''
+$quarter=>''
+$subject=>'phys'
+</%ARGS>
+
+<%INIT>
+my $urlbase = "/classes";
+
+# templates/notes only work when quarter = fall
+$quarter = "fall" if $year == 0;
+
+my $archived = $m->comp('/mason/db/classes/check_classarchive.comp', year=>$year, quarter=>$quarter);
+my $auth_archive = $m->comp('/mason/auth/auth_check_classarchive.comp');
+
+#
+# set session variable for current class page & classid
+#
+#$session{'classuri'} = $r->uri."?year=".$year."&quarter=".$quarter;
+$session{'classuri'} = "$urlbase/".($subject?"$subject/":""). "$year/$quarter/";
+$session{'classid'} = '';
+$session{'classyear'} = $year;
+$session{'classquarter'} = $quarter;
+
+return if $m->comp('/mason/db/dbcheck.comp');
+
+my $auth = $m->comp('/mason/auth/auth_check_class.comp');
+
+my ($classid, $classyear, $classquarter, $name, $section, $title, $instructor, $maintainer, $location, $time, $url);
+my $classname;
+
+# we only cache for non-authorized users who won't be making changes...
+# and we also don't want to cache a page which contains the admin links!
+if (!$auth) {
+  return if $m->cache_self(expire_in => '30 min', busy_lock=>'10 sec', key => ($subject?$subject:"all").$year.$quarter.$auth_archive);
+}
+
+# From datawarehouse.pl ... should do a module :(
+# Get DW term from year and quarter
+sub year_and_quarter_to_term {
+    my ($year, $quarter) = @_;
+    my ($term);
+    $quarter = lc($quarter);
+
+    $year = (int($year - 1900) * 10);
+
+    # Get the term number
+    if ($quarter eq 'spring') {
+        $quarter = '3';
+    } elsif ($quarter eq 'fall') {
+        $quarter = '9';
+    } else {
+        $quarter = '5';
+    }
+
+    return ($year + $quarter);
+}
+
+my $dw_active = 0;
+my $dw_showdates = 0;
+my $dw_last_updated;
+my $term = year_and_quarter_to_term($year, $quarter);
+
+my $get_dw_info = $dbh->prepare('SELECT approved, showdates, UNIX_TIMESTAMP(last_updated) AS last_updated FROM class_dwterm WHERE term=?');
+$get_dw_info->execute($term)
+	or die 'Unable to grab class_dwterm info: ' . $dbh->errstr;
+
+if (my $row = $get_dw_info->fetchrow_hashref()) {
+	$dw_active = $row->{'approved'};
+	$dw_showdates = $row->{'showdates'};
+    $dw_last_updated = $row->{'last_updated'};
+}
+
+my $display_year = $year;
+my $fetch_year = $year;
+my $speculative = 0;
+#
+# Classes repeat fairly predictably every 2 years. If we don't have any data--we'll assume this
+# is the case when the dw pull hasn't been enabled yet--we instead will show data from 2 years ago.
+# (Plus a warning that it may be horribly wrong).
+#
+if (!$dw_active && $year > 2008) {
+    $fetch_year -= 2;
+    $speculative = 1;
+}
+</%INIT>
+
+%# TODO: move quarter selector code into a belowmenu? empty for now...
+<%method titlemenu_below>
+<%args>
+$subject
+$quarter=>undef
+$year=>undef
+</%args>
+<& /mason/titlemenu.comp:begin, type=>"below" &>
+<&| /mason/titlemenu.comp:item,    link=>'/classes/phys/' . ($year?"$year/":'') . ($quarter?"$quarter/":'') . 'index.html', selected=>($subject eq "phys") &>Physics</&>
+<&| /mason/titlemenu.comp:item,    link=>'/classes/ast/' . ($year?"$year/":'') . ($quarter?"$quarter/":'') . 'index.html', selected=>($subject eq "ast") &>Astrophysics</&>
+<&| /mason/titlemenu.comp:item,    link=>'/classes/all/'. ($year?"$year/":'') . ($quarter?"$quarter/":'') . 'index.html', selected=>(!$subject || $subject eq "all") &>All</&>
+<& /mason/titlemenu.comp:end &>
+</%method>
+
+% if ($display_year != 0) {
+%   # year 0000 = templates (unused?)
+%   $m->comp('/mason/quarter_selector2.comp', year=>$display_year, quarter=>$quarter, template=>"<a href=\"$urlbase/". ($subject?"$subject/":"")."%y/%q/\">%t</a>");
+% }
+
+% if ($auth || $auth_archive) {
+    <small>
+%#    <a href="<% $urlbase %>/archive.html">Class archives</a>
+%   if ($auth) {
+    <a href="<% $urlbase %>/edit_classlist_form.html">Add new class</a>
+%   if ($year >0) {
+	| <a href="<% $urlbase %>/0000/">View templates</a>
+%   }
+%   else {
+	| <a href="<% $urlbase %>/edit_classtemplate_form.html">Add new template</a>
+%   }
+%   if ($archived) {
+	| <b><font color="red">These classes are archived and can be accessed only by faculty.</font></b>
+%   }
+%   else {
+%   	if ($dw_active) {
+	    | Term automatically updating
+%     	    if ($dw_last_updated) {
+		(last updated <% $m->comp('/mason/gmtunix_to_text.comp', $dw_last_updated) %>)
+%     	    }
+%   	}
+%	else {
+	    | <a href="<% $urlbase %>/dw_approve.html?term=<% $term |h %>" onclick="return confirm('Are you sure you want to approve <% ucfirst($quarter) |h %> <% $display_year |h %> for automatic updates?')">Approve term for automatic updates</a>
+%   	}
+%   	if ($dw_showdates) {
+	    | <a href="<% $urlbase %>/dw_showdates.html?term=<% $term |h %>&value=0" onclick="return confirm('Confirm disabling the date range column for <% ucfirst($quarter) |h %> <% $display_year |h %>?')">
+	    Disable date range column
+	    </a>
+%   	} else {
+	    | <a href="<% $urlbase %>/dw_showdates.html?term=<% $term |h %>" onclick="return confirm('Confirm enabling the date range column for <% ucfirst($quarter) |h %> <% $display_year |h %>?')">
+	    Enable date range column
+	    </a>
+%   	}
+%   }
+%   }
+    </small><p>
+% }
+
+% if ($speculative) {
+    <div style="background-color: #eeeeee; padding-left: 0.5em">
+    <h3>Preliminary Class Listings</h3>
+    <p>Listings for <% ucfirst($quarter) |h %> <% $year |h %> are likely to change before they are finalized.
+    </div>
+% }
+
+<table border="0" width="100%" cellspacing="0" cellpadding="5">
+<tr valign=top align="left"  class="tablehead2">
+<th colspan="2">Class</th>
+<th>Title</th>
+<th>Type</th>
+<th>Instructor</th>
+<th>Location</th>
+<th>Times</th>
+</tr>
+
+<%perl>
+my $editclass = "edit_classlist_form.html";
+if ($display_year == 0) {$editclass = "edit_classtemplate_form.html";}
+
+my $sql = "
+           SELECT DISTINCT c.classid, c.name, 
+                           c.section, c.component, c.component_desc,
+                           c.title, c.maintainer, c.location,
+                           c.time, c.date, 
+                           c.url, c.hidden, 
+                           classdata.item_type AS has_syllabus,
+                           c.auto_enroll_1, c.auto_enroll_2,
+                           c.parent, c.parent_auto,
+                           p.name as parent_name, p.section as parent_section,
+                           count(child.classid) as num_child,
+                           group_concat(distinct child.component_desc ORDER BY child.component_desc SEPARATOR ' and ') as child_components,
+                           c.class_type, c.is_group_child, c.subject
+             FROM classlist c
+        LEFT JOIN classdata ON classdata.classid = c.classid AND classdata.item_type = 'syllabus' 
+        LEFT JOIN classlist p ON c.parent=p.classid AND c.parent IS NOT NULL
+        LEFT JOIN classlist child ON child.parent=c.classid 
+            WHERE c.year=? AND c.quarter=? AND c.hidden=? 
+            GROUP BY c.classid
+            ORDER BY c.name, c.section
+            ";
+
+my $classcount = 0;
+#my %comp_translate = ( 'LEC' => "Lecture", 'LAB' => "Lab", 'DIS' => 'Discussion', 'DST' => 'Directed Studies', 'DRS' => 'Directed Research' );
+
+# make sure database is available!
+unless (defined $dbh) {
+    print "<tr><td>Sorry, the class pages are temporarily unavailable</td></tr></table>";
+    return;
+}
+
+for (my $show_hidden=0 ; $show_hidden <= 1 ; $show_hidden++) {
+    if ($show_hidden) {
+        next if (!$auth);
+        print '<tr><td align="left" colspan="2"><h2>Canceled Classes</h2></td></tr>';
+    }
+    my $sth = $dbh->prepare($sql) or die "Failed to prepare statement: " . $dbh->errstr;
+    $sth->execute($fetch_year, $quarter, $show_hidden) or die "Failed to fetch classes: " . $sth->errstr;
+
+    my $rowclass = "odd";
+    my $lasttitle="haggledebutsbagel";
+    while (my $row_ref = $sth->fetchrow_arrayref) {
+        my ($classid, $name, $section, $component, $component_desc, $title, $maintainer, $location, $time, $date, $url, $hidden, $has_syllabus, $auto1, $auto2, $parent, $parent_auto, $parent_name, $parent_section, $has_labs, $child_components, $class_type, $is_group_child, $class_subject) = @$row_ref;
+        # Skip if we are filtering by subject
+        next if(defined($subject) && $subject ne "all" && uc($subject) ne uc($class_subject));
+        # Skip if it is a child (has a parent)
+        next if($parent);
+        # Skip if its an astro class whose class_type is E and we are looking at a combined list
+        #next if(!$subject && $class_subject eq 'AST' && $class_type eq 'E');
+        next if($is_group_child);
+
+        if($rowclass eq "odd") {
+            $rowclass = "even";
+        } else {
+            $rowclass = "odd";
+        }
+        $classcount += 1;
+        $classname = $name;
+        if ($section) { $classname .= ".".$section; }
+        my $urlname = $classname;
+        $urlname =~ s/ /\%20/g;
+        $classname =~ s/ /&nbsp;/g;
+        my $classlink_style="";
+        #$classlink_style="color: #55d;" if($parent);
+        my $classlink = "<a href=\"$urlbase/". ($subject?"$subject/":'')."$fetch_year/$quarter/$urlname/index.html\" style=\"$classlink_style font-weight: bold;\">$classname</a>";
+        if ($speculative) {
+            $classlink = $classname;
+        }
+        my $extras = "";
+        my $rss = "";
+        if (!$archived && !$speculative) {
+            $rss .= '<a href="rss.html?classid=' . $classid . '" style="padding-top: 0.4em; padding-right: 0.4em;" title="Subscribe to class RSS feed"><img src="/images/feed-icon-14x14.png" width="14" height="14" border=0 alt="RSS"></a>';
+            $extras .= "<a href=\"$urlbase/$subject/$fetch_year/$quarter/$urlname/syllabus.html\">Syllabus</a> " if $has_syllabus;
+            $extras .= "| <a href=\"$url\">External site</a> " if $url;
+        }
+        else {
+            $rss .= '<img src="/images/feed-icon-grey-14x14.png" width="14" height="14" border=0 alt="RSS" style="float:left; padding-top: 0.4em; padding-right: 0.4em;">';
+        }
+        # "edit" is still available even if archived...?
+        #if ($auth && !$speculative) {
+        #    $extras .= "| " if($extras);
+        #    $extras .= "<a href=\"$urlbase/$subject/$year/$quarter/$urlname/edit.html\">Edit</a> ";
+        #}
+
+        print "<tr class=\"$rowclass\" valign=\"top\">";
+        print "<td colspan=\"2\">";
+        print "$classlink";
+
+        print "<br/><small>".$extras."</small>" if($extras);
+        my $tba = "<i>tba</i>";
+        my $instructor_name;
+        my @instructors = physdb::queryall("SELECT * FROM members WHERE type = 'instructor' AND memberof = ? ORDER BY dw_type ASC", $classid);
+        unless (grep { !defined $_->{dw_print} || $_->{dw_print} ne 'N' } @instructors) {
+            $instructor_name = $tba;
+        }
+        my $instructors = join ('<br/>', map {
+            my $instructor = $_;
+            my $noprint = defined $instructor->{dw_print} && $instructor->{dw_print} eq 'N' ? 1 : 0;
+            ($noprint ? ' <small>(' : '') . $m->comp('/mason/db/directory/user_to_linkedname.comp', uid => $instructor->{uid}) . ($noprint ? ')</small>' : '');
+        } grep { $auth || !defined $_->{dw_print} || $_->{dw_print} ne 'N' } @instructors);
+
+        if ($instructors) {
+            $instructor_name .= '<div>' . $instructors . '</div>';
+        }
+
+        # for time and location, only replace the first space with nbsp
+        if (!$location) {
+            $location = $tba;
+        };
+        $location =~ s/\s/&nbsp;/;
+        if (!$time) {
+            $time = $tba;
+        };
+        $time =~ s/\s/&nbsp;/;
+
+        if ($speculative) {
+            $location = $tba;
+            $instructor_name = $tba;
+            $time = $tba;
+            $date = $tba;
+        }
+
+        print "</td><td>";
+        print "$title $rss"; # if($title ne $lasttitle);
+        print "</td>";
+        print "<td>";
+        print "$component_desc";
+        if($has_labs) {
+            print " plus $child_components"
+        }
+        print "</td><td>$instructor_name</td><td>$location</td><td>$time";
+        print "<br/><i>$date</i>" if $dw_showdates;
+        print "</td></tr>\n";
+        $lasttitle=$title;
+    }
+}
+</%perl>
+</table>
+
+% if (!$classcount) {
+    <b>No classes were found for this semester</b>
+% }
+%# vim:set syntax=mason:

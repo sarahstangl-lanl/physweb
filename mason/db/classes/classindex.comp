@@ -1,0 +1,95 @@
+<%DOC>
+   vim: set syntax=mason: 
+   Component: classindex.comp
+        Date: 2005.08.17
+      Author: allan
+     Changed: 2005.08.17 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$classid
+$archived
+</%ARGS>
+
+<%INIT>
+my $auth = $m->comp('/mason/auth/auth_check_class.comp');
+my ($summary, $name);
+my $sql = "SELECT summary, name FROM classlist WHERE classid = ? LIMIT 1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($classid)
+  or die 'Unable to grab summary: ' . $dbh->errstr;
+my $row_ref = $sth->fetchrow_arrayref;
+($summary, $name) = @$row_ref;
+
+# if summary still empty, try to get it from a template
+if (!$summary) {
+  $sql = "SELECT summary FROM classlist WHERE name = ? AND year = 0 LIMIT 1";
+  $sth = $dbh->prepare($sql);
+  $sth->execute($name)
+    or die 'Unable to grab tpl summary: ' . $dbh->errstr;
+  $row_ref = $sth->fetchrow_arrayref;
+  if (defined($row_ref)) {
+    ($summary) = @$row_ref;
+  }
+}
+
+my $main_section = physdb::queryfirstrow('SELECT * FROM classlist WHERE classid=?', $classid);
+</%INIT>
+<%perl>
+# Get list of instructors
+my @instructors = physdb::queryall("SELECT * FROM members WHERE type = 'instructor' AND memberof = ? ORDER BY dw_type ASC", $classid);
+</%perl>
+
+<div style="background-color: #e0e0e0; padding: 5px 0 5px 1em;">
+<b>
+Session: <% ucfirst($main_section->{quarter}) . " " . $main_section->{year} . ($main_section->{date} ? ' (' . $main_section->{date} . ')' : '') %><br/>
+
+<%perl>
+    if ((grep { !defined $_->{dw_print} || $_->{dw_print} ne 'N' } @instructors) || (@instructors && $auth)) {
+        foreach my $instructor (@instructors) {
+            next unless (!defined $instructor->{dw_print} || $instructor->{dw_print} ne 'N' || $auth);
+            </%perl>Instructor: <% $m->comp('/mason/db/directory/user_to_linkedname.comp', uid => $instructor->{uid}) %> (e-mail: <% $m->comp('/mason/encode_mailto.comp', email => $m->comp('/mason/db/directory/user_to_item.comp',uid => $instructor->{uid}, item => 'email')) %>) <br/> <%perl>
+        }
+    }
+    else {
+        </%perl>Instructor: TBA</br><%perl>
+    }
+
+    if ($main_section->{flags} =~ /wiki/) {
+        my $wikiname = lc($main_section->{name});
+        $wikiname =~ s/ //g;
+        </%perl>
+            There is a <a href="https://zzz.physics.umn.edu/classes/<% $main_section->{year} |u %>/<% $main_section->{quarter} |u %>/<% $wikiname |u %>.<% $main_section->{section} |u %>/home">Class wiki area</a><br/>
+        <%perl>
+    }
+
+    if ($main_section->{'time'}) {
+            </%perl>Time: <% $main_section->{'time'} |h %><br/><%perl>
+    }
+    if ($main_section->{location}) {
+            </%perl>Location: <% $main_section->{location} |h %><br/><%perl>
+    }
+    if ($main_section->{officehours}) {
+        </%perl>
+           Office Hours: <div style="padding-left: 3em;"><% $m->comp("/mason/format_wikitext.comp", text=>$main_section->{officehours}) %></div>
+           <br/><%perl>
+    }
+    if ($main_section->{archived}) {
+            </%perl>Note: <font color="red">This class is archived</font><br/><%perl>
+    }
+</%perl>
+</b>
+
+% if ($summary) {
+%     $m->out($m->comp('/mason/format_wikitext.comp', text=>$summary) );
+% }
+</div>
+
+<h4 class="classes">Recent Updates
+% if (!$archived) {
+<a href="/classes/rss.html?classid=<% $classid |u %>" style=""><img src="/images/feed-icon-14x14.png" width="14" height="14" border=0 alt="RSS" title="RSS: Subscribe to <% $name |h %>" alt="RSS: Subscribe to <% $name |h %>"></a>
+% }
+</h4>
+<& /mason/db/classes/timeline.comp, classid=>$classid &>

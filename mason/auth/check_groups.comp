@@ -1,0 +1,66 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: check_groups.comp
+        Date: 2007.08.27
+      Author: rubin
+     Changed: 2007.08.27 by rubin
+
+Checks a user's group membership based on allow and deny lists.
+
+If the user matches neither allow or deny groups, then default is returned.
+If they have ANY deny groups, then 0 is returned.
+If they have an allow group but no deny groups, then 1 is returned.
+</%DOC>
+
+<%ARGS>
+@allow=>()
+@deny=>()
+$type=>''
+$default=>0
+$uid => $session{'uid'}
+</%ARGS>
+
+<%INIT>
+my ($sql, $sth);
+my @sql_vars = ($uid);
+
+if ($ARGS{'allow'}) { push(@allow, $ARGS{'allow'}); }
+if ($ARGS{'deny'}) { push(@deny, $ARGS{'deny'}); }
+
+sub in_array {
+  my ($value, @arr) = @_;
+
+  return grep($_ eq $value, @arr);
+}
+
+$sql = "SELECT groups.name FROM groups JOIN groupmembers on groups.name=groupmembers.groupname WHERE uid=?";
+if ($type) {
+  $sql .= ' AND type=?';
+  push(@sql_vars, $type);
+}
+$sth = $dbh->prepare($sql);
+$sth->execute(@sql_vars) or die("SQL error: $sql");
+
+my (@groups, $row_ref);
+while($row_ref = $sth->fetchrow_arrayref) {
+   my ($groupname) = @$row_ref;
+   push @groups, $groupname;
+}
+
+foreach (@deny) {
+  if (in_array($_, @groups))
+  {
+    return 0;
+  }
+}  
+
+foreach (@allow) {
+  if (in_array($_, @groups))
+  {
+    return 1;
+  }
+}
+
+return $default;
+
+</%INIT>

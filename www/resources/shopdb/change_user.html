@@ -1,0 +1,41 @@
+<%args>
+$uid => undef
+</%args>
+<%init>
+my $auth_args = $session{'shopdb-auth'};
+
+unless ($auth_args->{'su_from_uid'} || $auth_args->{'foreman'} || $auth_args->{'admin'}) {
+    $m->redirect($r->headers_in->{'Referer'} || 'index.html');
+}
+
+if ($uid) {
+    warn "Building auth for uid $uid";
+    $m->comp('/mason/db/shopdb/build_auth.comp', uid => $uid, 'reload-auth' => 1);
+    $session{'shopdb-auth'}{'su_from_uid'} = $session{'uid'};
+    $m->comp('/mason/db/auditlog/addevent.comp',
+        directory_uid => $session{'uid'},
+        type => 'ShopDB su',
+        text => $session{'display_name'} . ' as ' . $m->comp('/mason/db/directory/uid_to_name.comp', uid => $uid),
+    );
+    (my $redirect = $ARGS{'referer'} || 'index.html') =~ s/reload-auth=1//;
+    $m->redirect($redirect);
+}
+
+# Auth override option
+#foreach my $k (keys %ARGS) {
+#    if ($k =~ /^clear-auth$/) {
+#        $session{'shopdb-auth'} = {};
+#    }
+#    if ($k =~ /^auth-(.*)$/) {
+#        $session{'shopdb-auth'}{$1} = $ARGS{$k};
+#    }
+#}
+
+</%init>
+<form>
+<input type="hidden" name="referer" value="<% $r->headers_in->{'Referer'} |h %>"/>
+<table>
+<tr><td><input type="text" size="25" name="uid" id="uid" /></td><td><input type="submit" value="Change user" /></td></tr>
+</table>
+% $m->comp('/mason/ajax/complete_people.comp', id => 'uid', name => 'uid', uid => '', include_shop_customers => 1);
+<%method title>Shop Change User</%method>

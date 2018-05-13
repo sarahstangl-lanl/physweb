@@ -1,0 +1,94 @@
+<%doc>
+         vim: set syntax=mason:
+   Component: edit_profile.html
+        Date: 8/30/2002
+      Author: allan
+ Description: update profile data from form
+</%doc>
+
+<%args>
+$uid=>undef
+$physid=>undef
+$bio=>''
+$education=>''
+$collaborators=>''
+$positions=>''
+$honors=>''
+$memberships=>''
+$service=>''
+</%args>
+
+<%init>
+if(!$uid) {
+    $uid = $session{'uid'};
+}
+if(!$uid) {
+    $m->out("No uid");
+    return;
+}
+return if($m->comp('/mason/db/dbcheck.comp'));
+return if($uid !~ /^[0-9]*$/);
+
+my $x500 = $m->comp('/mason/db/directory/uid_to_x500.comp',uid=>$uid);
+
+my $auth = $m->comp('/mason/auth/auth_check_profile.comp', uid=>$uid);
+my $success;
+my $error;
+
+if (!$auth) { $error = "Not authorised";}
+
+if (!$error) {
+
+# this just makes sure the profiles table contains an entry for this uid...
+$m->comp('/mason/db/profile/ensure_entry.comp',uid=>$uid);
+
+# figure out any file upload data...
+my $req = Apache2::Request->new($r);
+my $upload = $req->upload('filedata');
+my ($filename, $filedata, $mime_type);
+if($upload) {
+  $filename = $upload->filename;
+  if ($filename) {
+    $mime_type = $upload->type;
+    my $fh = $upload->fh;
+    if ($mime_type =~ /pdf/ || $filename =~ /.pdf$/) {
+      # only accept pdf files for upload...
+      $filedata = do { local $/; <$fh> };
+    } else {
+      $error = "Sorry, I only accept PDF file uploads (you sent type $mime_type)";
+    }
+  }
+}
+
+  # now update the profile part...
+  my $sql = "UPDATE profiles ";
+  $sql .= "SET bio=?, education=?, collaborators=?, positions=?, honors=?, memberships=?, service=? ";
+  $sql .= "WHERE uid=? ";
+  my $sth = $dbh->prepare($sql);
+  $success = $sth->execute($bio, $education, $collaborators, $positions, $honors, $memberships, $service, $uid);
+  if ($filedata) {
+    $sql = "UPDATE profiles SET filename=?, mime_type=?, filedata=? WHERE uid=?";
+    $sth = $dbh->prepare($sql);
+    $success = $sth->execute($filename, $mime_type, $filedata, $uid);
+  }
+
+  }
+  if (!$success) {$error = $DBI::errstr;}
+
+</%init>
+
+<%method title>Profile update</%method>
+
+<%perl>
+if (!$error) {
+
+$m->redirect("index.html?uid=$uid&amp;msg=Profile changes saved");
+} else {
+</%perl>
+
+Update failed: </P>
+<pre>
+<% $error %>
+</pre>
+
+% }

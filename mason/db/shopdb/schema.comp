@@ -1,0 +1,24 @@
+<%init>
+
+    # Check for instance change
+    if ($m->request_args->{instance}) {
+        $session{shopdb_instance} = $m->request_args->{instance} if ($m->request_args->{instance} =~ /^(webdb|webdb_test)$/);
+    }
+
+    $session{shopdb_instance} ||= 'webdb';
+
+    # Don't reinitialize the schema
+    if ($shopdb->{schema}) {
+        (my $cnfgroup = $shopdb->{schema}->storage->{_dbi_connect_info}->[0]) =~ s/.*mysql_read_default_group=(.*)/$1/;
+        return $shopdb->{schema} unless ($session{shopdb_instance} ne $cnfgroup);
+    }
+
+    warn "Initalizing schema $$ for instance $session{shopdb_instance}";
+
+    my $mycnf = "/home/www/.my.cnf";
+    my $mycnfgroup = $session{shopdb_instance};
+    my $shopdb_database = 'shopdb';
+    my $shopdb_dsn = "DBI:mysql:database=$shopdb_database;mysql_read_default_file=$mycnf;mysql_read_default_group=$mycnfgroup";
+
+    return $shopdb->{schema} = ShopDb::Schema->connect($shopdb_dsn, undef, undef, { RaiseError => 1, quote_char => '`', name_sep => '.' });
+</%init>

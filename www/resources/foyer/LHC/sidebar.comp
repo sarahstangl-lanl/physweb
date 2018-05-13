@@ -1,0 +1,15 @@
+<%doc>
+vim:set syntax=mason:
+</%doc>
+<%method backgroundcolor>#A3DCd5</%method>
+    <h1>High Energy Physics at the LHC</h1>
+    <!--<h2>What is CMS?</h2>-->
+    <p>The Compact Muon Solenoid is one of two large general-purpose particle physics detectors built on the Large Hadron Collider (LHC) at CERN.</p>
+    <!--<h2>What is the LHC?</h2>-->
+     <p>The Large Hadron Collider is the world's largest and highest-energy particle accelerator.</p>
+     <p>Professor Jeremiah Mans is involved in the hardware for the Hadron Calorimeter, a major subsection of the CMS detector. The major physics focus of the group during the initial operation of CMS is the understanding the structure of the proton at LHC using Z bosons.  In the future, the group will be searching for dark matter and the Higgs boson using CMS data.
+    <div id="sideiconblock" style="position: absolute; top: 750px; right:0px; text-align: center; width: 100%;">
+      <img src="LHC/cmsLogo_100.gif" style="" />
+      <img src="LHC/detector_100.gif" style="" />
+      <img src="LHC/cernLogo_100.gif" style="" />
+    </div>

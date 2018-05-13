@@ -1,0 +1,89 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: diskreport.comp
+        Date: 2008.04.02
+      Author: hank
+     Changed: 2012.04.18 by hank
+
+Description: Pure magic.
+</%DOC>
+
+<%ARGS>
+$host=>''
+$max=>10
+</%ARGS>
+
+<%INIT>
+use physdb;
+</%INIT>
+
+<%perl>
+
+my $sth = physdb::query("SELECT * FROM cfengine.disklog WHERE host LIKE '$host%' ORDER BY timestamp DESC");
+
+my %states;
+my %buses;
+my %slots;
+my @errors;
+
+sub resolve_bus_to_slot {
+    my $bus = shift;
+    if ($bus =~ /.*0x122100000\d000000:(\d)/) {
+        return $1;
+    }
+    if ($bus =~ /pci-0000:00:1f.2-scsi-(\d):\d:(\d):\d/) {
+        return $2 ? 2 + $1 : $1;
+    }
+    # returning value modulo 10 since stored values seem erratic this way
+    return $bus % 10;
+}
+
+while (my $row = $sth->fetchrow_hashref()) {
+    $host = $row->{'host'};
+    $states{$row->{'timestamp'}}{$row->{'busid'}} = $row->{'serial'};
+    unless (exists $buses{$row->{'busid'}}) {
+        my $slot = resolve_bus_to_slot($row->{busid});
+#        warn "Resolved $row->{busid} to $slot";
+        $buses{$row->{busid}} = 1;
+        push @{$slots{$slot}}, $row->{'busid'};
+    }
+}
+
+my @slots = sort keys %slots;
+
+return unless (%buses);
+
+</%perl>
+<table width="100%">
+<tr><th style="min-width: 150px;">Timestamp</th>
+% for my $slot (@slots) {
+    <th width="<% int(100/@slots) %>%">slot <% $slot |h %></th>
+% }
+</tr>
+<%perl>
+my $oddeven = 0;
+my $count = 0;
+foreach my $time (reverse sort keys %states) {
+    $oddeven = $oddeven ? 0 : 1;
+    print '<tr class="' . ($oddeven ? 'odd' : 'even') . '">';
+    print "<td>$time</td>";
+    for my $slot (@slots) {
+        my $serial = "";
+        for my $bus (@{$slots{$slot} || []}) {
+            if (defined $states{$time}->{$bus}) {
+                if ($serial) {
+                    my $msg = "More than one serial mapped to slot $slot (buses @{$slots{$slot} || []})";
+                    push (@errors, $msg);
+                    warn $msg;
+                }
+                $serial = $states{$time}->{$bus};
+            }
+        }
+        print "<td>" . _h($serial) . "</td>";
+    }
+    print "</tr>\n";
+    last if ($count++ > $max);
+}
+print "</table>\n";
+$m->comp('/mason/notice_box.comp', type => 'error', text => '', html => join('<br/>', @errors)) if (@errors);
+</%perl>

@@ -1,0 +1,116 @@
+<%args>
+    %auths
+    $mode
+    $year
+    $semester
+</%args>
+<%init>
+return {
+    # Active student and (grad student OR someone with an appointment)
+        default => {
+            name => 'Default',
+            #groups => [ 'dir_active', 'physgrad' ],
+            join => [ 'groupmembers AS g_physgrad' => 'g_physgrad.uid = d.uid AND g_physgrad.groupname = \'physgrad\'',
+                      #'groupmembers AS g_physmajor' => 'g_physmajor.uid = d.uid AND g_physmajor.groupname = \'physmajor\'',
+                      #'groupmembers AS g_physta' => 'g_physta.uid = d.uid AND g_physta.groupname = \'physta\'',
+                    ],
+            # TODO: depend on mode?  Which groups should be in which modes? 
+            #where => 'd.inactive = 0 AND (g_physgrad.groupname IS NOT NULL OR g_physmajor.groupname IS NOT NULL OR g_physta.groupname IS NOT NULL) /* OR a.uid IS NOT NULL */',
+            where => 'd.inactive = 0 AND (g_physgrad.groupname IS NOT NULL OR a.uid IS NOT NULL)',
+            default => 1,
+        },
+    # Active student
+        dir_active => {
+            name => 'Active Students',
+            where => 'd.inactive = 0',
+        },    
+    # List only my students (based on grad progress, not directory)
+        my_student => {
+            name => 'List Only My Students',
+            where => ['g.advisor=?', $session{'uid'}],
+            # Force only my students for advisors (assuming they are nothing else)
+            force => (!$auths{'progreport'} && !$auths{'appointment'} && !$auths{'ta'}) || ($mode eq 'advisor'),
+        },
+    # Grad student (flag)
+        physgrad => {
+            name => 'Physics Grad Students',
+            join => [ 'groupmembers AS g10' => 'g10.uid = d.uid AND g10.groupname = \'physgrad\'' ],
+            where => 'g10.groupname IS NOT NULL',
+        },
+    # Has submitted progress report
+        has_progress => {
+            name => 'Has Submitted Progress Report This Year',
+            where => ['g.record_year IS NOT NULL AND g.record_year >= ?', $year],
+            enable => $auths{'advisor'} || $auths{'progreport'},
+        },
+    # Has not submitted progress report
+        has_not_progress => {
+            name => 'Has Not Submitted Progress Report This Year',
+            where => ['g.record_year IS NULL OR g.record_year < ?', $year],
+            enable => $auths{'advisor'} || $auths{'progreport'},
+        },
+    # Has submitted ta schedule
+        has_ta_sched => {
+            name => 'Has Submitted TA Schedule',
+            where => 't.year IS NOT NULL',
+            enable => $auths{'ta'},
+        },
+    # Has not submitted ta schedule
+        has_not_ta_sched => {
+            name => 'Has Not Submitted TA Schedule',
+            where => 't.year IS NULL',
+            enable => $auths{'ta'},
+        },
+    # Missing advisor comments
+        missing_advisor_comments => {
+            name => 'Advisor Comments Before ' . $year,
+            #where => 'DATE_SUB(CURDATE(), INTERVAL 1 YEAR) > advisor_update_time',
+            where => ['YEAR(advisor_update_time) < ?', $year],
+            enable => $auths{'advisor'} || $auths{'progreport'},
+        },
+    # Unapproved appointments
+        missing_advisor_approval => {
+            name => 'Missing Advisor Appointment Approval',
+            where => ['advisor_approval != ?', 'yes'],
+            enable => $auths{'advisor'} || $auths{'progreport'},
+        },
+    # Non-zero appointments
+        nonzero_appointments => {
+            name => 'Non-zero Appointments',
+            where => ['a.ta_amt != ? OR a.ra_amt != ? OR a.fellowship != ?', '0', '0', '0'],
+            enable => $auths{'advisor'} || $auths{'progreport'},
+        },
+    # Has TA Appointment
+        has_ta_appointment => {
+            name => 'Has Non-zero TA Appointment',
+            where => ['a.ta_amt != ?', '0'],
+            enable => $auths{'advisor'} || $auths{'progreport'},
+        },
+    # Has RA Appointment
+        has_ra_appointment => {
+            name => 'Has Non-zero RA Appointment',
+            where => ['a.ra_amt != ?', '0'],
+            enable => $auths{'advisor'} || $auths{'progreport'},
+        },
+    # Has Fellowship Appointment
+        has_fellowship_appointment => {
+            name => 'Has Non-zero Fellowship Appointment',
+            where => ['a.fellowship != ?', '0'],
+            enable => $auths{'advisor'} || $auths{'progreport'},
+        },
+    # List appointment changes
+        show_appt_changes => {
+            name => 'Show Appointment Changelog',
+            fields => ['CONCAT(d20.first_name, \' \', d20.last_name) AS editor', 'a20.timestamp', 'a20.text'],
+            join => [ 'accounting.appointment_auditlog AS a20' => ['a20.appt_uid = d.uid AND a20.appt_year = ? AND a20.appt_semester = ? ', $year, $semester],
+                      'directory AS d20' => ['d20.uid = a20.uid'] ],
+            enable => $auths{'appointment'},
+            field_params => { 'editor' => { 'nowrap' => 1, 'auth' => '1' },
+                               'timestamp' => { 'nowrap' => 1, 'auth' => '1' },
+                               'student_first_name' => { 'nowrap' => 1, 'auth' => 1 },
+                               'student_last_name' => { 'nowrap' => 1, 'auth' => 1 },
+                               'text' => { 'auth' => '1' },
+                             },
+        },
+    };
+</%init>

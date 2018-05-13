@@ -1,0 +1,37 @@
+<%perl>
+    $m->comp('/mason/auth/auth_block.comp', internal=>1);
+    
+    my %config = $m->comp('/mason/db/tascheduling/config.comp');
+    my $year = $config{'active_year'};
+    my $semester = $config{'active_sem'};
+    
+    my $auth_ta = $m->comp('/mason/auth/auth_check_ta.comp', year => $year, semester => $semester);
+    my $auth_admin = $m->comp('/mason/auth/auth_check_ta_admin.comp');
+    my $auth = ($auth_ta || $auth_admin);
+    
+    if (length($year) > 0 || $auth_admin) {
+        if ($auth) {
+            $m->call_next;
+        } else {
+            $m->comp('not_authorized.html');
+        }
+    } else {
+        print 'Registration is not currently active, please check back later.';
+    }
+</%perl>
+
+<%method titlemenu_below>
+    <& /mason/titlemenu.comp:begin, type=>"below" &>
+    <&| /mason/titlemenu.comp:item, link=>'index.html'  &>Edit Schedule</&>
+% my $auth_admin = $m->comp('/mason/auth/auth_check_ta_admin.comp');
+% if ($auth_admin) {
+    <&| /mason/titlemenu.comp:item, link=>'admin_semesters.html'  &>Schedules/Sections</&>
+    <&| /mason/titlemenu.comp:item, link=>'admin_config.html'  &>Configuration</&>
+% }
+   <& /mason/titlemenu.comp:end &>
+</%method>
+
+
+<!-- vim: set syntax=mason: -->
+
+

@@ -1,0 +1,104 @@
+%# ~~NOSITEMAP~~
+<%doc>
+   vim: set syntax=mason:
+</%doc>
+
+<%args>
+$name=>''
+$school=>''
+$workphone=>''
+$workaddress=>''
+$homephone=>''
+$homeaddress=>''
+$email=>''
+$yearsteaching=>''
+$yearsphysics=>''
+$teaching=>''
+$teaching2=>''
+$teaching3=>''
+$Education=>''
+$Education2=>''
+$Education3=>''
+$Education4=>''
+$Education5=>''
+$Education6=>''
+$Education7=>''
+$Education8=>''
+$Education9=>''
+$formalcourse=>''
+$experience=>''
+$whyparticipate=>''
+$workstreet=>''
+$workcity=>''
+$workstate=>''
+$workzip=>''
+$homeStreet=>''
+$homecity=>''
+$homestate=>''
+$homezip=>''
+</%args>
+
+<%init>
+#First we must make sure to get the right address values
+$workaddress= $workstreet . ' ' . $workcity . ', ' . $workstate . ' ' . $workzip;
+$homeaddress= $homeStreet . ' ' . $homecity . ', ' . $homestate . ' ' . $homezip;
+use Mail::Sendmail;
+my $to='reu@physics.umn.edu';
+my $subject='2012 RET Application';
+my $conf_subject='2012 RET Application Confirmation';
+</%init>
+
+<%perl>
+if (!$email) {
+    print '<h3>Application Error</h3>Please go back and include an e-mail address';
+    return;
+}
+
+# Email them the confirmation
+my $message = <<END;
+Below is the contents of your online application:
+
+Name: $name
+School: $school
+WorkPhone: $workphone
+WorkAddress: $workaddress
+HomePhone: $homephone
+HomeAddress: $homeaddress
+Email: $email
+YearsTeaching: $yearsteaching
+YearsPhysics: $yearsphysics
+
+Teaching: 
+$teaching
+$teaching2
+$teaching3
+
+Education:
+$Education in $Education2 in $Education3
+$Education4 in $Education5 in $Education6
+$Education7 in $Education8 in $Education9
+
+FormalCourse: $formalcourse
+Experience: $experience
+WhyParticipate: $whyparticipate
+
+END
+
+my %mail = ( To         => $to,
+             Cc         => $email,
+#             'Reply-To' => $email, #########leave commented
+             From       => $email,
+             Subject    => $subject,
+             Message    => $message
+           );
+if(sendmail(%mail)) {
+    $m->redirect('retthanku.html');
+} else {
+    if ($Mail::Sendmail::error =~ /Domain of sender address .* does not exist/) {
+        print '<h3>Application Error</h3>Please go back and include a <b>valid</b> e-mail address';
+        return;
+    } else {
+        die 'Failed to send mail: ' . $Mail::Sendmail::error;
+    }
+}
+</%perl>

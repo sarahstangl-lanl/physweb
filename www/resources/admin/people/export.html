@@ -1,0 +1,24 @@
+<%perl>
+    my $dirauth = $m->comp('/mason/auth/auth_check_directory.comp');
+    if($dirauth) {
+        $m->comp('/mason/db/tablesearch.comp',
+            table => 'directory d',
+            field_list => [ qw/last_name first_name emplid/, 'b1.bldg_abbr AS building', qw/room room_phone/, 'b2.bldg_abbr AS building2', qw/room2 room2_phone position dw_position email ucard ucardprox/, 'GROUP_CONCAT(m.groupname) AS groups' ],
+            field_params => { 'last_name' => { 'secondary_sort_field' => 'first_name' } },
+            joins => [
+                'dwsp_building b1' => 'b1.bldg_no = d.room_building',
+                'dwsp_building b2' => 'b2.bldg_no = d.room2_building',
+                'groupmembers m' => 'm.uid = d.uid',
+            ],
+            where => '!inactive AND m.groupname IN ("staff", "spafac", "researchassist", "research", "spagrad", "physmajor", "peoplesoft_ra", "sps", "postdoc", "peoplesoft_ta")',
+            group_by => 'GROUP BY d.uid',
+            default_sort_field => 'last_name',
+            header_format => 'ucfirst_all',
+            excel_link => 1,
+            debug => 0,
+        );
+    }
+    else {
+        print "You must be in the directory group to use this."
+    }
+</%perl>

@@ -1,0 +1,184 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: assoc_edit.html
+        Date: 2007.08.27
+      Author: clayton
+     Changed: 2007.08.27 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $type      => ''
+  $id        => ''
+  $name      => ''
+  $secondary => ''
+  @remove => ()
+  $set_name        => ''
+  $set_description => ''
+  $skel      => undef
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/ajax/js.comp');
+$m->comp('/mason/ajax/jsload.comp', file=>'phpmyarows.js');
+
+my $auth;
+my $pagetitle = 'Error: Unknown';
+
+if (($type eq 'TA') || ($type eq 'instructor'))
+{
+  $m->comp('/mason/auth/auth_block_editclass.comp',classid=>$id);
+  $auth = 1;
+
+# Lookup Class Name
+  my $sql = "SELECT name, section, title, year, quarter FROM classlist WHERE classlist.classid=? LIMIT 1";
+  my $sth = $dbh->prepare($sql);
+  $sth->execute($id);
+
+  if (my $row_ref = $sth->fetchrow_arrayref) {
+    my ($name, $section, $title, $year, $quarter) = @$row_ref;
+
+    my $classname = $name;
+    if ($section) { $classname .= ".".$section; }
+    $classname =~ s/ /&nbsp;/g;
+
+    $pagetitle = ($type eq 'TA' ? 'TA' : 'Instructor') . ' List for ' . $classname . ' ' . ucfirst($quarter) . ' ' . $year;
+  }
+
+} else {
+  $m->out('Unknown Association Type Given');
+  return;
+}
+
+my $errmsg = '';
+
+if (!$auth)
+{
+  $m->out('Access Denied');
+  return;
+}
+
+my ($sql, $query, $result, $groupinfo, @errors);
+
+if ($type)
+{
+  my $uid = '';
+  my @arrsecondary = split /[, ]+/, $secondary;
+  if (scalar(@arrsecondary) < 1) { push @arrsecondary, 0; }
+  my $x500;
+  $query = $m->comp('/mason/ajax/people_finder.comp', 'name'=>$name, 'limit'=>1);
+  if ($query)
+  {
+    $result = $query->fetchrow_hashref();
+    $uid = $$result{'uid'};
+    $x500 = $$result{'x500'};
+  }
+  
+  if ($uid)
+  {
+    $query = $dbh->prepare('INSERT INTO members (type, uid, memberof, secondary) VALUES (?, ?, ?, ?)');
+    foreach my $secondary (@arrsecondary) {
+      if((length(int($secondary)) > 0) && ($query->execute($type, $uid, $id, $secondary))) {
+         $m->comp('/mason/db/auditlog/addevent.comp', type=>'add_assoc', text=>"$x500 added to $type (#$id, secondary: $secondary)");
+      } else {
+         if ($query->err eq '1062') {
+           push @errors, "That person already exists in this group -- skipping.";
+         } else {
+           $m->out("DEBUG: $sql failed<br/>\n" . $query->errstr);
+           return;
+         }
+      }
+    }
+  }
+}
+
+$sql = 'DELETE FROM members WHERE type=? AND uid=? AND memberof=?';
+$query = $dbh->prepare($sql);
+foreach my $uid (@remove)
+{
+  if ($uid)
+  {
+    $query->execute($type, $uid, $id);
+    $sql = "select x500 from directory WHERE uid=?";
+    my $nameseek = $dbh->prepare($sql);
+    $nameseek->execute($uid);
+    my $names = $nameseek->fetchrow_hashref();
+    my $x500 = $$names{'x500'};
+    $m->comp('/mason/db/auditlog/addevent.comp', type=>'remove_assoc', text=>"$x500 removed from $type (#$id)");
+  }
+}
+
+</%INIT>		
+
+<%method title>Edit Membership</%method>
+
+<h3><% $pagetitle %></h3>
+% my $errstr = join '<br/>', @errors;
+<% $errstr %>
+<br/>
+
+<% ($errmsg ? '<br/><i>' . $m->interp->apply_escapes($errmsg, 'h') . '</i>' : '') %>
+
+<table>
+
+<%perl>
+#<tr>
+#<td align="right">Type:</td><td><% $type %></td></tr>
+#<tr><td align="right">ID:</td><td><% $id |h %></td></tr>
+</%perl>
+
+<tr><th bgcolor="#eeeeee" colspan="2" align="left">New Member</th></tr>
+<tr><td valign="top" align="right"></td><td>
+
+
+<form action="assoc_edit.html?type=<% $type |u %>&id=<% $id |u %><% (defined($ARGS{'skel'}) ? '&skel=1' : '') %>" id="new_form" method="POST">
+<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<tr><td>Person:</td><td style="padding-right: 4px;"><input type="text" size="30" style="width:100%;" name="name" id="new_member">
+<& /mason/ajax/complete_people.comp, id => 'new_member', dest_id => 'complete_new_member' &></td></tr>
+% if ($type eq 'TA') {
+<tr><td>Section(s):</td><td><input type="text" name="secondary" style="width: auto"> <small>(comma separated)</small></td></tr>
+% }
+<tr><td></td><td align="right"><input type="submit" value="Add Member"></td></tr>
+</table>
+</form>
+
+</td></tr>
+<tr><th bgcolor="#eeeeee" colspan="2" align="left">Current Members</th></tr>
+<tr><td valign="top" align="right"></td><td>
+
+% $sql = 'SELECT members.uid, directory.physid, directory.last_name, directory.first_name, GROUP_CONCAT(secondary) AS secondary FROM members LEFT JOIN directory ON (members.uid = directory.uid) WHERE type=? AND memberof=? GROUP BY members.uid ORDER BY directory.last_name ASC';
+% $query = $dbh->prepare($sql);
+% $query->execute($type, $id) or die 'Query failed: ' . $query->errstr;
+<form action="assoc_edit.html?type=<% $type |u %>&id=<% $id |u %><% (defined($ARGS{'skel'}) ? '&skel=1' : '') %>" method="POST">
+<table class="rowmagic" border="0" cellpadding="0" cellspacing="0">
+
+% my $havepeople = 0;
+% while ($result = $query->fetchrow_hashref()) {
+% $havepeople = 1;
+% $result->{'display_name'} = $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid=>$result->{'uid'});
+<tr class="even">
+  <td style="padding-left: 3px; padding-right: 3px;">
+    <input type="checkbox" name="remove" value="<% $$result{'uid'} |h %>" id="check<% $$result{'uid'} |h %>">
+  </td><td>
+    <label for="check<% $$result{'uid'} |h %>"><% $$result{'display_name'} |h %></label> [<a href="/people/<% $$result{'physid'} |h %>.html" target="_blank">info</a>]
+% if ($type eq 'TA') {
+  </td></tr><tr><td></td><td>
+  <small>Sections: <% (($$result{'secondary'} == 0) ? '<em>None</em>' : $$result{'secondary'}) %></small>
+% }
+</td></tr>
+% }
+
+</table>
+<input type="submit" value="Remove Selected Members"<% ($havepeople ? '' : ' DISABLED="disabled"') %>>
+</form>
+
+</td></tr>
+<tr><td></td></tr>
+</table>
+
+% if ($skel) {
+
+<div style="position:fixed; left:0; right:0; bottom:0; padding-right: 0.5em; padding-bottom: 0.5em; padding-top: 0.5em; background-color: #440000; color:white; text-align: right;"><a href="#" onclick="window.close()" style="color:white;">Close</a></div>
+
+% }

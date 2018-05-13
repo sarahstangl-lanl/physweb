@@ -1,0 +1,247 @@
+<%doc>
+   Component: edit_calendar_form.html
+        Date: 9/9/2002
+      Author: allan
+ Description: edit a calendar entry
+</%doc>
+
+<%args>
+$eventid=>'new'
+$template=>''
+$template_action=>''
+$new_template=>0
+$areatag=>'spa'
+</%args>
+
+<%shared>
+my ($caltitle) = "Physics and Astronomy Calendar";
+my %rargs = $m->request_args;
+
+  my $sql = "SELECT name FROM calendar_areas WHERE tag=? LIMIT 1";
+  my $sth = $dbh->prepare($sql);
+  if ($sth->execute($rargs{'areatag'})) {
+    my $row_ref = $sth->fetchrow_arrayref;
+    if (defined($row_ref)) {
+      ($caltitle) = @$row_ref;
+      $caltitle .= ' Calendar';
+    }
+  }
+</%shared>
+
+<%init>
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+my ($sortcode, $frontpage, $date, $title, $location, $speaker, $subject, $info, $abstract, $status, $class, $uid, $mod_date, $facultyhost);
+my ($time);
+my ($dowtext);
+my ($dow, $day, $month, $year);
+my $edit_template = 0;
+
+$template_action =~ s/^\s+|\s+$//g;
+
+$edit_template = (lc($template_action) eq 'edit');
+
+if ($new_template) {
+  $class = 'template';
+}
+
+my ($sql, $getevent, $sth, $row_ref);
+
+if ($eventid ne "new") {$getevent = $eventid;}
+if ($template) {$getevent = $template;}
+if ($getevent) {
+  # fetch entry to fill form defaults
+  $sql = "SELECT sortcode, dow, frontpage, date, title, location, speaker, subject, info, abstract, status, class, uid, mod_date, facultyhost, calendar_areas.tag FROM calendar JOIN calendar_areas ON (calendar.areaid=calendar_areas.areaid) WHERE eventid = ? LIMIT 1";
+  $sth = $dbh->prepare($sql);
+  if ($sth->execute($getevent)) {
+  $row_ref = $sth->fetchrow_arrayref;
+  if (defined($row_ref)) {
+  ($sortcode, $dow, $frontpage, $date, $title, $location, $speaker, $subject, $info, $abstract, $status, $class, $uid, $mod_date, $facultyhost, $areatag) = @$row_ref;
+  ($date,$time)= split(" ",$date);
+  if ($template) {
+    if ($edit_template) {
+      $eventid = $template;
+      } else {
+      $class = "calendar";
+      ($year,$month,$day) = split("-",$date);
+      $dow = Day_of_Week($year,$month,$day);
+      ($year,$month,$day) = Add_Delta_Days(Monday_of_Week(Week_of_Year(Today())),$dow+6);
+      $date = join("-",$year,$month,$day);
+    }
+  } # end of template test
+  } # end of row_ref defined test
+  } # end of execute test
+} else {
+  $date = "today";
+  $time="00:00";
+  $location=" Physics";
+}
+
+#
+# now build menu of available templates...
+#
+$sql = "SELECT eventid, dow, title, sortcode FROM calendar JOIN calendar_areas ON (tag=? AND calendar_areas.areaid=calendar.areaid) WHERE class='template' ORDER BY dow";
+$sth = $dbh->prepare($sql);
+$sth->execute($areatag);
+my $template_list;
+my @sortcode_list = (['none', 'none']);
+while ($row_ref = $sth->fetchrow_arrayref) {
+  my ($eventid, $dow, $title, $sortcode) = @$row_ref;
+  $dowtext = Day_of_Week_to_Text($dow);
+  $template_list .= $dowtext." - ".$title."=".$eventid.",";
+  if ($sortcode) { push @sortcode_list, [$sortcode, $title . ' (' . $sortcode . ')']; }
+}
+chop($template_list);
+
+
+# Delay getting auth until we know areatag for sure (may be updated due to eventid)
+my $access = ($m->comp('/mason/auth/auth_check_calendar.comp', areatag=>$areatag) || $m->comp('/mason/auth/auth_check_sysadm.comp'));
+my $tpl_access = ($m->comp('/mason/auth/auth_check_calendar_full.comp', areatag=>$areatag) || $m->comp('/mason/auth/auth_check_sysadm.comp'));
+</%init>
+
+<%method title>Edit <% $caltitle %></%method>
+
+% if (!$access) {$m->comp('/mason/redirect.comp',url=>"index.html");}
+<form method="POST" action="edit_calendar_form.html">
+<input type=hidden name="eventid" value="<% $eventid %>">
+<input type=hidden name="areatag" value="<% $areatag %>">
+<table>
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Choose Template (Optional)</th></tr>
+<tr><td colspan=2><i>Choosing a template will fill in some of the form for you. Select the template before entering any details, as it will overwrite any existing information. See the <a href="calendar_help.html">manual</a> for more help.</i></td></tr>
+
+<tr><td>
+Template:
+</td><td>
+% $m->comp( '/mason/form_selector.comp', name=>'template', optionlist=>$template_list);
+
+&nbsp;<input type=submit name="template_action" value=" Load ">
+% if ($tpl_access && (($eventid eq 'new') || $template)) {
+&nbsp;<input type=submit name="template_action" value=" Edit ">
+% }
+</td></tr>
+% if ($tpl_access && (($eventid eq 'new') || $template)) {
+<tr><td></td><td><a href="?areatag=<% $areatag |u %>&amp;new_template=1">Create New Template</a></td></tr>
+% } elsif ($tpl_access && ($eventid ne 'new')) {
+<tr><td></td><td>(Templates can not be created or edited while editing an event -- go to Add New Event to change templates)</td></tr>
+% }
+</table>
+
+</form>
+
+<form method="POST" name="edit" action="edit_calendar.html">
+<input type=hidden name="eventid" value="<% $eventid %>">
+<input type=hidden name="areatag" value="<% $areatag %>">
+<table border=0 width="100%">
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Event Data</th></tr>
+
+% if ($eventid ne "new" && $uid) {
+<tr><td colspan=2><small>Last modified <% $mod_date %> by <% $m->comp('/mason/db/directory/uid_to_name.comp', uid => $uid) %></small></td></tr>
+% }
+
+<tr valign="top"><td>Entry&nbsp;Type:</td><td>
+% if ((($edit_template) || ($class eq 'template')) && ($tpl_access)) {
+template
+<input type="hidden" name="class" value="template">
+% } else {
+calendar
+<input type="hidden" name="class" value="calendar">
+% }
+
+</td></tr>
+
+<tr><td>
+Category<% (($new_template || $edit_template) ? ' Code' : '') %>
+</td><td>
+% if ($new_template) {
+<input type="text" name="sortcode" value="<% $sortcode %>" size=10> (<b>This must be set!</b> Used for Categories selection.)
+% } elsif ($edit_template) {
+<input type="hidden" name="sortcode" value="<% $sortcode %>"><% $sortcode %>
+% } else {
+% $m->comp( '/mason/form_selector_ex.comp', name=>'sortcode', selected=>$sortcode, options=>\@sortcode_list);
+% }
+</td></tr>
+
+<tr><td><label for="frontpage">Front&nbsp;Page</label>
+</td><td>
+<input type="checkbox" name="frontpage" id="frontpage" value="1"<% ($frontpage ? ' CHECKED' : '') %>>
+</td></tr>
+
+<tr valign="top"><td>Date:</td><td>
+<& /mason/date_selector.comp, format=>'do-M-yyyy', year=>'year', month=>'month', day=>'day', default=>$date &>
+</td></tr>
+
+<tr valign="top"><td>Time:</td><td>
+<& /mason/time_selector.comp, format=>'hh:mm', hour=>'hour', minute=>'minute', default=>$time &> (24-hour format)
+</td></tr>
+<tr valign="top"><td>Location:</td><td><input type=text name="location" value="<% $location %>" size=70></td></tr>
+
+<tr valign="top"><td><b>Title:</b></td><td><input type=text name="title" value="<% $title %>" size=70></td></tr>
+<tr valign="top"><td>Speaker:</td><td><input type=text name="speaker" value="<% $speaker %>" size=70></td></tr>
+<tr valign="top"><td>Subject:</td><td><input type=text name="subject" value="<% $subject %>" size=70></td></tr>
+<tr valign="top"><td>Other info:</td><td><input type=text name="info" value="<% $info %>" size=70></td></tr>
+<tr valign="top"><td>Status:</td><td><input type=text name="status" value="<% $status %>" size=70></td></tr>
+<tr valign="top"><td>Faculty Host:</td><td>
+<%perl>
+$facultyhost = $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid => $facultyhost);
+</%perl>
+<input type="text" name="facultyhost" id="facultyhost" value="<% $facultyhost %>" size=70>
+% $m->comp('/mason/ajax/complete_people.comp', id => 'facultyhost', name => 'facultyhost');
+</td></tr>
+
+<tr><th colspan=2 bgcolor="#eeeeee" align="left">Abstract</th></tr>
+<tr><td colspan=2>
+<small>
+The editing window will flow your text automatically. Don't try to write HTML; a simple wiki-style markup is supported, including bold, italic, and math symbols. <a href="http://zzz.physics.umn.edu/admin/private/web/wikiformat">Here is the syntax guide</a>.<br/>
+
+</small>
+<textarea name="abstract" cols=80 rows=7 wrap="virtual"><% $abstract %></textarea>
+</td></tr>
+</table>
+<p>
+<input type="submit" value="Update Entry">
+<input type="reset" value="Cancel Changes">
+</form>
+
+<table border=0 width="100%">
+<tr><th bgcolor="#eeeeee" align="left">Image Attachment</th></tr>
+<tr><td>
+% if ($eventid ne "new") {
+Note, an image will only be displayed if there is also some abstract text for the entry!
+% $m->comp('/mason/db/images/insert_image_form.comp', category=>'calendar', parentid=>$eventid);
+% } else {
+<i>an image can be attached after saving the story</i>
+% }
+</td></tr>
+</table>
+
+% if ($eventid ne "new") {
+<p><hr>
+<h4>Delete Entry</h4>
+
+<form method="POST" action="delete_calendar.html">
+<input type=hidden name="eventid" value="<% $eventid %>">
+<input type=hidden name="areatag" value="<% $areatag %>">
+To remove this <% $class %> entry - <input type=submit value="Delete entry">
+<br/>
+% if ($class eq 'template') {
+<b>BY CLICKING THE FOLLOWING BOX I ACKNOWLEDGE THAT I AM DELETING A TEMPLATE -- NOT AN EVENT. FURTHERMORE, I AGREE TO UNTOLD TORMENT AND AGONY IF SUCH DELETION IS IN ERROR AND RESULTS IN A REQUEST FOR SAID TEMPLATE TO BE RECREATED.</b>
+<p><input type="checkbox" name="confirm">&nbsp;I really don't want to do this, but I am doing it anyways.<br/>
+% } else {
+<input type="checkbox" name="confirm">&nbsp;Check this box to confirm deletion.<br/>
+% }
+</form>
+<p>
+% }
+
+
+
+<%def template>
+<%args>
+$data=>undef
+</%args>
+<%init>
+my ($name,$junk) = split("/",$data);
+</%init>
+<option value="<% $data %>"><% $name %>
+</%def>

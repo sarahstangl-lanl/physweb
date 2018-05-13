@@ -1,0 +1,86 @@
+<%DOC>
+    Component: mailinglists.html
+         Date: 2010.07.22
+       Author: mackey
+
+Description - displays people in mailing lists
+</%DOC>
+
+<%ARGS>
+$mailinglist => undef;
+</%ARGS>
+
+<%method title>Mailing List Subscribers</%method>
+
+<p>
+This page lets you view who is subscribed to any of our mailing lists. Choose the list name of interest from the pull-down menu to view its subscribers. Or you can enter someone's name or email into the search box to find out what lists they are subscribed to.<br/>The "reception" field tells you whether a subscriber has switched off receiving mail from a list ("nomail").</p>
+<p>
+<b>This page is accessible to members of the 'directory' group</b>
+</p>
+
+<%INIT>
+
+    if (!$m->comp('/mason/auth/auth_check.comp', auth_type => [ 'sysadm', 'directory' ]))
+    {
+        $m->out('Access Denied');
+        return;
+    }
+
+
+    use supportdb;
+    use tablesearch;
+
+    my $sdb = new supportdb;
+
+    $sdb->connect(undef, undef, 'sympa');
+
+</%init>
+
+<%perl>
+
+    my $ts = new Tablesearch(
+            joins => [
+                'user_table' => 'user_table.email_user = subscriber_table.user_subscriber',
+                'list_table' => 'list_table.name_list = subscriber_table.list_subscriber',
+            ],
+            table => 'subscriber_table',
+            field_list         => ['list_subscriber', 'subject_list', 'user_subscriber', 'gecos_user', 'reception_subscriber'],
+            field_params       => {
+                                    'list_subscriber'   =>  {
+                                        name                 => 'List Name',
+                                        secondary_sort_field => 'user_subscriber',
+                                    },
+                                    'user_subscriber'    =>  {
+                                        name => 'Subscriber Email',
+                                    },
+                                    'reception_subscriber' => {
+                                        name => 'Reception',
+                                    },
+                                    'gecos_user' => {
+                                        name  => 'Subscriber Name',
+                                        data_format => sub {
+                                            my $format_er = sub {
+                                                my ($value, $disp_format, $row) = @_;
+                                                return $value if $value || $row->{'user_subscriber'} !~ /umn.edu/;
+                                                my ($username, undef) = split('@', $row->{'user_subscriber'});
+                                                my $uid = $m->comp('/mason/db/directory/physid_to_uid.comp', physid => $username) || $m->comp('/mason/db/directory/x500_to_uid.comp', x500 => $username);
+                                                return '' unless $uid;
+                                                return $m->comp('/mason/db/directory/uid_to_name.comp', uid => $uid);
+                                            };
+                                            my $result = $format_er->(@_) || "<i>Not provided</i>";
+                                            return $result;
+                                        },
+                                    }
+                                  },
+            filter_field => 'list_subscriber',
+            default_sort_field => 'list_subscriber',
+            header_format   => 'ucfirst_all',
+            excel_link => 1,
+    );
+
+    $ts->{dbh} = $sdb->get_dbh();
+
+    $ts->display();
+
+</%perl>
+<%method no_search_box></%method>

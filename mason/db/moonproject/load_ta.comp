@@ -1,0 +1,13 @@
+<%args>
+$uid => $session{uid}
+$admin => 0
+</%args>
+<%init>
+use Moonproject::TA;
+# Only allow admins to set uid
+$uid = $session{uid} unless ($admin && $uid);
+my $ta = Moonproject::TA->new(uid => $uid);
+warn "TA";
+warn Dumper($ta);
+return $ta;
+</%init>

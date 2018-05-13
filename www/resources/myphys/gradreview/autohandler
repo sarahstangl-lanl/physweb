@@ -1,0 +1,38 @@
+<%DOC>
+	vim: set syntax=mason:
+</%DOC>
+<%args>
+	$nologin => ''
+</%args>
+<%init>
+$m->comp("/mason/auth/auth_block.comp", internal=>1);
+my $sysadm = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+
+if(!$sysadm && !$auth) {
+    print "You do not have access to the gradapp review system. You must be added to the gradapp group";
+    return;
+    #$m->redirect("/index.html");
+}
+
+$m->call_next;
+</%init>
+
+<%method title>Graduate Application Review System</%method>
+
+<%method titlemenu_below>
+   <& /mason/titlemenu.comp:begin, type=>"below" &>
+       <&| /mason/titlemenu.comp:item, link=>"/resources/myphys/gradreview/index.html" &>Applications Assigned to Me</&>
+       <&| /mason/titlemenu.comp:item, link=>"/resources/myphys/gradreview/admin.html" &>All Applications</&>
+%my %args = $m->request_args();
+% if($args{client_id}) {
+       <&| /mason/titlemenu.comp:item, link=>"/resources/myphys/gradreview/reviewapp.html?client_id=$args{client_id}" &>Review Application</&>
+% }
+% my $manager = $m->comp("/mason/auth/auth_check_gradapp_mgr.comp");
+% if($manager) { 
+       <&| /mason/titlemenu.comp:item, link=>"/resources/myphys/gradreview/upload.html" &>Upload</&>
+       <&| /mason/titlemenu.comp:item, link=>"/resources/myphys/gradreview/audits.html" &>Audit Log</&>
+% }
+   <& /mason/titlemenu.comp:end &>
+</%method>
+

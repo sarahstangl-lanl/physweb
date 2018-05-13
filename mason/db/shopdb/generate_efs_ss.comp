@@ -1,0 +1,413 @@
+<%args>
+$dates
+$internal => 1
+$finalized => 1
+</%args>
+<%init>
+
+use ShopDb::ParseExcel;
+use Spreadsheet::ParseExcel::Utility qw/int2col col2int/;
+use File::Temp qw/tempfile/;
+
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+# Hack to figure out ShopDb directory
+(my $dir = $INC{'ShopDb/Schema.pm'}) =~ s|/[^/]+$||;
+
+my $dt = DateTime->now;
+my $invoice_date = $dates->{end_date}->clone->add(days => 1);
+
+my $column_map = {
+    B  => 'VOUCHER_DESC',
+    C  => 'BUSINESS_UNIT',
+    F  => 'INVOICE_ID',
+    G  => 'INVOICE_DT',
+    H  => 'VENDOR_ID',
+    I  => 'VNDR_LOC',
+    M  => 'OPRID',
+    N  => 'ACCOUNTING_DT',
+    R  => 'GROSS_AMT',
+    BK => 'DESCR254_MIXED',
+    CZ => 'BUSINESS_UNIT',
+    DB => 'VOUCHER_LINE_NUM',
+    DG => 'DESCR',
+    DH => 'MERCHANDISE_AMT',
+    DK => 'QTY_VCHR',
+    EH => 'DESCR254_MIXED_LINE',
+    GL => 'BUSINESS_UNIT',
+    GN => 'VOUCHER_LINE_NUM',
+    GO => 'DISTRIB_LINE_NUM',
+    GQ => 'ACCOUNT',
+    GS => 'DEPTID',
+    GV => 'QTY_VCHR_DIST',
+    GX => 'MERCHANDISE_AMT',
+    HD => 'BUSINESS_UNIT_PC',
+    HE => 'ACTIVITY_ID',
+    HJ => 'ASSET_FLG',
+    HK => 'BUSINESS_UNIT_AM',
+    HM => 'PROFILE_ID',
+    HS => 'FUND_CODE',
+    HU => 'PROGRAM_CODE',
+    HV => 'BUDGET_REF',
+    HZ => 'CHARTFIELD1',
+    IA => 'CHARTFIELD2',
+    IB => 'CHARTFIELD3',
+    IC => 'PROJECT_ID',
+};
+
+# List of columns to exclude from AnyData data
+my @excluded_columns = ( qw/B C H I M R CZ DH GL GN/ );
+
+# Columns that are filled once per voucher
+my @header_cols = ( qw/B C F G H I M N R BK/ );
+
+# Columns that are filled every row (some only get filled on header row)
+my @cols_to_fill = sort grep { my $col = $_; ! grep { $col eq $_ } @header_cols } keys %$column_map;
+
+# These values don't change
+my $default_values = {
+    BUSINESS_UNIT       => 'UMNIS',
+    DISTRIB_LINE_NUM    => 1,
+    GROSS_AMT           => '0.00',
+    ACCOUNTING_DT       => $dt->ymd,
+    INVOICE_DT          => $invoice_date->ymd,
+    OPRID               => 'KILLE027',
+    VENDOR_ID           => '9000000044',
+    VENDOR_ID           => '9000000247',
+    VNDR_LOC            => 'INT SALES',
+    VOUCHER_DESC        => 'My data',
+};
+
+# Column-specific data formats
+my $column_formats = {
+#        PROJECT_ID => 19,
+};
+
+# Billing parameters for Machine Shop/Electronics Shop
+my $shop_params = {
+    cseshop => {
+        description => 'CSE Shop',
+        short_descr => 'CSEShop',
+        rate_info   => 'Hourly rate is $55. Please contact cseshop@umn.edu for more information.',
+        account     => {
+            labor       => {
+                credits     => 500101,
+                charges     => 720403,
+            },
+            material    => {
+                credits     => 500101,
+                charges     => 720299,
+            },
+        },
+        efs_strings => {
+            labor       => {
+                FUND_CODE       => 1150,
+                PROGRAM_CODE    => 20248,
+                DEPTID          => 12155,
+                CHARTFIELD2     => '',
+            },
+            material    => {
+                FUND_CODE       => 1150,
+                PROGRAM_CODE    => 20248,
+                DEPTID          => 12155,
+                CHARTFIELD2     => '',
+            },
+        },
+        charge_line_params => {
+            # Don't include Al or 3d printer machinists
+            'me.machinist_id' => { -not_in => [ qw/51 172 182 221 251 261/ ] },
+        },
+    },
+    '3dshop' => {
+        description => 'CSE Machine Shop 3D Printer',
+        short_descr => '3DPrinter',
+        rate_info   => 'Hourly rate is $26. Please contact cseshop@umn.edu for more information.',
+        account     => {
+            labor       => {
+                credits     => 500101,
+                charges     => 720403,
+            },
+            material    => {
+                credits     => 500101,
+                charges     => 720299,
+            },
+        },
+        efs_strings => {
+            labor       => {
+                FUND_CODE       => 1150,
+                DEPTID          => 12155,
+                PROGRAM_CODE    => 'SEPRT',
+            },
+            material    => {
+                FUND_CODE       => 1150,
+                DEPTID          => 12155,
+                PROGRAM_CODE    => 'SEPRT',
+            },
+        },
+        charge_line_params => {
+            # Only include 3d printer machinists
+            'me.machinist_id' => { -in => [ qw/172 182 221 251 261/ ] },
+        },
+    },
+    eshop => {
+        description => 'Physics Electronic Shop',
+        short_descr => 'ES',
+        rate_info   => 'Hourly rate is $81.50.',
+        account     => {
+            labor       => {
+                credits     => 500101,
+                charges     => 720403,
+            },
+            material    => {
+                credits     => 500101,
+                charges     => 720299,
+            },
+        },
+        efs_strings => {
+            labor       => {
+                FUND_CODE       => 1150,
+                PROGRAM_CODE    => 20248,
+                DEPTID          => 11140,
+                CHARTFIELD2     => 1000004725,
+            },
+            material    => {
+                FUND_CODE       => 1150,
+                PROGRAM_CODE    => 20248,
+                DEPTID          => 11140,
+                CHARTFIELD2     => 1000009786,
+            },
+        },
+        charge_line_params => {
+            # Only include Al
+            'me.machinist_id' => 51,
+        },
+    },
+};
+
+my $result = { result => 'OK' };
+
+# Find non-external jobs with finalized, active, unbilled charge lines
+my $jobs = $schema->resultset('Jobs')->search(
+    {
+        ($internal ? (
+            'me.account_key' => [
+                { -not_in => [
+                    'UMFIN;1026;11140;20247;;;;1000009786', # External shop jobs
+                    'UMFIN;1150;11140;20248;;;;1000009786', # Internal mshop jobs
+                    'UMFIN;1150;11140;20248;;;;1000004725', # Internal eshop jobs
+                    'UMFIN;1026;12155;20247;;;;',           # External cseshop jobs
+                    'UMFIN;1150;12155;20248;;;;',           # Internal cseshop jobs
+                    'UMFIN;1026;12155;SEPRT;;;;',           # External 3dshop jobs
+                    'UMFIN;1150;12155;SEPRT;;;;',           # Internal 3dshop jobs
+                ] },
+                undef,
+            ],
+            'me.external' => 0,
+        ) : (
+            'me.account_key' => { -in => [
+                'UMFIN;1026;11140;20247;;;;1000009786', # External mshop jobs
+                'UMFIN;1026;12155;20247;;;;',           # External cseshop jobs
+                'UMFIN;1026;12155;SEPRT;;;;',           # External 3dshop jobs
+            ] },
+        )),
+        'labor_lines.bill_date' => undef,
+        'material_lines.bill_date' => undef,
+        -or => [
+            -and => [
+                ($finalized ? (
+                    'labor_lines.finalized' => 1,
+                ) : ( )),
+                'labor_lines.active' => 1,
+                'labor_lines.charge_date' => { -between => [ $dates->{start_date}->ymd, $dates->{end_date}->ymd ] },
+            ],
+            -and => [
+                ($finalized ? (
+                    'material_lines.finalized' => 1,
+                ) : ( )),
+                'material_lines.active' => 1,
+                'material_lines.charge_date' => { -between => [ $dates->{start_date}->ymd, $dates->{end_date}->ymd ] },
+            ],
+        ],
+    },
+    {
+        join => [ qw/labor_lines material_lines/ ],
+        prefetch => [ 'account', { customer => 'directory' }, { pi => 'directory' } ],
+        group_by => 'me.job_id',
+        order_by => { -asc => 'me.job_id' },
+    }
+);
+
+# Return if no matching jobs found
+unless ($jobs->count) {
+    push(@{$result->{errors}}, 'There are no jobs with active, finalized, and unbilled charge lines for this date range');
+    $result->{result} = 'error';
+    return $result;
+}
+
+# Parse template spreadsheet
+my $parser = ShopDb::ParseExcel->new;
+my $workbook = $parser->Parse("$dir/EFS_auto_upload_template.xls") or die "Failed to parse spreadsheet: $!";
+my $worksheet = $workbook->worksheet(0);
+
+# Create tempfile
+my ($fh, $filename) = tempfile();
+
+# First voucher starts on row 10 (9 with zero-based numbering)
+my $offset = 9;
+my $row = 0;
+my @data = ([ 'project', map { $column_map->{$_} } grep { my $col = $_; ! grep { $col eq $_ } @excluded_columns } @header_cols, @cols_to_fill ]);
+
+my @line_types = (qw/labor material/);
+my @voucher_types = (qw/credits charges/);
+
+# Create a voucher section for each job
+while (my $job = $jobs->next) {
+
+    my $account = $job->account;
+
+    unless ($account) {
+        push(@{$result->{errors}}, 'No account specified for Job #' . $job->id);
+        warn "No account for " . $job->id;
+        $account = $schema->resultset('Accounts')->new({ deptid => 9999 });
+    }
+
+    if ($account->disabled) {
+        push(@{$result->{errors}}, 'EFS account specified for Job #' . $job->id . ' has been marked disabled.');
+    }
+
+    for my $shop (qw/cseshop 3dshop/) {
+
+        my $params = $shop_params->{$shop};
+
+        my $line_rs;
+
+        for my $type (@line_types) {
+            my $rs_method = "${type}_lines_rs";
+            $line_rs->{$type} = $job->$rs_method->with_extended_cost->search_rs({
+                ($finalized ? (
+                    finalized => 1,
+                ) : ( )),
+                'me.active' => 1,
+                bill_date => undef,
+                charge_date => { -between => [ $dates->{start_date}->ymd, $dates->{end_date}->ymd ] },
+                %{$params->{charge_line_params}},
+            });
+        }
+
+        my $values = { %$default_values };
+
+        # These only change once per voucher
+        $values->{DESCR254_MIXED} = 'Labor and material charges for ' . ($job->property_id ? 'fabricated work for FAB' . $job->property_id : 'work') . ' performed by ' . $params->{description} . ' during ' . $dates->{start_date}->month_name . ' ' . $dates->{start_date}->year . ' on Job #' . $job->id . '. ' . $params->{rate_info};
+        $values->{INVOICE_ID} = $params->{short_descr} . $dates->{start_date}->year . sprintf("%02d", $dates->{start_date}->month) . 'Job' . $job->id;
+
+        # Values specific to header row
+        my @header_vals = map { [ col2int($_) => $values->{$column_map->{$_}}, $_ ] } (@header_cols);
+
+        my $amounts;
+        for my $line_type (@line_types) {
+            # Get total line type amount
+            $amounts->{$line_type} = sprintf "%.02f", $line_rs->{$line_type}->get_column('extended_cost')->sum || 0;
+        }
+
+        for my $line_type (@line_types) {
+            for my $voucher_type (@voucher_types) {
+
+                if ($job->property_id && $voucher_type eq 'charges') {
+                    $values->{ACCOUNT} = 850104;
+                    $values->{QTY_VCHR} = '1';
+                    $values->{QTY_VCHR_DIST} = '1';
+                    $values->{ASSET_FLG} = '';
+                    $values->{BUSINESS_UNIT_AM} = 'UMN01';
+                    $values->{PROFILE_ID} = '';
+                }
+                else {
+                    $values->{ACCOUNT} = $params->{account}->{$line_type}->{$voucher_type};
+                    $values->{QTY_VCHR} = '';
+                    $values->{QTY_VCHR_DIST} = '';
+                    $values->{ASSET_FLG} = '';
+                    $values->{BUSINESS_UNIT_AM} = '';
+                    $values->{PROFILE_ID} = '';
+                }
+
+                my $amount = $amounts->{$line_type};
+
+                next unless ($amount != 0);
+
+                my @row;
+                my $line_desc = $line_type eq 'material' ? 'Mat' : 'Labor';
+
+                # Get EFS account info
+                if ($voucher_type eq 'charges') {
+                    $values->{$_} = $account->get_column(lc $_) for (qw/CHARTFIELD1 CHARTFIELD2 CHARTFIELD3 DEPTID FUND_CODE PROGRAM_CODE PROJECT_ID/);
+                    $values->{MERCHANDISE_AMT} = "$amount";
+                    $values->{DESCR254_MIXED_LINE} = ucfirst($line_type) . ' charges for ' . ($job->property_id ? 'fabricated work for FAB' . $job->property_id : 'work') . ' performed by ' . $params->{description} . ' during ' . $dates->{start_date}->month_name . ' ' . $dates->{start_date}->year . ' on Job #' . $job->id . '.';
+                    $values->{DESCR254_MIXED_LINE} .= " Requested by " . $job->customer->directory->get_column('first_name') . ' ' . $job->customer->directory->get_column('last_name');
+                    $values->{DESCR254_MIXED_LINE} .= ' for PI ' . $job->pi->directory->get_column('first_name') . ' ' . $job->pi->directory->get_column('last_name')
+                        if ($job->pi_id && $job->customer_id != $job->pi_id);
+                    $values->{DESCR254_MIXED_LINE} .= '. ' . $params->{rate_info};
+                }
+                else { # $voucher_type eq 'credits'
+                    $values->{$_} = $params->{efs_strings}->{$line_type}->{$_} for (qw/CHARTFIELD1 CHARTFIELD2 CHARTFIELD3 DEPTID FUND_CODE PROGRAM_CODE PROJECT_ID/);
+                    $values->{MERCHANDISE_AMT} = "-$amount";
+                    $values->{DESCR254_MIXED_LINE} = '';
+                }
+
+                $values->{ACTIVITY_ID} = defined $values->{PROJECT_ID} ? 1 : undef;
+                $values->{BUDGET_REF} = (defined $values->{PROJECT_ID} && defined $values->{PROGRAM_CODE}) ? 'CS' : '';
+                $values->{BUSINESS_UNIT_PC} = defined $values->{PROJECT_ID} ? 'UMSPR' : undef;
+                if ($voucher_type eq 'credits') {
+                    $values->{DESCR} = sprintf("%.30s", uc($shop) . ' ' . sprintf("%d%02d", $dates->{start_date}->year, $dates->{start_date}->month) . " $line_desc $voucher_type");
+                }
+                else {
+#                    $values->{DESCR} = sprintf("%.30s", uc($shop) . sprintf("%02d%0.2d%.3s %s", $dt->month, $dt->year, ucfirst $line_type, $job->project_name));
+                    $values->{DESCR} = sprintf("%.30s", uc($line_desc) . ' ' . $job->project_name);
+                }
+                $values->{VOUCHER_LINE_NUM} = $row + 1;
+
+                # Add header row column data
+                if ($row == 0) {
+                    for my $header (@header_vals) {
+                        $worksheet->AddCell($offset, $header->[0], $header->[1]);
+                        next if (grep { $_ eq $header->[2] } @excluded_columns);
+                        push @row, $header->[1];
+                    }
+                }
+                else {
+                    for my $header (@header_vals) {
+                        next if (grep { $_ eq $header->[2] } @excluded_columns);
+                        push @row, undef;
+                    }
+                }
+
+                # Add remaining column data
+                for my $col (@cols_to_fill) {
+                    my @args = ($offset + $row, col2int($col), $values->{$column_map->{$col}}, $column_formats->{$column_map->{$col}});
+                    $worksheet->AddCell(@args);
+                    next if (grep { $_ eq $col } @excluded_columns);
+                    push @row, $values->{$column_map->{$col}};
+                }
+
+                push @data, [ ($row == 0 ? $job->project_name : undef), @row ];
+                $row++;
+            }
+        }
+
+        $offset += $row;
+        $row = 0;
+    }
+}
+
+$parser->save($workbook, $fh) or push @{$result->{errors}}, "Failed to save spreadsheet: $!";
+
+if (exists $result->{errors}) {
+    $result->{result} = 'error';
+}
+else {
+    $result->{filename} = $filename;
+}
+
+$result->{data} = \@data;
+
+return $result;
+
+</%init>

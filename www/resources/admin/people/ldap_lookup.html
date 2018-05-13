@@ -1,0 +1,98 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: ldap_lookup.html
+        Date: 2008.09.19
+      Author: nick
+     Changed: 2008.09.19 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$last_name=>''
+$first_name=>''
+</%ARGS>
+
+<%method title>Physics account lookup</%method>
+
+<%method no_search_box></%method>
+
+<%INIT>
+
+use Net::LDAP;
+use Data::Dumper;
+
+$m->comp('/mason/auth/auth_block.comp', internal=>1);
+my $directory = $m->comp('/mason/auth/auth_check_directory.comp');
+my $admin = $m->comp('/mason/auth/auth_check_sysadm.comp');
+
+if (!$directory && !$admin) {
+  print "<H2>You do not have permission to view this page</H2>";
+  return;
+}
+
+$m->comp('/mason/matchnames.comp'); #Load name matching subs
+
+my $suffix = "dc=physics,dc=umn,dc=edu";
+my $userdn = "ou=People,${suffix}";
+my $ldap = Net::LDAP->new( 'ldap.spa.umn.edu' ) or die "$@";
+my $mesg = $ldap->bind or die "$@";
+$mesg = $ldap->search( base => $userdn, attrs => ['uid','sn','givenName'], filter => '(&(!(uid=*$))(objectclass=person)(!(sn=workshop)))' );
+
+my $numresults = 0;
+my ($score,$matches);
+
+print <<END;
+<p>Enter at least a first name or a last name and click 'Submit Query' to retrieve a list of matching physics accounts.  The Score column lists how close the match was to your search.</p><p><form action="ldap_lookup.html">
+<table>
+<tr><td>Last name</td><td><input type="text" name="last_name"></td></tr>
+<tr><td>First name</td><td><input type="text" name="first_name"></td></tr>
+</table><br/>
+<input type="submit" name="Submit">
+</form></p>
+END
+
+if($last_name || $first_name) {
+
+  print "<br/><h4>Matches for '$last_name, $first_name'</h4><br/>";
+
+  foreach ($mesg->sorted('sn','givenName')) {
+    if($last_name) {
+      if($first_name) {
+        if($_->get_value( 'givenName' ) && $_->get_value( 'sn' )) {
+          $score = name_eq( $_->get_value( 'givenName' ), $_->get_value( 'sn' ), $first_name, $last_name );
+        } elsif($_->get_value( 'givenName' )) {
+          $score = fname_eq( $_->get_value( 'givenName' ), $first_name );
+        } elsif($_->get_value( 'sn' )) {
+          $score = lname_eq( $_->get_value( 'sn' ), $last_name );
+        }
+      } else {
+        $score = lname_eq( $_->get_value( 'sn' ), $last_name );
+      }
+    } else {
+        $score = fname_eq( $_->get_value( 'givenName' ), $first_name );
+    }
+    if($score) {
+      $matches->{$_->get_value( 'uid' )} =
+             {
+              score => $score,
+              entry => $_
+             };
+      $numresults++;
+    }
+  }
+  my $even = 0;
+  if($numresults) {
+    print "<table><tr><th>physid</th><th>Last Name</th><th>First Name</th><th>Score</th></tr>\n";
+    foreach (sort { $matches->{$b}->{'score'} <=> $matches->{$a}->{'score'} || $matches->{$a}->{'entry'}->get_value('sn') cmp $matches->{$b}->{'entry'}->get_value('sn') } keys %$matches) {
+      print "<tr class=\"".($even ? "even" : "odd")."\"><td><a href=\"user.html?physid=$_\">$_</a></td><td>".$matches->{$_}->{'entry'}->get_value('sn')."</td><td>".$matches->{$_}->{'entry'}->get_value('givenName')."</td><td>".$matches->{$_}->{'score'}."</td></tr>\n";
+      $even = ($even == 0);
+    }
+    print "</table>";
+    print "<p>Found $numresults matches</p>";
+  } else {
+    print "<p>No matches found!</p>";
+  }
+}
+
+</%INIT>

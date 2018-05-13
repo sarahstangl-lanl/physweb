@@ -1,0 +1,28 @@
+<%doc>
+vim:set syntax=mason:
+
+Yes, theres both a head and a header method in here. head is <head> section, header is the U's header html...
+</%doc>
+<!-- BEGIN UofM FOOTER -->
+<div id="UMNfooter">
+    <div id="UMNfooter_left">
+        <p id="UMNcopyright"> &copy;2005-2013 Regents of the University of Minnesota. All rights reserved.  </p>
+        <p id="address"> The University of Minnesota is an equal opportunity educator and employer</p>
+    </div>
+
+    <div id="UMNfooter_right">
+    <ul class="umnfooter_links">
+        <li>Twin Cities Campus: </li>
+        <li><a href="http://www1.umn.edu/pts/">Parking &amp; Transportation</a></li>
+        <li><a href="http://www.umn.edu/twincities/maps/index.html">Maps &amp; Directions</a></li>
+    </ul>
+    <ul class="umnfooter_links">
+        <li><a href="http://www.directory.umn.edu/">Directories</a></li>
+        <li><a href="http://www.umn.edu/twincities/contact/">Contact U of M</a></li>
+        <li><a href="http://www.privacy.umn.edu/">Privacy</a></li>
+    </ul>
+    </div>
+    <p>&nbsp;</p>
+</div>
+<br class="clearabove" />
+<!-- END UofM FOOTER -->

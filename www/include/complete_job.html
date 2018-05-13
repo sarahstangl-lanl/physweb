@@ -1,0 +1,26 @@
+<%args>
+    $search => ''
+    $recent => ''
+    $job_id => ''
+    $sort_order => 'ASC'
+    $limit => 10
+</%args>
+<%flags>
+    inherit=>undef
+</%flags>
+<%init>
+    my $query = $m->comp('/mason/ajax/job_finder.comp', parent_job_id => $job_id, search => $search, recent => $recent, sort_order => $sort_order, limit => $limit);
+</%init>
+<ul class="jobs">
+% if ($query) {
+% if ($query->rows) {
+% while (my $result = $query->fetchrow_hashref()) {
+<li id="<% $$result{'job_id'} |h %>" class="job"><div class="name"><span class="informal"><% $$result{'job_id'} . ': ' %></span><% $$result{'project_name'} |h %></div><span class="informal contact">
+<% $$result{'first_name'} . " " . $$result{'last_name'} %>
+</span>
+</li>
+% } }
+% else {
+<li id="" class="job"><span class="informal"><div class="name" style="font-style: italic">No matches found</div></span></li>
+% } }
+</ul>

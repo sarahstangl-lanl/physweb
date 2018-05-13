@@ -1,0 +1,70 @@
+<%doc>
+Draws a timeline of class activity for the class home page
+</%doc>
+<%args>
+$classid
+</%args>
+<%init>
+use Time::Duration;
+
+my ($class, $section, $title, $year, $quarter, $location, $time, $date, $url, $flags, $hidden);
+my $sth = $dbh->prepare('SELECT name, section, title, year, quarter, location, time, date, url, flags, hidden FROM classlist WHERE classid=? LIMIT 1');
+$sth->execute($classid)
+    or die 'Failed to get class info: ' . $sth->errstr;
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+    ($class, $section, $title, $year, $quarter, $location, $time, $date, $url, $flags, $hidden) = @$row_ref;
+}
+print "<!--DEBUG: classid=$classid<BR>-->\n";
+
+my $item_count = 0;
+my $auth_any = $m->comp('/mason/auth/auth_check_editclass.comp', classid=>$classid, always_include_tas=>1); 
+my $auth_edit = ($auth_any && ($auth_any ne 'ta')); 
+my $auth_archive = $m->comp('/mason/auth/auth_check_classarchive.comp', classid => $classid);
+
+my @itemrows = physdb::queryall('SELECT classdata.attach_name, UNIX_TIMESTAMP(classdata.modified_date) as modified_date, classdata.headline, classdata.entryid, classdata.classid, classdata.flags, classdata.item_type, IF(classdata.modified_date > classdata.post_date, 1, 0) as updated, directory.first_name, directory.last_name
+                                   FROM classdata 
+                                   JOIN directory ON directory.uid=classdata.author
+                                  WHERE classid=? AND parentid=0 
+                                    AND published = 1
+                                    AND kill_date > CURRENT_DATE() OR kill_date IS NULL
+                                    AND item_type <> \'feedback\''.
+                              'ORDER BY modified_date DESC 
+                                  LIMIT 999', $classid);
+
+</%init>
+
+<table cellspacing="0" cellpadding="5" border="0"> 
+<%perl>
+#Maps the db item_type field to english description for posting
+my %sectionmap = ( "post" => "Postings",
+                   "ta"   => "Ta Discussion",
+                   "ask"  => "Ask a Question");
+
+my $isstudent = $m->comp('/mason/auth/auth_check_student.comp', classid => $classid); 
+foreach my $entry (@itemrows) {
+    my $restricted = ($entry->{'flags'}  =~ /restricted/);
+    my $studentonly = ($entry->{'flags'} =~ /studentonly/);
+    # Skip TA items if they are not tas or class editors
+    next if(!$auth_edit && $auth_any ne 'ta' && $entry->{item_type} eq 'ta');
+    # Make sure feedback never shows up here
+    next if($entry->{item_type} eq 'feedback');
+    </%perl>
+    <tr style="tableheader2"><td style="tableheading2">
+        <div>
+
+        <span style="font-weight: bold;"><a href="<% $m->comp('/mason/db/classes/make_classlink.comp', fullurl=>1, classid=>$classid, type=>$entry->{'item_type'}, entryid=>$entry->{'entryid'})%>"><% $entry->{'headline'} | h%></a>
+%       if($studentonly && !$isstudent && !$auth_any && !$auth_edit && !$auth_archive) {
+           <span style="font-size: 80%;">(Class members only)</span>
+%       }
+        </span>
+        </div>
+        <div style="font-size:80%; color: #000; text-align: left;">
+        <% $entry->{'first_name'} . " " . $entry->{'last_name'} %> - 
+        <% $sectionmap{$entry->{'item_type'}} |h%> -
+        <% ago(time() - $entry->{'modified_date'}, 1) |h %>
+        </div>
+        </td></tr>
+    <%perl>
+}
+</%perl>
+</table>

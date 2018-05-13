@@ -1,0 +1,55 @@
+<%DOC>
+   Component: advisor_mail.html
+        Date: 2006.03.24
+      Author: allan
+     Changed: 2006.03.24 by allan
+
+Description ... 
+</%DOC>
+
+<%INIT>
+use Email::Valid;
+my ($record_year, $advisor);
+my $uid= $session{'uid'};
+# fetch the most recent record for this student
+my $sql = "SELECT record_year, advisor FROM gradprogress WHERE uid=? ORDER BY record_year DESC LIMIT 1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($uid)
+  or die 'Unable to grab record: ' . $dbh->errstr;
+
+if (my $row_ref = $sth->fetchrow_arrayref()) {
+  ($record_year, $advisor) = @$row_ref;
+}
+
+my $grad_name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$uid);
+my $advisor_name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$advisor);
+my $advisor_email = $m->comp('/mason/db/directory/uid_to_email.comp', uid=>$advisor);
+
+$Text::Wrap::columns = 82;
+
+my $text = "Dear $advisor_name,\n\n";
+$text .= wrap('', '', "$grad_name has finished filling out his/her progress report for this year. You can view the report by visiting this web page:")."\n\n";
+# Let's just use fall...
+$text .= "http://www.physics.umn.edu/resources/admin/students/semester=fall/year=$record_year/progress.html?uid=$uid\n\n";
+$text .= wrap('', '', "After you have read the report, you can use the web page to enter your comments on the report, and approve it.\n");
+
+my $from = $m->comp('/mason/db/directory/uid_to_email.comp');
+if (!$from || !Email::Valid->address($from))  {
+  print 'Unable to find a valid e-mail address for you. Please update your directory entry.';
+  return;
+}
+if(!$advisor_email || !Email::Valid->address($advisor_email)) {
+    print 'Unable to find a valid email address for your advisor. Please contact directory@physics.umn.edu for assistance.';
+    return;
+}
+
+$m->comp('/mason/send_mail.comp', to=>$advisor_email, from=>$from, subject=>"Graduate Progress Report ready for comments", text=>$text);
+
+</%INIT>		
+		
+<%method title>Sending mail to advisor</%method>
+
+We sent this message to <% $advisor_email |h %>:
+<pre>
+<% $text |h %>
+</pre>

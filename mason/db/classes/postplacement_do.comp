@@ -1,0 +1,151 @@
+
+<%DOC>
+   Component: postplacement_do.comp
+        Date: 2008.11.10
+      Author: clayton
+     Changed: 2008.11.10 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $classid
+  $parentid
+  $entryid
+  $item_type
+</%ARGS>
+
+<%INIT>
+  my %hARGS = $m->request_args();
+  my $placement = $hARGS{'placement'};
+  my $placement_relative = $hARGS{'placement_relative'};
+
+  my ($sql, $sth);
+
+  #
+  # Automagic Priority!
+  #
+
+  if ($placement eq 'none') {
+    # This element already exists... let's
+    # lookup old placement (rather than rewriting the update query)
+
+    $sql = 'SELECT priority FROM classdata
+          WHERE entryid = ? AND classid = ? AND ((item_type = ? AND parentid = ?) OR (parentid != 0 AND parentid = ?))
+          ORDER BY priority DESC, post_date DESC LIMIT 1';
+
+    $sth = $dbh->prepare($sql);
+    $sth->execute($entryid, $classid, $item_type, $parentid, $parentid);
+    if (my $row = $sth->fetchrow_arrayref()) {
+      return $row->[0];
+    }
+
+  } else {
+
+    $sql = 'SELECT entryid, priority FROM classdata
+            WHERE classid = ? AND ((item_type = ? AND parentid = ?) OR (parentid != 0 AND parentid = ?))
+            ORDER BY priority DESC, post_date DESC';
+
+    $sth = $dbh->prepare($sql);
+    $sth->execute($classid, $item_type, $parentid, $parentid);
+
+    my @priorities = ();
+    my $relativepre = 'none';
+    my $relative = 'none';
+    my $relative_id = 'none';
+    my $relativepre_id = 'none';
+    my $break_next = 0;
+    my $found = 0;
+
+    # Relative vars are the priority of the entries for which to put this one
+    # between (if we are doing before or after placement).
+
+    while (my $row = $sth->fetchrow_arrayref()) {
+      my ($entryid, $priority) = @{$row};
+      push (@priorities, [$entryid, $priority]);
+
+      if (!$found) {
+        $relativepre = $relative;
+        $relativepre_id = $relative_id;
+        $relative = $priority;
+        $relative_id = $entryid;
+        if (($entryid eq $placement_relative) || $break_next) {
+          if (($placement eq 'after') && (!$break_next)) {
+            $break_next = 1;
+          } else {
+            $found = 1;
+          }
+        }
+      }
+    }
+
+    # Special case: user said to put after the last element...
+    if (!$found && $break_next && ($placement eq 'after')) {
+      $placement = 'bottom';    
+    }
+ 
+    my $cnt = @priorities;
+
+    if (!$cnt) {
+      return 0;
+    } elsif ($placement eq 'top') {
+      # Get the priority of the top element (shift), and add 20
+      my ($entryid, $elpriority) = @{shift(@priorities)};
+      return $elpriority + 20;
+    } elsif ($placement eq 'bottom') {
+      # Get the priority of the bottom element (pop), and subtract 20
+      my ($entryid, $elpriority) = @{pop(@priorities)};
+      return $elpriority - 20;
+    } elsif (($placement eq 'after') || ($placement eq 'before')) {
+      if ($relative eq 'none') {
+        # There are no entries so it doesn't matter... default to 0
+        return 0;
+      } elsif ($relativepre eq 'none') {
+        # There is one entry... don't need to worry about collision
+        if ($placement eq 'after') {
+          return $relative - 20;
+        } else {
+          return $relative + 20;
+        }
+      } else {
+        # There are 2+ elements. Check for collision, resolve if needed, and
+        # figure out priority
+
+        if (($relativepre == $relative) || ($relativepre == $relative+1)) {
+          # Collision!
+          # Use dumb algorithm and redo all priority ids...
+          # There are actually cases where this may trigger even if the change can
+          # be done without a reorder
+          # (eg. a swap between two neighboring entries -- since it's a swap there is
+          #  no gap actually required... but oh well) 
+
+          my $i = 100;
+          foreach (@priorities) {
+            my ($entryid, $priority) = @{$_};
+            @{$_}[1] = $i;
+
+            $sql = "UPDATE classdata SET priority=? WHERE entryid=? AND classid=? LIMIT 1";
+            $sth = $dbh->prepare($sql);
+            $sth->execute($i, $entryid, $classid)
+              or die 'Unable to query priority: ' . $sth->errstr;
+
+            if ($entryid == $relative_id) {
+              $relative = $i;
+            } elsif ($entryid == $relativepre_id) {
+              $relativepre = $i;
+            }
+
+            $i -= 20;
+          }
+        }
+
+        # Things should be sane now... we hope
+        # Place new element half way between old elements
+        return int(($relative + $relativepre) / 2);
+      }
+    }
+
+  }
+  return 0;
+</%INIT>		
+		

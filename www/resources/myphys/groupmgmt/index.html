@@ -1,0 +1,77 @@
+
+<%DOC>
+   Component: groups.html
+        Date: 2007.08.27
+      Author: clayton
+     Changed: 2007.08.27 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $groupnotfound => ''
+</%ARGS>
+
+<%INIT>
+  $m->comp('/mason/auth/auth_block.comp');
+</%INIT>
+
+<%method title><& PARENT:title &></%method>
+<%method subtitle>My Groups</%method>
+
+% if ($groupnotfound) {
+% $m->comp('/mason/notice_box.comp', text => 'The requested group could not be found.');
+% }
+
+<p>
+MyPhys groups may control listings in the School Directory; access to windows file shares; permission to edit or view web or wiki pages; physics mailing list subscriptions; and unix group membership, to give a few examples.
+</p>
+<p>
+If you are manager of a group, you can click on the group name to update the list of people who are members.
+</p>
+<p>
+<strong>Note, group membership changes may take up to an hour to synchronize to Windows or Unix groups, which may delay people's access to file shares, mailboxes, etc.</strong>
+</p>
+
+<%perl>
+my $uid = $session{'uid'};
+    $m->comp('/mason/db/tablesearch.comp',
+            table => 'groups',
+            field_list => [
+                'name',
+                'description',
+                'purpose',
+                'export',
+                'groupmembers.manager AS manager',
+                ],
+            field_params => {
+                'name' => {
+                    name =>'Group',
+                    #url => 'group_edit.html?group=$row{name}&forcemy=1',
+                    data_format => sub {
+                        my $value = shift;
+                        my $format = shift;
+                        my $row = shift;
+                        if ($row->{'manager'}) {
+                        my $url = "group_edit.html?group=$row->{'name'}&forcemy=1";
+                        return "<a href=\"group_edit.html?group=$row->{'name'}&forcemy=1\">$value</a> (M)";
+                        }
+                        return $value;
+                    }
+                },
+                export => {
+                    name => 'Unix group(s)',
+                },
+                manager => {
+                    hidden => 1,
+                },
+            },
+            joins => [ 'groupmembers' => 'groupmembers.groupname = groups.name', ],
+            where => "groupmembers.uid = '$uid'",
+            hide_search => 1,
+            hide_header => 1,
+            limit => 100,
+            header_format => 'ucfirst',
+        );
+</%perl>
+%# vim:set syntax=mason: 

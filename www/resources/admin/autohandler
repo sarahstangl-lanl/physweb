@@ -1,0 +1,44 @@
+<%doc>
+    vim: set syntax=mason:
+</%doc>
+<%shared>
+    $m->comp('/mason/auth/auth_block.comp', internal=>'yes');
+</%shared>
+<% $m->call_next %>
+
+<%method titlemenu_above>
+    <%perl>
+        my $sysadm = $m->comp('/mason/auth/auth_check_sysadm.comp');
+        my $doormgr = $m->comp('/mason/auth/auth_check_door_mgr.comp');
+        my $dirauth = $m->comp('/mason/auth/auth_check_directory.comp');
+        my $deptauth = $m->comp('/mason/auth/auth_check.comp', auth_type => 'deptoffice');
+        my $keyring = $m->comp('/mason/auth/auth_check_keyring.comp');
+        my $web = $m->comp('/mason/auth/auth_check_web.comp');
+    </%perl>
+    <& /mason/titlemenu.comp:begin, type=>"above" &>
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/index.html'  &>Overview</&>
+%if($sysadm) {
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/network/'       &>Network</&>
+%}
+% if ($dirauth||$sysadm) {
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/people/',       &>People</&>
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/groupmgmt/'     &>Groups</&>
+% }
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/students/'      &>Students</&>
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/news/general/'  &>News</&>
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/images/'  &>Images</&>
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/forms/'         &>Forms</&>
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/efs_accounts.html' &>EFS Accounts</&>
+
+% if($doormgr||$keyring||$sysadm) {
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/keyring/'       &>Key Management</&>
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/doormgmt/'      &>Card Locks</&>
+% }
+% if($sysadm) {
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/spam.html'      &>Greylisting</&>
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/audits/'        &>Audits</&>
+% }
+
+<& /mason/titlemenu.comp:end &>
+</%method>
+

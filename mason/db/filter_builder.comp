@@ -1,0 +1,116 @@
+<%args>
+    $filters
+    $selected
+    $print => 0
+    $print_enable_change => 0
+    $include_where => 0
+</%args>
+
+<%init>
+    my %filter = %$filters;
+    my @filter_print;
+    my @sql_where;
+    my @sql_where_args;
+    my @sql_join;
+    my @sql_fields;
+    my %field_params;
+    
+    my %hArgs = $m->request_args();
+    
+    # This is used by the filters select form
+    if ($hArgs{'enable_filters'}) {
+        my @enable_filters;
+        if (ref($hArgs{'enable_filters'}) eq 'ARRAY') {
+            @enable_filters = @{$hArgs{'enable_filters'}};
+        } else {
+            push(@enable_filters, $hArgs{'enable_filters'}); 
+        }
+        
+        my %pq_filters;
+        
+        foreach my $name (keys %filter) {
+            $pq_filters{$name} = 0
+                if $filter{$name}{'default'};
+        }
+        foreach my $filter (@enable_filters) {
+            $pq_filters{$filter} = 1;
+        }
+        
+        my %clear_enable_filters = ('enable_filters' => undef);
+        
+        my $url = $m->comp('/mason/makeurl.comp', pathquery_empty=>1, pathquery=>\%pq_filters, nargs=>\%clear_enable_filters);
+        
+        $m->redirect($url);
+    }
+    
+    # Activate filters based on defaults (mark them on if they are on by default)
+    my %active = map { $_ => $filter{$_}{'default'} } keys %filter;
+    
+    # (De)Activate filters based on %$selected arg
+    if ($selected) {
+        my %sfilters = %$selected;
+        foreach my $filter (keys %$selected) {
+            $active{$filter} = $sfilters{$filter};  
+        }
+    }
+    
+    # Activate any filters referenced by an active group filter
+    foreach my $name (keys %filter) {
+        if ($active{$name} && $filter{$name}{'groups'}) {
+            my @subgroups = @{$filter{$name}{'groups'}};
+            foreach my $subname (@subgroups) {
+                $active{$subname} = 'hidden';
+            }
+        }
+    }
+    
+    foreach my $name (sort keys %filter) {
+        if (exists($filter{$name}{'enable'}) && !$filter{$name}{'enable'}) { next; }
+        if ($active{$name} || $filter{$name}{'force'}) {
+            if ($active{$name} ne 'hidden') {
+                push @filter_print, $filter{$name}{'name'} . ' [<a href="#">x</a>]';
+            }
+            if (defined($filter{$name}{'where'})) {
+                my $where = $filter{$name}{'where'};
+                if (!ref($where)) {
+                    push @sql_where, '(' . $where . ')';
+                } else {
+                    push @sql_where, '(' . shift(@$where) . ')';
+                    @sql_where_args = (@sql_where_args, @$where);
+                }
+            }
+            @sql_join = (@sql_join, @{$filter{$name}{'join'}})
+                if (defined($filter{$name}{'join'}));
+            @sql_fields = (@sql_fields, @{$filter{$name}{'fields'}})
+                if (defined($filter{$name}{'fields'}));
+            %field_params = (%field_params, %{$filter{$name}{'field_params'}})
+                if (defined($filter{$name}{'field_params'}));
+        }
+    }
+</%init>
+<%perl>    
+    if ($print) {
+        print 'Search Criteria: ';
+        print join(', ', @filter_print);
+        print ' | <a href="?edit_filters=1">add</a>'
+            if ($print_enable_change);
+                    
+        if ($hArgs{'edit_filters'}) {
+            print '<form action="?" method="POST">';
+            print '<div style="background-color: #DDD;"><h4>Select Filters</h4>';
+            foreach my $name (keys %filter) {
+                my $is_active = $active{$name} || $filter{$name}{'force'};
+                if ((exists($filter{$name}{'enable'}) && !$filter{$name}{'enable'})) { next; }
+                #my $is_hidden = $active{$name} eq 'hidden';
+                
+                print '<label><input name="enable_filters" value="' . $name . '" type="checkbox"' . ($is_active ? ' CHECKED' : '') . '>' . $filter{$name}{'name'} . '</label><br>';
+            }      
+            print '<input type="submit" value="Update"></div>';
+            print '</form>';
+        }
+    }
+
+    my @where = (($include_where ? 'WHERE ' : '').join(' AND ', @sql_where), @sql_where_args);
+    
+    return { where => \@where, join => \@sql_join, fields => \@sql_fields, field_params => \%field_params};
+</%perl>

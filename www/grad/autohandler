@@ -1,0 +1,9 @@
+<% $m->call_next %>
+<%method titlemenu_above>
+  <& /mason/titlemenu.comp:begin, type=>"above" &>
+    <&| /mason/titlemenu.comp:item, link=>'/grad/index.html'  &>Overview</&>
+    <&| /mason/titlemenu.comp:item, link=>'/grad/physics/'  &>Physics</&>
+  <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+

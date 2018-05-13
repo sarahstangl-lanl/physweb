@@ -1,0 +1,88 @@
+<%doc>
+
+</%doc>
+
+<%args>
+$uid => undef
+
+$add_override => undef
+$add_override_group => undef
+$add_override_type => undef
+
+$delete_override => undef
+$delete_override_group => undef
+</%args>
+
+<%init>
+use physdb::group_members;
+my $access = $m->comp('/mason/auth/auth_check_directory.comp');
+my $admin_access = $m->comp('/mason/auth/auth_check_sysadm.comp');
+
+if(! ($admin_access || $access)) {
+    print "ERROR: Access denied\n";
+    return;
+}
+
+my $directory = new Directory( uid => $uid );
+if(!$directory) {
+    print "ERROR: Asked to modify overrides but uid is invalid!\n";
+    return;
+}
+
+if($add_override) {
+    print "We are adding overrides!\n";
+    if($add_override_type !~ /^(add|remove)$/) {
+        print "ERROR: Asked to add an override with an invalid type\n";
+        return;
+    }
+    if($add_override_group !~ /^.+$/) {
+        print "ERROR: Asked to add an override with an invalid group name\n";
+        return;
+    }
+    my $group = physdb::queryone("SELECT name FROM groups WHERE name=? AND import <> 'No' ", $add_override_group);
+    if(!$group) {
+        print "ERROR: Asked to add a group override for a non-imported group\n";
+        return;
+    }
+    physdb::query("INSERT INTO group_override (group_name, uid, override, timestamp, creator_uid) values (?,?,?,now(),?)",
+                               $group,
+                               $uid,
+                               $add_override_type,
+                               $session{'uid'});
+    # Log to audits
+    my $name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$uid);
+    $m->comp('/mason/db/auditlog/addevent.comp',
+        type=>"directory",
+        text => "Added group override: $group=$add_override_type for $name",
+        directory_uid => $uid,
+    );
+    print "Added override to database\n";
+    $directory->update_auto_groups(allow_removal => 1);
+}
+elsif ($delete_override) {
+    print "We are deleting an override\n";
+    if($delete_override_group !~ /^.+$/) {
+        print "ERROR: Asked to delete an override but the group name '$delete_override_group' is invalid\n";
+        return;
+    }
+    my $override = physdb::queryfirstrow("SELECT group_name, uid, override FROM group_override WHERE uid=? AND group_name=?", $uid, $delete_override_group);
+    if(!$override) {
+        print "ERROR: Asked to remove an override that does not exist\n";
+        return;
+    }
+    physdb::query("DELETE FROM group_override WHERE group_name=? AND uid=?", $delete_override_group, $uid);       
+   
+    # Log to audits
+    my $name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$uid);
+    $m->comp('/mason/db/auditlog/addevent.comp',
+        type=>"directory",
+        text => "Removed group override: $delete_override_group for $name",
+        directory_uid => $uid,
+    );
+ 
+    $directory->update_auto_groups(allow_removal => 1);
+}
+
+$m->redirect("edit_entry_form.html?uid=$uid#overrides");
+
+</%init>

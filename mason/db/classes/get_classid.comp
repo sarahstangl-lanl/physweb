@@ -1,0 +1,30 @@
+
+<%DOC>
+   Component: get_classid.comp
+        Date: 2003.08.09
+      Author: allan
+     Changed: 
+
+Returns class id given year/quarter/name
+</%DOC>
+
+<%ARGS>
+$year
+$quarter
+$name
+$section
+</%ARGS>
+
+<%INIT>
+my ($classid, $row_ref);
+my $sql = "SELECT classid FROM classlist WHERE year=? AND quarter=? AND name=? AND section=?";
+my $sth = $dbh->prepare($sql);
+my $success = $sth->execute($year, $quarter, $name, $section);
+if ($success) {
+  ($classid) = $sth->fetchrow_array;
+}
+</%INIT>
+
+<%perl>
+return $classid;
+</%perl>

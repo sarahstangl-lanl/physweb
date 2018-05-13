@@ -1,0 +1,35 @@
+<%method title>Physics Research Programs</%method>
+
+<& /mason/image.comp, filename=>'Research.jpg',alt=>'Physics research photo',credit=>'photo by Jonathan Chapman',caption=>'A Titanium-Sapphire laser used in Paul Crowell\'s research group.' &>
+<p>
+<p>
+Physics faculty and students engage in theoretical and experimental research that spans most of the central topics of modern physics.  Major research areas include particle theory and experiment, condensed matter theory and experiment, nuclear theory, space physics, observational and theoretical astrophysics, biological physics and physics education.  The latter is a new and growing research activity.   Physics research is also carried out by faculty in other departments at the University.  Professors who are members of the Graduate Faculty in Physics can direct the research of physics graduate students.
+<p>
+The excitement and quality of the research that is done here creates an exceptional learning environment for students at all levels.  We invite you to find out more about the activities of our research groups by exploring these pages.
+<p>
+Selected faculty in other departments around the University are members of the Graduate Faculty in Physics. They may direct the research of graduate students in physics toward M.S. or Ph.D. degrees in physics.
+
+
+<%doc>
+<table width="100%">
+<tr><td>
+<div id="boxes">
+ <div class="news" style="clear: both; padding-top: 1em;">
+ <h2 class="fpcolumn" style="clear: both;">Recent Publications</h2>
+   <& /mason/db/stories/frontpageitem.comp, limit=>4, type=>'publications', rssurl=>'/rss/publications/', moreurl=>'/about/news/publications.html' &>
+  </div> <!-- news -->
+</div>
+</td>
+
+<td>
+<div id="boxes">
+ <div class="news" style="clear: both; padding-top: 1em;">
+ <h2 class="fpcolumn" style="clear: both;">Recent Degrees</h2>
+   <& /mason/db/stories/frontpageitem.comp, limit=>4, type=>'publications', rssurl=>'/rss/publications/', moreurl=>'/about/news/publications.html' &>
+  </div> <!-- news -->
+</div>
+</td>
+
+</tr>
+</table>
+</%doc>

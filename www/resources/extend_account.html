@@ -1,0 +1,32 @@
+<%method title>Extend Account</%method>
+<%init>
+    # temp for development and such
+    return
+        if (!$m->comp('/mason/auth/auth_check_sysadm.comp'));
+</%init>
+
+Sorry, you may only extend your account within 30 days of expiration.
+
+<p>Dear NAME,
+
+<p>Please let us know your status below:
+<p>
+<label><input type="radio" name="reason"> I am an undergraduate student currently with the department</label><br/>
+<label><input type="radio" name="reason"> I am a graduate student currently with the department</label><br/>
+<label><input type="radio" name="reason"> I am a visitor who is still at the department</label><br/>
+<label><input type="radio" name="reason"> I am faculty or staff at the department</label><br/>
+<label><input type="radio" name="reason"> I have left the department but have an <b>ongoing</b> research relationship with </label><input type="text"><br/>
+<label><input type="radio" name="reason"> I have left the department. Please forward my email to </label><input type="text"><br/>
+<label><input type="radio" name="reason"> I have left the department. Please close my account.</label><br/>
+<label><input type="radio" name="reason"> Other </label><textarea></textarea><br/>
+
+<input type="submit">
+
+<p>For information on copying or archiving mail...:
+
+<p>Please make sure your directory entry is correct at
+http://www.physics.umn.edu/people/index.html
+<p>You can send any directory corrections to directory@physics.umn.edu. 
+
+<p>Many account types, such as student or affiliate accounts, expire
+periodically, so you may need to renew again in the future.

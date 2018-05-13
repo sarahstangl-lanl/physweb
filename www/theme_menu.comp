@@ -1,0 +1,18 @@
+<%doc>
+  vim: set syntax=mason:
+
+</%doc>
+            <& /mason/menu.comp:begin &>
+            <&| /mason/menu.comp, link=>'/about/'  &>About</&>
+            <&| /mason/menu.comp, link=>'/events/'  &>Events</&>
+            <&| /mason/menu.comp, link=>'/people/', title=>'Directory of Faculty, Staff and Students' &>People</&>
+            <&| /mason/menu.comp, link=>'/classes/', title=>'Class Web Pages'  &>Classes</&>
+            <&| /mason/menu.comp, link=>'/research/' &>Research</&>
+            <&| /mason/menu.comp, link=>'/undergrad/' &>Undergraduate</&>
+            <&| /mason/menu.comp, link=>'/grad/', &>Graduate Programs</&>
+            <&| /mason/menu.comp, link=>'/outreach/' &>Outreach</&>
+            <&| /mason/menu.comp, link=>'/resources/' &>Resources</&>
+            <&| /mason/menu.comp, link=>'/alumni/' &>Alumni&nbsp;&amp;&nbsp;Giving</&>
+            <& /mason/menu.comp:end &>
+
+

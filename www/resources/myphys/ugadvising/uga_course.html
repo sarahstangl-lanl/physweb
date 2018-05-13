@@ -1,0 +1,106 @@
+<%args>
+    $name => undef
+    $oldval => undef
+    $newval => undef
+    $save => undef
+    $uid => undef
+    $category_id => undef
+    $requirement_id => undef
+    $course_id => undef
+    $ajax => 0
+</%args>
+
+<%init>
+    use PhysAjax;
+    use physdb::uga_student;
+    use physdb::uga_course;
+    my $auth_office = $m->comp('/mason/auth/auth_check.comp', auth_type => ['undergradoffice', 'sysadm']);
+
+    if(!defined $course_id) {
+        print "No course id supplied";
+        return;
+    }
+    if(!defined $uid) {
+        print "No uid supplied";
+        return;
+    }
+
+    my %args = $m->request_args;
+
+    use physdb::uga_course;
+
+    my $course = new uga_course( 'id'=>$course_id );
+
+
+    my $uga_student = new uga_student( 'uid'=>$uid);
+    my $student = new Directory( uid=> $uid );
+
+    # Only let people modify courses for students they advise.
+    if(!$auth_office && $uga_student->get('advisor_uid') ne $session{'uid'}) {
+        print "<h1>Error: Access denied</h1><p>You are not this students advisor.</p>";
+        return;
+    }
+
+    if(!$auth_office && $course->{'loaded'} && $course->get('uid') ne $uid) {
+        print "<h1>Error: course uid does not match student</h1>";
+        return;
+    }
+
+    #print "<pre>". _h(Dumper($course)) ."</pre>";
+
+    my %result;
+    $result{'result'} = 'ok';
+
+    #If name is passed in, we are being asked to set a specific field (plus some required ones in case its new)
+    if($name) {
+        if(!$course->get("uid") && (!$uid || !$course->set("uid" => $uid) )) {
+             $result{'message'} = "Cannot create new record because uid arg is not set";
+        }
+        elsif ($oldval ne ''  #Try to detect changing a value that isnt set to what we thought..
+               && $oldval ne $course->get($name)
+               && ($course->get("uid") || ($uid && $course->set("uid" => $uid) ) )) {
+                     $result{'message'} = "Unable to update due to collision. You should eload the page. (Someone else has likely edited since you loaded the page, so the value has changed from what you see.)";
+                     $result{'debugging'} = "Collision detected: id: $course_id, name: $name, oldval: $oldval, newval: $newval. Current db value".$course->get($name).".";
+                     # XXX: Temporary debugging
+                     $result{'message'} = $result{'debugging'};
+                     $result{'result'} = 'error';
+        }
+        else {
+              $course->set($name => $newval);
+              $course->set("requirement_id" => $requirement_id) if($requirement_id);
+              $course->set("category_id" => $category_id) if($category_id);
+        }
+    }
+    else { #Otherwise, we are creating a new row, so set everything.
+        my %save;
+        foreach my $k (keys %args) {
+            if($k =~ /^set_(.*)/) {
+              my $newk = $1;
+              $save{$newk} = $args{$k};
+            }
+        }
+        $course->set(%save);
+        $course->set(id => $course_id, uid => $uid);
+    }
+    if($result{'result'} eq 'ok') {
+        if($course->save()) {
+            #Hack together some kind of change log event for audits
+            my $requirement = $course->requirement_details(); 
+            my $course_str = 'course';
+            $course_str = $requirement->{"course_number"} if $requirement->{'course_number'};
+            $course_str = $course->get("course_number") if $course->get("course_number");
+            $m->comp('/mason/db/auditlog/addevent.comp', type=>"uga_course", text => $course_str . ":" . $course->changes_as_str(), directory_uid => $args{'uid'});
+        }
+        else {
+          $result{'result'} = 'error';
+          $result{'message'} = $course->dumperrors();
+        }
+    }
+    if($ajax) {
+        print_ajax(\%result);
+    }
+    else {
+        print(Dumper(\%result));
+        $m->redirect("report_form.html?uid=". _u($uid));
+    }
+</%init>

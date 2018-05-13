@@ -1,0 +1,54 @@
+<%args>
+$schema
+</%args>
+<%init>
+    use tablesearch;
+    my $rs = $schema->resultset('Jobs')->search_rs(
+    {
+        'account.deptid' => [ '11140', '12100' ],
+        'status.label' => { '!=' => 'Cancelled' },
+    },
+    {
+#        select => [ \'GROUP_CONCAT(me.job_id ORDER BY me.job_id SEPARATOR ", ")', \'GROUP_CONCAT(me.project_name ORDER BY me.job_id SEPARATOR ", ")', \'GROUP_CONCAT(status.label ORDER BY me.job_id SEPARATOR ", ")', qw/me.account_key account.deptid/, \'SUM(job_summary.total_extended_cost)', \'SUM(job_summary.ll_total_extended_cost)', \'SUM(job_summary.ml_total_extended_cost)' ],
+#        as => [ qw/job_id project_name status account_key deptid total_extended_cost ll_total_extended_cost ml_total_extended_cost/ ],
+        select => [ qw/me.job_id me.project_name status.label me.account_key account.deptid job_summary.total_extended_cost job_summary.ll_total_extended_cost job_summary.ml_total_extended_cost/ ],
+        as => [ qw/job_id project_name status account_key deptid total_extended_cost ll_total_extended_cost ml_total_extended_cost/ ],
+        join => [ 'account', 'job_summary', 'status' ],
+#        group_by => [ 'me.account_key' ],
+        order_by => 'me.account_key',
+    });
+    my $ts = Tablesearch->new(
+        debug => 1,
+        resultset => $rs,
+        field_params => {
+            total_extended_cost => {
+                data_format => 'currency',
+            },
+            ll_total_extended_cost => {
+                data_format => 'currency',
+            },
+            ml_total_extended_cost => {
+                data_format => 'currency',
+            },
+        },
+        prerow => sub {
+            my ($row, $ts) = @_;
+            $ts->{tmp}->{total} ||= 0;
+            $ts->{tmp}->{ml_total} ||= 0;
+            $ts->{tmp}->{ll_total} ||= 0;
+            return '';
+        },
+        postrow => sub {
+            my ($row, $ts) = @_;
+            $ts->{tmp}->{total} += $row->{total_extended_cost};
+            $ts->{tmp}->{ml_total} += $row->{ml_total_extended_cost};
+            $ts->{tmp}->{ll_total} += $row->{ll_total_extended_cost};
+            return '';
+        },
+        header_format => 'ucfirst_all',
+        extra_url_args => [ qw/action/ ],
+#        field_list => [ 'me.job_id', 'me.account_key', 'account.deptid', 'job_summary.total_extended_cost', 'job_summary.ll_total_extended_cost', 'job_summary.ml_total_extended_cost' ],
+    );
+    $ts->display;
+    print "<h2>Total:" . ($ts->{tmp}->{total}) . "</h2>";
+</%init>

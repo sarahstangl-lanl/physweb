@@ -1,0 +1,55 @@
+<%init>
+my $sth = $dbh->prepare("SELECT copyid FROM directory WHERE uid=?");
+$sth->execute($session{'uid'});
+my $row_ref = $sth->fetchrow_arrayref;
+my $copyid;
+</%init>
+
+<h3>Copier user codes</h3>
+
+
+<%perl>
+if ($row_ref) {
+    ($copyid) = @$row_ref;
+}
+</%perl>
+
+<%method subtitle>Printing and Copying</%method>
+
+<p>
+Copy Codes are required for the <b>Physics</b> and <b>MIFA</b> Xerox &amp; Toshiba copiers. The FTPI copier uses its own codes.
+</p><p>
+Your copy code is: <b><% $copyid ? $copyid : "None set!" %>
+</b>
+</p><p>
+<i>This code is unique for your own use, please don't share it with anyone.</i>
+</p>
+
+<h3>Copy/print usage</h3>
+<p>
+Counters are pulled from each copier automatically every night and summarized by month:
+</p>
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+    field_list => [ 
+            'concat(monthname(timestamp),\' \', year(timestamp)) as month', 
+            'hostname AS copier', 
+            'sum(black) as black', 
+            'sum(color) as color', 
+            'max(timestamp) as date' ],
+    table => 'accounting.copy_accounting',
+    default_sort_field => 'date',
+    default_sort_dir   => 'desc',
+    header_format      => 'ucfirst',
+    where => ["WHERE uid=? AND date(timestamp) > DATE_SUB(now(), INTERVAL 1 YEAR)", $session{'uid'} ],
+    group_by => "GROUP BY hostname, month",
+    hide_search => 1, 
+    field_params => {
+        date => {
+            hidden=>1,
+        },
+    },
+    hide_header => 1,
+);
+
+</%perl>

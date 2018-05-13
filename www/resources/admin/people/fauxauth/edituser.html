@@ -1,0 +1,59 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: create.html
+        Date: 2008.04.01
+      Author: clayton
+     Changed: 2008.04.01 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $fauxid=>''
+</%ARGS>
+
+<%INIT>
+my $auth =$m->comp('/mason/auth/auth_check_sysadm.comp');
+
+if (!$auth)
+{
+  $m->out('Access Denied');
+  return;
+}
+
+my $submit_val = 'Create';
+if ($fauxid) { $submit_val = 'Save'; }
+
+my $query = $dbh->prepare('SELECT fauxid, first_name, last_name, email, groups FROM fauxauth WHERE fauxid=? LIMIT 1');
+$query->execute($fauxid);
+
+my ($username, $firstname, $lastname, $email, $groups);
+if (my $result = $query->fetchrow_arrayref()) {
+  ($username, $firstname, $lastname, $email, $groups) = @$result;
+}
+</%INIT>
+
+<%method title>Edit FauxUser</%method>	
+	
+<form action="index.html" method="POST">
+<input type="hidden" name="fauxid" value="<% $fauxid |h %>">
+% if (!$fauxid) {
+<input type="hidden" name="create" value="1">
+% }
+<table>
+<tr><td>Username</td><td><input type="text" name="username" value="<% $username |h %>"></td></tr>
+<tr><td>New Password</td><td><input type="text" name="password"></td></tr>
+<tr><td>First Name</td><td><input type="text" name="firstname" value="<% $firstname |h %>"></td></tr>
+<tr><td>Last Name</td><td><input type="text" name="lastname" value="<% $lastname |h %>"></td></tr>
+<tr><td>E-mail</td><td><input type="text" name="email" value="<% $email |h %>"></td></tr>
+<tr><td>Groups</td><td><& /mason/auth/group_picker.comp, name=>'groups', selected=>$groups &>(Currently: <% $groups %>)</td></tr>
+<tr><td></td><td><input type="submit" value="<% $submit_val %>"></td></tr>
+</table>
+</form>
+<br/>
+<form action="index.html" method="POST">
+<input type="hidden" name="fauxid" value="<% $fauxid |h %>">
+<input type="hidden" name="delete" value="1">
+<input type="checkbox" name="confirm" id="deleteit" value="1"><label for="deleteit"> Delete this user</label>&nbsp;
+<input type="submit" value="Delete">
+</form>

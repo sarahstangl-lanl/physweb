@@ -1,0 +1,58 @@
+<%doc>
+   Component: insert_image.comp
+        Date: 9/4/2002
+      Author: allan
+ Description: 
+</%doc>
+<%args>
+$category
+$parentid
+$indexid=>0
+$max_x=>0
+$max_y=>0
+$editlink=>0
+</%args>
+<%init>
+my $sql = "SELECT imageid, name, image, alt, align, caption, credit FROM images WHERE category=? AND parentid = ? AND indexid = ? LIMIT 1";
+my ($imageid, $name, $image, $alt, $align, $caption, $credit);
+my ($size_x, $size_y, $type);
+my $alttext;
+
+if (defined($dbh)) {
+my $sth = $dbh->prepare($sql);
+$sth->execute($category, $parentid, $indexid);
+my $image_row = $sth->fetchrow_arrayref;
+if (defined($image_row)) {
+  ($imageid, $name, $image, $alt, $align, $caption, $credit) = @$image_row;
+  ($size_x, $size_y, $type) = imgsize(\$image);
+  # use filename as alt text, if none in database...
+  $alttext = $alt||$name;
+}
+}
+my $editlink_url = "/imagedb/upload_image_form.html?category=$category&parentid=$parentid&indexid=$indexid";
+</%init>
+
+% if ($type) {
+<table cellspacing=2 cellpadding=0 align="<% $align %>" style="align:<% $align %>;" border="0" width="<% $size_x+4 %>" class="insert_image_comp">
+<tr><td>
+<img src="/stateless/imagedb.html?id=<% $imageid %>&name=<% $name |h %>" alt="<% $alttext |h %>" width="<% $size_x %>" height="<% $size_y %>">
+</td></tr>
+% if ($caption) {
+<tr><td bgcolor="#dddddd"><i><% $caption |h %></i></td></tr>
+% }
+% if ($credit) {
+<tr><td align="right"><small><% $credit |h %></small></td></tr>
+% }
+% if ($editlink) {
+<tr><td align="right"><small><a href="<% $editlink_url %>">[edit image]</a></small></td></tr>
+% }
+</table>
+% } else {
+% # no image was found, but if editlink true, give "add image" link
+% if ($editlink) {
+<table cellspacing="2" cellpadding="0" align="left" border="0">
+<tr><td>
+<small><a href="<% $editlink_url %>">[add&nbsp;image]</a></small></td></tr>
+</table>
+% }
+% }

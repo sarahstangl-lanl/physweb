@@ -1,0 +1,38 @@
+<%args>
+$start_date => undef;
+$emplid => undef;
+$last_name => undef;
+$first_name => undef; 
+</%args>
+
+<%init>
+use CAM::PDF;
+use DateTime;
+</%init>
+
+<%perl>
+my $docroot = $r->document_root;
+my $pdf = CAM::PDF->new("$docroot/resources/myphys/timesheet.pdf");
+my %values = ();
+if (!defined($start_date) || !defined($emplid) || !defined($last_name) || !defined($first_name)) { $m->redirect('timesheets.html'); }
+my $dt = DateTime->from_epoch(epoch => $start_date);
+$values{'PP1'} = $dt->format_cldr('MM/dd/yy');
+for (my $i = 0; $i < 14; $i++) {
+	$values{'Date'.($i+1)} = $dt->format_cldr('MM/dd');
+	$dt->add(days => 1);
+}
+$dt->subtract(days => 1);
+$values{'PP2'} = $dt->format_cldr('MM/dd/yy');
+$pdf->fillFormFields(%values);
+my $data = $pdf->toPDF();
+$data =~ s/last_name/$last_name/g;
+$data =~ s/first_name/$first_name/g;
+$data =~ s/emplid/$emplid/g;
+$r->content_type('application/pdf');
+$r->headers_out->set('Content-Disposition' => "file; filename=\"timesheet.pdf\"");
+$m->clear_buffer();
+$m->autoflush(1);
+print $data;
+$m->autoflush(0);
+$m->abort(Apache2::Const::OK);
+</%perl>

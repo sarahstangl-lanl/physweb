@@ -1,0 +1,63 @@
+<%method title>Scheduler</%method>
+<%method titlemenu_below>
+ <& /mason/titlemenu.comp:begin, type=>"below" &>
+   <&| /mason/titlemenu.comp:item, selected=>1 &>Recent Schedules</&>
+ <& /mason/titlemenu.comp:end &>
+</%method>
+
+<%INIT>
+my $auth = $m->comp('/mason/auth/check_groups.comp', allow =>['scheduler','sysadm']);
+</%INIT>
+
+% if(!$auth) {
+<h2>No Access</h2>
+You must be in the scheduler group to manage scheduling.
+%   return; 
+% }
+
+<h4>Create a new schedule</h4>
+<p>
+<form method="post" action="create.html">
+Name: <input type="text" name="update_slug"><input type="submit" name="update" value="Create">
+ | <a href="http://zzz.physics.umn.edu/admin/private/webscheduler">Scheduler manual</a>
+<br/>
+<small>This will be the name that goes in the web link for the schedule. It has to be unique for this schedule.<br/>
+Any spaces or special characters will be replaced with underscores. Try to keep it fairly short, while also descriptive and unique.</small>
+
+</form>
+</p>
+
+<h4>Available Schedules</h4>
+<p>
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+    field_list => [
+        'slug',
+        'title',
+        'CONCAT_WS(" ", directory.first_name, directory.last_name) AS locked',
+        'CONCAT_WS(" ", d2.first_name, d2.last_name) AS creator',
+        'scheduler.create_date',
+        ],
+    joins => [
+        'directory'  => 'scheduler.editing = directory.uid',
+        'directory d2'  => 'scheduler.creator = d2.uid',
+        ],
+    table => 'scheduler',
+    default_sort_field => 'id',
+    default_sort_dir => 'DESC',
+    field_params => {
+        slug => {
+            url => '$row{slug}.html',
+            name => 'name',
+            },
+        locked => {
+            name => 'locked by',
+            }
+        }
+    );
+
+    my $query = $dbh->prepare('SELECT slug, title, editing FROM scheduler ORDER BY id DESC LIMIT 20');
+    $query->execute()
+        or die 'Unable to query forms: ' . $dbh->errstr;
+</%perl>
+</p>

@@ -1,0 +1,68 @@
+<%doc>
+Handles changes to the uga_student table
+</%doc>
+
+<%init>
+my %args = $m->request_args;
+my $auth_office = $m->comp('/mason/auth/auth_check.comp', auth_type => ['undergradoffice', 'sysadm']);
+
+
+if(!$args{'uid'}) {
+    print "No UID!";
+    return;
+}
+
+use physdb::uga_student;
+
+my $message = '';
+
+if($auth_office) {
+    if($args{'advisor_name'}) {
+        $args{'advisor_uid'} = $m->comp('/mason/ajax/peoplefinder_to_uid.comp', name=>$args{'advisor_name'});
+        if($args{'advisor_uid'}) {
+            delete($args{'advisor_name'});
+        }
+        else {
+            print "Unable to find advisor matching  '". _h($args{'advisor_name'}). "'. Go back and try again.<br>";
+            return;
+        }
+    }
+    else { # Clearing the advisor field out
+        delete($args{'advisor_name'});
+        $args{'advisor_uid'} = undef;
+    }
+}
+else { # Not ugadmin, cannot change advisor
+    delete($args{'advisor_name'});
+}
+
+my $student = new uga_student( uid=>$args{'uid'} );
+
+if(!$auth_office) {
+    if($student->get("advisor_uid") ne $session{'uid'}) {
+        print "Error: access denied.  You are not the advisor listed for uid ". _h($args{'uid'})."<BR>\n";
+        return;
+    }
+}
+
+#Set these to 0, then let them reset to 1 if passed. (Unchecked boxes don't pass ANYTHING annoyingly.)
+$student->set( 
+              'prereq_math_in_progress'=> 0,
+              'prereq_math_complete' => 0,
+              'prereq_phys_in_progress' => 0,
+              'prereq_phys_complete' => 0,
+              );
+$student->set(%args);
+
+if($student->save()) {
+    $m->comp('/mason/db/auditlog/addevent.comp', type=>"uga_student", text => $student->changes_as_str(), directory_uid => $args{'uid'});
+    $message = "Saved student details";
+}
+else {
+      $message = $student->dumperrors();
+}
+
+$m->redirect("report_form.html?uid=". _u($args{'uid'}).'&message='. _u($message));
+
+
+</%init>

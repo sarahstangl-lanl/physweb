@@ -1,0 +1,29 @@
+<%method title>Shop Get Attachment</%method>
+<%init>
+my $auth_args = $session{'shopdb-auth'};
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+my $attachment = $schema->resultset('Attachments')->find({ attachment_id => $ARGS{'attachment_id'} });
+my $result;
+if (!$ARGS{'attachment_id'}) {
+    $result = "No attachment id provided.";
+}
+elsif (!$attachment) {
+    $result = "Invalid attachment id $ARGS{'attachment_id'}";
+}
+elsif (!$m->comp('/mason/db/shopdb/check_file_auth.comp', attachment => $attachment)) {
+    $result = "You do not have permission to download attachment $ARGS{'attachment_id'}.";
+}
+
+if ($result) {
+    $m->comp('/mason/notice_box.comp', text => $result, type => 'error');
+}
+else {
+    $r->content_type($attachment->mime_type);
+    $r->headers_out->add('Content-Length' => $attachment->size);
+    $r->headers_out->add('Content-Disposition' => 'attachment; filename="' . $attachment->filename . '"');
+    $m->clear_buffer;
+    $m->out($attachment->data);
+    $m->abort(200);
+}
+</%init>
+

@@ -1,0 +1,41 @@
+%# vim:set syntax=mason:
+<%init>
+my $web = $m->comp('/mason/auth/auth_check.comp', auth_type=>'webforms');
+
+if(!$web) {
+    print "<h1>Access Denied</h1>";
+    print "Please ask someone in the physics web group to assist you with editing forms.";
+    return;
+}
+
+
+$m->comp('/mason/auth/auth_block.comp');
+$m->call_next;
+</%init>
+<%method title>Forms Manager</%method>
+
+<%method titlemenu_below>
+<%perl>
+my ($form_name);
+
+if($m->dhandler_arg) {
+    $form_name = $m->dhandler_arg;
+    $form_name =~ s/\.html$//;
+}
+else {
+    my %args = $m->request_args;
+    $form_name = $args{'form_name'};
+    $form_name =~ s/\.html$//;
+}
+
+</%perl>
+<& /mason/titlemenu.comp:begin, type=>"below" &>
+<&| /mason/titlemenu.comp:item,    link=>'/resources/admin/forms/index.html' &>Form List</&>
+%if($form_name) {
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/forms/results.html?form_name='.$form_name &>Form Results</&>
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/forms/'.$form_name.'.html'  &>View Form</&>
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/forms/edit.html?form_name='.$form_name &>Edit Form</&>
+%}
+<& /mason/titlemenu.comp:end &>
+</%method>
+

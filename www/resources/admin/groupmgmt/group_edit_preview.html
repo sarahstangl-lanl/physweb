@@ -1,0 +1,66 @@
+<%flags>
+inherit => undef
+</%flags>
+<%args>
+$name => undef
+$import => undef
+$import_query => undef
+$autoadd => undef
+$preview_all_groups => undef
+</%args>
+<%init>
+use PhysAjax;
+use Datawarehouse::Base;
+unless ($m->comp('/mason/auth/auth_check_sysadm.comp')) {
+    print_ajax({ err => "You do not have permission to modify group parameters" });
+    return;
+}
+unless ($name && $import && $import_query) {
+    print_ajax({ err => "Invalid parameters" });
+    return;
+}
+
+# Attempt to capture STDOUT for turning into AJAX
+my $buffer = '';
+my $orig_out_method = $m->{out_method};
+$m->{out_method} = sub { $buffer .= $_[0] };
+
+# Run in eval to prevent SQL syntax errors from causing OOPSes
+eval {
+    # Prevent mason from using its __DIE__ hooks
+    local $SIG{'__DIE__'};
+
+    my $dw = Datawarehouse->new(
+        log_file_directory => '/tmp',
+        verify_table_counts => 0,
+        dry_run => 1,
+        updates => [ qw/Groups/ ],
+        update_params => {
+            Groups => {
+                groups => ($preview_all_groups ? undef : [ qq/$name/ ]),
+                group_params => {
+                    $name => {
+                        import => $import,
+                        import_query => $import_query,
+                        autoadd => $autoadd,
+                    },
+                },
+            },
+        },
+    );
+    $dw->run;
+};
+
+$m->flush_buffer;
+$m->{out_method} = $orig_out_method;
+
+# Print errors if any were encountered during eval
+if ($@) {
+    print_ajax({ err => $@ });
+}
+# Else send STDOUT content
+else {
+    print_ajax({ result => 'OK', msg => $buffer });
+}
+</%init>
+

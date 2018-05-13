@@ -1,0 +1,30 @@
+<%args>
+$student
+</%args>
+<%init>
+use Moonproject::Student;
+use Email::Valid;
+
+warn "redirecting to studentsettings_form.html";
+$m->redirect('studentsettings_form.html') unless ($student);
+
+unless (defined $ARGS{'email'} && defined $ARGS{'fistdegrees'}) {
+    $m->redirect('studentsettings_form.html');
+}
+unless ($ARGS{'email'} && $ARGS{'fistdegrees'}) {
+    $m->redirect('studentsettings_form.html?' . _args(msg => 'You must fill in both Email and Degrees per Fist.'));
+}
+unless (Email::Valid->address($ARGS{'email'})) {
+    $m->redirect('studentsettings_form.html?' . _args(msg => 'Invalid email address ' . $ARGS{'email'}));
+}
+unless ($ARGS{'fistdegrees'} =~ m/^-?([0-9]+)(\.([0-9]+))?$/x) {
+    $m->redirect('studentsettings_form.html?' . _args(msg => 'Invalid degrees per fist ' . $ARGS{'fistdegrees'}));
+}
+
+$student->update(email => $ARGS{email}, fistdegrees => $ARGS{'fistdegrees'});
+
+$m->comp('/mason/db/moonproject/load_student.comp', student => $student);
+
+warn "redirecting to observations.html";
+$m->redirect('observations.html');
+</%init>

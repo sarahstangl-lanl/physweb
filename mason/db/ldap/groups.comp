@@ -1,0 +1,44 @@
+<%args>
+$uid
+</%args>
+
+<%init>
+use Net::LDAP;
+
+my(@groups);
+my($entry);
+my($host) = 'ldap.spa.umn.edu';
+
+my($ldap) = Net::LDAP->new($host) or die "Can't bind to ldap: $!\n";
+
+$ldap->bind;
+
+my($mesg) = $ldap->search( base => "dc=physics,dc=umn,dc=edu",
+                                           filter => '(objectclass=posixGroup)');
+
+$mesg->code && die $mesg->error;
+
+foreach $entry ($mesg->entries) {
+        my($tmpcn) = $entry->get('cn');
+        my($tmpnum) = $entry->get('gidnumber');
+        my(@members) = $entry->get('memberuid');
+
+        #print "\@members = @members\n";
+        #print "Checking $tmpcn...";
+
+        my %t = ();
+        @t{@members} = 1;
+        if (exists $t{$uid}) {
+                #print "yes.";
+                # Push the cn onto an array
+                push @groups, $tmpcn;
+        }
+        #print "\n";
+}
+
+$ldap->unbind;
+
+my($groups) = join " ", @groups;
+return $groups;
+
+</%init>

@@ -1,0 +1,28 @@
+<%args>
+$student
+</%args>
+<%init>
+unless (defined $ARGS{'clause1'}) {
+    warn "redirecting to contract_form.html";
+    $m->redirect('contract_form.html');
+}
+my $check_values = sub {
+    my $vals = shift;
+    for (@$vals) {
+        return 0 unless (defined $ARGS{$_} && $ARGS{$_} eq 'yes');
+    }
+    return 1;
+};
+
+unless ($ARGS{'accept'} && $check_values->([qw/clause1 clause2 clause3/])) {
+    print "<h4>You have not accepted all of the terms of the usage agreement.<br>
+You must accept all terms before continuing.<br>
+If you have any questions, please contact your TA or Professor.</h4><br/><a href=\"contract_form.html\">Return to Contract Form</a>";
+    return;
+}
+
+$student->update(accepted_contract => 1);
+$session{'moonproject_contract'} = 1;
+warn "redirecting to observations.html";
+$m->redirect('observations.html');
+</%init>

@@ -1,0 +1,28 @@
+<%init>
+# return if $m->comp('/mason/db/dbcheck.comp');
+# redirect anyone immediately out of this obsolete applications system...
+$m->redirect('/');
+</%init>
+<% $m->call_next %>
+
+<%method titlemenu_above>
+<%perl>
+ my $auth = ($m->comp('/mason/auth/auth_check_gradapp.comp'));
+ my %args = $m->request_args();
+
+</%perl>
+
+<& /mason/titlemenu.comp:begin, type=>"above" &>
+% if($auth) {
+     <&| /mason/titlemenu.comp:item, link=>"/grad/physics/application/viewall.html" &>View All</&>
+%    if($args{'id'}) {
+        <&| /mason/titlemenu.comp:item, selected=>1 &>Application Summary</&>
+%    }
+% }
+% else {
+  <&| /mason/titlemenu.comp:item, selected=>1 &>Application</&>
+% }
+<& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+

@@ -1,0 +1,205 @@
+<%doc>
+   Component: index.html
+        Date: 9/2/2002
+      Author: allan
+ Description: provide a x.500 login form
+              we also accept a url parameter, to pass on for redirection after login
+</%doc>
+
+<%args>
+$url=>''
+$phys=>undef
+$wiki=>0
+$message=>'You can log in using either your University of Minnesota Internet account, or with your UMN Physics account. Choose the appropriate tab below.'
+</%args>
+
+<%init>
+use Apache2::ServerUtil;
+use Apache2::Cookie;
+
+my $port = $r->get_server_port();
+my $s = Apache2::ServerUtil->server;
+my $site = $s->dir_config('SiteName');
+my %cookies = Apache2::Cookie->fetch($r);
+my $cookie_name = $site eq 'htphysics' ? 'UMNPHYS_SESSION_ID' : "UMNPHYS_STAGING_${port}_SESSION_ID";
+
+my $cookie_physid = '';
+my $cookie_shibb = '';
+
+if ($cookies{'UMNPHYS_PERSIST'}) {
+  my @cookie = split /\|/, $cookies{'UMNPHYS_PERSIST'}->value();
+
+  if (@cookie > 2) {
+    if (!defined($phys)) {
+      $phys = 0;
+      if (($cookie[0] eq 'phys') || ($cookie[0] eq 'faux')) {
+        $phys = 1;
+      }
+      elsif($cookie[0] eq 'shibb') {
+        $phys = 0;
+      }
+    }
+  }
+}
+
+my $server = $r->server->server_hostname;
+my $x500 = $session{'x500'};
+my $physid = $session{'physid'};
+my $uri=$r->uri;
+if(!$ENV{HTTPS}) {
+  $m->redirect("https://$server$uri?url=$url");
+}
+
+if ($wiki) {
+  $url = "https://$server$uri?url=" . $m->interp->apply_escapes($url, 'u');
+}
+</%init>
+
+<%method meta>
+% my %args = $m->request_args;
+% if ($args{'url'} && ($session{'x500'} || $session{'physid'} || $session{'login_force_redirect'})
+% && ($args{'url'} !~ /(\/auth\/?$)|(\/auth\/index\.html.*$)/)) {
+% # we undef($session{'login_force_redirect'}) later
+<meta http-equiv="refresh" content="0;url=<% $args{'url'} |h %>">
+% }
+</%method>
+
+<%def physform>
+% my ($urlz, $uservalue) = (@_);
+<div style="height:4.5em; overflow: hidden;">
+Log in using your <b>Physics Username</b> and password.
+<i>Note - you will need to have cookies enabled in your web browser in order to log in successfully.</i>
+</div>
+
+<form method="POST" action="/auth/login.html" name="loginForm">
+<input type="hidden" name="url" value="<% $urlz |h %>">
+<table width="100%">
+<tr><td>
+<table>
+<tr><td style="width: 10em; text-align: right">Physics Username</td><td><input type="text" size=15 name="user"<% ($uservalue ? ' value="' . $m->interp->apply_escapes($uservalue, 'u') . '"' : '') %>></td></tr>
+<tr><td style="text-align: right">Password</td><td><input type="password" size=15 name="pw" autocomplete="off"></td></tr>
+</table>
+</td>
+<td align="center" style="height:7em"><img src="/images/badtz.jpg" height="89" width="119" style="border: 1px solid white"></td></tr>
+</table>
+<input type="submit" value="Login">
+</form>
+
+<SCRIPT LANGUAGE="JavaScript"> 
+/* <![CDATA[ */
+    document.loginForm.user.focus();
+/* ]]> */
+</SCRIPT>
+</%def>
+
+</%def>
+
+
+<%def shibbform>
+% my ($urlz) = (@_);
+<div style="height:4.5em; overflow: hidden;">
+Click the button to log in using your <b>UMN Internet ID</b> and password.
+<i>Note - you will need to have cookies enabled in your web browser in order to log in successfully.</i>
+</div>
+<table width="100%" height="93">
+<tr><td>
+    <form method="post" action="shibbredir.html">
+    <input type="hidden" name="url" value="<% $urlz |h%>">
+    <input type="submit" name="shibboleth" class="shibbbutton" value="Login using UMN Internet ID...">
+    </form>
+</td>
+<td width="140px">
+<img src="/images/syscroo.jpg" width="58" height="33" align="left" alt=""><img src="/images/sysdulu.jpg" width="58" height="33" align="left" alt=""><BR CLEAR=ALL>
+<img src="/images/sysmorr.jpg" width="58" height="33" align="left" alt=""><img src="/images/systwin.jpg" width="58" height="33" align="left" alt="">
+
+</td>
+
+</tr>
+</table>
+
+</%def>
+
+<%method title>Login</%method>
+
+
+% if ($x500 || $physid || $session{'login_force_redirect'}) {
+% undef($session{'login_force_redirect'});
+
+% # We should not need to update this here, but let's anyways
+% if ($cookies{$cookie_name}) {
+%   my $query = $dbh->prepare('UPDATE websession.sessions SET x500=?, physid=? WHERE id=?');
+%   $query->execute($session{'x500'}, $session{'physid'}, $cookies{$cookie_name}->value);
+% }
+
+%  my $space = '';
+% if ($x500 && $physid) { $space = ' + '; }
+  <b>You are now logged in (<% ($x500 ? 'X.500' : '') %><% $space %><% ($physid ? 'Physics' : '') %>)<% ($url ? ' -- Redirecting to Destination' : '')%>.</b>
+
+% if ($x500 && !$physid && $wiki) {
+  <p><b>You currently do not have an associated Physics ID.</b> If you receive this message but do have a physics systems account, you should Contact Us to ensure you receive proper Wiki access. You may also log out and then log in using your physics account rather than your UMN X.500 account.
+% }
+
+% } else {
+
+% $m->comp('/mason/greybox.comp',text=>$m->comp('/mason/sanitize.comp', $message));
+
+<script type="text/javascript">
+var physloginbox =  unescape("<% $m->comp('/mason/ajax/escape_js.comp', $m->scomp('physform',  $url, $cookie_physid)) %>");
+var shibbloginbox = unescape("<% $m->comp('/mason/ajax/escape_js.comp', $m->scomp('shibbform', $url, $cookie_shibb))  %>");
+
+/* <![CDATA[ */
+function setTab(tab)
+{
+  if (document.getElementById)
+  {
+    // The Browser Supports This...
+    var loginbox = document.getElementById('loginbox');
+    var phystab = document.getElementById('login_tab_phys');
+    var shibbtab = document.getElementById('login_tab_shibb');
+    if (tab == 1) {
+      // switch to x500
+      loginbox.className = 'shibbbox';
+      shibbtab.innerHTML = '<span>UMN Internet ID</span>';
+      phystab.innerHTML = '<a href="/auth/index.html?phys=1&url=<% $url | u %>" onclick="return setTab(0)">Physics</a>';
+      loginbox.innerHTML = shibbloginbox;
+    } else {
+      // switch to phys
+      loginbox.className = 'physbox';
+      shibbtab.innerHTML = '<a href="/auth/index.html?phys=0&url=<% $url | u %>" onclick="return setTab(1)">UMN Internet ID</a>';
+      phystab.innerHTML = '<span>Physics</span>';
+      loginbox.innerHTML = physloginbox;
+      if (document.loginForm.user) {
+        document.loginForm.user.focus();
+      }
+    }
+    return false;
+  }
+  return true;
+}
+/* ]]> */
+</script>
+
+<div id="loginhead">
+<ul id="primary">
+% if ($phys == 1) {
+    <li id="login_tab_shibb"><a href="/auth/index.html?phys=0&url=<% $url | u %>" onclick="return setTab(1)">UMN Internet ID</a></li>
+    <li id="login_tab_phys"><span>Physics</span></li>
+% } 
+% else {
+    <li id="login_tab_shibb"><span>UMN Internet ID</span></li>
+    <li id="login_tab_phys"><a href="/auth/index.html?phys=1&url=<% $url | u %>" onclick="return setTab(0)">Physics</a></li>
+% }
+</ul>
+</div>
+<div id="loginbox" style="max-width: 500px;" class="<% ($phys ? 'physbox' : 'shibbbox') %>">
+% if ($phys) {
+%    $m->comp('physform', $url, $cookie_physid);
+% } 
+% else {
+% $m->comp('shibbform', $url, $cookie_shibb);
+% }
+</div>
+
+<p>
+If you have problems logging in, check our <a href="help.html">help page</a>.
+% }

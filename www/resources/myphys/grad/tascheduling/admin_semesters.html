@@ -1,0 +1,158 @@
+<%DOC>
+   Component: admin_semesters.html
+        Date: 2007.07.31
+      Author: clayton
+     Changed: 2007.07.31 by clayton
+
+Description ... 
+</%DOC>
+
+
+<%ARGS>
+  $admin_year => ''
+  $admin_semester => ''
+</%ARGS>
+
+<%INIT>
+  my $auth_admin = $m->comp('/mason/auth/auth_check_ta_admin.comp');
+  if (!$auth_admin) { $m->redirect('not_authorized.html'); }
+
+  $m->comp('/mason/ajax/js.comp');
+
+  my %config = $m->comp('/mason/db/tascheduling/config.comp');
+
+  # ----------------------------------------------------------------------
+
+  my $fetch_list_db = sub {
+    my ($sql, $query_sems, $query_sects, $query_scheds, $result);
+    $sql = 'SELECT t.classid, c.year, c.quarter FROM taschedule_sections AS t
+            LEFT JOIN classlist AS c ON (c.classid = t.classid)
+            GROUP BY c.year, c.quarter ORDER BY c.year ASC, c.quarter DESC';
+    $query_sems = $dbh->prepare($sql);
+    $query_sems->execute()
+      or die 'Unable to query semesters: ' . $dbh->errstr;
+
+    $sql = 'SELECT t.classid, t.section FROM taschedule_sections AS t
+            LEFT JOIN classlist AS c ON (c.classid = t.classid)
+            WHERE c.year=? AND c.quarter=? GROUP BY section ORDER BY c.year DESC, c.quarter DESC';
+    $query_sects = $dbh->prepare($sql);
+    $query_sects->execute($admin_year, $admin_semester)
+      or die 'Unable to query sections: ' . $dbh->errstr;
+
+    $sql = 'SELECT taschedule.uid, directory.first_name, directory.last_name, directory.x500, directory.physid, taschedule.modified FROM taschedule
+              LEFT JOIN directory ON (taschedule.uid=directory.uid)
+              WHERE taschedule.year=? AND taschedule.semester=?
+              ORDER BY taschedule.modified DESC';
+    $query_scheds = $dbh->prepare($sql);
+    $query_scheds->execute($admin_year, $admin_semester);
+
+    return ($query_sems, $query_sects, $query_scheds);
+  };
+
+  # ----------------------------------------------------------------------
+
+  if ($admin_year eq '')
+  {
+    $admin_year = $config{'active_year'};
+  }
+  if ($admin_semester eq '')
+  {
+    $admin_semester = $config{'active_sem'};
+  }
+
+  my ($query_sems, $query_sects, $query_scheds) = &$fetch_list_db();
+</%INIT>	
+
+<%method title>TA Scheduling</%method>
+
+<h3 style="border-bottom: 1px solid black; margin-bottom: 0.25em;">Semester List</h3>
+<table>
+<tr><th>Year</th><th>Semester</th><th>Actions</th></tr>
+% my $havesemesters = 0;
+% if (length($config{'active_year'}) > 0) {
+% $havesemesters = 1;
+% my $selected = ($admin_year == $config{'active_year'}) && ($admin_semester eq $config{'active_sem'});
+<tr<% ($selected ? ' style="background-color: #f9f3d4;"' : '') %>><td><% $config{'active_year'} %></td><td><% ($config{'active_sem'} eq 'spring' ? 'Spring' : 'Fall') %></td>
+  <td><a href="export_excel.html?admin_year=<% $config{'active_year'} |u %>&amp;admin_semester=<% $config{'active_sem'} |u %>">Excel Export</a>
+   &middot; <a href="admin_batch.html?admin_year=<% $config{'active_year'} |u %>&amp;admin_semester=<% $config{'active_sem'} |u %>">Check Schedule Submission</a>
+   &middot; <a href="admin_findta.html?admin_year=<% $config{'active_year'} |u %>&amp;admin_semester=<% $config{'active_sem'} |u %>">Find TAs By Schedule</a>
+   &middot; <% ($selected ? '<i>Selected</i>' : '<a href="?">Select</a>') %></td></tr>
+% }
+% while (my $semester = $query_sems->fetchrow_hashref()) {
+%   if ((length($config{'active_year'}) > 0) && ($$semester{'year'} == $config{'active_year'}) && ($$semester{'semester'} eq $config{'active_sem'})) { next; }
+%   if (($admin_year eq '') || ($admin_semester eq '')) {
+%     $admin_year = $$semester{'year'};
+%     $admin_semester = $$semester{'semester'};
+%   }
+%   my $selected = (($admin_year == $$semester{'year'}) && ($admin_semester eq $$semester{'semester'}));
+%   my $sel_actions = '<a href="?admin_year=' . $m->interp->apply_escapes($$semester{'year'}, 'u') . '&amp;admin_semester=' . $m->interp->apply_escapes($$semester{'semester'}, 'u') . '">Select</a>';
+<tr<% ($selected ? ' style="background-color: #f9f3d4;"' : '') %>>
+  <td><% $$semester{'year'} %></td>
+  <td><% ($$semester{'semester'} eq 'spring' ? 'Spring' : 'Fall') %></td>
+  <td><a href="export_excel.html?admin_year=<% $$semester{'year'} |u %>&amp;admin_semester=<% $$semester{'semester'} |u %>">Excel Export</a>
+   &middot; <a href="admin_batch.html?admin_year=<% $$semester{'year'} |u %>&amp;admin_semester=<% $$semester{'semester'} |u %>">Check Schedule Submission</a>
+   &middot; <a href="admin_findta.html?admin_year=<% $$semester{'year'} |u %>&amp;admin_semester=<% $$semester{'semester'} |u %>">Find TAs By Schedule</a>
+   &middot; <% ($selected ? '<i>Selected</i>' : $sel_actions) %></td></tr>
+%   $havesemesters = 1;
+% }
+% if (!$havesemesters) {
+<tr><th colspan="3">No Semesters Found</th></tr>
+% }
+</table>
+<small>Note: Old semesters will not show up in this list unless they contain sections.</small>
+
+
+
+% if (($admin_year ne '') && ($admin_semester ne '')) {
+
+<br/>
+<h3 style="border-bottom: 1px solid black; margin-bottom: 0.25em;">Schedule List: <% ($admin_semester eq 'spring' ? 'Spring' : 'Fall') %> <% $admin_year %></h3>
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+    table => 'webdb.taschedule',
+    joins => [ 'directory' => 'taschedule.uid=directory.uid',],
+    field_list => [
+        'directory.last_name',
+        'directory.first_name',
+        'directory.x500',
+        'directory.physid',
+        'taschedule.modified AS modified',
+        'taschedule.uid AS uid',
+        ],
+    field_params => {
+        'uid' => {
+            name => 'Action',
+            data_format => sub { return "View";},
+            url => 'index.html?admin_year='.$admin_year.'&admin_semester='.$admin_semester.'&admin_schedule=$row{uid}',
+        },
+    },
+    where => [ 'taschedule.year=? AND taschedule.semester=?', $admin_year, $admin_semester ],
+    default_sort_field => 'modified',
+    default_sort_dir => 'desc',
+    no_limit => 1,
+);
+
+</%perl>
+
+
+% if (0) {
+
+<h3 style="border-bottom: 1px solid black; margin-bottom: 0.25em;">Section List: <% ($admin_semester eq 'spring' ? 'Spring' : 'Fall') %> <% $admin_year %></h3>
+% # <div style="background-color: #f9f3d4;"><form action="admin_section.html" method="GET"><input type="hidden" name="admin_year" value="<% $admin_year %>"><input type="hidden" name="admin_semester" value="<% $admin_semester %>">Section: <input type="text" name="admin_section" size="6"> <input type="submit" value="Edit"></form></div>
+<table>
+<tr><th>Section</th><th>Actions</th></tr>
+% my $havesections = 0;
+% while (my $section = $query_sects->fetchrow_hashref()) {
+<tr><td><% $$section{'section'} %></td><td><a href="admin_section.html?admin_year=<% $admin_year %>&amp;admin_semester=<% $admin_semester %>&amp;admin_section=<% $$section{'section'} %>">Edit</a></td></tr>
+% $havesections = 1;
+% }
+% if (!$havesections) {
+<tr><th colspan="2">No Sections Found</th></tr>
+% }
+</table>
+
+<a href="admin_section.html?admin_year=<% $admin_year |u %>&amp;admin_semester=<% $admin_semester |u %>">Add Section</a>
+
+% }
+
+% }

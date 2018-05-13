@@ -1,0 +1,87 @@
+<%ARGS>
+    $look_for_name_here => ''
+    $name => ''
+    $uid => undef
+</%ARGS>
+
+<%flags>
+    inherit=>undef
+</%flags>
+
+<%INIT>
+    if ($look_for_name_here ne '') {
+        if ($ARGS{$look_for_name_here}) {
+            $name = $ARGS{$look_for_name_here};
+        }
+    }
+    my ($query, @x500_matches);
+    if ($uid) {
+        $query = $m->comp('/mason/ajax/people_finder.comp', uid => $uid, include_shop_customers => 1, plugin => 'shopdb');
+    }
+    else {
+        $query = $m->comp('/mason/ajax/people_finder.comp', 'name' => $name, 'limit' => 10, 'inactive' => 0, 'include_shop_customers' => 1, plugin => 'shopdb');
+        my $filter;
+        if ($name =~ /<([^@]+)(@.*)?>/) {
+            $filter = "(uid=$1)";
+        }
+        elsif ($name =~ /([^,]+),\s*(.*)/) {
+            $filter = "(|(displayName=$2 $1)(cn=$2 $1))";
+        }
+        elsif ($name =~ /^(\w+)\s+(\w+)$/) {
+            $filter = "(&(|(givenName=$1)(nickname=$1))(sn=$2))";
+        }
+        else {
+            $filter = "(&(sn=*)(|(uid=$name)(displayName=*$name*)(cn=*$name*)))";
+        }
+        @x500_matches = $m->comp('/mason/ldap_lookup.comp:search', server => 'ldap.umn.edu', filter => $filter, sizelimit => 20);
+    }
+</%INIT>
+
+<ul class="customers">
+% if (!$uid) {
+<li id="" class="customer" style="height: 16px; text-align: center;"><span class="informal"><div class="name" style="font-size: 10pt; font-style: italic">Physics Directory Matches</div></span></li>
+% }
+<%perl>
+if ($query) {
+    while (my $result = $query->fetchrow_hashref()) {
+        my ($name2, $hint);
+        if ($$result{'physid'}) {
+            $hint = $$result{'physid'} . '@physics.umn.edu';
+            $name2 = '&lt;' . $hint . '&gt;';
+        }
+        elsif ($$result{'x500'}) {
+            $hint =  $$result{'x500'} . '@umn.edu';
+            $name2 = '&lt;' . $hint . '&gt;';
+        }
+        elsif ($$result{'email'}) {
+            $hint = $$result{'email'};
+            $name2 = '';
+        }
+        else {
+            $hint = $name2 = '';
+        }
+</%perl>
+<li id="<% $$result{'uid'} %>" phone="<% $$result{'work_phone'} |h %>" class="customer"><div style="display:none"><% $$result{'last_name'} %><% ($$result{'first_name'} ? ', ' : '')%><% $$result{'first_name'} %><% $name2 ? " $name2" : '' %></div><div class="name"><span class="informal"><% $$result{'last_name'} |h %><% ($$result{'first_name'} ? ', ' : '')%><% $$result{'first_name'} |h %></span></div><div class="email"><span class="informal"><% $hint %></span></div>
+% if ($$result{'company_name'}) {
+<div><span class="informal"><% $$result{'company_name'} |h %></span></div>
+% }
+</li>
+<%perl>
+    }
+}
+if (!$uid) {
+    print '<li id="" class="customer" style="height: 16px; text-align: center;"><span class="informal"><div class="name" style="font-size: 10pt; font-style: italic">UMN LDAP Matches</div></span></li>';
+    for my $match (@x500_matches) {
+        last unless ($match);
+        my $first_name = $match->get_value('givenName');
+        if (my $nickname = $match->get_value('nickname')) {
+            $first_name .= ' (' . $nickname . ')';
+        }
+        my $mail = $match->get_value('umndisplaymail') || $match->get_value('mail') || $match->get_value('uid');
+        # Don't bother printing matches without first and last names and an x500
+        next unless ($first_name && $mail && $match->get_value('sn'));
+</%perl>
+<li id="<% $match->get_value('uid') %>" phone="<% $match->get_value('telephoneNumber') || $match->get_value('mobile') || '' |h %>" class="customer"><div style="display:none"><% $match->get_value('sn') |h %><% ($first_name ? ', ' : '')%><% $first_name |h %> &lt;<% $mail |h %>&gt;</div><div class="name"><span class="informal"><% $match->get_value('sn') |h %><% ($first_name ? ', ' : '')%><% $first_name |h %></span></div><div class="email"><span class="informal"><% $mail |h %></span></div></li>
+%   }
+% }
+</ul>

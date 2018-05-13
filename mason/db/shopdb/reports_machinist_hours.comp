@@ -1,0 +1,22 @@
+<%args>
+$schema
+$machinist_id => undef
+</%args>
+<%init>
+my @machinists = $schema->resultset('Machinists')->with_directory_info->active->exclude_admin->search({ }, { order_by => { -asc => \'display_name' } });
+$machinist_id ||= $machinists[0]->id;
+my $machinist = $schema->resultset('Machinists')->with_directory_info->find($machinist_id);
+unless ($machinist) {
+    $m->comp('/mason/notice_box.comp', type => 'error', text => "Invalid machinist_id " . _h($machinist_id));
+    $machinist = $machinists[0];
+    $machinist_id = $machinist->id;
+}
+my $dates = $m->comp('/mason/db/shopdb/date_range.comp', url_args => { machinist_id => $machinist_id }, no_clear => 1);
+print '<h5 style="padding-left: 3px;">Filter by Machinist</h5><div style="padding: 6px 0 5px 6px;">';
+print join(" | ", map { ($_->id == $machinist_id ? '<u>' : '') . '<a href="?' . _args(%{ $dates->{url_args} }, machinist_id => $_->id) . '">' . $_->get_column('display_name') . '</a>' . ($_->id == $machinist_id ? '</u>' : '') } @machinists);
+print "</div>";
+print "<h2>Charge Hours for " . $machinist->get_column('display_name') . " (" . $machinist->shortname . ")</h2>";
+print '<div style="width: 500px;">';
+$m->comp('/mason/db/shopdb/machinist_hours.comp', %{ $dates }, machinist_id => $machinist_id, no_form => 1);
+print "</div>";
+</%init>

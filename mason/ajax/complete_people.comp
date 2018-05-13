@@ -1,0 +1,79 @@
+
+<%DOC>
+   Component: complete_people.comp
+        Date: 2008.03.07
+      Author: clayton
+     Changed: 2008.03.07 by clayton
+
++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++++++++++++++++
+    Not sure what is going on?!
+See https://zzz.physics.umn.edu/physnet/web/magic
++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++++++++++++++++
+</%DOC>
+
+<%ARGS>
+  $class       => 'auto_complete'
+  $id          => 'name'
+  $name        => 'name'
+  $div_id      => undef
+  $frequency   => 0.2
+  $plugin      => undef
+  $plugin_args => {}
+  $uid         => undef
+  $required    => 0
+  $include_shop_customers => 0
+  $inactive => 0
+  $order_by => ''
+</%ARGS>
+
+<%INIT>
+  $m->comp('js.comp');
+  $m->comp('jsload.comp', file => 'input_hint.js');
+
+  if (!$div_id) { $div_id = $id . '_auto_complete'; }
+  my @args = ('look_for_name_here=' . $name . (defined($uid) ? '_display' : ''), "include_shop_customers=$include_shop_customers", "order_by=$order_by");
+  if (defined($plugin) && defined($plugin_args)) {
+    push @args, 'plugin=' . $m->interp->apply_escapes($plugin, 'h');
+    # escape the plugin arg names and values
+    my %escaped_plugin_args = map { $m->interp->apply_escapes($_, 'h') => $m->interp->apply_escapes($plugin_args->{$_}, 'h') } keys %$plugin_args;
+    @args = (@args, join('=', %escaped_plugin_args));  
+  }
+  push @args, "inactive=$inactive";
+</%INIT>
+<div class="<% $class |h %>" id="<% $div_id |h %>"></div>
+<script type="text/javascript">
+/* <![CDATA[ */
+% if (defined($uid)) {
+  completerElement = $('<% $id |h %>');
+  completerElement.value = '<% $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid => $uid) %>';
+  completerElement.observe('keypress', function (e) { $(this.id + '_uid').value = ''; }.bind(completerElement));
+  uidElement = new Element('input', { id: completerElement.id + '_uid', type: 'hidden', name: completerElement.name, value: '<% $uid |h %>' });
+  completerElement.validateMethod = function() {
+      if (this.value && this.value != this.title && !this.uidElement.value) {
+          this.errorMsg = "Invalid customer. You must choose a customer from the list."; 
+          return false;
+      }
+      <% $required ? 'else if (this.value == this.title || this.value == "") {
+          this.errorMsg = "' . ucfirst($id) . ' is required."; 
+          return false;
+      }
+      ': '' %>return true;
+  };
+  completerElement.uidElement = uidElement;
+  completerElement.name = completerElement.name + '_display';
+  completerElement.parentNode.appendChild(uidElement);
+% }
+  ac = new Ajax.Autocompleter('<% $id |h %>',
+			 '<% $div_id |h %>',
+			 '/include/complete_people.html?<% join('&', @args) %>',
+			 {
+                 frequency: <% $frequency %><% defined($uid) ? ', afterUpdateElement: function(el, li) { $("' . $id . '_uid' . '").value = li.id; if (el.clearError) el.clearError(); }' : '' %>
+             });
+  ac.onClickRender = function() { this.hasFocus = true; this.onObserverEvent(); }
+  $('<% $id |h %>').writeAttribute('title', 'Name, Internet ID, or Physics ID');
+  Event.observe($('<% $id |h %>'), 'click', ac.onClickRender.bind(ac));
+  hintInput('<% $id |h %>');
+/* ]]> */
+</script>

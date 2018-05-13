@@ -1,0 +1,36 @@
+
+<%DOC>
+   Component: getpic.html
+        Date: 2008.04.23
+      Author: nick
+     Changed: 2008.04.23 by nick
+
+Description ... 
+</%DOC>
+
+<%FLAGS>
+inherit=>undef
+</%FLAGS>
+
+<%ARGS>
+$camera=>'netcam-pan-70-1'
+</%ARGS>
+
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp', internal=>'yes');
+my %urls = (
+    'netcam-pan-70-1' => "http://viewer:lemming!\@netcam-pan-70-1/axis-cgi/jpg/image.cgi",
+    'netcam-pan-70-2' => "http://viewer:lemming!\@netcam-pan-70-2/axis-cgi/jpg/image.cgi",
+);
+return '' unless (exists $urls{$camera});
+return if ($m->cache_self(key => $camera, expire_in => '1 sec'));
+use LWP::Simple;
+my $content = get($urls{$camera});
+die "Failed to fetch camera image for $camera: $!" unless (defined $content);
+</%INIT>
+
+<%PERL>		
+$r->content_type('image/jpeg');
+$m->clear_buffer;
+$m->out($content);
+</%PERL>

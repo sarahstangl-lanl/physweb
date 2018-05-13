@@ -1,0 +1,22 @@
+<%DOC>
+   Component: stdlibs.comp
+        Date: 2008.08.27
+      Author: clayton
+     Changed: 2008.08.27 by clayton
+
+Load standard js libs
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+  $m->comp('jsload.comp', file=>'js/prototype.js');
+  $m->comp('jsload.comp', file=>'js/scriptaculous.js');
+# This last one should probably be included separate and not as the base js junk
+  $m->comp('jsload.comp', file=>'editabledrop.js');
+</%INIT>		
+
+<%filter>
+s/\n//go
+</%filter>	

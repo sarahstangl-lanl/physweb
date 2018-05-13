@@ -1,0 +1,111 @@
+
+<%DOC>
+   Component: groups.html
+        Date: 2007.08.27
+      Author: clayton
+     Changed: 2007.08.27 by clayton
+
+Description ...
+</%DOC>
+
+<%ARGS>
+  $message => ''
+  $new_group => ''
+  $new_group_desc => ''
+  $new_group_type => ''
+  $delete => ''
+  $delete2 => ''
+  $viewtype => ''
+  $add_and_edit => ''
+</%ARGS>
+
+<%INIT>
+use physdb;
+use physdb::groups;
+
+$m->comp('/mason/auth/auth_block.comp');
+
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $dir_auth   = $m->comp('/mason/auth/auth_check.comp', auth_type=>'directory');
+
+unless ($admin_auth || $dir_auth) { $m->redirect('../index.html'); }
+
+if ($admin_auth && $new_group) {
+    my $group = new Groups(
+            defaults => {
+                name        => $new_group,
+                description => $new_group_desc,
+                type        => $new_group_type,
+            },
+    );
+    if ($group->save) {
+        $group->log_changes(text => 'created group: ' . $group->changes_as_str);
+        if ($add_and_edit) {
+            $m->redirect('group_edit.html?group=' . $new_group)
+        }
+        else {
+            $m->comp('/mason/notice_box.comp', text => '', html => 'Successfully created group <a href="group_edit.html?group=' . $group->get('name') . '">' . $group->get('name') . '</a>');
+        }
+    }
+    else {
+        $m->redirect("create_group_form.html?" . join('&', map { "new_group$_=" . _u($m->request_args->{"new_group$_"}) } ('', '_desc', '_type')) . '&message=' . _u('Failed to create group: ' . $group->dumperrors));
+    }
+}
+
+if ($admin_auth && $delete && $delete2) {
+    my $group = new Groups( name => $delete );
+    if (!$group->{loaded}) {
+        $m->comp('/mason/notice_box.comp', type => 'error', text => 'Invalid group name ' . $m->interp->apply_escapes($delete, 'h'));
+    }
+    else {
+        $group->delete;
+        $group->log_changes(text => 'deleted group');
+        $m->comp('/mason/notice_box.comp', text => 'Group Deleted.');
+    }
+}
+
+</%INIT>
+
+% if ($delete && !$delete2) {
+%   $m->comp('/mason/notice_box.comp', text => 'You did not confirm the group deletion.');
+% }
+
+% if ($message) {
+%   $m->comp('/mason/notice_box.comp', type => 'error', text => $message);
+% }
+
+<div id="grouplistdest">
+<%perl>
+my $uid = $session{'uid'};
+    $m->comp('/mason/db/tablesearch.comp',
+            table => 'groups',
+            field_list => [
+                'name',
+                'COUNT(uid) AS members',
+                'type',
+                'description',
+                'import',
+                'export AS ldapexport',
+                'IF(publish,\'Yes\',\'No\') as publish',
+                'IF(physics_all, \'Yes\', \'No\') as physics_all',
+                'IF(autoadd, \'Yes\', \'No\') as autoadd',
+                ],
+            field_params => {
+                'name' => {
+                    name =>'Group',
+                    url => 'group_edit.html?group=$row{name}',
+                },
+            },
+            joins => [
+                groupmembers => 'groups.name = groupmembers.groupname',
+                ],
+            group_by => 'GROUP BY name',
+            filter_field => 'type',
+            no_limit => 1,
+            header_format => 'ucfirst_all',
+            default_sort_field => 'name',
+            excluded_search_fields => ['COUNT(uid)'],
+        );
+</%perl>
+
+</div>

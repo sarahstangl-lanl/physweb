@@ -1,0 +1,105 @@
+
+<%DOC>
+   Component: view_room.html
+        Date: 2007.08.15
+      Author: clayton
+     Changed: 2007.08.15 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $room => ''
+</%ARGS>
+
+<%INIT>
+  my ($sql, $query, $result);
+  my $found = 0;
+
+  $room =~ s/^\s+|\s+$//g;
+
+  $sql = 'SELECT keyid FROM key_room WHERE room=? ORDER BY room';
+  $query = $dbh->prepare($sql);
+  $query->execute($room);
+
+  if ($query->rows > 0)
+  {
+    $found = 1;
+  } else {
+    $sql = 'SELECT room FROM key_room WHERE room LIKE ? ORDER BY room';
+    $query = $dbh->prepare($sql);
+    $query->execute('%' . $room . '%');
+  }
+</%INIT>		
+
+<%method title>Key Management: Room</%method>
+
+<table width="100%">
+<tr><td colspan="2" style="border:0; padding:0; margin:0">
+% $m->comp('doheader.comp', selected => 'view_room', room => $room);
+</td></tr>
+
+% if (!$found) {
+
+
+<tr style="background-color: #f9f3d4; padding: 0.3em;"><td colspan="2"><h4 style="padding-top: 0em;">No exact match found.</h4></td></tr>
+
+<tr style="background-color: #f9f3d4;">
+%   if (length($room)) {
+<th>Map room <% $room |h %> to a Key ID</th>
+%   }
+<th width="50%">
+%   if (length($room)) {
+Rooms like <% $room |h %>:
+%   } else {
+All Rooms:
+%   }
+</th></tr>
+
+<tr>
+%   if (length($room)) {
+<td valign="top"  style="border: 1px solid lightgrey;">
+
+<form method="POST" action="view_key.html">
+<input type="hidden" name="room_redirect" value="1">
+<table>
+<tr><td align="right">Room:</td><td><% $room |h %><input type="hidden" name="add_room" value="<% $room |h %>"></td></tr>
+<tr><td align="right">Key ID:</td><td><input type="text" name="keyid"></td></tr>
+<tr><td></td><td><input type="submit" name="map_room" value="Save"></td></tr>
+</table>
+</form>
+
+</td>
+%   }
+<td valign="top"  style="border: 1px solid lightgrey;">
+<table>
+%   my $found = 0;
+%   while ($result = $query->fetchrow_hashref()) {
+%     $found = 1;
+<tr><td><a href="view_room.html?room=<% $$result{'room'} |u %>"><% $$result{'room'} |h %></a></td></tr>
+%   }
+%   if (!$found) {
+<center><i>No matching rooms found.</i></center>
+%   }
+</table>
+</td></tr>
+
+% } else {
+
+<tr><td valign="top"  style="border: 1px solid lightgrey;">
+
+<table>
+<tr><td align="right">Room:</td><td><% $room |h %></td></tr>
+
+<tr><td align="right">Keys:</td><td>
+%   while ($result = $query->fetchrow_hashref()) {
+<a href="view_key.html?keyid=<% $$result{'keyid'} |u %>"><% $$result{'keyid'} |h %></a>  
+%   }
+</td></tr>
+</table>
+
+</td></tr>
+
+% }
+
+</table>

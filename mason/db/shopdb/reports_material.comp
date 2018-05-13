@@ -1,0 +1,54 @@
+<%args>
+$schema
+$helper_methods
+</%args>
+<%init>
+    use tablesearch;
+    my $dates = $m->comp('/mason/db/shopdb/date_range.comp', no_clear => 1);
+    my $columns = [ qw/job_id project_name description unit unit_cost quantity extended_cost charge_date finalized machinist/ ];
+    my $ml_rs = $schema->resultset('Jobs')->search_rs(
+    {
+        'material_lines.active' => 1,
+        'material_lines.charge_date' => { -between => [ $dates->{start_date}->ymd, $dates->{end_date}->ymd ] },
+    },
+    {
+        '+select' => [ \'material_lines.unit_cost * material_lines.quantity', qw/material_lines.description material_lines.unit material_lines.unit_cost material_lines.quantity material_lines.charge_date material_lines.machinist_id material_lines.finalized machinist.shortname/ ],
+        '+as' => [ qw/extended_cost description unit unit_cost quantity charge_date machinist_id finalized machinist/ ],
+        join => [ { 'material_lines' => 'machinist' } ],
+    });
+    my $ml_ts = Tablesearch->new(
+        prefix => 'material_',
+        resultset => $ml_rs,
+        field_params => {
+            job_id => $helper_methods->job_id,
+            project_name => $helper_methods->project_name,
+            finalized => $helper_methods->checkbox,
+            unit_cost => {
+                data_format => 'currency',
+            },
+            extended_cost => {
+                data_format => 'currency',
+            },
+            machinist => {
+                url => 'machinist.html?machinist_id=$row{machinist_id}',
+            },
+        },
+        prerow => sub {
+            my ($row, $ts) = @_;
+            $ts->{tmp}->{total} ||= 0;
+            return '';
+        },
+        postrow => sub {
+            my ($row, $ts) = @_;
+            $ts->{tmp}->{total} += ($row->{extended_cost} || 0);
+            return '';
+        },
+        columns => $columns,
+        search_fields => $columns,
+        header_format => 'ucfirst_all',
+        extra_url_args => [ grep { $_ !~ /^material_/ } keys %{ $m->request_args } ],
+        no_limit => 1,
+    );
+    $ml_ts->display;
+    print "<h2>Total:" . $ml_ts->currency_formatter($ml_ts->{tmp}->{total}) . "</h2>";
+</%init>

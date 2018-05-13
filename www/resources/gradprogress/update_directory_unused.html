@@ -1,0 +1,45 @@
+<%args>
+    $uid => undef
+    $room => undef
+    $work_phone => undef
+</%args>
+
+<%method title>Directory Entry Updated</%method>
+
+<%init>
+    my $auth = $m->comp('/mason/auth/auth_check_directory.comp');
+    
+    if (!$auth) {
+        print 'No access.';
+        return;
+    }
+
+    if (!defined($uid) || !defined($room) || !defined($work_phone)) {
+        print 'Some required parameters are missing. What are you doing?';
+        return;
+    }
+    
+    my %directory;
+    my $sth = $dbh->prepare('SELECT room, work_phone FROM directory WHERE uid=?');
+    $sth->execute($uid)
+        or die 'Unable to select: ' . $dbh->errstr;
+    
+    if (my $row_ref = $sth->fetchrow_hashref()) {
+        %directory = %$row_ref;
+    } else {
+        print 'Trying to update an non-existant entry!';
+        return;
+    }
+
+    $sth = $dbh->prepare('UPDATE directory SET room=?, work_phone=? WHERE uid=?');
+    $sth->execute($room, $work_phone, $uid)
+        or die 'Unable to update: ' . $dbh->errstr;
+</%init>
+
+Changes:
+
+<table>
+<tr><td></td><th>Old</th><th>New</th></tr>
+<tr><th>Office Number</th><td><% $directory{'room'} |h %></td><td><% $room |h %></td></tr>
+<tr><th>Office Phone</th><td><% $directory{'work_phone'} |h %></td><td><% $work_phone |h %></td></tr>
+</table>

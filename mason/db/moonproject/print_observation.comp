@@ -1,0 +1,231 @@
+<%args>
+$number
+$student
+$ta
+$with_grades => 1
+$with_header => 1
+</%args>
+<%init>
+use Moonproject::Student;
+unless (ref $student && ($ta || $student->{gradesid} == $session{'moonproject_gradesid'})) {
+    if ($ta) {
+        warn "student: $student";
+        $student = Moonproject::Student->new(gradesid => $student);
+    }
+    else {
+        $student = Moonproject::Student->new(gradesid => $session{'moonproject_gradesid'});
+    }
+}
+my $observation_fields = $m->comp('/mason/db/moonproject/observation_fields_hashref.comp');
+my $field_params = {
+    %$observation_fields,
+    fist_degrees => {
+        data_format => sub {
+            my ($value, $code, $row, $ts) = @_;
+            return $value ? $value : $student->{'fistdegrees'};
+        },
+        name => 'Degrees /<br/>Fist',
+    },
+};
+#this assigns the name of the columns such as 'Moon HA' or 'Average Fist Count'
+my $field_map = sub {
+    my $field = shift;
+    return 'submission_time' if ($field eq 'timestamp');
+    return 'observation_time' if ($field eq 'date');
+    return $field;
+};
+my $settings_map = $m->comp('/mason/db/moonproject/grade_tol_map.comp');
+for my $field (keys %$field_params) {
+    next if ($field =~ /Comment/);
+    $field_params->{$field}->{name} = '<a class="moonproject_help" target="_blank" href="' . ($r->uri =~ /admin/ ? '../' : '') . $field_map->($field) . '_help.html">' . $field_params->{$field}->{name} . '</a>';
+}
+my @grade_columns = ( qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP/ );
+#this assigns the background color for the tabs
+my $grade_color = sub {
+    my $grade = shift;
+#    return '#1BA940' if ($grade eq 'pass');
+    return '#24FF24' if ($grade eq 'pass');
+#    return '#E33A24' if ($grade eq 'fail');
+    return '#920000' if ($grade eq 'fail');
+    return '#1E6491' if ($grade eq 'unknown');
+    #die "Unknown grade $grade";
+};
+#prints the code in the tabs and defines the clickable link
+my $grade_column = sub {
+    my ($row, $column) = @_;
+    return '<th align="center" width="9%" style="padding: 0; color: white; border: 1px solid black; background-color: ' . ($grade_color->($row->{"grade$column"})) . ';"><a class="moonproject_help" target="_blank" href="' . ($r->uri =~ /admin/ ? '../' : '') . lc($column) . '_error.html">' . $column . '</a></th>';
+};
+my $grade_description = sub {
+    my $grade = shift;
+    return 'This observation has not yet been graded.' if ($grade eq 'unset');
+    return 'Your TA has <span style="color:' . $grade_color->('pass') . '">ACCEPTED</span> this observation.' if ($grade eq 'accepted');
+    return 'Your TA indicated that this observation <span style="color:' . $grade_color->('fail') . '">needs work</span>.' if ($grade eq 'needswork');
+    return 'Your TA has <span style="color:' . $grade_color->('fail') . '">REJECTED</span> this observation.  Further modifications will not be allowed.'; # rejected
+};
+my $grade_row = sub {
+    my $ts = shift;
+    my $row = $ts->{tmp}->{last_observation};
+    return '<tr style="background-color: #CCC; opacity: ' . ($row->{current} ? '1' : '0.5') . ';">
+    <td align="center" style="padding: 0;" colspan="' . scalar($ts->column_names) . '">
+    <table cellspacing="4" width="80%"><tr>' . ($ts->{tmp}->{last_observation}->{gradeUP} eq 'fail' ? 
+    $grade_column->($ts->{tmp}->{last_observation}, 'UP') . '<td width="91%"><b>The moon was not up. No grades were calculated.</b></td>' : # Only show UP if moon wasn't up
+    join('', map { $grade_column->($ts->{tmp}->{last_observation}, $_) } @grade_columns)) # Otherwise show all grades
+    . '</tr></table>
+    </td>
+    </tr>';
+};
+#this is used to modify the TA comments and grade options
+my $ta_form = sub {
+    my $ts = shift;
+    my $obs = $ts->{tmp}->{last_observation};
+    return '<tr><td align="right" colspan="' . scalar($ts->column_names) . '">
+    <input type="hidden" name="obsid' . $obs->{number} . '" value="' . $obs->{id} . '"/>
+    <input type="hidden" name="graded' . $obs->{number} . '" value="' . ($obs->{taAccepted} ne 'unset' ? '1' : '0') . '"/>
+    <table class="ta_modify" cellpadding="5" cellspacing="0"><tr>
+    ' . (scalar(@{$ts->{tmp}->{fists}}) > 1 ? '<td><table><tr><th style="padding: 10px 25px 10px 25px; background-color: red">Fists changed</th></tr></table></td>' : '') . '
+    <th nowrap>TA Comments</th>
+    <td><textarea name="taComments' . $obs->{number} . '" rows="3" cols="50">' . _h($obs->{taComments}) . '</textarea></td>
+    <td nowrap>
+        <input type="radio" name="taAccepted' . $obs->{number} . '" value="accepted"' . ($obs->{taAccepted} eq 'accepted' ? ' CHECKED' : '') . '>Accept<br/>
+        <input type="radio" name="taAccepted' . $obs->{number} . '" value="needswork"' . ($obs->{taAccepted} eq 'needswork' ? ' CHECKED' : '') . '>Needs Work<br/>
+        <input type="radio" name="taAccepted' . $obs->{number} . '" value="rejected"' . ($obs->{taAccepted} eq 'rejected' ? ' CHECKED' : '') . '>Reject
+    </td>
+    <td><input type="submit" name="update' . $obs->{number} . '" value="Update ' . $obs->{number} . '"/></td>
+</tr></table></td></tr>';
+};
+my $get_observation_diffs = sub {
+    my $row = shift;
+    my $last_diff = 'N/A';
+    my $next_diff = 'N/A';
+    my @observations = physdb::queryall("SELECT id, date, timestamp, number, UNIX_TIMESTAMP(date) AS obs_date FROM moonproject.observation WHERE student = ? AND term = ? AND year = ? AND current ORDER BY date", $student->{gradesid}, $session{'moonproject_term'}, $session{'moonproject_year'});
+    for my $observation (@observations) {
+        next if ($observation->{number} == $row->{number});
+        my $diff = $row->{obs_date} - $observation->{obs_date};
+        if ($diff > 0) {
+            $last_diff = sprintf("%d", $diff / 3600);
+        }
+        elsif ($diff < 0) {
+            $next_diff = sprintf("%d", abs($diff) / 3600);
+            last;
+        }
+    }
+    return ($last_diff, $next_diff);
+};
+use tablesearch;
+my $ts = Tablesearch->new(
+    debug => 0,
+    table => 'moonproject.observation o',
+    html_table_id => 'observation_list',
+
+    #field_list => [ 'UNIX_TIMESTAMP(o.date) AS obs_date', 'TIMESTAMPDIFF(HOUR,o.date,o.timestamp) AS subdiff', 'DATE_FORMAT(o.timestamp, "%m-%d-%Y %h:%i %p") as timestamp', 'DATE_FORMAT(o.date, "%m-%d-%Y %h:%i %p") as date', qw/o.id o.number o.cstTime o.phaseNumber o.fists o.fists2 o.fists3 o.aveFist o.cloud o.moonHA o.dayNumber o.sunHA o.elongation o.studentComments o.taComments o.student o.gradeSUB o.gradeOBS o.gradeCST o.gradeDAY o.gradePHN o.gradeAVE o.gradeMHF o.gradeMHD o.gradeSHC o.gradeEHA o.gradeEDT o.gradeUP o.realCST o.taAccepted o.realAVE o.realMHF o.realMHD o.realSHC o.realDAY o.realEHA o.realEDT o.realPHN o.tolObsToSubmitDiff o.tolObsToLastDiff o.tolCST o.tolDayNumber o.tolAverageFists o.tolMoonHAFists o.tolMoonHADate o.tolMoonHADatePercent o.tolSunHACST o.tolElongHA o.tolElongDate o.tolPhaseNumber o.ta_uid o.fist_degrees o.current/ ],
+
+    field_list => [ 'UNIX_TIMESTAMP(o.date) AS obs_date', 'TIMESTAMPDIFF(HOUR,o.date,o.timestamp) AS subdiff', 'DATE_FORMAT(o.timestamp, "%m-%d-%Y %h:%i %p") as timestamp', 'DATE_FORMAT(o.date, "%m-%d-%Y %h:%i %p") as date', qw/o.id o.number o.cstTime o.phaseNumber/, 'FORMAT(o.fists, 1) as fists, FORMAT(o.fists2, 1) as fists2, FORMAT(o.fists3, 1) as fists3, FORMAT(o.aveFist, 1) as aveFist', qw/o.cloud o.moonHA o.dayNumber o.sunHA o.elongation o.studentComments o.taComments o.student o.gradeSUB o.gradeOBS o.gradeCST o.gradeDAY o.gradePHN o.gradeAVE o.gradeMHF o.gradeMHD o.gradeSHC o.gradeEHA o.gradeEDT o.gradeUP o.realCST o.taAccepted o.realAVE o.realMHF o.realMHD o.realSHC o.realDAY o.realEHA o.realEDT o.realPHN o.tolObsToSubmitDiff o.tolObsToLastDiff o.tolCST o.tolDayNumber o.tolAverageFists o.tolMoonHAFists o.tolMoonHADate o.tolMoonHADatePercent o.tolSunHACST o.tolElongHA o.tolElongDate o.tolPhaseNumber o.ta_uid o.fist_degrees o.current/ ],
+    field_params => $field_params,
+    columns => [ qw/timestamp date cstTime phaseNumber fists/, ($ta ? 'fist_degrees' : () ), qw/ fists2/, ($ta ? 'fist_degrees' : () ), qw/ fists3/, ($ta ? 'fist_degrees' : () ), qw/ aveFist/, ($ta ? 'fist_degrees' : () ), qw/ cloud moonHA dayNumber sunHA elongation/ ],
+    column_fetch_format => 'NAME',
+    show_remaining_columns => 0,
+    default_sort_field => 'o.timestamp',
+    where => [ 'o.number = ? AND o.student = ? AND o.term = ? AND o.year = ?', $number, $student->{gradesid}, $session{'moonproject_term'}, $session{'moonproject_year'} ],
+    hide_header => 1,
+    no_sort => 1,
+    no_form => 1,
+    predata => sub {
+        my ($row, $ts) = @_;
+        $ts->{tmp}->{fists} = [];
+        return '';
+    },
+    prerow => sub {
+        my ($row, $ts) = @_;
+        if($row->{cloud} == 0){
+            $row->{cloud} = 'Clear ';
+        }
+        if($row->{cloud} == 1){
+            $row->{cloud} = 'Partially Cloudy';
+        }
+        if($row->{cloud} == 2){
+            $row->{cloud} = 'Cloudy';
+        }
+        $ts->{tmp}->{oddeven} = 'even';
+        return '';
+    },
+    postrow => sub {
+        my ($row, $ts) = @_;
+        $ts->{tmp}->{last_observation} = $row;
+        push @{$ts->{tmp}->{fists}}, abs($row->{fists}) unless (grep { $_ == abs($row->{fists}) } @{$ts->{tmp}->{fists}});
+        my $diff;
+        my $html = '';
+        $html .= '<tr><td colspan="' . scalar($ts->column_names) . '"><table width="100%" cellpadding="0" cellspacing="0"><tr><th width="125" align="right" style="padding-right: 15px;">Student Comments</th><td>' . _h($row->{studentComments}) . '</td></tr></table></td></tr>' if ($row->{studentComments});
+        $html .= '<tr><td colspan="' . scalar($ts->column_names) . '"><table width="100%" cellpadding="0" cellspacing="0"><tr><th width="125" align="right" style="padding-right: 15px;">TA Comments</th><td>' . _h($row->{taComments}) . '</td></tr></table></td></tr>' if ($row->{taComments});
+        if ($ta && $ta->{detailedObs} eq 'yes') {
+            $diff = Moonproject::Observation->new(id => $row->{id})->ta_tolerance_check if ($row->{current});
+            my ($last_diff, $next_diff) = $get_observation_diffs->($row);
+            my $ta_detail = sub {
+                my $name = shift;
+                my $obs = $ts->{tmp}->{last_observation};
+                my $tolname = $settings_map->($name);
+                my $obstolval = $obs->{(ref $tolname ? $tolname->[0] : $tolname)};
+                my $tatolval = $ta->{(ref $tolname ? $tolname->[0] : $tolname)};
+                my $tolval = '+/-' . (defined $obstolval ? $obstolval : $tatolval);
+                # Handle MHD which has two tolerance parameters
+                if (ref $tolname) {
+                    $obstolval = $obs->{$tolname->[1]};
+                    $tatolval =  $ta->{$tolname->[1]};
+                    $tolval = '*' . ((defined $obstolval ? $obstolval : $tatolval)/100) . $tolval;
+                }
+                return '<span style="white-space: nowrap;"><span style="color:' . $grade_color->($obs->{"grade$name"}) . '">' . _h($name) . '</span> ' . (defined $obs->{"real$name"} ? $obs->{"real$name"} : '-') . ' [' . $tolval . ']</span>';
+
+            };
+            $html .= '<tr class="odd ta_detail">
+            <td style="min-width: 150px; white-space: wrap;"><span style="color:' . $grade_color->($row->{gradeSUB}) . '">SUB</span> Submitted ' . $row->{subdiff} . ' hours after observation.</td>
+            <td style="min-width: 150px; white-space: wrap;"><span style="color:' . $grade_color->($row->{gradeOBS}) . '">OBS</span> Observed ' . $last_diff . ' hours after previous observation and '  . $next_diff . ' hours before next observation.</td>
+            <td>Date is CST.<br/>' . $ta_detail->('CST') . '</td>
+            <td colspan="2">' . $ta_detail->('PHN') . '</td>
+
+
+            <td colspan="3" align="center"><table cellpadding="0" cellspacing="0">
+
+            <tr style="border:0"><td align="left">' . $ta_detail->('AVE') . '</td></tr>
+
+            <tr style="border:0"><td align="left">' . $ta_detail->('MHD') . '</td></tr><tr style="border:0"><td align="left">' . $ta_detail->('MHF') . '</td></tr></table></td>
+            <td>' . $ta_detail->('DAY') . '</td>
+            <td>' . $ta_detail->('SHC') . '</td>
+            <td>' . $ta_detail->('EHA') . '<br/>' . $ta_detail->('EDT') . '</td>
+            </tr>';
+        }
+        if ($diff) {
+            $html .= '<tr><th colspan="' . (scalar $ts->column_names) . '">' . _h($diff);
+            $html .= '&nbsp;<input type="submit" name="regrade' . $row->{number} . '" value="Regrade">';
+            $html .= '</th></tr>';
+        }
+        $html .= $grade_row->($ts) if ($with_grades);
+        return $html;
+    },
+    postdata => sub {
+        my ($ts) = @_;
+        my $html = '';
+        $html .= '<tr><td colspan="' . scalar($ts->column_names) . '"><table width="100%" cellpadding="0" cellspacing="0"><tr><th width="125" align="right" style="padding-right: 15px;">TA Review</th><td>' . $grade_description->($ts->{tmp}->{last_observation}->{taAccepted}) . '</td></tr></table></td></tr>';
+        $html .= $grade_row->($ts) unless ($with_grades);
+        $html .= $ta_form->($ts) if ($ta);
+        return $html;
+    },
+);
+</%init>
+<a href="#" name="obs<% $number |h %>"></a>
+% if ($with_header) {
+<table width="100%">
+    <tr>
+        <th align="left" width="50%" style="font-size: 16px;">Observation <% $number |h %></th>
+% unless ($ta || $m->comp('/mason/db/moonproject/get_observation.comp', number => $number, student => $student)->{taAccepted} eq 'rejected') {
+        <td width="50%" align="right">
+            <form action="observation_modify.html">
+                <input type="hidden" name="number" value="<% $number |u %>" />
+                <input type="submit" value="Modify Observation" />
+            </form>
+        </td>
+% }
+    </tr>
+</table>
+% }
+<div style="padding-bottom: 10px;">
+% $ts->display;
+</div>

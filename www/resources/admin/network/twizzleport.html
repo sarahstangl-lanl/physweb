@@ -1,0 +1,61 @@
+<%doc>
+vim:set syntax=mason:
+</%doc>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%args>
+$twizzle => undef
+</%args>
+
+<%init>
+use physdb;
+use physdb::host;
+use physsnmp;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $rwcommunity = "physix-rw";
+my $reauthoid = "1.3.6.1.4.1.11.2.14.11.5.1.19.2.1.1.4";
+if(!$auth) {
+    print "Must be admin\n";
+    return;
+}
+
+if(!$twizzle) {
+    $m->out("twizzle: No switch or port param!");
+    return;
+}
+
+my @twizzles = split /,/,$twizzle;
+
+</%init>
+<%perl>
+my $count = 0;
+foreach my $swport (@twizzles) {
+    my ($switchname, $port) = split /\:/, $swport;
+    $count++;
+    if($switchname && $port) {
+        my $template = new Host();
+        my ($switch) = $template->search( "computer_name = ?", $switchname );
+        if($switch->get("groupname") ne "sysadm") {
+            $m->out("Failed paranoia check. make sure $switchname is in sysadm group (". ($switch->get("groupname")) . ")<BR>");
+            print Dumper($switch);
+            return;
+        }
+        my ($dns) = $switch->all_dnses(); #grab first dns (should only be one)
+        my $ip = $dns->get("ip");
+        if(physsnmp::set($ip, "$reauthoid.$port", $rwcommunity)) {
+          </%perl><p class="twizzleout">Forced re-auth on <% $dns->get("hostname") %> port <% $port %>.</p><%perl>
+        }
+        else {
+          </%perl><p class="twizzleout"><% $dns->get("hostname") %> port <% $port %> force re-auth FAILED!</p><%perl>
+        }
+
+    }
+}
+if(!$count) {
+    $m->out("Nothing requested");
+}
+</%perl>

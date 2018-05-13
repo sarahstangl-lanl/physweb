@@ -1,0 +1,22 @@
+<%doc>
+vim:set syntax=mason:
+</%doc>
+<%method backgroundcolor>#FE2E64</%method>
+    <h1>Super TIGER Experiment</h1>
+    
+    <p>Physicists hope to confirm the theory that cosmic rays  are created in groups of massive stars, called OB Associations.  Super-TIGER is a collaboration
+    between Washington University in St. Louis, the California Institute of Technology and NASA's GSFC, and individuals
+    from the University of Minnesota and the JPL Laboratory.  This team designed, constructed a cosmic ray detector to be flown on a high altitude balloon.
+<p>
+<h2>Record Flight</h2>
+<ul>
+<li>
+Super-TIGER broke the record for a long duration flight, heavy balloon lift<p>
+<li>
+Super-TIGER floated for 55 days, 1 hour and 34 minutes at an altitude of about 125,000 ft.
+</ul>
+    <div id="sideiconblock" style="position: absolute; top: 750px; right:0px; text-align: center; width: 100%;">
+     
+      
+    </div>
+

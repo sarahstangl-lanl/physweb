@@ -1,0 +1,44 @@
+<%doc>
+   Component: user_menu.comp
+        Date: 7/29/2003
+      Author: allan
+ Description: provides a menu of usernames matching a particular group from the directory
+</%doc>
+
+<%args>
+$selected=>''
+$menuname=>'user'
+$group=>''
+$group2=>''
+$group3=>''
+$readonly=>0
+</%args>
+
+<%init>
+my $sql = "SELECT DISTINCT directory.last_name, directory.first_name, directory.uid, directory.x500 FROM directory JOIN groupmembers ON(groupmembers.uid = directory.uid) where groupname=? OR groupname=? OR groupname=? ORDER BY last_name, first_name";
+my $sth = $dbh->prepare($sql);
+$sth->execute($group,$group2,$group3)
+  or die 'Unable to user_group_menu: ' . $dbh->errstr;
+
+my ($lastname, $firstname, $uid, $x500);
+my $menu = '<select ' . ($readonly ? "disabled " : "") . 'name="' .$menuname . '">';
+$menu .= '<option ';
+if ($selected eq "") {$menu .= "selected ";}
+$menu .= 'value="">(nobody)';
+
+while (my $row_ref = $sth->fetchrow_arrayref) {
+  ($lastname, $firstname, $uid, $x500) = @$row_ref;
+  $menu .= "<option ";
+  if ("$uid" eq "$selected") { 
+      $menu .= "selected "; 
+  }
+  if ($x500) { 
+      $x500 = ' (' . $m->interp->apply_escapes($x500, 'h') . ')'; 
+  }
+  $menu .= 'value="' . $uid . '">' . $m->interp->apply_escapes($lastname, 'h') . ', ' . $m->interp->apply_escapes($firstname, 'h') . $x500;
+}
+$menu .= '</select>';
+</%init>
+<%perl>
+return $menu;
+</%perl>

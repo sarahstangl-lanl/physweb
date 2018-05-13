@@ -1,0 +1,34 @@
+<%doc>
+   Component: dhandler
+        Date: 9/11/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%args>
+$filename=>''
+</%args>
+
+<%init>
+my $uri = $r->uri;
+my $directory = "/home/groups/grades/templates";
+my $file = $directory."/".$filename;
+my $data;
+my $access;
+my $mimetype = "application/octet-stream";
+#if ($filename =~ /.doc$/i) { $mimetype = "application/msword";}
+#if ($filename =~ /.xls$/i) { $mimetype = "application/ms-excel";}
+
+  if (-f $file) {
+    $r->content_type($mimetype);
+    $r->headers_out->unset('Content-Length');
+    $r->headers_out->set('Content-Disposition' => "file; filename=\"$filename\"");
+    $r->headers_out->set('Content-Length' => -s $file );
+    $r->sendfile($file);
+    return Apache2::Const::OK;
+  }
+</%init>

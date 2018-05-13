@@ -1,0 +1,102 @@
+<%doc>
+vim:set syntax=mason:
+</%doc>
+<%args>
+$lastSlideID => undef;
+$json => 1;
+$force => undef;
+$area => "LHC";
+</%args>
+<%init>
+use physdb;
+use Data::Dumper;
+
+#my $area="LHC";
+
+if($json) {
+    $r->content_type('application/json');
+}
+
+use Data::Dumper;
+
+my $self = $m->current_comp;
+opendir(DIR, $self->source_dir."/$area");
+my @files = grep(/\.html$/,readdir(DIR));
+@files = sort @files;
+if(@files < 1) {
+  print "ERROR: No files found in ".$self->source_dir."/$area -\n";
+  return;
+}
+closedir(DIR);
+my $maxnum = @files;
+my $num = int($lastSlideID + 1);
+my $flag_lastslide = ($num == $maxnum)? 1:0;
+if($force) {
+    $num = int($force - 1);
+}
+if($num >= $maxnum) {
+    $num = 0;
+}
+
+</%init>
+<%perl>
+# If the method exists, call it. Else give default value
+sub myscomp {
+    my $comp = shift;
+    my $compname = shift;
+    my $method = shift;
+    my $default = shift;
+    if($method ne "") {
+        if($comp->method_exists($method)) {
+           return $m->scomp($compname.":".$method);
+        }
+        else {
+           return $default;
+        }
+    }
+    else {
+            return $m->scomp($compname);
+    }
+}
+
+
+my $slidename = "$area/".$files[$num];
+
+my $slidecomp = $m->fetch_comp($slidename);
+if(!$slidecomp) {
+    print "Slide $slidename unable to load\n<BR>";
+    return;
+}
+
+my $bgcolor  = $m->scomp("$area/sidebar.comp:backgroundcolor");
+
+my $slideImgUrl        = myscomp($slidecomp, $slidename, "imgurl",        "");
+my $slideImgBackground = myscomp($slidecomp, $slidename, "imgbackground", "black");
+my $slideImgContent    = myscomp($slidecomp, $slidename, "imgcontent",    "");
+my $slideTitle         = myscomp($slidecomp, $slidename, "title",         "");
+my $slideCopy          = myscomp($slidecomp, $slidename, "",              "");
+my $sideBar            = $m->scomp("$area/sidebar.comp");
+$slideCopy =~ s/\n/ /g; ##//# (stupid vim syntax highlighting)
+$sideBar =~ s/\n/ /g; ##//# (stupid vim syntax highlighting)
+
+my $hash;
+$hash->{'id'} = $num;
+$hash->{'imageurl'} = $slideImgUrl;
+$hash->{'imagebackground'} = $slideImgBackground;
+$hash->{'imagecontent'} = $slideImgContent;
+$hash->{'title'} = $slideTitle;
+$hash->{'copy'} = $slideCopy;
+$hash->{'slide'} = $slidename;
+$hash->{'maxnum'} = $maxnum;
+$hash->{'force'} = $force;
+if($sideBar) {
+    $hash->{'sidebar'} = "$sideBar";
+}
+else {
+    $hash->{'sidebar'} = "Please place a file named sidebar.comp in slide area directory";
+}
+$hash->{'flag_lastslide'} = $flag_lastslide;
+$hash->{'bgcolor'} = $bgcolor;
+
+$m->out($m->comp("/mason/ajax/to_json.comp", $hash));
+</%perl>

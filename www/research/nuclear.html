@@ -1,0 +1,86 @@
+<%doc>
+   Component: nulearold.html
+        Date: 8/13/2002
+      Author: jenny
+ Description:
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+</%init>
+<%method title>Nuclear Physics</%method>
+
+<%method pageheading>
+<& 'PARENT:pageheading' &>
+</%method>
+
+<%args>
+$featrow=>undef
+</%args>
+
+%#Uncomment (remove %#) to enable this when the research faculty stories are done
+<& "/mason/db/stories/feature.comp", type=>'facultyresearch', subtype=>'nuclear', style_prefix=>'rf', readmore_path=>'/research/', featrow=>$featrow&>
+
+%# note the new random.comp wrapper around the image.comp component...
+%#<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'cdmscryo.jpg',alt=>'CDMS Cryostat',credit=>'Courtesy CDMS',caption=>'A cryostat for CDMS.' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'nuclearimages/Nuclear1.jpg',alt=>'Asad Aboobaker',caption=>'' &> </&>
+<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'nuclearimages/Nuclear2.jpg',alt=>'CDMS detector',caption=>'' &> </&>
+
+%# if you remove the comment from the front of below (%#), it ads another image to the list of ones randomly chosen.
+%#<&| /mason/random.comp:item, name=>'image'&> <& /mason/image.comp, filename=>'lemmon.jpg',alt=>'Mt. Lemmon Observitory',credit=>'Just for TESTING!!',caption=>'This is an example of another block you can add...' &> </&>
+
+<& /mason/random.comp:execute, name=>'image' &>
+
+
+%#<& /mason/image.comp, filename=>'STARtracks.jpg', caption=>'A heavy ion collision from the STAR experiment at RHIC', credit=>'image courtesy of the STAR Collaboration.' &>
+
+<h3>Physics of Nuclear Matter</h3>
+<p>
+Nuclear theorists at the University of Minnesota seek to understand the
+properties of dense matter under the conditions present in the early
+universe, in stars, and during supernovae. Data from experiments which
+collide nuclei at high energy, such as those at Brookhaven's Relativistic
+Heavy Ion Collider (RHIC) and soon at CERN's Large Hadron Collider (LHC),
+can be compared to theoretical calculations and numerical simulations to
+understand the dynamics of nuclear matter under extreme conditions.
+Theoretical effort is directed at investigating the nature of these
+interactions and their implications for understanding quantum
+chromodynamics (QCD), particularly quark-gluon plasma. Another major
+thrust is the study of supernova physics, including the explosion
+mechanism, nucleosynthesis of medium and heavy elements, and neutrino
+oscillation effects.
+
+<p>
+Professor Joseph Kapusta investigates matter at high energy-density.  He
+uses relativistic quantum field theory to study high energy nuclear
+collisions at RHIC and LHC, phase transitions in the early universe, dense
+matter in neutron stars, primordial/microscopic black holes, Hawking
+radiation, and the anti-de Sitter space conformal field theory
+correspondence
+
+<p>
+Professor Yong-Zhong Qian has interests that lie at the intersection of
+nuclear physics and astrophysics. He studies the detailed mechanism by
+which the medium and heavy elements are formed in stars and in stellar
+explosions.  He also studies neutrinos, their oscillations, and the role
+they play in supernovae.
+
+<p>
+Professor Alexander Heger studies the life and explosive death of massive
+stars and the origin of the elements, and is generally interested in nuclear
+astrophysics. His work comprises the study of massive and very
+massive stars (10-1000 solar masses); the first generations of stars in the
+universe (Pop III stars); evolution of rotating massive stars and the spin
+of their remnants; mixing and transport processes in the stellar interior;
+nucleosynthesis and the origin of elements, including galacto-chemical evolution -
+which elements are made where and when; supernovae (mechanisms and nucleosynthesis);
+gamma-ray bursts (collapsars and similar models) and their progenitors;
+modeling of Type I X-ray bursts and superbursts (thermonuclear explosions
+on the surface of neutron stars). Heger likes to say, "I blow up stars for a living."
+
+<& profiles.comp, group=>'nuc' &>
+<& profiles.comp, type=>'Researchers', flag=>'research || postdoc', group=>'nuc' &>
+<& profiles.comp, type=>'Graduate Students', flag=>'physgrad || astgrad', group=>'nuc' &>
+

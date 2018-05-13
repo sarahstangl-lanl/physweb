@@ -1,0 +1,284 @@
+<%args>
+    $customer_id => undef
+    $machinist_id => undef
+    $ajax => 0
+</%args>
+
+<%init>
+
+    use tablesearch;
+
+    my $auth_args = $session{'shopdb-auth'};
+    my $admin = $auth_args->{'admin'};
+    my $foreman = $auth_args->{'foreman'};
+    my $machinist = !(!$auth_args->{'machinist_id'});
+    my $shop_person = $foreman || $machinist;
+
+    # Restrict views to customer_id unless foreman or machinist
+    unless ($admin || $shop_person) {
+        $customer_id = $auth_args->{'customer_id'};
+    }
+
+    # Allow machinists to manually view all jobs
+    if ($machinist && !$foreman && !$customer_id) {
+        $machinist_id = $auth_args->{'machinist_id'}
+            unless ($ARGS{'show_all'});
+    }
+
+    my $header = 'Jobs';
+    my $error = '';
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+    # Store current customer_id and machinist_id in schema so JobStatuses can use them in joins
+    $schema->customer_id($customer_id);
+    $schema->machinist_id($machinist_id);
+
+    my $rs = $schema->resultset('Jobs')->with_parent_info->with_days_left->with_directory_info->with_machinists->with_status_info;
+    my %tsargs = ();
+    my $field_params = {
+                        'job_id' => {
+                            'data_format' => sub {
+                                my ($value, $format, $row) = @_;
+                                if (defined($row->{parent_job_id})) {
+                                    $value = $row->{'parent_job_id'};
+                                }
+                                my $url = '<a href="job.html?job_id=' . $row->{'job_id'} . '">' . $value . '</a>';
+                                return $url;
+                            },
+                            'name' => 'Job ID',
+                            'sort_name' => 'job_id_sort_val',
+                        },
+                        'job_id_sort_val' => {
+                            'secondary_sort_field' => 'job_id',
+                        },
+                        'customer_display_name' => {
+                            'name'   => 'Customer',
+                        },
+                        'pi_display_name' => {
+                            'name'   => 'PI',
+                        },
+                        'project_name' => {
+                            'data_format' => sub {
+                                my ($value, $format, $row) = @_;
+                                my $url = defined($row->{'parent_name'}) ? ('<a href="job.html?job_id=' . $row->{'parent_job_id'} . '">' . $row->{'parent_name'} . '</a>: ') : '';
+                                $url .= '<a href="job.html?job_id=' . $row->{'job_id'} . '">' . $value . '</a>';
+                                return $url;
+                            },
+                        },
+                        machinists => {
+                            hidden => 1,
+                        },
+    };
+    my $shop_field_params = {
+                        'customer_display_name' => {
+                            'name'   => 'Customer',
+                            'url'    => 'customer.html?customer_id=$row{customer_id}',
+                        },
+                        'pi_display_name' => {
+                            'name'   => 'PI',
+                            'url'    => 'customer.html?customer_id=$row{pi_id}',
+                        },
+                        'machinists' => {
+                            'data_format' => sub {
+                                my ($value, $format, $row) = @_;
+                                return '' unless ($value);
+                                my @machinists = split(/, /, $row->{'machinists'});
+                                my @machinist_ids = split(/,/, $row->{'machinist_ids'});
+                                my @urls;
+                                for (my $i = 0; $i < @machinists; $i++) {
+                                    push(@urls, '<a href="machinist.html?machinist_id=' . $machinist_ids[$i] . '">' . $machinists[$i] . '</a>');
+                                }
+                                return join(', ', @urls);
+                            },
+                        },
+                        'days_left' => {
+                            'data_format' => sub {
+                                my ($value, $form, $row) = @_;
+                                return '' unless defined ($value);
+                                if ($value < 0) {
+                                    return '<font color="red">' . $value . '</font>';
+                                }
+                                return $value;
+                            },
+                        },
+    };
+
+    # Get job status list
+    my @job_statuses = $schema->resultset('JobStatuses')->search({ label => [ -and => { '!=' => 'Awaiting PI approval' }, { '!=' => 'Awaiting account approval' } ] })->all;
+    my %status_map = map { $_->label => $_->id } @job_statuses;
+    my %status_id_map = map { $_->id => $_->label } @job_statuses;
+
+    # Default filter is 'In progress'
+    push(@{$m->{request_args}}, 'filter', $status_map{'In progress'}) unless ($ARGS{'filter'} && ($ARGS{'filter'} eq 'all' || exists $status_id_map{$ARGS{'filter'}}));
+
+    my $filter = $m->request_args->{filter};
+
+    if ($filter eq $status_map{'In progress'} || $filter eq $status_map{'Hold material'} || $filter eq $status_map{'Hold changes'}) {
+        %tsargs = (
+            default_sort_field => 'approved_date',
+            default_sort_dir => 'asc',
+            columns => [ qw/job_id project_name customer_display_name pi_display_name machinists approved_date need_date days_left/ ],
+        );
+    }
+    elsif ($filter eq $status_map{'Finished'} || $filter eq $status_map{'Awaiting shipping'}) {
+        %tsargs = (
+            default_sort_field => 'need_date',
+            default_sort_dir => 'asc',
+            columns => [ qw/job_id project_name customer_display_name pi_display_name machinists approved_date finish_date need_date days_left/ ],
+        );
+    }
+    elsif ($status_id_map{$filter} =~ /approval/ || $filter eq $status_map{'Awaiting assignment'}) {
+        %tsargs = (
+            default_sort_field => 'in_date',
+            default_sort_dir => 'asc',
+            columns => [ qw/job_id project_name customer_display_name pi_display_name machinists in_date need_date days_left/ ],
+        );
+    }
+    elsif ($filter eq $status_map{'Draft'}) {
+        %tsargs = (
+            default_sort_field => 'creation_date',
+            default_sort_dir => 'desc',
+            columns => [ qw/job_id project_name customer_display_name pi_display_name machinists creation_date need_date days_left/ ],
+        );
+    }
+    elsif ($filter eq $status_map{'Shipped'}) {
+        %tsargs = (
+            default_sort_field => 'ship_date',
+            default_sort_dir => 'desc',
+            columns => [ qw/job_id project_name customer_display_name pi_display_name machinists in_date approved_date need_date finish_date ship_date/ ],
+            );
+    }
+    elsif ($filter eq $status_map{'Cancelled'}) {
+        %tsargs = (
+            default_sort_field => 'modified_date',
+            default_sort_dir => 'desc',
+            columns => [ qw/job_id project_name customer_display_name pi_display_name machinists in_date approved_date need_date finish_date ship_date/ ],
+            );
+    }
+    elsif ($filter eq 'all') {
+        %tsargs = (
+            default_sort_field => 'creation_date',
+            default_sort_dir => 'desc',
+            columns => [ qw/job_id project_name status customer_display_name pi_display_name machinists in_date need_date finish_date ship_date/ ],
+            );
+    }
+    else {
+        die "filter $status_id_map{$filter} not implemented";
+    }
+
+    if ($customer_id) {
+        my $customer = $schema->resultset('Customers')->with_directory_info->find({ 'customer_id' => $customer_id });
+        if (defined($customer)) {
+            $header .= ' for customer ' .  $m->interp->apply_escapes($customer->get_column('customer_display_name'), 'h')
+                unless ($auth_args->{'customer_id'} && $customer_id == $auth_args->{'customer_id'});
+        } else {
+            $error = "Invalid customer ID $customer_id";
+        }
+        $rs = $rs->search([ { 'me.customer_id' => $customer_id }, { 'me.pi_id' => $customer_id } ]);
+    }
+
+    if ($machinist_id) {
+        my $machinist = $schema->resultset('Machinists')->with_directory_info->find({ 'machinist_id' => $machinist_id });
+        if (defined($machinist)) {
+            if ($machinist_id == $auth_args->{'machinist_id'}) {
+                $header = 'My ' . $header;
+            }
+        } else {
+            $error = "Invalid machinist ID $machinist_id";
+        }
+        $rs = $rs->search({ 'job_assignments.machinist_id' => $machinist_id }, { join => 'job_assignments' });
+    }
+
+    if ($error) {
+        $header = "<font color=\"red\">$error</font>";
+    }
+
+    my $ts = new Tablesearch(
+        debug               => 0,
+        resultset           => $rs,
+        field_params        => { %$field_params, ($shop_person ? %$shop_field_params : ()) },
+        filter_field        => 'status',
+        filter_search_name  => 'status.job_status_id',
+        filter_name_field   => 'label',
+        header_format       => 'ucfirst_all',
+        extra_url_args      => [ qw/machinist_id customer_id/ ],
+        default_sort_dir    => 'asc',
+        hide_search         => 1,
+        no_calc_found_rows  => 1,
+        limit               => 20,
+        ajax_url            => 'joblist.html',
+        ajax_parameters     => { ajax => 1 },
+#        prefix              => $type,
+        %tsargs,
+    );
+
+    if ($ajax) {
+        $m->clear_buffer;
+        $ts->display;
+        $m->abort;
+        return;
+    }
+
+</%init>
+
+<h2>Job Summary</h2>
+<script language="JavaScript">
+    function changeJobFilter(link) {
+        filter = document.tsform.elements["filter"];
+        $A(filter.options).detect(function (option, index) {
+            if (option.text == link.innerHTML) {
+                filter.selectedIndex = index;
+                filter.form.submit();
+                return true;
+            }
+            return false;
+        });
+    }
+</script>
+
+<%perl>
+    my @or_clauses;
+#    if ($customer_id || $machinist_id) {
+#        push(@or_clauses, { 'jobs.job_id' => undef });
+#        my @and_clauses;
+#        if ($customer_id) {
+#            push(@and_clauses, [ customer_id => $customer_id, pi_id => $customer_id ]);
+#        }
+#        if ($machinist_id) {
+#            warn "Found machinist_id";
+#            push(@and_clauses, { machinist_id => $machinist_id });
+#        }
+#        push (@or_clauses, -and => [ @and_clauses ]);
+#    }
+    my $job_relation = 'jobs';
+    $job_relation = 'customer_jobs' if ($customer_id);
+    $job_relation = 'machinist_jobs' if ($machinist_id);
+    warn "job_relation: $job_relation, customer_id: " . ($customer_id ||'undef') . ", machinist_id: " . ($machinist_id || 'undef');
+    my $status_rs = $schema->resultset('JobStatuses')->search({ label => [ -and => { '!=' => 'Awaiting PI approval' }, { '!=' => 'Awaiting account approval' } ] })->search([ @or_clauses ], {
+        select => [ { count => $job_relation . '.job_status_id', -as => 'count' }, 'me.label' ],
+        as => [ qw/count label/ ],
+        join => [ { $job_relation => 'job_assignments' } ],
+        group_by => 'me.job_status_id',
+        order_by => { -asc => 'me.sort_order' },
+    });
+    my @status_counts = $status_rs->all;
+    my $class = 0;
+    print '<table width="100%" cellpadding="5" cellspacing="0"><tr>';
+    for my $count (@status_counts) {
+</%perl>
+        <td style="padding-left: 10px;" class="<% $class % 2 ? 'even' : 'odd' %>" valign="middle" width="80"><a href="#" onclick="changeJobFilter(this)"><% $count->get_column('label') %></a></td>
+        <td style="padding-right: 10px;" class="<% $class++ % 2 ? 'even' : 'odd' %>" valign="middle" align="right" width="40"><% $count->get_column('count') %></td>
+<%perl>
+    }
+    print "</tr></table>";
+</%perl>
+<div style="padding-bottom: 10px;">
+<table cellpadding="0" cellspacing="0" width="100%"><tr><td valign="top">
+% if ($header) {
+<h2><% $header |h %></h2>
+% }
+<span>
+% $ts->display();
+</span>
+</td></tr></table>
+</div>

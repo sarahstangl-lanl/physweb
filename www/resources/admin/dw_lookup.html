@@ -1,0 +1,75 @@
+<%method title>Data Warehouse test lookup</%method>
+
+<%ARGS>
+$query => "SELECT * FROM FS_PS_PROJECT WHERE PROJECT_ID LIKE '0533%'"
+</%ARGS>
+
+<%INIT>
+
+$m->comp('/mason/auth/auth_block.comp', internal=>1);
+my $admin_auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my $directory_auth = $m->comp('/mason/auth/auth_check_directory.comp');
+if (!$admin_auth && !$directory_auth) { print "<H4>Not authorized</H4>"; return; }
+
+</%INIT>
+
+<form name='input' action="dw_lookup.html" type='post'>
+<textarea name="query" cols=60 rows=4><% $query |h %></textarea>
+<br/>
+<input type='submit' name='submit' value='Submit'>
+</form>
+
+
+<%perl>
+
+$m->comp('SELF:table',
+    title => 'Query results',
+    query => [ $query ],
+);
+
+</%perl>
+<%method table>
+<%args>
+$title
+$query
+</%args>
+<%perl>
+
+$query = [ $query ] unless ref($query) eq 'ARRAY';
+
+my $dw_dbh = $m->comp('/mason/dw_dbh.comp');
+my $sth = $dw_dbh->prepare(shift @$query) or die $dw_dbh->errstr;
+$sth->execute(@$query) or die "Failed to execute query: " . $sth->errstr;
+print "<h4>$title</h4><br/>\n";
+print "<table cellpadding='3' cellspacing='0'>\n";
+my $i;
+my @rowdata;
+for (@{$sth->{NAME}}) {
+    push(@rowdata, [ $_ ]);
+}
+while ( my $row = $sth->fetchrow_arrayref() ) {
+    $i=0;
+    foreach my $col (@$row) {
+        push(@{$rowdata[$i]}, $col);
+        $i++;
+    }
+}
+my $oddeven = 1;
+if ($i >0) {
+    for (@rowdata) {
+        my $tag = 'th class="tableheader"';
+        print '<tr class="' . ($oddeven ? 'odd' : 'even') . '">';
+        for my $col (@$_) {
+            print "<$tag>" . $m->interp->apply_escapes($col, 'h') . "</$tag>";
+            $tag = 'td';
+        }
+        print "</tr>\n";
+        $oddeven = !$oddeven;
+    }
+}
+else {
+    print '<tr><td>No data returned</td></tr>';
+}
+print "</table>\n";
+</%perl>
+</%method>

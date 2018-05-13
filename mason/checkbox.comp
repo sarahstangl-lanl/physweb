@@ -1,0 +1,26 @@
+
+<%DOC>
+   Component: checkbox.comp
+        Date: 2003.07.18
+      Author: allan
+     Changed: 2003.07.18 by allan
+Displays a from checkbox which is checked or unchecked depending on the value passed in
+</%DOC>
+
+<%ARGS>
+$name
+$label=>''
+$value
+$enable=>'1'
+</%ARGS>
+
+<%INIT>
+my @groups = split(",",$value);
+my $checked = "";
+my $disabled = " disabled";
+my $test;
+if ($enable) { $disabled=""; }
+foreach $test (@groups) { if ($test eq $name) {$checked=" checked";}}
+</%INIT>		
+		
+<label><input type="checkbox" name="<% $name %>"<% $checked %><% $disabled %>>&nbsp;<% $label %></label><br>

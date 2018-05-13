@@ -1,0 +1,52 @@
+<%doc>
+   Component: getfile.html
+        Date: 8/06/2003
+      Author: allan
+ Description: retrieve a file from the class database
+</%doc>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%args>
+$id=>''
+$download=>0
+</%args>
+
+<%init>
+return if $m->comp('/mason/db/dbcheck.comp');
+
+my $error = "Sorry, I can't understand what file you are trying to fetch.";
+if ($id) {
+    my $sql = "SELECT c.attach_name, c.attach_mimetype, f.attach_data, c.attach_size
+        FROM classdata AS c
+        JOIN webdbblob.class_files AS f ON (c.entryid = f.entryid)
+        WHERE c.entryid=?";
+    if (defined($dbh)) {
+        my $sth = $dbh->prepare($sql);
+        $sth->execute($id)
+            or die 'Unable to fetch file: ' . $dbh->errstr;
+        my ($filename, $mime_type, $data, $size);
+        if (my $db_row = $sth->fetchrow_arrayref()) {
+            ($filename, $mime_type, $data, $size) = @$db_row;
+            my $file = $download?'file; ':'';
+            $r->content_type($mime_type);
+            $r->headers_out->add('Content-Length' => $size);
+            if ($mime_type ne 'text/html') {
+                $r->headers_out->add('Content-Disposition' => $file."filename=\"$filename\"");
+            }
+            $m->clear_buffer();
+            $m->autoflush(1);
+            $m->out($data);
+            $m->autoflush(0);
+            $m->abort(200)
+        }
+    } else {
+      $error = "Temporarily unavailable";
+    }
+}
+
+</%init>
+
+<br><% $error %>

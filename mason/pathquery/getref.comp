@@ -1,0 +1,24 @@
+<%doc>
+    Example:
+        my %query = (%defaults, $m->comp('/mason/pathquery/get.comp'));
+</%doc>
+
+<%args>
+    %defaults => ()
+</%args>
+
+<%init>
+    my $pathquery = $m->notes('pathquery');
+    
+    foreach my $key (keys %defaults) {
+        if (!exists($pathquery->{$key})) {
+            $pathquery->{$key} = $defaults{$key};
+        }
+    }
+    
+    return $pathquery;
+</%init>
+
+<%filter>
+s/.//gos
+</%filter>

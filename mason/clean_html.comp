@@ -1,0 +1,46 @@
+<%doc>
+   Component: clean_html.comp
+        Date: 8/8/2003
+      Author: allan
+ Description: clean bad tags out of HTML
+</%doc>
+
+<%args>
+$html=>''
+</%args>
+
+<%init>
+use HTML::Scrubber;
+</%init>
+
+<%perl>
+my @rules = ( 'td' => { 'colspan' => 1 }, 'a' => { 'href' => 1, 'name' => 1 }, 'font' => { 'color' => 1, 'size' => 1 } );
+#  'script' => 0,
+#  'td' => { 'colspan' => 1 }
+#};
+my $microsoft = ( $html =~ /microsoft/i );
+
+my $scrubber = HTML::Scrubber->new( allow => [ qw[ a p b i u hr br table tr td th div ul ol li font em dd dl h2 h3 h4 ] ], comment => 0, deny => [ qw[ html head body meta title ] ], rules   => \@rules );
+#
+# first pass through scrubber
+#
+$html =~ s/<h1>/<h2>/gi;
+$html =~ s/<\/h1>/<\/h2>/gi;
+my $result = $scrubber->scrub($html);
+
+if ($microsoft) {
+  # need extra scrubbing to remove additional
+  # cruft from Microsoft-generated HTML
+  $result =~ s/\&lt;/</g;
+  $result =~ s/\&gt;/>/g;
+  $result =~ s/<p>\&nbsp;<\/p>//g;
+  $result =~ s/[\n|\r]+/\n/sg;
+  $result = $scrubber->scrub($result);
+  $result =~ s/\&lt;!/<!/g;
+  $result =~ s/\&gt;/>/g;
+  # more MS-Office-specific cruft...
+  $result =~ s/\[if.+\]//g;
+  $result =~ s/\[endif\]//g;
+}
+return $result;
+</%perl>

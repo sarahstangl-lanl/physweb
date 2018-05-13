@@ -1,0 +1,20 @@
+<%doc> 
+    vim: set syntax=mason: 
+</%doc>
+<%args>
+$when=>'top'
+</%args>
+<%init>
+my $auth = $m->comp('/mason/auth/auth_check_events.comp');
+</%init>
+<%method title>Class Notes</%method>
+
+<%method titlemenu_below>
+<& /mason/titlemenu.comp:begin, type=>"below" &>
+% my %args = $m->request_args();
+<& /mason/db/stories/storyblog.comp:eventmenuitems, type=>'alumni', event_year=>$args{'event_year'}, args=>\%args  &>
+<& /mason/titlemenu.comp:end &>
+</%method>
+
+<& /mason/db/stories/storyblog.comp, when=>$when, class=>'news', auth=>$auth, type=>'alumni', menu=>'event_date' &>
+

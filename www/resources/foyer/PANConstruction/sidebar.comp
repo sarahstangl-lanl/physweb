@@ -1,0 +1,20 @@
+<%doc>
+vim:set syntax=mason:
+</%doc>
+<%method backgroundcolor>#FFFF99</%method>
+    <h1>Physics and Nanotechnology Building</h1>
+    <!--<h2>Physics and Nanotechnology Building</h2>-->
+    Construction on the new Physics and Nanotechnology building began in November of  2011 and was completed in November 2013. 
+Highlights of the building include more than 43,000 square feet of modern and highly flexible physics laboratory and laboratory support
+space and more than 15,000 square feet of nanotechnology space (including a 5,000-square-foot clean room designed for class-100 chip
+fabrication and class-1000 bio-nano work). All told, the facility will contain 40 new research laboratories.
+The Physics and Nanotechnology Building houses 200 faculty, post doctorate and graduate students, and visiting researchers with
+meeting and discussion space throughout the building for student interaction with faculty. The facility contains space for
+40 new research laboratories.
+
+
+    <div id="sideiconblock" style="position: absolute; top: 750px; right:0px; text-align: center; width: 100%;">
+     
+      
+    </div>
+

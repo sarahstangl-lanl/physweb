@@ -1,0 +1,375 @@
+<%DOC>
+   Component: view_key.html
+        Date: 2007.08.15
+      Author: clayton
+     Changed: 2007.08.15 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $keyid      => ''
+  $copynum    => ''
+  $new_holder => ''
+  $new_notes  => ''
+  $create     => 0
+  $action     => ''
+  $add_room   => ''
+  $delete_room => ''
+  $room_redirect => 0
+</%ARGS>
+
+<%method js></%method>
+
+<%INIT>
+  my ($sql, $query, $fuzzy_query, $result, $notes);
+  my ($who, $when, $who_uid) = ('Nobody', 'Never', '');
+  my $found = 0;
+  my $no_keyid_view = 0;
+  my $room_mapped = 0;
+  my $room_deleted = 0;
+  my $fuzzy_message = 'No exact match found.';
+
+  $keyid =~ s/^\s+|\s+$//g;
+  $copynum =~ s/^\s+|\s+$//g;
+  $add_room =~ s/^\s+|\s+$//g;
+  $delete_room =~ s/^\s+|\s+$//g;
+
+  if (length($keyid) && $add_room)
+  {
+    $sql = 'INSERT INTO key_room (keyid, room) VALUES (?, ?)';
+    $query = $dbh->prepare($sql);
+    $query->execute($keyid, $add_room)
+      or die 'Unable to add room: ' . $dbh->errstr;
+    if ($room_redirect) {
+      $m->redirect('view_room.html?room=' . $m->interp->apply_escapes($add_room, 'u'));
+    }
+    $room_mapped = 1;
+  }
+  
+  if (length($keyid) && $delete_room)
+  {
+    $sql = 'DELETE FROM key_room WHERE keyid=? AND room=?';
+    $query = $dbh->prepare($sql);
+    $query->execute($keyid, $delete_room)
+      or die 'Unable to delete room: ' . $dbh->errstr;
+    if ($room_redirect) {
+      $m->redirect('view_room.html?room=' . $m->interp->apply_escapes($delete_room, 'u'));
+    }
+    $room_deleted = 1;
+  }
+  
+  if ($action) {
+    my $uid = '';
+    $query = $m->comp('/mason/ajax/people_finder.comp', 'name'=>$new_holder);
+    if ($query)
+    {
+      $result = $query->fetchrow_hashref();
+      $uid = $$result{'uid'};
+    }
+
+    if (length($keyid) && length($copynum))
+    {
+      if ($uid)
+      {
+        $sql = 'INSERT INTO key_holder (keyid, copynum, timestamp, notes, uid) VALUES(?,?,now(),?,?)';
+        $query = $dbh->prepare($sql);
+        $query->execute($keyid, $copynum, $new_notes, $uid)
+          or die 'Unable to insert key: ' . $dbh->errstr;
+      } else {
+        $sql = 'INSERT INTO key_holder (keyid, copynum, timestamp, notes) VALUES(?,?,now(),?)';
+        $query = $dbh->prepare($sql);
+        $query->execute($keyid, $copynum, $new_notes)
+          or die 'Unable to insert key: ' . $dbh->errstr;
+      }
+    } else {
+      $fuzzy_message = 'Error: To create a key provide both a Key ID and a Copy #.';
+      $no_keyid_view = 1;
+    }
+  }
+
+  my $physkey_query;
+  # Returns true if results are found, or false if should do fuzzy match
+  my $grab_physical_key_view = sub {
+    my $sql = 'SELECT key_holder.copynum, key_holder.timestamp, directory.uid, key_holder.notes,
+              IF(key_holder.uid IS NULL, \'Nobody\', ' . $m->comp('/mason/ajax/people_finder_sql.comp') . ') AS display_name
+              FROM key_holder
+              LEFT JOIN directory ON (directory.uid=key_holder.uid)
+              WHERE keyid=? AND copynum=?
+              ORDER BY timestamp DESC';
+    $physkey_query = $dbh->prepare($sql);
+    $physkey_query->execute($keyid, $copynum)
+      or die 'Unable to holders: ' . $dbh->errstr;
+
+    if ($physkey_query->rows > 0)
+    {
+      $found = 1;
+      $result = $physkey_query->fetchrow_hashref();
+      if ($result) {
+        $copynum = $$result{'copynum'};
+        $who = $$result{'display_name'};
+        $who_uid = $$result{'uid'};
+        $when = $$result{'timestamp'};
+        $notes = $$result{'notes'};
+      }
+    } else {
+      $sql = 'SELECT keyid, 1 AS copynum FROM key_holder WHERE keyid LIKE ? AND copynum=? GROUP BY keyid';
+      $fuzzy_query = $dbh->prepare($sql);
+      $fuzzy_query->execute('%' . $keyid . '%', $copynum)
+        or die 'Unable to fuzzy match: ' . $dbh->errstr;
+    }
+
+    return $found;
+  };
+
+  my ($keyid_query, $keyid_query2);
+  # Returns true if results are found, or false if should do fuzzy match
+  my $grab_keyid_view = sub {
+    # Prepare for a nasty SQL query...
+    my $sql = 'SELECT key_holder.timestamp, key_holder.copynum, key_holder.uid,
+              IF(key_holder.uid IS NULL, \'Nobody\', ' . $m->comp('/mason/ajax/people_finder_sql.comp') . ') AS display_name
+              FROM key_holder
+              LEFT JOIN directory ON (directory.uid=key_holder.uid),
+              (SELECT key_holder.copynum, MAX(key_holder.timestamp) AS latest FROM key_holder WHERE keyid=? GROUP BY copynum) AS kh2
+              WHERE keyid=? AND key_holder.copynum=kh2.copynum AND key_holder.timestamp=kh2.latest
+              ';
+    $keyid_query = $dbh->prepare($sql);
+    $keyid_query->execute($keyid, $keyid)
+      or die 'Unable to lookup key: ' . $dbh->errstr;
+
+    if (($keyid_query->rows > 0) || $create)
+    {
+      $found = 1;
+    
+      $sql = 'SELECT room FROM key_room WHERE keyid=?';
+      $keyid_query2 = $dbh->prepare($sql);
+      $keyid_query2->execute($keyid)
+        or die 'Unable to grab room match: ' . $dbh->errstr;
+    } else {
+      $sql = 'SELECT keyid, COUNT(DISTINCT copynum) AS copies FROM key_holder WHERE keyid LIKE ? GROUP BY keyid';
+      $fuzzy_query = $dbh->prepare($sql);
+      $fuzzy_query->execute('%' . $keyid . '%')
+        or die 'Unable to grab fuzzy match:' . $dbh->errstr;
+    }
+
+    return $found;
+  };
+
+  my $grab_keyid_all_view = sub {
+    $sql = 'SELECT keyid, COUNT(DISTINCT copynum) AS copies FROM key_holder GROUP BY keyid';
+    $fuzzy_query = $dbh->prepare($sql);
+    $fuzzy_query->execute()
+      or die 'Unable to grab fuzzy match:' . $dbh->errstr;
+  };
+
+  my $verify_fuzzy_query_exists = sub {
+    if ($fuzzy_query) {
+      return;
+    }
+    $sql = 'SELECT keyid, COUNT(DISTINCT copynum) AS copies FROM key_holder WHERE keyid LIKE ? GROUP BY keyid';
+    $fuzzy_query = $dbh->prepare($sql);
+    $fuzzy_query->execute('%' . $keyid . '%')
+      or die 'Unable to grab fuzzy match:' . $dbh->errstr;
+  };
+
+</%init>
+
+% my $physkey_form = sub {
+
+%   my $forceedit = @_;
+%   my $showedits = $forceedit || $create;
+
+<form action="view_key.html?<% (!$showedits ? 'keyid=' . $m->interp->apply_escapes($keyid, 'u') . '&amp;copynum=' . $m->interp->apply_escapes($copynum, 'u') : '') %>" method="POST">
+<% (!$found || $create ? '<input type="hidden" name="docreate" value="1">' : '') %>
+<table>
+<tr><td align="right">Key ID:</td><td><% ($showedits ? '<input type="text" name="keyid" value="' . $m->interp->apply_escapes($keyid, 'h') . '">' : '<a href="view_key.html?keyid=' . $m->interp->apply_escapes($keyid, 'u') . '">' . $m->interp->apply_escapes($keyid, 'h') . '</a>') %></td></tr>
+
+<tr><td align="right">Copy #:</td><td><% ($showedits ? '<input type="text" name="copynum" value="' . $m->interp->apply_escapes($copynum, 'u') . '">' : $m->interp->apply_escapes($copynum, 'h')) %></td></tr>
+
+<tr><td align="right">Current Holder:</td><td><% ($who_uid ? '<a href="view_person.html?uid=' . $m->interp->apply_escapes($who_uid, 'u') . '">' . $m->interp->apply_escapes($who, 'h') . '</a>' : $who) %> as of <% $when %></td></tr>
+
+<tr><td align="right">Current Notes:</td><td><% (length($notes) ? $m->interp->apply_escapes($notes, 'h') : '<i>None</i>') %></td></tr>
+
+<tr><td align="right">New Holder:</td><td><input autocomplete="off" type="text" id="new_holder" name="new_holder" size="40"<% ($new_holder ? " value=\"$new_holder\"" : '') %>></div></td></tr>
+
+<& /mason/ajax/complete_people.comp, id => 'new_holder', dest_id => 'new_holder_auto_complete' &>
+
+<tr><td align="right">New Notes:</td><td><input type="text" name="new_notes"<% ($new_notes ? " value=\"$new_notes\"" : '') %>></td></tr>
+
+<tr><td></td><td><input type="submit" name="action" value="<% ($showedits ? 'Create' : 'Update') %>"></td></tr>
+
+<tr><td colspan="2">&nbsp;</td></tr>
+
+<tr><td align="right" valign="top">History:</td>
+
+<td>
+<table>
+</form>
+<tr><th>Holder</th><th>Timestamp</th><th>Notes</th><th>Action</th></tr>
+% my $history = 0;
+% if ($found) {
+% while ($result = $physkey_query->fetchrow_hashref()) {
+% $history = 1;
+<tr><td><% ($$result{'uid'} ? '<a href="view_person.html?uid=' . $m->interp->apply_escapes($$result{'uid'}, 'u') . '">' . $m->interp->apply_escapes($$result{'display_name'}, 'h') . '</a>' : $m->interp->apply_escapes($$result{'display_name'}, 'h')) %></td><td><% $$result{'timestamp'} |h %></td><td><% $$result{'notes'} |h %></td><td>
+% if ($$result{'uid'}) {
+<form action="view_key.html?<% (!$showedits ? 'keyid=' . $m->interp->apply_escapes($keyid, 'u') . '&amp;copynum=' . $m->interp->apply_escapes($copynum, 'u') : '') %>" method="POST"><input type="hidden" name="new_holder" value="<% $$result{'display_name'} |h %>"><input type="hidden" name="notes" value="Reissued"><input type="submit" name="action" value="Reissue"></form>
+% }
+</td></tr>
+% }}
+% if (!$history) {
+<tr><td colspan="4">There are no historical entries for this key</td></tr>
+% }
+</table>
+</td></tr>
+</table>
+
+% };
+
+		
+<%method title>Key Management: Key IDs and Physical Keys</%method>	
+
+<table width="100%">
+<tr><td colspan="2" style="border:0; padding:0; margin:0">
+% $m->comp('doheader.comp', selected => 'view_key', keyid => $keyid, copynum => $copynum);
+</td></tr>
+
+% if ((length($keyid) && length($copynum) && $grab_physical_key_view->()) || $create) {
+
+%######
+%###### Begin Physical Key View
+%######
+
+<tr style="background-color: #f9f3d4;">
+<th>Edit this Physical Key</th>
+</tr>
+<tr><td>
+% $physkey_form->();
+</td></tr>
+
+
+%######
+%###### End Physical Key View
+%######
+
+% } elsif (length($keyid) && !length($copynum) && !$no_keyid_view && $grab_keyid_view->()) {
+
+%######
+%###### Begin KeyID View
+%######
+
+<tr style="background-color: #f9f3d4;">
+<th>Edit this KeyID Group</th>
+</tr>
+<tr><td>
+
+<table>
+<tr><td align="right">Key ID:</td><td><% $keyid |h %></td></tr>
+
+<tr><td align="right">Opens Rooms:</td><td>
+
+% my $rooms = 0;
+% while ($result = $keyid_query2->fetchrow_hashref()) {
+<a href="view_room.html?room=<% $$result{'room'} |u %>"><% $$result{'room'} |h %></a>  
+<form style="display:inline" action="view_key.html?keyid=<% $keyid |h %>" method="POST"><input type="hidden" name="delete_room" value="<% $$result{'room'} |u %>" />
+<input type="image" onclick="return confirm('Are you sure you want to remove room <% $$result{'room'} |h %>?')" style="border:0;margin-bottom:-4px;" src="/images/delete.png" title="Delete" />
+</form>
+% $rooms = 1;
+% }
+% if (!$rooms) {
+<i>No Rooms Entered</i>
+% }
+
+</td></tr>
+
+<tr><td></td><td><form action="view_key.html?keyid=<% $keyid |u %>" method="POST"><input type="text" name="add_room"> <input type="submit" value="Add Room"></form></td></tr>
+
+<tr><td align="right" valign="top">Physical Keys:<br/><form method="post" action="view_key.html?keyid=<% $keyid |u %>&amp;create=1"><input type="submit" value="Add New"></form></td>
+<td>
+
+<table>
+<tr><th>Copy #</th><th>Holder</th><th>Timestamp</th></tr>
+% while ($result = $keyid_query->fetchrow_hashref()) {
+<tr><td><a href="view_key.html?keyid=<% $keyid |u %>&amp;copynum=<% $$result{'copynum'} | h %>"><% $$result{'copynum'} |h %></a></td><td><% ($$result{'uid'} ? '<a href="view_person.html?uid=' . $m->interp->apply_escapes($$result{'uid'}, 'u') . '">' . $m->interp->apply_escapes($$result{'display_name'}, 'h') . '</a>' : $m->interp->apply_escapes($$result{'display_name'}, 'h')) %></td><td><% $result->{'timestamp'} |h %></td></tr>
+% }
+</table>
+
+</td></tr>
+</table>
+
+</td></tr>
+
+
+%######
+%###### End KeyID View
+%######
+
+% } else {
+
+%######
+%###### Begin Show All/Fuzzy Match View
+%######
+
+
+% my $show_all_view = (!length($keyid) && !length($copynum));
+% if ($show_all_view) {
+%   $grab_keyid_all_view->();
+% } else {
+%   $verify_fuzzy_query_exists->();
+% }
+
+<tr style="background-color: #f9f3d4; padding: 0.3em;"><td colspan="2"><h4 style="padding-top: 0em;"><% $fuzzy_message %> <% (!$show_all_view ? 'You may either:' : '') %></h4></td></tr>
+<tr style="background-color: #f9f3d4;">
+% if (!$show_all_view) {
+<th>Create a new Physical Key</th>
+% }
+<th width="50%">
+% if ($show_all_view) {
+Select from all Key IDs:
+% } elsif (!length($copynum)) {
+Select a different key from Key IDs like <% $keyid |h %>:
+% } else {
+Select a different key from Key IDs like <% $keyid |h %> and having Copy #<% $copynum |h %>:
+% }
+</th></tr>
+<tr>
+% if (!$show_all_view) {
+<td valign="top"  style="border: 1px solid lightgrey;">
+%   $physkey_form->(1);
+% $m->comp('/mason/ajax/js.comp');
+<script type="text/javascript">
+/* <![CDATA[ */
+  $('new_holder').focus();
+/* ]]> */
+</script>
+</td>
+% }
+<td valign="top" style="border: 1px solid lightgrey;">
+
+% if (0 && !$show_all_view) {
+<li>Revise search:<br/>
+<form action="view_key.html" method="GET">
+KeyID: <input type="text" name="keyid"> Copy#: <input type="text" name="copynum">
+<input type="submit" value="Lookup">
+</form>
+</li>
+% }
+
+<table>
+<tr><th style="padding-right:1em;">Key ID</th><th>Copy Count</th></tr>
+% if ($fuzzy_query) {
+% while (my $result = $fuzzy_query->fetchrow_hashref()) {
+<tr><td><a href="view_key.html?keyid=<% $$result{'keyid'} |u %>&amp;copynum=<% $copynum %>"><% $$result{'keyid'} |h %></a></td><td align="right"><% $$result{'copies'} %></td></tr>
+% }
+% }
+</table>
+
+</td></tr>
+
+
+%######
+%###### End Show All/Fuzzy Match View
+%######
+
+% }
+
+</table>

@@ -1,0 +1,92 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: switch.comp
+        Date: 2008.04.02
+      Author: rubin
+     Changed: 2008.04.02 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$host_id
+</%ARGS>
+
+<%INIT>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+
+my $rows = physdb::query("SELECT net_host_info.*, net_hosts.computer_name
+                            FROM net_host_info
+                            JOIN net_hosts ON net_hosts.id=net_host_info.host_id
+                            WHERE host_id=? 
+                            ORDER BY `index`", $host_id);
+# used to also have "AND description LIKE '/export/%'"...
+
+</%INIT>
+
+<%perl>
+my $updated;
+if($rows) {
+    </%perl>
+    <table border=0 cellpadding=0 cellspacing=1 width="100%">
+    <%perl>
+    my $oddeven = 0;
+    while(my $row = $rows->fetchrow_hashref()) {
+        $updated = $row->{'updated'};
+        $oddeven = $oddeven ? 0 : 1;
+        my $mtpt = $m->comp("SELF:friendly_map", description=>$row->{'description'}, computer_name=>$row->{'computer_name'});
+        if($mtpt) {
+            </%perl>
+            <tr class="<% $oddeven ? "odd" : "even" %>">
+              <td> <% $mtpt |h%> </td>
+              <td> <% sprintf("%.1f", (0.0 + $row->{'value'})/1073741824.0) |h%>Gb</td>
+            </tr>
+            <%perl>
+        }
+    }
+    </%perl>
+    </table>
+    <%perl>
+}
+return $updated;
+</%perl>
+<%method friendly_map>
+<%args>
+$description
+$computer_name
+</%args>
+<%init>
+    my $mtpt = '';
+    if($description =~ /\/export\/data\/local(\d+)?/) {
+       my $data_count = $1;
+       if(!$data_count) {
+          $mtpt = "/data/". $computer_name;
+       } else {
+           $mtpt = "/data/". $computer_name . chr($data_count + 96);
+       }
+    }
+    elsif($description eq "/export/scratch") {
+        $mtpt = "/scratch/". $computer_name;
+    }
+    # Dump crap entries: 
+    elsif($description =~ /^\/proc\//) {
+        return undef;
+    }
+    elsif($description =~ /^\/sys/) {
+        return undef;
+    }
+    elsif($description eq "/var/lib/nfs/rpc_pipefs") {
+        return undef;
+    }
+    elsif($description =~ /^\/home\//) {
+        return undef;
+    }
+    else {
+       #$m->out("DEBUG: '$description'<BR>\n");
+       $mtpt = $description;
+    }
+    return $mtpt;
+</%init>
+</%method>

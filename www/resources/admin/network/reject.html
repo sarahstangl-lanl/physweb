@@ -1,0 +1,114 @@
+<%DOC>
+   Component: reject.html
+        Date: 2008.09.29
+      Author: nick
+     Changed: 2008.09.29 by nick, 2010.04.27 by JZ
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$submit=>'';
+$mac=>'';
+$ticketnum=>'';
+$note=>'';
+$message=>'';
+$delete=>'';
+$select=>'';
+$order=>'mac'
+</%ARGS>
+<%method title>Network Reject List</%method>
+<%INIT>
+$m->comp('/mason/auth/auth_block.comp');
+if(!$m->comp('/mason/auth/auth_check_sysadm.comp')) {
+  return "<H3>You are not permitted to use this page</H3>";
+}
+
+#do some cleaning of the mac address
+#should be exactly twelve alphanumeric charecters
+$mac =~ s/[^0-9A-Fa-f]//g;
+$mac = lc($mac);
+
+if($submit) {
+  if(!$mac) { $message = "Please enter a MAC address"; }
+  elsif(length($mac) != 12) { $message = "Please enter a valid MAC address"; }
+  elsif(!$ticketnum) { $message = "Please enter a ticket reference number"; }
+  elsif(!$note) { $note = "Your computer has been blocked from the network. Please contact net\@physics.umn.edu and reference ticket $ticketnum"; }
+  if(!$message) {
+    if($submit eq 'Submit') {
+      my $sth = $dbh->prepare("INSERT INTO net_rejectlist (mac,ticketnum,note) VALUES (?,?,?)");
+      if(!$sth->execute($mac,$ticketnum,$note)) { $message = $sth->errstr; }
+      else {
+        $m->comp('/mason/db/auditlog/addevent.comp', type=>'add_reject', text=>"$mac added to reject list");
+        $message = "Entry added successfully"; $mac=''; $ticketnum=''; $note='';
+      }
+    } elsif($submit eq 'Update') {
+      my $sth = $dbh->prepare("UPDATE net_rejectlist SET mac=?,ticketnum=?,note=? WHERE mac=?");
+      if(!$sth->execute($mac,$ticketnum,$note,$mac)) { $message = $sth->errstr; }
+      else {
+        $m->comp('/mason/db/auditlog/addevent.comp', type=>'update_reject', text=>"reject list for $mac updated");
+        $message = "Entry updated successfully"; $mac=''; $ticketnum=''; $note='';
+      }
+    } else { $message = "Invalid submit action"; }
+  }
+} elsif ($mac) {
+  if($delete) {
+    my $sth = $dbh->prepare("SELECT mac FROM net_rejectlist WHERE mac=?");
+    $sth->execute($mac);
+    ($mac) = $sth->fetchrow_array;
+    $sth = $dbh->prepare("DELETE FROM net_rejectlist WHERE mac=? LIMIT 1");
+    if(!$sth->execute($mac)) { $message = $sth->errstr; }
+    if($sth->rows) {
+      $m->comp('/mason/db/auditlog/addevent.comp', type=>'del_reject', text=>"$mac deleted from reject list");
+      $message = "Entry successfully deleted"; $mac='';
+    }
+    else { $message = "Invalid MAC address"; $mac=''; }
+  } elsif($select) {
+    my $sth = $dbh->prepare("SELECT mac,ticketnum,note FROM net_rejectlist WHERE mac=?");
+    if(!$sth->execute($mac)) { $message = $sth->errstr; }
+    if($sth->rows) { ($mac,$ticketnum,$note) = $sth->fetchrow_array; }
+    else { $message = "Invalid MAC address"; $mac=''; }
+  }
+}
+</%INIT>
+<p>
+% if($message) {
+<div style="color:red;"><% $message | h %></div><p>
+% }
+<div style="font:14pt arial;"><% $select ? "Edit existing " : "Add new " %>entry</div>
+<p>
+<form action="reject.html">
+<table>
+<tr><td style="width:100px;text-align:right;padding-right:5px;">MAC address</td><td><input style="width:195px" type="text" name="mac" value="<% $mac |h %>"></td></tr>
+<tr><td style="width:100px;text-align:right;padding-right:5px;">RT ticket</td><td><input style="width:195px" type="text" name="ticketnum" value="<% $ticketnum |h %>"></td></tr>
+<tr><td style="width:100px;text-align:right;padding-right:5px;">Message to User</td><td><textarea cols="75" rows="5" name="note"><% $note |h %></textarea></td></tr>
+<tr><td></td><td><input type="submit" name="submit" value="<% $select ? "Update" : "Submit" %>"></td></tr>
+</table>
+</form>
+
+<p>
+<div style="font:14pt arial;">Current Entries</div>
+<p>	
+<%perl>
+my $oddeven = 'odd';
+my $sql = "SELECT * FROM net_rejectlist";
+my $sth = $dbh->prepare($sql);
+$sth->execute or die DBI::errstr;
+print "<table cellspacing='0'><tr><th class='rejectth'></th><th class='rejectth'></th><th class='rejectth' width='150'>MAC address</th><th class='rejectth'>Date</th><th class='rejectth' width='80'>Ticket</th><th class='rejectth' width='500'>Message</th></tr>\n";
+while (my $row = $sth->fetchrow_hashref) {
+  print "<tr class='$oddeven' valign=\"top\"><td><a href=\"reject.html?select=true&mac=".$$row{'mac'}."\"><img src='/images/b_edit.png'></a></td><td><a onclick='return confirm_delete(\"".$$row{'mac'}."\");' href=\"reject.html?mac=".$$row{'mac'}."&delete=1\"><img src='/images/b_drop.png'></a></td><td>".$$row{'mac'}."</td><td>".$$row{'modified'}."</td><td><a target='_blank' href='https://support.physics.umn.edu/rt3/Ticket/Display.html?id=".$$row{'ticketnum'}."'>".$$row{'ticketnum'}."</td><td>".$$row{'note'}."</td></tr>\n";
+  $oddeven = $oddeven eq 'odd' ? 'even' : 'odd';
+}
+print "</table>";
+</%perl>
+<%method meta>
+<style type="text/css">
+IMG { border:0 }
+.rejectth { padding: 1px 3px 4px 5px; text-align:left; background-color:#C0C0C0; }
+</style>
+<script type="text/javascript">
+function confirm_delete(mac) {
+  return confirm("Are you sure you want to delete " + mac + "?");
+}
+</script>
+</%method>

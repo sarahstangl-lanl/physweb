@@ -1,0 +1,19 @@
+<%args>
+$printer=>0
+</%args>
+
+<font class="toolbar">
+<a href="/info/">Information</a> - <a href="/news/">News</a> - <a href="/grad/">Grad</a> - <a href="/undergrad/">Undergrad</a> - <a href="/research/">Research</a> - <a href="/resources/">Resources</a> - <a href="/outreach/">Outreach</a>
+% if ($printer) {
+- <i><a href="javascript:print()">Print this page</a></i>
+% }
+</font>
+
+<%filter>
+#(my $uri = $r->uri) =~ s/index\.html$//;
+# just match on the pathname (not filename) part of uri...
+(my $uri = $r->uri) =~ s/\/[a-zA-Z_0-9]*\.html$/\//;
+my ($null,$section,$junk) = split /\//, $uri, 3;
+s{<a href="/$section/">([^<]*)</a>} {<b>$1</b>};
+s/ - /&nbsp;-&nbsp;/g;
+</%filter>

@@ -1,0 +1,22 @@
+<%DOC>
+   Component: to_json.comp
+        Date: 2008.10.01
+      Author: clayton
+     Changed: 2008.10.01 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+  use JSON;
+
+  my $in = shift;
+  return "/*-secure-\n" . to_json($in) . "\n*/";
+</%INIT>	
+
+<%filter>
+s/.//gos
+</%filter>	

@@ -1,0 +1,92 @@
+
+<%DOC>
+   Component: sendrecletter.html
+        Date: 2005.10.03
+      Author: allan
+     Changed: 2011.10.13 by kdesai
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$email=>undef
+$name=>undef
+$appname=>undef
+$appemail=>undef
+$pin=>undef
+$waiver=>undef
+</%ARGS>
+
+<%INIT>
+# stop this page from oopsing when it's crawled
+if (!defined($email)) {
+    print '<div style="color:red">';
+    print "ERROR: no value sent for required parameter 'email'<br />";
+    print "</div>\n";
+    return;
+}
+
+    my $waivertxt = 'This applicant has waived the right to examine this letter of recommendation.';
+    if ($waiver eq 'no') { $waivertxt =~ s/has/has not/;}
+
+my $message = <<ENDMSG;
+Dear $name
+
+$appname ($appemail) has given us your name as a reference for application to the Physics Graduate Program at the University of Minnesota.
+
+Please upload your finished letter of recommendation (in MS-Word, PDF, or plain text format) to this web page:
+
+http://www.physics.umn.edu/grad/physics/application/recletter.html
+
+Log in using your email address $email as the username. Your password is the four-digit code $pin.
+
+Although electronic submission via the web is preferred, you may also send your letter as an email attachment to grad\@physics.umn.edu, or paper letters may be sent to us at:
+
+Director of Graduate Studies in Physics
+School of Physics and Astronomy
+University of Minnesota
+116 Church Street SE
+Minneapolis MN 55455
+United States
+
+Suggested Guidelines for Letters
+
+  1. Please indicate how well and how long you have known the applicant and in what capacity.
+  2. Please provide your opinion regarding the applicant's strengths and weaknesses in research. If possible, provide specific experiences that have led to your conclusions.
+  3. Any information about the applicant's abilities to explain thoughts and ideas to others in a clear manner and to write understandable papers in English or any other language would be useful as well.
+  4. We are very interested in your opinion of the applicant's potential for effective teaching. Please describe any relevant teaching and mentoring experiences of the applicant that you may have observed.
+  5. We would like to know if the applicant is independent, easy to work with and considerate of others.
+  6. Please assess the applicant's motivation to succeed in a career as a physicist.
+  7. If possible, please compare the candidate with students that you have known who were successful in graduate programs in physics.
+  8. To the best of your knowledge, where does the applicant rank among the graduating students in your department (i.e., he or she is in the top 25%, etc.)?
+  9. If applicable, would you admit this student to your research group?
+ 10. Finally, please state whether admission to the University of Minnesota is strongly recommended, recommended, recommended with reservations, or not recommended.
+
+Note that the most useful information for our decision comes from items 7, 8 and 10 above.  The rest of letter should support your conclusions in these items but provide evidence.
+
+Sending the letter from your Email account responding to this request will replace your signature certifying that the letter is written by you.
+
+
+Under the Family Rights and Privacy Act of 1974, students enrolled at the University of Minnesota have access to their admission records, including letters of recommendation. However, students may waive their right to see letters of recommendation, whereupon such letters will be held in confidence. If the applicant has not signed a waiver, it is
+assumed that this letter is submitted with the recommender's
+understanding that the applicant, once registered at the University of Minnesota, may request to see the letter. The alternative selected will not affect consideration of the application for admission.
+
+$waivertxt
+
+Thank you,
+
+Director of Graduate Studies in Physics
+School of Physics and Astronomy, University of Minnesota
+
+ENDMSG
+
+    $Text::Wrap::columns = 72;
+    $message = wrap('', '', $message);
+    my $result = $m->comp('/mason/send_mail.comp', to=>$email, subject=>"Letter of Recommendation Requested for $appname", from=>'grad@physics.umn.edu', text=>$message);
+    $m->comp('logevent.mhtml',text=>"sending recletter req for $appemail to ".$email);
+    $m->comp('logevent.mhtml',text=>$result);
+    $result = wrap('', '', $result);
+    $result =~ s|\n|<br/>|g;
+</%INIT>		
+
+Sent email request to <% $email |h %>...<p><% $result |h %>

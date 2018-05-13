@@ -1,0 +1,135 @@
+<%args>
+$prefix
+$dates
+$ajax => undef
+</%args>
+<%init>
+use tablesearch;
+use JSON;
+use ShopDb::Form::ChargeLineBulkUpdate;
+
+unless (grep { $prefix eq $_ } (qw/fl_ fm_ ul_ um_/)) {
+    die "Invalid prefix $prefix";
+}
+
+my $type = $prefix =~ /l/ ? 'labor' : 'material';
+
+my $finalized = $prefix =~ /f/ ? 1 : 0;
+
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+my $auth_args = $session{'shopdb-auth'};
+
+my $columns = $m->comp('/mason/db/shopdb/charge_line_columns.comp');
+
+my $finalized_prefix = ($finalized ? '' : 'un');
+
+$m->comp('/mason/ajax/js.comp');
+
+my $search_args = { };
+unless ($dates->{url_args}->{date_filter} && $dates->{url_args}->{date_filter} eq 'Clear filter') {
+    $search_args->{charge_date} = { '>=' => $dates->{start_date}->ymd, '<=' => $dates->{end_date}->ymd };
+}
+
+my $charge_lines_rs = $schema->resultset(ucfirst($type) . 'Lines')->active->with_ts_fields->with_billing_fields->search({
+    bill_date => undef,
+    finalized => ($finalized ? 1 : 0),
+    %$search_args,
+});
+
+my $common_field_params = $m->comp('/mason/db/shopdb/billing_ts_params.comp');
+
+my %ll_args = (
+    field_params        => {
+        %$common_field_params,
+    },
+    row_tagger          => sub {
+        my ($row) = @_;
+        return 'data-line_id="' . $row->{'labor_line_id'} . '" data-type="Labor"'; },
+);
+
+my %ml_args = (
+    field_params        => {
+        %$common_field_params,
+    },
+    row_tagger          => sub {
+        my ($row) = @_;
+        return 'data-line_id="' . $row->{'material_line_id'} . '" data-type="Material"'; },
+);
+
+my $ts = new Tablesearch(
+    resultset           => $charge_lines_rs,
+    columns             => $columns->{$type},
+    extra_url_args      => [ grep { $_ !~ /^$prefix/ } keys %{ $dates->{url_args} } ],
+    header_format       => 'ucfirst_all',
+    hide_search         => 1,
+    html_table_id       => "table_${finalized_prefix}finalized_${type}_lines",
+    ($type eq 'labor') ?
+        %ll_args :
+        %ml_args,
+    prefix              => $prefix,
+    ajax_url            => 'billing.html',
+    ajax_parameters     => { ajax => 1, prefix => $prefix },
+    ajax_pre_callback   => 'preSection' . $prefix . 'Submit();',
+    ajax_post_callback  => 'loadSection' . $prefix . 'RowEditor();',
+    default_sort_field  => "charge_date",
+    debug               => 0,
+);
+
+</%init>
+
+<h2><% $finalized ? '' : 'Unfinalized ' %><% ucfirst $type %> Lines <% $finalized ? 'ready for billing' : '' %></h2>
+<div>
+<%perl>
+$m->clear_buffer if ($ajax);
+$ts->display;
+$m->abort && return if ($ajax);
+my $bulk_update_form = ShopDb::Form::ChargeLineBulkUpdate->new(
+    auth_args => $auth_args,
+    prefix => "${finalized_prefix}finalized_${type}_lines_",
+    type => $type,
+    charge_lines_table_id => "table_${finalized_prefix}finalized_${type}_lines",
+    finalized => $finalized,
+    success_callback => 'refreshSection' . $prefix . 'Data()',
+);
+</%perl>
+</div>
+<table cellpadding="3" cellspacing="0" style="padding-top: 5px"><tr>
+    <td valign="middle"><a href="#" id="check_all_<% $finalized_prefix %>finalized_<% $type %>_lines">Check all</a></td>
+    <td>|</td>
+    <td valign="middle"><a href="#" id="clear_all_<% $finalized_prefix %>finalized_<% $type %>_lines">Clear all</a></td>
+    <td>|</td>
+    <td valign="middle">With selected:</td>
+    <td valign="middle"><% $bulk_update_form->render %></td>
+</tr></table>
+
+<& '/mason/ajax/jsload.comp', file=>'RowEditor.js' &>
+
+<script type="text/javascript">
+function preSection<% $prefix %>Submit() {
+    $('table_<% $finalized_prefix %>finalized_<% $type %>_lines').roweditor.cleanup();
+}
+
+function loadSection<% $prefix %>RowEditor() {
+    $('table_<% $finalized_prefix %>finalized_<% $type %>_lines').roweditor = new RowEditor(
+        'table_<% $finalized_prefix %>finalized_<% $type %>_lines',
+        'charge_line_ajax.html',
+        <% to_json($columns) %>,
+        {
+            checkAllID: 'check_all_<% $finalized_prefix %>finalized_<% $type %>_lines',
+            clearAllID: 'clear_all_<% $finalized_prefix %>finalized_<% $type %>_lines',
+            parameters: {
+            },
+            tdClassName: 'tableitem',
+            hiddenAttributes: $H({line_id: 'line_id'}),
+        }
+    );
+}
+
+loadSection<% $prefix %>RowEditor();
+
+function refreshSection<% $prefix %>Data() {
+    document.<% $type eq 'labor' ? 'fl_' : 'fm_' %>tsform.submit();
+    document.<% $type eq 'labor' ? 'ul_' : 'um_' %>tsform.submit();
+}
+</script>

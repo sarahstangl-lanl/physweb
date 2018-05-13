@@ -1,0 +1,7 @@
+<%args>
+$student
+</%args>
+<%init>
+return physdb::queryfirstrow("SELECT COUNT(*) AS total, SUM(taAccepted='unset') AS unreviewed, SUM(taAccepted='accepted') AS accepted, SUM(taAccepted='needswork') AS needswork, SUM(taAccepted='rejected') AS rejected FROM moonproject.observation WHERE student = ? AND term = ? AND year = ? AND current", $student, $session{'moonproject_term'}, $session{'moonproject_year'});
+</%init>
+

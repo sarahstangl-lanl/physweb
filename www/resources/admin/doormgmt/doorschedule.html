@@ -1,0 +1,111 @@
+<%DOC>
+       vim: set syntax=mason:
+      Date: 2010.07.16
+    Author: mackey
+
+</%DOC>
+
+<%ARGS>
+  $door_id  => 0
+  $error => 0
+  $errstring => ""
+</%ARGS>
+
+<%method title>Edit Door Schedule</%method>
+
+<%INIT>
+use physdb;
+use strict;
+</%INIT>
+
+<%perl>
+    my $ref = physdb::queryfirstrow('SELECT name, unlocktime, locktime, lockdays FROM doorlocks WHERE door_id=?', $door_id);
+
+#    print "Door: $ref->{'name'}<br />";
+
+    if ($ref->{'locktime'} =~ m/(\d{1,2}:\d{1,2}):\d{1,2}/) {
+        $ref->{'locktime'} = $1;
+    }
+
+    if ($ref->{'unlocktime'} =~ m/(\d{1,2}:\d{1,2}):\d{1,2}/) {
+        $ref->{'unlocktime'} = $1;
+    }
+
+    my $daystring = $ref->{'lockdays'};
+
+    my $MString = "";
+    my $TuString = "";
+    my $WString = "";
+    my $ThString = "";
+    my $FString = "";
+    my $SaString = "";
+    my $SuString = "";
+
+    # Monday check box
+    my $MBox .= '<input type="checkbox" name="Monday" value="M"';
+    $MBox .= 'checked ' if ($daystring =~ m/M/);
+    $MBox .= '/>';
+    # Tuesday check box
+    my $TuBox .= '<input type="checkbox" name="Tuesday" value="Tu"';
+    $TuBox .= 'checked ' if ($daystring =~ m/Tu/);
+    $TuBox .= '/>';
+    # Wednesday check box
+    my $WBox .= '<input type="checkbox" name="Wednesday" value="W"';
+    $WBox .= 'checked ' if ($daystring =~ m/W/);
+    $WBox .= '/>';
+    # Thursday check box
+    my $ThBox .= '<input type="checkbox" name="Thursday" value="Th"';
+    $ThBox .= 'checked ' if ($daystring =~ m/Th/);
+    $ThBox .= '/>';
+    # Friday check box
+    my $FBox .= '<input type="checkbox" name="Friday" value="F"';
+    $FBox .= 'checked ' if ($daystring =~ m/F/);
+    $FBox .= '/>';
+    # Saturday check box
+    my $SaBox .= '<input type="checkbox" name="Saturday" value="Sa"';
+    $SaBox .= 'checked ' if ($daystring =~ m/Sa/);
+    $SaBox .= '/>';
+    # Sunday check box
+    my $SuBox .= '<input type="checkbox" name="Sunday" value="Su"';
+    $SuBox .= 'checked ' if ($daystring =~ m/Su/);
+    $SuBox .= '/>';
+
+    if ($error) {
+        print "<span style=\"color: red\">Error<br />$errstring</span>";
+    }
+    
+</%perl>
+<form name="input" method="post" action="schedhandler.html" >
+
+<br />
+<table width="400px">
+<tr>
+<td><b>Door:  </b></td>
+<td><% $ref->{'name'} %>
+</tr>
+<tr>
+<td><b>Unlock Time: </b></td>
+<td><input type="text" name="unlocktext" size=10 value="<% $ref->{'unlocktime'} %>"</td>
+</tr>
+<tr>
+<td><b>Lock Time: </b></td>
+<td><input type="text" name="locktext" size=10 value="<% $ref->{'locktime'} %>"</td>
+</tr>
+<tr>
+<td><b>Days: </b></td>
+<td>
+<% $MBox %> Monday <br />
+<% $TuBox %> Tuesday <br />
+<% $WBox %> Wednesday <br />
+<% $ThBox %> Thursday <br />
+<% $FBox %> Friday <br />
+<% $SaBox %> Saturday <br />
+<% $SuBox %> Sunday <br />
+</td>
+</tr>
+</table>
+
+<input type="submit" name="update" value="Update" /><br />
+<input type="submit" name="clear" value="Remove Schedule" />
+<input type="hidden" name="door_id" value=<% $door_id %> />
+</form>

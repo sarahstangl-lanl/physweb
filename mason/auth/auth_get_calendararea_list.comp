@@ -1,0 +1,33 @@
+<%doc>
+   Component: auth_get_calendararea_list.comp
+      Author: clayton
+ Description: returns an array of calendars (hash of areaid, tag, and name) a user has access to
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+  my ($sql, $sth);
+  my $uid = $m->comp('/mason/auth/current_uid.comp');
+  $sql = 'SELECT areaid, tag, name FROM calendar_areas
+          JOIN groupmembers ON (groupmembers.groupname=calender_areas.auth_group)
+          JOIN groups ON (groups.name=groupmemebers.groupname)
+          WHERE groups.uid=?';
+  $sth = $dbh->prepare($sql);
+  $sth->execute($uid) or die("SQL error: $sql");
+  
+  my (@calendars, $row_ref);
+  while($row_ref = $sth->fetchrow_arrayref) {
+     my ($areaid, $tag, $name) = @$row_ref;
+     my %g;
+     $g{'areaid'} = $areaid;
+     $g{'tag'} = $tag;
+     $g{'name'} = $name;
+     push @calendars, \%g;
+  }
+</%init>
+
+<%perl>
+  return @calendars;
+</%perl>

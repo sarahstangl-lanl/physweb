@@ -1,0 +1,50 @@
+<%doc>
+   Front page
+   vim: set syntax=mason:
+</%doc>
+<%method title>Home Page</%method>
+
+%# Null out the page title and breadcrumb trail for front page
+<%method pageheading>
+<!-- opening graphic -->
+<& /mason/db/stories/feature.comp, type=>'spotlight', style_prefix=>'fp', readmore_path=>'/research/spotlight/'&>
+
+
+<!-- coulmn bit -->
+
+<div id="boxes">
+<table style="width: 98%">
+<tr>
+    <td style="width: 350px;" ></td>
+    <td></td>
+</tr>
+<tr>
+    <td valign="top" style="padding-right: 1em;">
+        <div class="news">
+            <h2 class="fpcolumn">News</h2>
+            <& /mason/db/stories/frontpageitem.comp, limit=>5, type=>'news', rssurl=>'/rss/news/', moreurl=>'/about/news/', thumbs=>1, facebookpage=>'https://www.facebook.com/pages/School-of-Physics-and-Astronomy-University-of-Minnesota/148475251876409', twitterpage=>"https://twitter.com/UMN_SPA" &>
+        </div>
+    </td>
+    <td valign="top">
+        <div class="calbox" style="max-width: 400px;">
+            <h2 class="fpcolumn">Calendar</h2>
+            <& /mason/db/frontpagecal.comp, limit=>10, details=>1 &>
+        </div>
+        <div class="outreach" style="padding-top: 1em; ">
+            <a href="http://www.physics.umn.edu/outreach/pforce/" style="text-decoration: none; color: white; display:block;">
+            <div style="background: url(/images/physics_force_front1.jpg); background-repeat: no-repeat; background-color: black; color: white; height: 300px; max-width: 400px;">
+                <div style="padding: 1em; padding-top: 75px;">
+                    <span style="background: black;">The Physics Force is a troupe of physics teachers who perform large scale entertaining physics demonstrations. </span>
+                </div>
+            </div>
+            </a>
+        </div>
+    </td>
+</tr>
+</table>
+</div>
+<!-- end of column bit -->
+</%method>
+% if($dbh) { # dont tell nagios the website is up if the database is down
+<!--nagios check - website is up: 38238643128632-->
+% }

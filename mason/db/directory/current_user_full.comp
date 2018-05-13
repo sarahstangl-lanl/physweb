@@ -1,0 +1,52 @@
+<%doc>
+   Component: current_user.comp
+        Date: 9/6/2002
+      Author: allan
+ Description: returns full name of currently logged-in user (or x500 id)
+</%doc>
+<%args>
+$x500=>$session{'x500'}
+$physid=>$session{'physid'}
+</%args>
+<%init>
+my $result;
+my $name;
+my $type;
+if ($session{'shibauth'}) {
+  $name = 'info_x500_'.$x500;
+  $type = '(X.500)';
+  $result = $m->cache->get($name);
+} elsif ($session{'physauth'}) {
+  $name = 'info_physid_'.$x500;
+  $type = '(Physics)';
+  $result = $m->cache->get($name);
+}
+
+if (!defined($result) && defined($dbh)) {
+    my $sql;
+    my $sth;
+    if ($x500) {
+        $sql = "SELECT directory.* FROM directory WHERE x500 = ? LIMIT 1";
+        $sth = $dbh->prepare($sql);
+        $sth->execute($x500);
+    }
+    elsif ($physid) {
+        $sql = "SELECT directory.* FROM directory WHERE physid = ? LIMIT 1";
+        $sth = $dbh->prepare($sql);
+        $sth->execute($physid);
+    } 
+    else {
+        $result = undef;
+    }
+    my $row_ref = $sth->fetchrow_hashref;
+    if (defined($row_ref)) {
+        $result = $row_ref;
+    } else {
+        $result = undef;
+    }
+    $m->cache->set($name, $result,'5 min');
+}
+</%init>
+<%perl>
+return $result;
+</%perl>

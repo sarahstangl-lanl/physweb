@@ -1,0 +1,261 @@
+
+<%DOC>
+   Component: edit_classlist_form.html
+        Date: 2003.07.15
+      Author: allan
+     Changed: 2003.07.15 by allan
+
+Description ...
+</%DOC>
+
+<%ARGS>
+$classid=>'new'
+</%ARGS>
+
+<%INIT>
+return if $m->comp('/mason/db/dbcheck.comp');
+
+$m->comp('/mason/auth/auth_block_editclass.comp',classid=>$classid);
+my $auth = $m->comp('/mason/auth/auth_check_classes.comp');
+
+$m->comp('/mason/ajax/js.comp');
+
+my ($year, $quarter, $name, $section, $title, $maintainer, $location, $time, $url, $summary, $flags, $dw_pull, $spreadsheeturl, $hidden, $officehours);
+my (@instructors);
+my ($taedit, $ask, $askinstmail, $asktamail, $feedback, $fbmail, $tadisc, $tainstmail, $tatamail, $wiki, $gradestats, $googledocs, $clickers );
+#
+my ($row_ref, $first_name, $last_name, $usermenu);
+my $classnames = $m->comp('/mason/db/classes/classmenu.comp', type=>'name');
+my $titles = $m->comp('/mason/db/classes/classmenu.comp', type=>'title');
+if ($classid ne "new") {
+
+  # Now fetch the entry
+  my $sql = "SELECT year, quarter, name, section, title, maintainer, location, time, url, summary, flags, dw_pull, spreadsheeturl, hidden, officehours FROM classlist WHERE classid = ? LIMIT 1";
+  my $sth = $dbh->prepare($sql);
+  $sth->execute($classid);
+
+  my $row_ref = $sth->fetchrow_arrayref;
+  ($year, $quarter, $name, $section, $title, $maintainer, $location, $time, $url, $summary, $flags, $dw_pull, $spreadsheeturl, $hidden, $officehours) = @$row_ref;
+  if ($year < 1999) {$year="0000";}
+
+  @instructors = physdb::queryall("SELECT * FROM members WHERE type = 'instructor' AND memberof = ? ORDER BY dw_type ASC", $classid);
+} else {
+  $year = This_Year;
+  $quarter=$m->comp('/mason/this_quarter.comp');
+}
+
+ $taedit = ($flags =~ /\btaedit\b/);
+ $feedback = ($flags =~ /\bfeedback\b/);
+ $fbmail = ($flags =~ /\bfbmail\b/);
+ $ask    = ($flags =~ /\bask\b/);
+ $askinstmail    = ($flags =~ /\baskinstmail\b/);
+ $asktamail    = ($flags =~ /\basktamail\b/);
+ $tadisc = ($flags =~ /\btadisc\b/);
+ $tainstmail = ($flags =~ /\btainstmail\b/);
+ $tatamail = ($flags =~ /\btatamail\b/);
+ $wiki   = ($flags =~ /\bwiki\b/);
+ $gradestats   = ($flags =~ /\bgradestats\b/);
+ $googledocs = ($flags =~ /\bgoogledocs\b/);
+ $clickers = ($flags =~ /\bclickers\b/);
+
+my $archived = $m->comp('/mason/db/classes/check_classarchive.comp', year=>$year, quarter=>$quarter);
+</%INIT>
+
+<%method title>Edit Class List</%method>
+
+% if ($classid ne 'new') {
+    <form method="POST" action="/classes/edit_classlist.html">
+    <input type="hidden" name="classid" value="<% $classid %>">
+    <input type="hidden" name="switch_dw_pull" value="<% (!$dw_pull) |h %>">
+    <div style="background-color: #ffffee; padding-left: 0.5em; margin: 0 1em 0 0; border: 1px solid red;">
+% if ($archived) {
+    <h3>This class is archived.</h3>
+    <p>Archived classes are not automatically updated.
+% }
+% elsif ($dw_pull) {
+    <h3>This class is updated automatically.</h3>
+    <p>This class is automatically updated from Peoplesoft's Class Management. Updates occur each morning, and are delayed two days from when updates occur in PeopleSoft. These updates do not affect posted content on the class page. You may still edit the class description and change additional options below.<br>
+%   if ($auth) {
+        <p><input type="submit" value="Switch to Manual Updates">
+%   }
+% }
+% else {
+    <h3>This class is updated manually.</h3>
+    <p>This class is not automatically updated from the University's Course Guide.
+%   if ($auth) {
+        <p><input type="submit" value="Switch to Automatic Updates">
+%   }
+% }
+    </div>
+    </form>
+    <br>
+% }
+
+<form method="POST" name="edit" action="/classes/edit_classlist.html">
+<input type=hidden name="classid" value="<% $classid %>">
+<input type="hidden" name="dw_pull" value="<% $dw_pull |h %>">
+
+<table border=0 style="width:100%;">
+<tr valign="top"><th colspan=2 bgcolor="#bbbbbb" align="left">Class Data</th>
+<tr valign="top"><td nowrap>Class Designator:</td>
+<td width="100%">
+% if ($dw_pull) {
+    <% $name |h %>.<% $section |h %>
+% }
+% else {
+%     $m->comp( '/mason/form_selector.comp', name=>'name', selected=>$name,optionlist=>$classnames,sep=>'_');
+      Section:&nbsp;<input type=text name="section" value="<% $section %>" size=6>
+% }
+</td></tr>
+
+<tr valign="top"><td>Year:</td><td>
+% if ($dw_pull) {
+    <% ucfirst($quarter) |h %> <% $year |h %>
+% }
+% else {
+%   $m->comp( '/mason/form_selector.comp', name=>'year', selected=>$year,optionlist=>join(',', (2000..(This_Year() + 4))));
+% }
+
+% if (!$dw_pull) {
+Quarter:&nbsp;
+%   $m->comp( '/mason/form_selector.comp', name=>'quarter', selected=>$quarter,optionlist=>'spring,summer,fall,winter');
+% }
+</td></tr>
+
+<tr valign="top"><td>Title:</td><td>
+% if ($dw_pull) {
+    <% $title |h %>
+% }
+% else {
+%     $m->comp( '/mason/form_selector.comp', name=>'title', selected=>$title, optionlist=>$titles,sep=>'_');
+% }
+</td></tr>
+
+<tr valign="top"><td>Instructor:</td><td>
+% foreach my $instructor (@instructors) {
+%   my $pf_instructor = $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid => $instructor->{uid});
+%
+<% $pf_instructor |h %>
+%   if (defined $instructor->{dw_print} && $instructor->{dw_print} eq 'N') {
+    <b>(hidden in Peoplesoft)</b>
+%   }
+    <br/>
+% }
+% if (!$dw_pull) {
+    <a href="/classes/assoc_edit.html?type=instructor&id=<% $classid |u %>" onclick="day = new Date(); id = day.getTime(); window.open('/classes/assoc_edit.html?type=instructor&id=<% $classid |u %>&skel=1', 'EditTAList' + id,'scrollbars=yes,location=0,width=500,height=450,left=100,top=100'); return false;" target="_blank">Open in New Window</a>
+% }
+</td></tr>
+
+<tr valign="top"><td>Room:</td><td>
+% if ($dw_pull) {
+    <% $location |h %>
+% }
+% else {
+    <input type=text name="location" value="<% $location %>" size=15> eg, "Phys 150"
+% }
+</td></tr>
+
+<tr valign="top"><td>Time:</td><td>
+% if ($dw_pull) {
+    <% $time |h %>
+% }
+% else {
+    <input type=text name="time" value="<% $time %>" size=15> eg, "1015 MTWF"
+% }
+</td></tr>
+<tr valign="top"><td>Office Hours:<br /><a href="http://zzz.physics.umn.edu/admin/private/web/wikiformat" target="_new">(wiki syntax)</a></td><td>
+<textarea name="officehours" style="width: 90%; height: 5em;"><% $officehours |h %></textarea>
+</td></tr>
+</table>
+
+<%perl>
+#Lets explain what these things are, right here in the page!
+my %help = ( 
+        enabletaedit     => "Grants TAs full edit access to this class page, similar to instructors. TAs for Linked sections such as labs and discussions are NOT included. See the \"TA List\" page to review TAs.",
+        enableask        => "Adds a new tab which allows students to post questions for instructors and (all child section) TAs to answer. Other students can also see the questions and answers",
+        enableaskinstmail=> "Sends an email to instructors when new questions are posted",
+        enableasktamail  => "Sends an email to TAs when new questions are posted",
+        enablefeedback   => "Adds a new tab where students can post feedback for the instructor anonymously. You cannot respond, and noone but the instructor can see items posted here",
+        enablefbmail     => "Sends an email to instructors when new feedback is posted",
+        enabletadisc     => "Adds a new tab where TAs (including lab and discussion section TAs) can discuss with each other. Students cannot see content here.",
+        enabletainstmail => "Sends an email to instructors when new TA discussions are posted",
+        enabletatamail   => "Sends an email to TAs when new TA discussions are posted",
+        enablewiki       => "Causes a link to be generated pointing to a special area in the department intranet, where students and instructors in this class can all read and modify content. You do need to follow the link and create the wiki page, before it exists.",
+        enablegradestats => "Adds an extra summary block on the 'My Scores' page, showing class median etc",
+        enableclickers   => "Allows students to enter their Clicker IDs on their \"My Scores\" page",
+#        enablegoogledocs => "Check this to run a nightly job which creates and update a Google docs spreadsheet containing your classlist. You can then reference this from other google docs, enabling automatically up to date gradebooks. The instructor will receive an email from google granting access to the document.", # For why google docs support is disabled, see rt#35441
+);
+</%perl>
+<table border=0>
+<tr valign="top"><th colspan=3 bgcolor="#BBBBBB" align="left">Class Page Options</th><td>
+
+% my $oddeven = 0;
+% my $color1 = "#ffffff";
+% my $color2 = "#f5f5f5";
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap><label for="enabletaedit">Allow TAs to Edit Classpage</label></td><td><input type="checkbox" name="enabletaedit" id="enabletaedit" value="enabletaedit" <% ($taedit ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enabletaedit}|h%></td>
+</tr>
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap><label for="enableask">Enable "Ask a Question"</label></td><td><input type="checkbox" name="enableask" id="enableask" value="enableask" <% ($ask ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enableask}|h%></td>
+</tr>
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap style="padding-left: 10px;"><label for="enableaskinstmailinstmail">Email new questions to instructors</label></td><td><input type="checkbox" name="enableaskinstmail" id="enableaskinstmail" value="enableaskinstmail" <% ($askinstmail ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enableaskinstmail}|h%></td>
+</tr>
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap style="padding-left: 10px;"><label for="enableasktamailtamail">Email new questions to TAs</label></td><td><input type="checkbox" name="enableasktamail" id="enableasktamail" value="enableasktamail" <% ($asktamail ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enableasktamail}|h%></td>
+</tr>
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap><label for="enablefeedback">Enable "Anonymous Feedback"</label></td><td><input type="checkbox" name="enablefeedback" id="enablefeedback" value="enablefeedback" <% ($feedback ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enablefeedback}|h%></td>
+</tr>
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap style="padding-left: 10px;"><label for="enablefbmail">Email feedback to instructors</label></td><td><input type="checkbox" name="enablefbmail" id="enablefbmail" value="enablefbmail" <% ($fbmail ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enablefbmail}|h%></td>
+</tr>
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap><label for="enabletadisc">Enable "TA Discussion"</label></td><td><input type="checkbox" name="enabletadisc" id="enabletadisc" value="enabletadisc" <% ($tadisc ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enabletadisc}|h%></td>
+</tr>
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap style="padding-left: 10px;"><label for="enabletainstmail">Email discussions to instructors</label></td><td><input type="checkbox" name="enabletainstmail" id="enabletainstmail" value="enabletainstmail" <% ($tainstmail ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enabletainstmail}|h%></td>
+</tr>
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap style="padding-left: 10px;"><label for="enabletatamail">Email discussions to TAs</label></td><td><input type="checkbox" name="enabletatamail" id="enabletatamail" value="enabletatamail" <% ($tatamail ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enabletatamail}|h%></td>
+</tr>
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap><label for="enablewiki">Enable Wiki Page:</label></td><td><input type="checkbox" name="enablewiki" id="enablewiki" value="enablewiki" <% ($wiki ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enablewiki}|h%></td>
+</tr>
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap><label for="enablegradestats">Display Grade Statistics:</label></td><td><input type="checkbox" name="enablegradestats" id="enablegradestats" value="enablegradestats" <% ($gradestats ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enablegradestats}|h%></td>
+</tr>
+<tr valign="top" style="background: <%$oddeven++%2?$color1:$color2%>">
+    <td nowrap><label for="enableclickers">Enable Clicker ID Entry:</label></td><td><input type="checkbox" name="enableclickers" id="enableclickers" value="enableclickers" <% ($clickers ? 'CHECKED': '') %>></td>
+    <td width="90%"><% $help{enableclickers}|h%></td>
+</tr>
+
+<%perl>
+#  onclick="window.open('assoc_edit.html?type=TA&id=<% $classid |u %>&skel=1', 'Edit TA List'); return false;"
+</%perl>
+</table>
+<table border=0 width="100%">
+<tr valign="top"><th colspan=3 bgcolor="#bbbbbb" align="left">Course Description</th><td>
+<tr valign="top"><td colspan=3><small>This should be a brief summary of the class (any default text is taken from the Class Templates).</small>
+<p>
+    <textarea name="summary" cols=80 rows=6><% $summary %></textarea>
+</td></tr>
+
+</table>
+<p>
+<input type="submit" value="Save Class">
+<input type="reset" value="Cancel Changes">
+</form>
+
+

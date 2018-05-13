@@ -1,0 +1,67 @@
+<%doc>
+
+This lil page prints either an error message, or the name of the ghost session the host fetching the page should use to image itself.
+
+Syntax:
+GHOST-IMAGE-TYPE:<type>
+GHOST-IMAGE-ERROR:<error message>
+
+to be parsed by the script on the GhostPE image
+</%doc>
+<%flags>
+inherit => undef
+</%flags>
+
+
+<%init>
+use Data::Dumper;
+use physdb;
+
+my $address = $r->connection->get_remote_host();
+
+if(!$address)  {
+  print "GHOST-IMAGE-ERROR:Unable to get your IP\n";
+  return;
+}
+
+my $host = physdb::queryfirstrow("
+                SELECT net_hosts.computer_name, net_hosts.cluster, net_hosts.os, net_hosts.type, net_interfaces.vlan, net_dns.hostname, INET_NTOA(net_dns.ip) as ip
+                  FROM net_dns
+                  JOIN net_interfaces
+                    ON net_interfaces.id = net_dns.interface_id
+                  JOIN net_hosts
+                    ON net_hosts.id = net_interfaces.host_id
+
+                 WHERE INET_NTOA(net_dns.ip) = ?
+            ", $address);
+
+</%init>
+
+<%perl>
+
+if(!$host) {
+    print "GHOST-IMAGE-ERROR:IP $address not found, check network database!\n";
+    return;
+}
+
+my $name = $host->{'computer_name'};
+
+if ($host->{'os'} eq 'windows') {
+    if ($name =~ /^spa-(ph|astlab)-/i ) {
+        print "\nGHOST-IMAGE-TYPE:PH\n";
+    }
+    elsif ($name =~ /^spa-mshp/i ) {
+        print "\nGHOST-IMAGE-TYPE:MSHP\n";
+    }
+    elsif ($name =~ /^spa-mxp/i ) {
+        print "\nGHOST-IMAGE-TYPE:MXP\n";
+    }
+   else {
+        print "\nGHOST-IMAGE-TYPE:NET\n";
+    }
+}
+else {
+    print "GHOST-IMAGE-ERROR:os in physnet database not set to 'windows', check network database!\n";
+}
+
+</%perl>

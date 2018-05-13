@@ -1,0 +1,64 @@
+
+<%DOC>
+   Component: index.html
+        Date: 2005.08.10
+      Author: allan
+     Changed: 2005.08.10 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$applicant => 0 #Used to view page as applicant
+$notloggedin => 0
+</%ARGS>
+
+<%INIT>
+my $uri=$r->uri;
+my $auth = ($m->comp('/mason/auth/auth_check_gradapp.comp') && !$applicant);
+my $app_year = $m->comp('/mason/db/gradapp/current_app_year.comp');
+my $app_open = $m->comp('/mason/db/gradapp/is_app_open.comp');
+</%INIT>		
+
+<%method title>Application to Physics Graduate Program with Financial Aid</%method>
+
+% if ($auth) { $m->redirect("viewall.html"); }
+
+% if ($notloggedin) {
+<b>You must login first to access the requested resource:</b>
+% }
+
+<h3>Applications for <% $app_year %> admission</h3>
+<p>
+<h4>Start a new Application</h4>
+% if (!$app_open) {
+
+<p><b><i>Please note: The application deadline for Fall <% $app_year %> has already passed.</b></i></p>
+
+% }
+
+<form method="POST" name="edit" action="startapp.html">
+<table border=0 style="padding-top:0.5em;">
+<tr valign="top"><td>Email address:</td><td><input type=text name="email" value="" size=20></td></tr>
+<tr valign="top"><td>Password:</td><td><input type=password name="pass1" value="" size=20></td></tr>
+<tr valign="top"><td>Password (confirm):</td><td><input type=password name="pass2" value="" size=20></td></tr>
+</table>
+<p><input type="submit" value="Start Application"></p>
+</form>
+
+<h4>Review an existing Application</h4>
+<form method="POST" name="edit" action="reviewapp.html">
+<table border=0 style="padding-top:0.5em;">
+<tr valign="top"><td>Email address:</td><td><input type=text name="email" value="" size=20></td></tr>
+<tr valign="top"><td>Password:</td><td><input type=password name="pass" value="" size=20></td></tr>
+</table>
+<p><input type="submit" value="Review Application"></p>
+</form>
+
+<h4>Forgot Password</h4>
+<form method="POST" name="edit" action="sendpw.html">
+<table border=0 style="padding-top:0.5em;">
+<tr valign="top"><td>Email address:</td><td><input type=text name="email" value="" size=20></td></tr>
+</table>
+<p><input type="submit" value="Send Password"></p>
+</form>

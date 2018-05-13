@@ -1,0 +1,25 @@
+<% $m->call_next %>
+<%method titlemenu_above>
+%# Fix it so news is selected when viewing a news story (and not only when viewing the news blog)
+% my $web = $m->comp('/mason/auth/auth_check_web.comp');
+   <& /mason/titlemenu.comp:begin, type=>"above" &>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/general/" &>General</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/spotlight/"  &>Research Spotlight</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/outreach/"  &>Outreach</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/student_award/"  &>Scholarship Awards</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/grad_scholarship/"  &>Graduate Scholarships</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/undergrad_scholarship/"  &>Undergrad Scholarships</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/jobs/"  &>Job Opportunities</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/publications/"  &>Publications</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/facultyresearch/"  &>Faculty Research</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/feature/"  &>Feature</&>
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/degree/"  &>Degrees</&>
+
+% if($web) {
+   <&| /mason/titlemenu.comp:item, link=>"/resources/admin/news/foyer/"  &>Foyer Display</&>
+% }
+
+   <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+

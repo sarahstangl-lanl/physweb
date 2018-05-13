@@ -1,0 +1,111 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: progress.html
+        Date: 2006.03.23
+      Author: allan
+     Changed: 2006.03.23 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$enter_year=>undef
+$expected_degree=>undef
+$gwe_pass=>undef
+$gwe_text=>undef
+$ms_plan=>undef
+$have_advisor=>undef
+$advisor=>undef
+$advisor_text=>''
+$degree_form=>undef
+$degree_form_text=>undef
+$oral_exam=>undef
+$oral_exam_text=>undef
+$thesis_proposal=>undef
+$thesis_proposal_text=>undef
+$expected_completion_month=>undef
+$expected_completion_year=>undef
+$research_text=>undef
+$ta_support=>undef
+$ta_fall=>undef
+$ra_fall=>undef
+$ta_spring=>undef
+$ra_spring=>undef
+$ra_text=>undef
+$fellowship=>undef
+$fellowship_text=>undef
+</%ARGS>
+
+<%INIT>
+if(
+  !defined($enter_year) || !defined($expected_degree) || !defined($gwe_pass) || !defined($gwe_text) ||
+  !defined($ms_plan) || !defined($have_advisor) || !defined($advisor) || !defined($degree_form) ||
+  !defined($degree_form_text) || !defined($oral_exam) || !defined($oral_exam_text) || 
+  #!defined($thesis_proposal) ||
+  #!defined($thesis_proposal_text) || 
+  !defined($expected_completion_month) || !defined($expected_completion_year) ||
+  !defined($research_text) || !defined($ta_support) || !defined($ta_fall) || !defined($ra_fall) || !defined($ta_spring) ||
+  !defined($ra_spring) || !defined($ra_text) || !defined($fellowship) || !defined($fellowship_text)
+  )
+{
+  #$m->redirect('progress_form.html');
+  print "Required field was missing!";
+  return;
+}
+
+my $uid = $session{'uid'};
+my $thisyear = This_Year;
+my $recentyear = 0;
+$expected_completion_month++;
+
+# first check if this years record exists for this user, and create it if not...
+my $sql = "SELECT record_year FROM gradprogress WHERE uid=? ORDER BY record_year DESC LIMIT 1";
+my $sth = $dbh->prepare($sql);
+$sth->execute($uid)
+  or die 'Unable to grab report: ' . $dbh->errstr;
+
+if (my $row_ref = $sth->fetchrow_arrayref()) { ($recentyear) = @$row_ref; }
+if ($recentyear < $thisyear) {
+  $sql = "INSERT INTO gradprogress (uid, record_year) VALUES (?,?)";
+  $sth = $dbh->prepare($sql);
+  $sth->execute($uid, $thisyear)
+    or die 'Unable to insert: ' . $dbh->errstr;
+}
+
+# ok, now we can update the record with the form submission...
+$sql = "UPDATE gradprogress
+        SET enter_year=?, expected_degree=?, gwe_pass=?, gwe_text=?, ms_plan=?, have_advisor=?, advisor=?,
+            advisor_text=?, degree_form=?, degree_form_text=?, oral_exam=?, oral_exam_text=?, thesis_proposal=?,
+            thesis_proposal_text=?, expected_completion_month=?, expected_completion_year=?, research_text=?,
+            ta_support=?, ta_fall=?, ra_fall=?, ta_spring=?, ra_spring=?, ra_text=?, fellowship=?, fellowship_text=?,
+            grad_update_time=now()
+        WHERE uid=? AND record_year=?";
+$sth = $dbh->prepare($sql);
+$sth->execute($enter_year, $expected_degree, $gwe_pass, $gwe_text, $ms_plan, $have_advisor,
+        $advisor, $advisor_text, $degree_form, $degree_form_text, $oral_exam, $oral_exam_text,
+        $thesis_proposal, $thesis_proposal_text, $expected_completion_month, $expected_completion_year,
+        $research_text, $ta_support, $ta_fall, $ra_fall, $ta_spring, $ra_spring, $ra_text,
+        $fellowship, $fellowship_text, $uid, $thisyear)
+  or die 'Report update failed: ' . $dbh->errstr;
+</%INIT>		
+
+<%method title>Progress Report</%method>
+<p>	
+Thank you - your report has been stored. If you want to view the stored information, please <a href="viewreport.html">click here</a>.
+</p>
+<p>
+If you need to revise the stored information before the report cutoff date, simply <a href="progress_form.html">revisit the report form</a> and update the information.
+<p>
+% if ($advisor) {
+% my $advisor_name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$advisor);
+If you have finished making updates, you should ask your advisor to look at your report and add their comments to approve it.
+<p>
+You can send your advisor an e-mail telling them that your report is ready for viewing by clicking this button:
+<p>
+<form method=POST action="advisormail.html">
+<input type=submit value="Send E-mail to <% $advisor_name %>">
+% } else {
+<p>
+<b>You haven't entered any advisor. If you don't yet have a research advisor, choose your pre-academic advisor on the form.</b>
+</p>
+% }

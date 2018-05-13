@@ -1,0 +1,409 @@
+<%DOC>
+   Component: app_form.html
+        Date: 2005.08.10
+      Author: allan
+     Changed: 2005.08.10 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+    $id => undef
+</%ARGS>
+
+<%shared>
+   my $display = 0;
+</%shared>
+
+<%INIT>
+if ($ARGS{'display'}) {
+    $display = 1;
+}
+
+use Locale::Country;
+use Data::Dumper;
+Locale::Country::rename_country('tw' => 'Taiwan');
+my @countries = all_country_names();
+
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+
+if (!$auth || !$id) {
+    $id = $session{gradappid};
+}
+
+my %row;
+
+my $sql = "SELECT email, password, fname, mname, lname, gender, homephone, permphone, address,
+            country, citizen, degree, entrydate, entryyear, specialization,
+            degree1, degree2, gpa1, gpa2, degstart1, degstart2, degend1, degend2,
+            amgrade, edgrade, qmgrade, tdgrade, greverb, grequant, greanal, grephys,
+            toefl, toefl_type, personalobj, personalexp, personalpub, personaladd,
+            recname1, recemail1, recpos1, recinst1, recdate1, recdata1,
+            recname2, recemail2, recpos2, recinst2, recdate2, recdata2,
+            recname3, recemail3, recpos3, recinst3, recdate3, recdata3,
+            updates, waiver, confirm, appdate, recsent, pin
+        FROM grad.gradapp
+        WHERE id=?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($id)
+    or die 'Unable to grab app data: ' . $dbh->errstr;
+
+if (my $row_ref = $sth->fetchrow_hashref()) {
+    %row = %$row_ref;
+} else {
+    $m->redirect("index.html");
+}
+
+# store this as the key for the db update...
+$session{gradappid}=$id;
+
+
+
+if (!$auth) {
+  # if application is confirmed, then can't edit (as non-admin user)...
+  if ($row{'confirm'}) { $display = 1; }
+  # update application date in form...
+  $row{'appdate'} = strftime("%e %b %Y", CORE::localtime);
+}
+
+my $thisyear = strftime("%Y", CORE::localtime);
+my $nextyear = 1+$thisyear;
+
+my @toefl_types = ['no test selected', 'TOEFL paper', 'TOEFL computer', 'TOEFL internet', 'IELTS', 'MELAB'];
+
+</%INIT>        
+        
+<%method title>Application to Physics Graduate Program with Financial Aid</%method>
+
+% if (!$display) {
+Items marked with an asterisk (*) must be filled in before the application can be complete.
+% }
+
+% if ($auth && !$display) {
+<p><b>You are editing this application as an administrative user</b>
+% }
+
+% if (!$auth && $row{'confirm'}) {
+<b>This application is finalized and cannot now be edited</b>
+but you can still <a href="app_updateform.html?id=<% $id |h %>">enter update notes</a>.
+<p>
+% }
+
+<form method="POST" action="app.html">
+<input type="hidden" name="id" value="<% $id |h %>"/>
+<table border=0 width="100%">
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Supplementary Materials</th></tr>
+<tr><td colspan=2>
+Click here to <a href="upload.html?id=<% $id |h %>">upload supplementary materials</a> such as images of transcripts, GRE and TOEFL scores.  Uploading of these documents can be done either while you are filling out the application or after you complete your application.
+</td></tr>
+% my ($uploadid, $mimetype, $description, $timestamp);
+% $sql = "SELECT uploadid, mimetype, description, timestamp FROM grad.uploads WHERE userid=?";
+% $sth = $dbh->prepare($sql);
+% $sth->execute($id) or die 'Unable to fetch attachments: ' . $dbh->errstr;
+% while (my $row_ref = $sth->fetchrow_arrayref()) {
+%  ($uploadid, $mimetype, $description, $timestamp) = @$row_ref;
+<tr><td>
+% if ($auth) {
+<a href="getfile.html?id=<% $uploadid |h %>">
+<% $description |h %>
+</a>
+% } else {
+<% $description |h %>
+% }
+(<% $mimetype |h %>)</td>
+<td>Received: <% substr($timestamp,0,10) |h %>
+% if ($auth) {
+<a href="confirm_delete.html?id=<% $uploadid |h %>">(delete)</a>
+% }
+</td></tr>
+% }
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Personal Data</th></tr>
+
+<tr valign="top"><td>Last (Family) Name:</td><td><& '.input', type => 'text', name => 'lname', value => $row{'lname'}, size => 40 &><& '.required' &></td></tr>
+<tr valign="top"><td>First Name:</td><td><& '.input', type => 'text', name => 'fname', value => $row{'fname'}, size => 40 &><& '.required' &></td></tr>
+<tr valign="top"><td>Middle Name:</td><td><& '.input', type => 'text', name => 'mname', value => $row{'mname'}, size => 40 &></td></tr>
+<tr valign="top"><td>Gender:</td><td>
+<& '.form_selector', name => 'gender', options => [['no response' => 'No response'], ['female' => 'Female'], ['male' => 'Male']], selected => $row{'gender'} &>
+</td></tr>
+
+<tr valign="top"><td>Current Telephone:</td><td><& '.input', type => 'text', name => 'homephone', value => $row{'homephone'}, size => 40 &></td></tr>
+<tr valign="top"><td>Permanent Telephone:</td><td><& '.input', type => 'text', name => 'permphone', value => $row{'permphone'}, size => 40 &></td></tr>
+
+<tr valign="top"><td>Full Address:</td><td><& '.input', type => 'text', name => 'address', value => $row{'address'}, size => 40 &><& '.required' &></td></tr>
+<tr valign="top"><td>Country of Residence:</td>
+<td><& '.form_selector', name => 'country', options => [['' => ' -- Select your country -- '], sort(@countries)], selected => $row{'country'} &><& '.required' &></td></tr>
+<tr valign="top"><td>Country of Citizenship:</td>
+<td>
+<& '.form_selector', name => 'citizen', options => [['' => ' -- Select your country -- '], sort(@countries)], selected => $row{'citizen'} &><& '.required' &></td></tr>
+<tr valign="top"><td>Email Address:</td><td><& '.input', type => 'text', name => 'email', value => $row{'email'}, size => 40 &><& '.required' &></td></tr>
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Degree Objective</th></tr>
+
+<tr valign="top"><td>Degree Sought:</td><td>
+% $m->comp( '.form_selector', name=>'degree', selected=>$row{'degree'}, options=>['PhD', 'MS']);
+<& '.required' &></td></tr>
+<tr valign="top"><td>Proposed Entry Year:</td><td><& '.input', type => 'text', name => 'entryyear', value => $row{'entryyear'}, size => 4 &><& '.required' &></td></tr>
+<tr valign="top"><td>Specializations (if known):</td><td><& '.input', type => 'text', name => 'specialization', value => $row{'specialization'}, size => 40 &></td></tr>
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Personal Statement</th></tr>
+<tr valign="top"><td colspan=2>
+<small>
+<b>Objectives:</b> Describe your immediate and long-range objectives and how you would pursue them at the University of Minnesota<br/>
+</small>
+<& '.textarea', name => 'personalobj', cols => 75, rows => 7, value => $row{'personalobj'} &><& '.required' &>
+<br/><small>
+<b>Experience:</b> If you have had teaching or research experience, include a list of courses you have taught and at what level; a description of research projects and your role in them. Summarize your paid and unpaid work experience<br/>
+</small>
+<& '.textarea', name => 'personalexp', cols => 75, rows => 7, value => $row{'personalexp'} &>
+<br/><small>
+<b>Awards and Publications:</b> List any awards, honors or scholastic distinctions you received in college. provide a reference and abstract for any published works.<br/>
+</small>
+<& '.textarea', name => 'personalpub', cols => 75, rows => 7, value => $row{'personalpub'} &>
+<br/><small>
+<b>Additional Considerations:</b> Include any other information or materials that may support your application
+<br/></small>
+<& '.textarea', name => 'personaladd', cols => 75, rows => 7, value => $row{'personaladd'} &>
+</td></tr>
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Education</th></tr>
+
+<tr valign="top"><td colspan=2>Please list the schools from which you have degrees, or will have obtained degrees before your proposed entry date. For grades, please also indicate the scale, eg "89/100" or "3.2/4":
+<table<% ($display ? ' width="100%" border="1"' : '') %>>
+<tr><td></td><td>School</td><td>GPA</td><td>Start date</td><td>Degree date</td></tr>
+<tr valign="top"><td>Bachelors Degree:</td>
+<td><& '.input', type => 'text', name => 'degree1', value => $row{'degree1'}, size => 20 &></td>
+<td><& '.input', type => 'text', name => 'gpa1', value => $row{'gpa1'}, size => 3 &></td>
+% my ($degstartyear1, $degstartmonth1) = split(degstart1,"-",2);
+% my ($degendyear1, $degendmonth1) = split(degend1,"-",2);
+% my ($degstartyear2, $degstartmonth2) = split(degstart2,"-",2);
+% my ($degendyear2, $degendmonth2) = split(degend2,"-",2);
+<td><& '.date_selector', year_range=>[1970...$thisyear], format=>'M-yyyy', year=>'degstartyear1', month=>'degstartmonth1', default=>$row{'degstart1'} &></td>
+<td><& '.date_selector', year_range=>[1970...$nextyear], format=>'M-yyyy', year=>'degendyear1', month=>'degendmonth1', default=>$row{'degend1'} &><& '.required' &></td>
+</tr>
+<tr valign="top"><td>Masters Degree:</td>
+<td><& '.input', type => 'text', name => 'degree2', value => $row{'degree2'}, size => 20 &></td>
+<td><& '.input', type => 'text', name => 'gpa2', value => $row{'gpa2'}, size => 3 &></td>
+<td><& '.date_selector', year_range=>[1970...$thisyear], format=>'M-yyyy', year=>'degstartyear2', month=>'degstartmonth2', default=>$row{'degstart2'} &></td>
+<td><& '.date_selector', year_range=>[1970...$nextyear], format=>'M-yyyy', year=>'degendyear2', month=>'degendmonth2', default=>$row{'degend2'} &></td>
+</tr>
+</table>
+</td></tr>
+<tr><td colspan=2>
+Specific Grades (if applicable):
+</td></tr>
+<tr><td>Analytical Mechanics</td><td><& '.input', type => 'text', name => 'amgrade', value => $row{'amgrade'}, size => 10 &></td></tr>
+<tr><td>Electrodynamics</td><td><& '.input', type => 'text', name => 'edgrade', value => $row{'edgrade'}, size => 10 &></td></tr>
+<tr valign="top"><td>Quantum Mechanics</td><td><& '.input', type => 'text', name => 'qmgrade', value => $row{'qmgrade'}, size => 10 &></td></tr>
+<tr><td>Thermodynamics and Statistical Mechanics</td><td><& '.input', type => 'text', name => 'tdgrade', value => $row{'tdgrade'}, size => 10 &></td></tr>
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Graduate Record Examination (GRE)</th></tr>
+<tr valign="top"><td colspan=2 align="left">GRE is strongly encouraged but not required</td></tr>
+<tr valign="top"><td>Verbal:</td><td><& '.input', type => 'text', name => 'greverb', value => $row{'greverb'}, size => 4 &>% ranking</td></tr>
+<tr valign="top"><td>Quantitative:</td><td><& '.input', type => 'text', name => 'grequant', value => $row{'grequant'}, size => 4 &>% ranking</td></tr>
+<tr valign="top"><td>Analytical Writing:</td><td><& '.input', type => 'text', name => 'greanal', value => $row{'greanal'}, size => 4 &>% ranking</td></tr>
+<tr valign="top"><td>Advanced Physics:</td><td><& '.input', type => 'text', name => 'grephys', value => $row{'grephys'}, size => 4 &>% ranking</td></tr>
+<tr valign="top"><td>English proficiency test:</td><td><& '.input', type => 'text', name => 'toefl', value => $row{'toefl'}, size => 4 &> score in 
+% $m->comp( '.form_selector', name=>'toefl_type', selected=>$row{'toefl_type'}, options => @toefl_types);
+
+(foreign students only)</td></tr>
+
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Recommendations</th></tr>
+<tr valign="top"><td colspan=2>List the names and addresses of three people well acquainted with your academic work and personal experiences to write letters on your behalf. We will give you an option after saving your application to email your references, otherwise they will be contacted upon finalizing your application <i>(please make sure you enter their email addresses correctly!)</i>. They have the option to reply by email or postal mail.
+<p>
+<table<% ($display ? ' width="100%" border="1"' : '') %>>
+<tr><td></td><td>Name</td><td>Email</td><td>Position</td><td>Institution</td>
+% if ($display) {
+<td>Received</td>
+% }
+</tr>
+% for (my $i = 1; $i <= 3; $i++) {
+<tr valign="top">
+<td><b><% $i %></b></td><td><& '.input', type => 'text', name => 'recname'.$i, value => $row{'recname'.$i}, size => 15 &></td><td><& '.input', type => 'text', name => 'recemail'.$i, value => $row{'recemail'.$i}, size => 15 &></td><td><& '.input', type => 'text', name => 'recpos'.$i, value => $row{'recpos'.$i}, size => 15 &></td><td><& '.input', type => 'text', name => 'recinst'.$i, value => $row{'recinst'.$i}, size => 15 &><& '.required' &></td>
+%   if ($display) {
+<td><& 'SELF:.reclinks', id => $id, recname => $row{'recname'.$i} , recemail => $row{'recemail'.$i}, recdata => $row{'recdata'.$i}, recdate => $row{'recdate'.$i}, recnumber => $i, row => \%row &></td>
+%   }
+</tr>
+% }
+</table>
+<tr><td colspan=2>
+<small>
+Under the Family Rights and Privacy Act of 1974, students enrolled at the University of Minnesota have access to their admission records, including letters of recommendation. However, students may waive their right to see letters of recommendation, whereupon such letters will be held in confidence. If the applicant has not signed a waiver, it is assumed that this letter is submitted with the recommender's understanding that the applicant, once registered at the University of Minnesota, may request to see the letter. The alternative selected will not affect consideration of the application for admission.
+</small>
+<p>
+<label><& '.input', type => 'radio', name => 'waiver', checked => ($row{'waiver'} eq 'yes'), value => 'yes' &>
+ I waive my right to examine this letter of recommendation.</label>
+<br/>
+<label><& '.input', type => 'radio', name => 'waiver', checked => ($row{'waiver'} eq 'no'), value => 'no' &>
+ I do not waive my right to examine this letter of recommendation.</label>
+
+</td></tr>
+% if ($row{'updates'}) {
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Updates since finalizing application</th></tr>
+<tr valign="top"><td colspan=2>
+<% $row{'updates'} |h %>
+</td></tr>
+% }
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Important Statements</th></tr>
+<tr valign="top"><td colspan=2>
+<i>Read the following statements and acknowledge you have read and understand them by checking the box at the bottom and entering today's date in the box provided.</i>
+
+<p>
+<small>
+<b>Council of Graduate School resolution:</b>
+The University of Minnesota subscribes to the following Council of Graduate Schools resolution: If a student accepts an offer of financial aid (assistantship, scholarship, fellowship, traineeship) before April 15 and subsequently desires to withdraw, the student shall have complete freedom to do so through April 15, by submitting the resignation in writing. <b>However</b>, an acceptance given or left in force after April 15 commits the student not to accept another offer without first obtaining a written release from the institution to which the original commitment was made.
+
+<p>
+
+<b>Equal Opportunity Statement:</b>
+The University of Minnesota is committed to the policy that all persons shall have equal access to its programs, facilities, and employment without regard to race, religion, color, sex, national origin, handicap, age, veteran status, or sexual orientation. In adhering to this policy, the University abide by the requirements of Title IX of the Education Amendments of 1972, by Sections 503 and 504 of the Rehabilitation Act of 1973, by Executive Order, 11246, as amended: 38 U.S.C. 2012, the Vietnam Era Veterans Readjustment Assistance Act of 1972, as amended; and by other applicable statutes and regulations relating to equality of opportunity.
+
+<p>
+
+Inquiries regarding compliance may be directed to Patricia A. Mullen, Office of Equal Opportunity and Affirmative Action, 419 Morrill Hall, 100 Church Street S.E., University of Minnesota, Minneapolis, Minnesota, 55455, (612)624-9547, or to the Director of the Office of Federal Contract Compliance Programs, Department of Labor, Washington D.C., 20210.
+
+<p>
+
+<b>Privacy Statement:</b>
+The University of Minnesota is bound by U. S. and State of Minnesota privacy laws. In compliance with such statues, the Admissions Committee will release no information about any application to anyone other the Graduate School and any fellowship committees, without the written permission of the applicant. Information will be used either for identification or review purposes.
+</small>
+
+<p>
+
+<table border="1">
+
+<tr><th colspan=3>
+Check the box below before submitting the completed application form.
+</th></tr>
+
+<tr><td><label>Complete Application<br/><& '.input', type => 'checkbox', name => 'confirm', checked => ($auth && $row{'confirm'}) &>&nbsp;(check)</label></td>
+<td>I have read and understand the above statements. I certify that the information provided is accurate and that I am the person whom this application represents, under penalty of the law.</td>
+<td>Today's Date: <& '.input', type => 'text', name => 'appdate', value => $row{'appdate'}, size => 10 &>
+</td></tr>
+</table>
+</td></tr>
+
+% if (!$display) {
+<tr><td colspan=2>
+If you <i>Save Application for Later</i>, the information you have entered is stored, and you can return to this web page later to continue with the application. If you <i>Submit Final Application</i>, then the application is finalised, email is sent out to request recommendation letters, and no further changes can be made.
+% if ($row{'recsent'}) {
+<p><b>Our records indicate emails have already been sent out to request recommendation letters. The requests will not be sent again unless you indicate so here:</b> 
+<label><& '.input', type => 'checkbox', name => 'recsent_ignore', value => '1' &> Resend recommendation letters</label>
+% }
+<p>
+<center>
+% if ($auth) {
+<& '.input', type => 'submit', name => 'submit', value => 'Update Application Data' &>
+% } else {
+<& '.input', type => 'submit', name => 'submit', value => 'Save Application for Later' &>
+<& '.input', type => 'submit', name => 'submit', value => 'Submit Final Application' &>
+% }
+</center>
+</td></tr>
+% }
+</table>
+</form>
+
+
+<%def .required><%init>
+if (!$display) { print '*'; }
+</%init></%def>
+
+<%def .date_selector>
+% if ($display) {
+<% $ARGS{'default'} |h %>
+% } else {
+%   $m->comp( '/mason/date_selector.comp', %ARGS);
+% }
+</%def>
+
+
+<%def .form_selector>
+% if ($display) {
+<% $ARGS{'selected'} |h %>
+% } else {
+%   $m->comp( '/mason/form_selector_ex.comp', %ARGS);
+% }
+</%def>
+
+<%def .textarea>
+<%args>
+    $name
+    $value
+</%args>
+% if ($display) {
+%   print $m->comp('/mason/format_text.comp', tables => 0, meta => 0, text => $value, replace_nls => 1);
+% } else {
+<textarea name="<% $name |h %>" cols=75 rows=7><% $value |h %></textarea>
+% }
+</%def>
+
+<%def .input>
+<%args>
+    $type
+    $name
+    $checked => undef
+    $value => undef
+    $size => undef
+</%args>
+
+% if (!$display) {
+<input
+ type="<% $type |h %>"
+ name="<% $name |h %>"
+%   if (defined($value)) {
+ value="<% $value |h %>"
+%   }
+%   if ($checked) {
+ checked="checked"
+%   }
+%   if (defined($size)) {
+ size="<% $size |h %>"
+%   }
+/>
+% } elsif (($type eq 'checkbox') || ($type eq 'radio')) {
+%   if ($checked) {
+X_
+%   } else {
+__
+%   }
+% } elsif ($type ne 'submit') {
+<% $value |h %>
+% }
+
+<%filter>
+s/\n//go
+</%filter>
+</%def>
+
+
+<%method .reclinks>
+<%args>
+$id
+$recemail
+$recname
+$recdata
+$recnumber
+$recdate
+$row
+</%args>
+<%perl>
+if (!$recdata) {
+  print "No ";
+} else {
+  print "Yes ";
+  if ($recdate !~ /0000/) {print $recdate;}
+}
+</%perl>
+
+% if ($m->comp('/mason/auth/auth_check_gradapp.comp')) {
+
+%   if ($recdata) {
+<a href="getletter.html?id=<% $id |h %>&amp;recno=<% $recnumber |h %>"><br/>Download and view letter</a>
+%   } else {
+<br/><a href="sendrecletter.html?email=<% $recemail |h %>&amp;name=<% $recname |h %>&amp;appemail=<% $row->{'appemail'} |h %>&amp;appname=<% $row->{'fname'} |h %>%20<% $row->{'lname'} |h %>&amp;pin=<% $row->{'pin'} |h %>&amp;waiver=<% $row->{'waiver'} |h %>">Resend request email</a>
+%   }
+<p><small><a href="recletter.html?email=<% $recemail |h %>&amp;pin=<% $row->{'pin'} |h %>">[upload new letter]</a></small>
+% }
+
+</%method>

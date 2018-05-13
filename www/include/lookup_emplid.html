@@ -1,0 +1,64 @@
+<%ARGS>
+$search=>undef
+</%ARGS>
+
+<%INIT>
+
+use physdb::directory;
+use PhysAjax;
+
+if (!$search || (length($search) < 2)) {
+    print_ajax({ result => 'err', err => 'Invalid parameters' });
+}
+
+unless ($m->comp('/mason/auth/auth_check_directory.comp')) {
+    print_ajax({ result => 'err', err => 'Not authorized' });
+}
+
+# Determine type of lookup
+my $type = ($search =~ /^\d*$/) ? 'emplid' : 'x500';
+
+# Attempt to find existing directory entry
+my $directory = Directory->new($type => $search);
+
+# Sub to print directory entry results
+my $print_results = sub {
+    print_ajax({
+        emplid      => $directory->get('emplid'),
+        uid         => $directory->get('uid'),
+        x500        => $directory->get('x500'),
+        email       => $directory->get('email'),
+        first_name  => $directory->get('first_name'),
+        last_name   => $directory->get('last_name'),
+        dw_position => $directory->get('dw_position'),
+        ucard       => $directory->get('ucard'),
+        physid      => $directory->get('physid'),
+        acctreq     => $directory->get('acctreq'),
+        @_,
+    });
+};
+
+# Return existing directory entry info if found
+$print_results->(found => 'directory') if ($directory->{loaded});
+
+# Attempt to fetch information from DW/X.500 LDAP, returning empty page if not found
+unless ($directory->lookup($search)) {
+    $m->clear_buffer;
+    $m->abort;
+    return;
+}
+
+# Try to find existing directory entry based on new information
+my $new_type = ($type eq 'x500') ? 'emplid' : 'x500';
+my $temp_directory = Directory->new($new_type => $directory->get($new_type));
+
+# Return existing directory entry info if found
+if ($temp_directory->{loaded}) {
+    $directory = $temp_directory;
+    $print_results->(found => 'directory');
+}
+
+# Return new directory entry info
+$print_results->(found => 'dw');
+
+</%INIT>

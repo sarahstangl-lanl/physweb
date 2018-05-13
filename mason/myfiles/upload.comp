@@ -1,0 +1,78 @@
+
+<%ARGS>
+$recipient => ''
+$comment => ''
+$message => ''
+$email => 0
+$adminmode => 0
+</%ARGS>
+
+<%INIT>
+    use strict;
+    use File::Slurp;
+    $m->comp('/mason/auth/auth_block.comp');
+    my $result = "Nothing happened";
+    my $uid = $session{'uid'};
+    my $recuid = $uid;
+    my $recemail;
+    my $adminuser = $m->comp('/mason/auth/check_groups.comp', allow => ['deptoffice','sysadm']);
+    if ($adminmode && $adminuser && $recipient) {
+        # only admin users can define the file recipient
+        my $rec_query = $m->comp("/mason/ajax/people_finder.comp", name=>$recipient);
+        my $rec_data = $rec_query->fetchrow_hashref();
+        if ($rec_data) {
+            $recuid = $rec_data->{'uid'};
+        }
+        else {
+            die "Recipient $recipient not found";
+        }
+    }
+
+    my $senderemail = $m->comp('/mason/db/directory/uid_to_email.comp');
+    my $sendername = $m->comp('/mason/db/directory/uid_to_name.comp', uid => $uid);
+    
+    my $req = Apache2::Request->new($r);
+    my $upload = $req->upload('file');
+    my $filename = (defined($upload)) ? $upload->filename : "";
+    $m->comp('/mason/db/auditlog/addevent.comp', type=>'myfiles_upload', text=>"$sendername uploaded '$filename' for $recipient");
+    
+    if ($filename) {
+        my $mimetype = $upload->type;
+        my $fh = $upload->fh;
+        my $data = do { local $/; <$fh> };
+        my $datasize = $upload->size;
+        my $sql = "INSERT INTO myphysfiles (uid, filename, mimetype, data, datasize, comment, message, date, sender_uid) VALUES (?,?,?,?,?,?,?,now(),?)";
+        my $sth = $dbh->prepare($sql);
+        $sth->execute($recuid, $filename, $mimetype, $data, $datasize, $comment, $message, $uid)
+            or die 'MyPhysFiles upload failure: ' . $dbh->errstr;
+        $result = "File $filename uploaded<p>";
+    }
+    
+    if ($email) {
+        my $subject = "New file $filename in MyPhys Files from $sendername";
+        my $body;
+        if ($adminmode) {
+            $body = "You have a new file in MyPhys Files, at https://www.physics.umn.edu/resources/myphys/myfiles/\n\n";
+            $recemail = $m->comp('/mason/db/directory/uid_to_email.comp', uid=>$recuid);
+        }
+        else {
+            $body = "$sendername uploaded a new file to MyPhys Files\n\n";
+            $recemail = $m->comp('/mason/auth/getgroup_manager_emails.comp', groupname=>'deptoffice');
+        }
+        $body .= "Sender: $sendername\n";
+        $body .= "Filename: $filename\n";
+        $body .= "Description: $comment\n";
+        $body .= "Message:\n$message\n" if ($message);
+        $m->comp('/mason/send_mail.comp', to=>$recemail, from=>$senderemail, bcc=>$senderemail, subject=>$subject, text=>$body);
+        $m->comp('/mason/db/auditlog/addevent.comp', type=>'myfiles_upload', text=>"sent upload email to $recemail");
+    }
+    $m->redirect($r->headers_in->{'Referer'});
+</%INIT>
+
+<%method title>
+MyPhysFiles upload
+</%method>
+
+<% $result %>
+<p>
+<a href = "<% $r->headers_in->{'Referer'} %>">Return to MyPhysFiles</a>

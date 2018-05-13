@@ -1,0 +1,56 @@
+<%doc>
+   Component: index.html
+        Date: 9/11/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+</%args>
+
+<%init>
+my $directory = "/home/groups/grades/templates";
+my (@allfiles, $file, $output, $fixfile);
+</%init>
+
+<%method title>Gradebooks</%method>
+
+<h4>Private Data Security</h4>
+
+<b>Grade book data may only be transferred to and from a secure Physics workstation under Physics IT management. Please work on the grade data only on these workstations. Never transfer the files to another system, such as a personal laptop.</b>
+
+<ul>
+<li><a href="help.html">Electronic Grading Instructions</a></li>
+<li><a href="https://goo.gl/forms/my7rjsJ2IlZ7ftIJ2">Grade Change Request Form</a></li>
+</ul>
+
+<h4>Gradebook Templates</h4>
+
+Templates available for download:
+
+<ul>
+<%perl>
+opendir DIR, $directory or die "cant open dir '$directory': $!";
+@allfiles = sort grep !/^\.\.?$/, readdir DIR;
+closedir DIR;
+
+foreach $file (@allfiles) {
+  $output = "<li><a href=get_file?filename=".$m->interp->apply_escapes($file,'u').">".$file."</a>";
+  $m->out($output);
+}
+</%perl>
+
+</ul>
+
+<h4>Gradebook upload</h4>
+
+Select the file to upload from your computer by clicking the Browse button and choosing the file. Then click on "Upload" to start the file transfer.
+<br/><b>Note:</b> Please upload the file in Excel 97-2003 spreadsheet format (.xls, <b>NOT</b> .xlsx).
+<p>
+<form enctype="multipart/form-data" method="POST" name="edit" action="upload.html">
+
+Upload file:
+<input type="file" size=35 name="file">
+<p>
+<input type="submit" value="Upload">
+</form>

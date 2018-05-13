@@ -1,0 +1,144 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: edit_paper_form.html
+        Date: 9/11/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$paperid=>'new'
+$uid=>''
+</%args>
+
+<%init>
+my ($priority, $title, $authors, $journal, $abstract, $url, $pub_date, $filename, $mime_type);
+
+# figure out access rights...
+if (!$uid) {
+   $uid = $session{'uid'};
+}
+my $access = $m->comp('/mason/auth/auth_check_profile.comp',uid=>$uid);
+
+if(!$access) {
+    $m->redirect("/resources/myphys");
+}
+
+my $sth_papers = $dbh->prepare("SELECT paperid, title, authors, journal, abstract, url, pub_date, filename, mime_type FROM papers WHERE uid = ?");
+$sth_papers->execute($uid)
+  or die 'Unable to grab paper list: ' . $dbh->errstr;
+
+my @papers = @{$sth_papers->fetchall_arrayref({})};
+
+if ($paperid ne "new" && $uid > 0) {
+  # fetch the entry
+  my $sql = "SELECT priority, title, authors, journal, abstract, url, pub_date, filename, mime_type FROM papers WHERE paperid = ? AND uid = ? LIMIT 1";
+  my $sth = $dbh->prepare($sql);
+  $sth->execute($paperid, $uid)
+    or die 'Unable to grab paper: ' . $dbh->errstr;
+
+  my $row_ref = $sth->fetchrow_arrayref;
+  ($priority, $title, $authors, $journal, $abstract, $url, $pub_date, $filename, $mime_type) = @$row_ref;
+} else {
+  # any initialisation for a new paper?
+  $pub_date='today';
+}
+</%init>
+
+<h2 title>Publications</h2>
+<small>
+% if (scalar(@papers)) {
+Existing publications:
+
+<ul>
+%   foreach my $paper (@papers) {
+<li><% ($paper->{'paperid'} == $paperid ? '<b>Editing: </b>' : '') %><a href="edit_paper_form.html?paperid=<% $paper->{'paperid'} |u %>&amp;uid=<% $uid |u %>"><% ($paper->{'title'} ? $paper->{'title'} : '(untitled)') |h %></a></li>
+%   }
+</ul>
+
+% }
+
+<p>
+Your web profile page will list your top ten publications, sorted in reverse date order. You can also mark older publications as "selected" if you want to make sure they are included in the displayed list.
+</p>
+
+<p>
+You can also provide a link to a download site for the publication, or upload a PDF file (you need to check whether this is permitted by the publisher).
+</p>
+</small>
+
+%# if (!$access) {$m->comp('/mason/redirect.comp',url=>"/resources/myphys/");}
+
+<form enctype="multipart/form-data" method="POST" name="edit" action="edit_paper.html">
+<input type=hidden name="paperid" value="<% $paperid |h %>">
+<input type=hidden name="uid" value="<% $uid |h %>">
+<table border=0>
+
+<tr><th colspan=2 bgcolor="#eeeeee" align="left">Name of Journal or Publication</th></tr>
+<tr><td colspan=2>
+<textarea name="journal" cols=70 rows=1 wrap="virtual"><% $journal |h %></textarea>
+</td></tr>
+<tr valign="top"><td>Publication Date:</td><td>
+% my ($sec,$min,$hour,$mday,$mon,$currentyear,$wday,$yday,$isdst) = CORE::localtime();
+% $currentyear += 1900;
+<& /mason/date_selector.comp, format=>'mon-yyyy', year=>'year', month=>'month', day=>'day', default=>$pub_date, year_range=>[1960..$currentyear] &>
+
+Selected:
+% $m->comp( '/mason/form_selector.comp', name=>'priority', selected=>$priority, optionlist=>'normal,selected');
+</td></tr>
+
+<tr><th colspan=2 bgcolor="#eeeeee" align="left">Title</th></tr>
+<tr><td colspan=2>
+<textarea name="title" cols=70 rows=1 wrap="virtual"><% $title |h %></textarea>
+</td></tr>
+
+<tr><th colspan=2 bgcolor="#eeeeee" align="left">Authors</th></tr>
+<tr><td colspan=2>
+<textarea name="authors" cols=70 rows=1 wrap="virtual"><% $authors |h %></textarea>
+</td></tr>
+
+
+<tr><th colspan=2 bgcolor="#eeeeee" align="left">Abstract</th></tr>
+<tr><td colspan=2>
+You can cut and paste the abstract text, if you would like it available for readers on the  publication list.
+<br />
+<textarea name="abstract" cols=70 rows=5 wrap="virtual"><% $abstract |h %></textarea>
+</td></tr>
+
+
+<tr><th colspan=2 bgcolor="#eeeeee" align="left">File upload and link</th></tr>
+
+<tr valign="top"><td>Link Location (URL):</td><td><input type=text name="url" value="<% $url |h %>" size=40></td></tr>
+
+<tr valign="top"><td>Upload file:</td><td><input type=file name="filedata" size=40>
+% if ($filename) {
+<br/>
+Current file: <% $filename |h %>, of type <% $mime_type |h %>
+% }
+</td></tr>
+
+
+
+</table>
+
+
+<p>
+<input type="submit" value="Update Publication">
+<input type="reset" value="Undo Changes">
+</form>
+
+% if ($paperid ne "new") {
+
+<form method="POST" action="delete_paper.html">
+<input type=hidden name="paperid" value="<% $paperid |h %>">
+<input type=hidden name="uid" value="<% $uid |h %>">
+<table border=0 width="100%">
+
+<tr valign="top"><th bgcolor="#eeeeee" align="left">Remove Publication</th><td>
+<tr><td>
+To remove this publication from the database - click <input type=submit value="Delete">
+</td></tr>
+</table>
+</form>
+<p>
+% }

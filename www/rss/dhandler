@@ -1,0 +1,193 @@
+<%DOC>
+   Component: dhandler
+        Date: 2008.05.06
+      Author: nick
+     Changed: 2008.05.06 by nick
+
+Description ... 
+</%DOC>
+<%flags>
+inherit => undef
+</%flags>
+<%shared>
+my $arg = $m->dhandler_arg;
+</%shared>
+<%init>
+$r->content_type("application/rss+xml");
+use XML::RSS;
+my $rss = new XML::RSS (version => '2.0');
+my $full = ($arg !~ /brief/);
+# now throw away all but first component of path...
+($arg) = split("/", $arg);
+# The below converts underscore to space and uppercases stuffs
+my $user_title = join(' ', map { ucfirst $_ }  split('_', $arg));
+  $rss->channel
+  (
+     title        => "UMN Physics and Astronomy ". $user_title,
+     link         => "http://www.physics.umn.edu/rss/",
+     language     => 'en-us',
+  );
+  $rss->image(
+            url => "http://www.physics.umn.edu/images/BrokenbarIT3.jpg",
+            title => "UMN Physics and Astronomy",
+            link => "http://www.physics.umn.edu/",
+  );
+
+
+if($arg =~ /calendar/) {
+  my $sql;
+  my $row_ref;
+  my $time;
+  my $lastdate = "";
+  my ($month,$day);
+  my ($hour,$minute,$second,$ampm);
+  my $heading;
+  my ($eventid, $date, $title, $location, $speaker, $subject, $info, $abstract);
+
+  my $dateformat = ($full ? "%W, %M %D %Y %l:%i %p" : "%a %b %D %l:%i %p");
+  $sql = "SELECT eventid, DATE_FORMAT(date,'$dateformat'), title, location, speaker, subject, info, abstract FROM calendar WHERE class='calendar' AND WEEK(date)=WEEK(now()) AND YEAR(date)=YEAR(now()) AND areaid='1' ORDER BY date, title";
+
+  if (defined($dbh)) {
+    my $sth = $dbh->prepare($sql);
+    $sth->execute();
+    while ($row_ref = $sth->fetchrow_arrayref) {
+      my ($eventid, $date, $title, $location, $speaker, $subject, $info, $abstract) = @$row_ref;
+      $location =~ s/^\s//g;
+      $m->comp('/mason/clean_rss.comp', $title, $location, $speaker, $subject, $info, $abstract);
+      $abstract = $m->comp("/mason/format_wikitext.comp", text=>$abstract, nodiv=>1 ) if ($abstract);
+      my $sep = ($full ? "<br/>" : ", ");
+      my $description = join($sep,
+            ($speaker ? "$speaker" : ()),
+            ($subject ? "\"$subject\"" : ()),
+            ($info ? "$info" : ()),
+            (($full && $abstract) ? "$abstract": ()),
+        );
+      if ($description) {$description = "<![CDATA[".$description."]]>"};
+      $description =~ s/""/"/g;
+      $rss->add_item(
+        title => "$date".($location ? ", $location" : "")." - $title",
+        link => "http://www.physics.umn.edu/calendar/spa.all/thisweek/index/calendar.html?item=$eventid",
+        description => $description,
+        permaLink => "http://www.physics.umn.edu/calendar/spa.all/thisweek/index/calendar.html?item=$eventid",
+      );
+    }
+  }
+}
+elsif ($arg =~ /directory/) {
+    my $sql = "select physid, first_name, last_name, room_building, room from directory where room_building='155' and inactive=0 and directory.uid in (select groupmembers.uid from groups join groupmembers on groups.name=groupmembers.groupname where groups.publish=1) order by last_name";
+    my ($sth, $row_ref);
+    if (defined($dbh)) {
+        $sth = $dbh->prepare($sql);
+        my $status = $sth->execute();
+        if ($status) {
+            my @curtime = CORE::localtime(); #used for pubDate timezone
+            while ($row_ref = $sth->fetchrow_arrayref) {
+                my ($physid, $first_name, $last_name, $room_building, $room) = @$row_ref;
+                $rss->add_item(
+                    title => $first_name.' '.$last_name,
+                    description => $room,
+                    permaLink => "http://www.physics.umn.edu/people/$physid",
+                    #pubDate => '',
+                );
+            }
+        }
+    }
+}
+# Adding separate section for pforce rss feed, as the above /directory/ part no longer works (would need to be something like /outreach/pforce/
+elsif($arg =~ /pforce/){
+  my $sql;
+  my $row_ref;
+  my $time;
+  my $lastdate = "";
+  my ($month,$day);
+  my ($hour,$minute,$second,$ampm);
+  my $heading;
+  my ($eventid, $date, $title, $location, $speaker, $subject, $info, $abstract);
+
+  my $dateformat = ($full ? "%W, %M %D %Y %l:%i %p" : "%a %b %D %l:%i %p");
+  $sql = "SELECT eventid, `date`, title, location, speaker, subject, abstract FROM `calendar` WHERE `title` LIKE '%physics force%' AND DATE(`date`)>=DATE(now()) ORDER BY `date` ";
+
+  if (defined($dbh)) {
+    my $sth = $dbh->prepare($sql);
+    $sth->execute();
+    while ($row_ref = $sth->fetchrow_arrayref) {
+      my ($eventid, $date, $title, $location, $speaker, $subject, $info, $abstract) = @$row_ref;
+      $location =~ s/^\s//g;
+      $m->comp('/mason/clean_rss.comp', $title, $location, $speaker, $subject, $info, $abstract);
+      $abstract = $m->comp("/mason/format_wikitext.comp", text=>$abstract, nodiv=>1 ) if ($abstract);
+      my $sep = ($full ? "<br/>" : ", ");
+      my $description = join($sep,
+            ($speaker ? "$speaker" : ()),
+            ($subject ? "\"$subject\"" : ()),
+            ($info ? "$info" : ()),
+            (($full && $abstract) ? "$abstract": ()),
+        );
+      if ($description) {$description = "<![CDATA[".$description."]]>"};
+      $description =~ s/""/"/g;
+      $rss->add_item(
+        title => "$date".($location ? ", $location" : "")." - $title",
+        link => "http://www.physics.umn.edu/calendar/spa.all/thisweek/index/calendar.html?item=$eventid",
+        description => $description,
+        permaLink => "http://www.physics.umn.edu/calendar/spa.all/thisweek/index/calendar.html?item=$eventid",
+      );
+    }
+  }
+
+}
+else { # Anything in the news engine system..
+  my $sql = "SELECT eventid, DATE_FORMAT(post_date,'%a, %d %b %Y %T'), headline, summary, text, url, images.imageid 
+               FROM stories 
+    LEFT OUTER JOIN images on images.parentid=stories.eventid and images.category='stories' 
+
+              WHERE ( type=? 
+                      AND start_date <= now() 
+                      AND (kill_date >= now() OR kill_date IS NULL)
+                      AND priority <> 'none' ) 
+                      AND post_date >= date_sub(now(), INTERVAL 6 MONTH)
+            ORDER BY post_date DESC
+            LIMIT 30";
+  my ($sth, $row_ref);
+  if (defined($dbh)) {
+    $sth = $dbh->prepare($sql);
+    my $status = $sth->execute($arg);
+    if ($status) {
+      my @curtime = CORE::localtime(); #used for pubDate timezone
+      while ($row_ref = $sth->fetchrow_arrayref) {
+        my ($eventid, $post_date, $headline, $summary, $text, $url, $imageid) = @$row_ref;
+        $m->comp('/mason/clean_rss.comp', $headline, $summary, $text);
+        $summary = $m->comp("/mason/format_wikitext.comp", text=>$summary, nodiv=>1);
+        $text = $m->comp("/mason/format_wikitext.comp", text=>$text, nodiv=>1);
+        #$m->comp('/mason/db/images/insert_image.comp', category=>'stories', parentid=>$eventid);
+        my ($imgurl, $imagelink);
+        if($imageid) {
+           $imgurl = "http://www.physics.umn.edu/stateless/imagedb.html?type=thumbnail&id=$imageid";
+           $imagelink =  "<img src=\"$imgurl\" align=\"left\" hspace=10 vspace=10 />";
+        }
+
+        my $body = join("<br/>",
+            (($full && $imagelink) ? $imagelink : ()),
+            ($summary ? $summary : ()),
+            (($full && $text) ? $text : ()),
+            (($full && $url) ? "More information: <a href=\"$url\">$url</a>" : ()),
+            );
+        if ($body) {$body = "<![CDATA[".$body."]]>" };
+        $rss->add_item(
+          title => $headline,
+          #enclosure => { url=> $imgurl, type=> "image/jpeg" },
+          description => $body,
+          permaLink => "http://www.physics.umn.edu/about/news/$eventid/",
+          pubDate => $post_date.strftime(" %Z", @curtime ),
+        );
+      }
+    } 
+  }
+} 
+</%init>
+<%perl>
+ if( (grep { $_ eq $arg } split(',',$m->comp("/mason/db/getvalues.comp", table=>'stories', column=>'type'))) || $m->dhandler_arg =~ /calendar|directory/ ) {
+    print $rss->as_string;
+ }
+ else {
+    $m->comp("/mason/404.comp");
+ }
+</%perl>

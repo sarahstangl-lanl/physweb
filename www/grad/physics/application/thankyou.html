@@ -1,0 +1,22 @@
+
+<%DOC>
+   Component: thankyou.html
+        Date: 2005.09.14
+      Author: allan
+     Changed: 2005.09.14 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+</%ARGS>
+
+<%INIT>
+my $message = $session{'gradappmsg'};
+$message =~ s|\n\n|<p>|g;
+$message =~ s|\.\n|\.<br/>|g;
+</%INIT>		
+		
+<%method title>Graduate Program Application</%method>
+
+<% $message %>

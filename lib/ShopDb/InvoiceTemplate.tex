@@ -1,0 +1,80 @@
+\documentclass[letterpaper]{letter}
+\renewcommand{\sfdefault}{phv}
+\renewcommand{\familydefault}{\sfdefault}
+% empty the header/footer
+\pagestyle{empty}
+\usepackage{anysize}
+\marginsize{1cm}{1cm}{1cm}{1cm}
+\usepackage[table]{xcolor}
+\usepackage{calc}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
+\usetikzlibrary{calc}
+\usepackage{tabularx}
+\usepackage{ifthen}
+% Misc Settings
+\headheight 0cm
+\headsep 0cm
+\begin{document}
+    \setlength{\unitlength}{1mm}
+
+    % Figure out which address (billing or shipping) is bigger
+    \newlength\billtotal
+    \newlength\shiptotal
+    \setlength{\billtotal}{\heightof{\parbox{\textwidth}{\BILLADDR}} + \depthof{\parbox{\textwidth}{\BILLADDR}}}
+    \setlength{\shiptotal}{\heightof{\parbox{\textwidth}{\REMOTEADDR}} + \depthof{\parbox{\textwidth}{\REMOTEADDR}}}
+    \pgfmathsetmacro{\addrshift}{max(\billtotal,\shiptotal)/2+5mm}
+
+    % Draw document
+    \begin{tikzpicture}
+        \node (name) [anchor=west,align=left]{\LARGE University of Minnesota};
+        \node (name2) [align=left, below=0mm of name.south west, anchor=north west] {\LARGE CSE Machine Shop};
+        \node (type) [anchor=east] at (\textwidth-5mm,0) {\LARGE Packing Slip};
+        \node (shopaddr) [align=left, anchor=north west] at ([shift={(0mm,-1.3cm)}]name2.south west) {
+            MechEng Room 161\\
+            111 Church Street SE\\
+            Minneapolis, MN 55455\\
+            Phone: (612) 625-0549\\
+            Email: cseshop@umn.edu\\
+            Web: http://cse.umn.edu/cse-shop/
+        };
+        \node (details) [align=left, inner sep=0pt, anchor=north east] at (\textwidth, -1.2cm) {
+                \setlength{\tabcolsep}{1mm}
+                \def\tabularxcolumn#1{m{#1}}
+                \renewcommand{\arraystretch}{1.3}
+                \newcommand{\mc}{\multicolumn{3}{p{5.8cm}}}
+                \begin{tabularx}{9.4cm}{>{\raggedleft}p{3.2cm}p{2cm}>{\raggedleft}p{2cm}X}
+                    \textbf{Date} & \DATE & \textbf{Shipping \#} & \FORMNUMBER \\
+                    \textbf{Job \#} & \JOBNUMBER & \textbf{Packed By} & \PACKEDBY \\
+                    \textbf{Job Description} & \mc{\JOBNAME} \\
+                    \textbf{Customer Name} & \mc{\CUSTNAME} \\
+                    \textbf{PI Name} & \mc{\PINAME} \\
+                    \textbf{Customer PO \#} & \mc{\CUSTOMERPO} \\
+                    \textbf{Shipped Via} & \mc{\SHIPPEDVIA} \\
+                    \textbf{Shipping Ref.} & \mc{\SHIPPINGREF} \\
+                \end{tabularx}
+        };
+        \node (shipaddr) [minimum width=6.5cm, text width=5.3cm, inner xsep=6mm, inner ysep=5mm, align=left, below left=\addrshift+8mm and 8.8cm of details.south west, anchor=west] {\REMOTEADDR};
+        \node (shipto) [rotate=90,left=0mm of shipaddr,anchor=south] (0,0) {\small{SHIP TO}};
+        \ifthenelse{\not\equal{}{\BILLADDR}}
+        {
+            \node (billaddr) [minimum width=6.5cm, text width=5.3cm, inner xsep=6mm, inner ysep=5mm, align=left, right=1.5cm of shipaddr] {\BILLADDR};
+            \node (billto) [rotate=90,left=0mm of billaddr,anchor=south] {\small{BILL TO}};
+        }{}
+        \node (manifest) [inner sep=0pt, below left=\addrshift+1cm and 8mm of shipaddr.west, anchor=north west] {
+            \begin{tabularx}{\textwidth-3mm}{X|p{25mm}|p{25mm}}
+                & & \\[16pt]
+                \MANIFEST
+            \end{tabularx}
+        };
+        \draw (manifest.north west) rectangle (manifest.south east);
+        \draw [fill=black] (manifest.north west) rectangle ($ (manifest.north east) + (0,-8mm) $);
+        \node (A) [below=4mm, anchor=center] at (manifest.north west) {};
+        \node (B) [below=4mm, anchor=center] at (manifest.north east) {};
+        \node (C) [left=28mm, anchor=base] at (B) {};
+        \node (D) [left=31mm, anchor=base] at (C) {};
+        \node (E) at ($(A)!0.5!(D)$) {\color{white}\small{DESCRIPTION}};
+        \node (F) at ($(D)!0.5!(C)$) {\small\color{white}\shortstack{BACK\\ORDERED}};
+        \node (G) at ($(C)!0.5!(B)$) {\small\color{white}SHIPPED};
+    \end{tikzpicture}
+\end{document}

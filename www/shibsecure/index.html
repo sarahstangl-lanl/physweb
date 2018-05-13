@@ -1,0 +1,47 @@
+<%doc>
+When we are sent here:
+  1) either we are returning from authing to shibboleth, so if there is a session tag to redirect back somewhere follow it.
+  2) some other way? redirect to home page
+</%doc>
+<%init>
+
+# Save session stuff again, and most important remember the shibb tab as default from now on
+my $cookie = Apache2::Cookie->new($r,
+    -name => 'UMNPHYS_PERSIST',
+    -value => 'shibb|' . $session{'x500'} . '|' . $session{'physid'},
+    -expires => '+10Y',
+    -path => '/',
+    -domain => '.umn.edu',
+);
+if (defined($cookie)) {
+    $cookie->bake($r);
+}
+
+</%init>
+<%perl>
+my $s;
+if(exists $session{'x500'} || exists $session{'phys'}) {
+
+    if(exists $session{'shibbredir'}) {
+        $s = $session{'shibbredir'};
+        delete $session{'shibbredir'};
+        $m->redirect($s);
+    }
+    else {
+        $s = "/index.html";
+        $m->redirect($s);
+    }
+    </%perl>
+        You should have been redirected to your destination. If not click <a href="<% $s |h%>">here</a>
+    <pre>
+    <%perl>
+
+
+}
+else {
+    </%perl>
+        You seem to have authed but we were unable to access your shibboleth session information. Try clearing your cookies and try again.
+    <%perl>
+}
+</%perl>
+

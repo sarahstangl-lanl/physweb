@@ -1,0 +1,76 @@
+<%args>
+$address_id => undef
+$ajax => undef
+</%args>
+<%init>
+    use ShopDb::Form::Address;
+    use PhysAjax;
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $auth = $session{'shopdb-auth'};
+    my $address = $address_id ? $schema->resultset('Addresses')->find({ address_id => $address_id}) : undef;
+    if (defined $address_id && $address != '') {
+        if ($address) {
+            warn "Found address_id " . $address->address_id;
+            unless ($auth->{'admin'} || $auth->{'foreman'}) {
+                my $addresses = $schema->resultset('Addresses')->search({
+                    'me.address_id' => $address_id,
+                    -or => [
+                        'customer_addresses.customer_id' => $auth->{'customer_id'},
+                        'jobs.customer_id' => $auth->{'customer_id'},
+                        'jobs.pi_id' => $auth->{'customer_id'},
+                    ],
+                },{
+                    join => [ qw/customer_addresses jobs/ ],
+                });
+                unless ($addresses->count) {
+                    my $message = _h("You are not authorized to modify address $address_id.");
+                    if ($ajax) {
+                        print_ajax({ msg => $message });
+                    }
+                    else {
+                        print $message;
+                    }
+                    return;
+                }
+            }
+        }
+        else {
+            my $message = _h("Invalid address_id $address_id.");
+            if ($ajax) {
+                print_ajax({ msg => $message });
+            }
+            else {
+                print $message;
+            }
+            return;
+        }
+    }
+    my $address_form = ShopDb::Form::Address->new(
+        action      => 'address.html',
+        name        => 'address_form',
+        item        => $address,
+        schema      => $schema,
+        auth_args   => $session{'shopdb-auth'},
+        active      => [ ($address ? 'address_update' : 'address_add') ],
+    );
+
+    if ($r->method eq 'POST') {
+        $address_form->process(params => \%ARGS);
+    }
+
+    if ($address_form->is_valid) {
+        if ($ajax) {
+            print_ajax({ msg => "OK", address_id => $address_form->item->address_id });
+            return;
+        }
+        # Do something with a saved, good form
+        $m->redirect('?address_id=' . $address_form->item->address_id);
+    }
+</%init>
+
+% $m->clear_buffer if ($ajax);
+<h2>Address Details</h2>
+<p>
+% print $address_form->render();
+</p>
+% $m->abort if ($ajax);

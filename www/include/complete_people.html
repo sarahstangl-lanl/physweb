@@ -1,0 +1,57 @@
+<%DOC>
+   Component: complete_people.html
+        Date: 2007.08.16
+      Author: clayton
+     Changed: 2007.08.16 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $new_holder => ''
+  $name => ''
+  $look_for_name_here => ''
+  $inactive => 0
+  $plugin => undef
+  $include_shop_customers => 0
+  $order_by => ''
+</%ARGS>
+
+<%flags>
+  inherit=>undef
+</%flags>
+
+<%INIT>
+ if ($look_for_name_here ne '') {
+   if ($ARGS{$look_for_name_here}) {
+     $name = $ARGS{$look_for_name_here};
+   }
+ }
+ my $query = $m->comp('/mason/ajax/people_finder.comp', 'name' => ($name ? $name : $new_holder), 'limit' => 10, 'inactive' => $inactive, 'plugin' => $plugin, 'include_shop_customers' => $include_shop_customers ? 1 : 0, order_by => $order_by);
+</%INIT>	
+
+<ul class="contacts">
+<%perl>
+ if ($query) {
+     while (my $result = $query->fetchrow_hashref()) {
+         my ($name2, $hint);
+         if ($$result{'physid'}) {
+           $hint = $$result{'physid'} . '@physics.umn.edu';
+           $name2 = '&lt;' . $hint . '&gt;';
+         } 
+         elsif ($$result{'x500'}) {
+           $hint =  $$result{'x500'} . '@umn.edu';
+           $name2 = '&lt;' . $hint . '&gt;';
+         } 
+         else {
+           $hint = '<i>' . $$result{'uid'} . '</i>';
+           $name2 = '[' . $$result{'uid'} . ']';
+         }
+         if($$result{'inactive'}) {
+            $hint .= " (inactive)";
+         }
+        </%perl>
+        <li id="<% $$result{'uid'} %>" class="contact"><div style="display:none"><% $$result{'last_name'} %><% ($$result{'first_name'} ? ', ' : '')%><% $$result{'first_name'} %> <% $name2 %></div><div class="name"><span class="informal"><% $$result{'last_name'} |h %><% ($$result{'first_name'} ? ', ' : '')%><% $$result{'first_name'} |h %></span></div><div class="email"><span class="informal"><% $hint %></span></div></li>
+%         }
+% }
+</ul>

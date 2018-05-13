@@ -1,0 +1,37 @@
+<%init>
+use tablesearch;
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+my $auth = $session{'shopdb-auth'};
+unless ($auth->{foreman}) {
+    print "Foreman auth required to view this page.";
+    return;
+}
+(my $cnfgroup = $shopdb->{schema}->storage->{_dbi_connect_info}->[0]) =~ s/.*mysql_read_default_group=(.*)/$1/;
+
+unless ($cnfgroup eq 'webdb_test') {
+    print "On production instance";
+#    return;
+}
+
+my $jobs = $schema->resultset('Jobs')->search({
+    job_status_id => { '-not_in' => [ 1, 71, 81 ] }, # All jobs not in draft, shipped, or cancelled status
+    in_date => { '<' => '2013-09-01' },
+});
+
+if ($ARGS{submit}) {
+    print "Marking jobs as shipped<br/>";
+    while (my $job = $jobs->next) {
+        $job->update({ job_status_id => 71, modified_date => \'NOW()' });
+    }
+    $jobs->reset;
+}
+
+my $ts = Tablesearch->new(
+    resultset => $jobs,
+);
+$ts->display;
+
+</%init>
+<form>
+<input type="submit" name="submit"/>
+</form>

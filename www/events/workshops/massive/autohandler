@@ -1,0 +1,18 @@
+<% $m->call_next %>
+<%method titlemenu_above>
+  <& /mason/titlemenu.comp:begin, type=>"above" &>
+   
+    <&| /mason/titlemenu.comp:item, link=>'/events/workshops/massive/index.html'  &>Meeting Home</&>
+    <&| /mason/titlemenu.comp:item, link=>'/events/workshops/massive/program.html'  &>Program</&>
+     <&| /mason/titlemenu.comp:item, link=>'/events/workshops/massive/speakers.html'  &>Invited Speakers</&>
+    <&| /mason/titlemenu.comp:item, link=>'/events/workshops/massive/SOC.html'  &>S.O.C.</&>
+    <&| /mason/titlemenu.comp:item, link=>'/events/workshops/massive/venue.html'  &>Venue</&>
+    <&| /mason/titlemenu.comp:item, link=>'/events/workshops/massive/registration.html'  &>Registration</&>
+    <&| /mason/titlemenu.comp:item, link=>'/events/workshops/massive/participants.html'  &>Participants</&>
+       <&| /mason/titlemenu.comp:item, link=>'/events/workshops/massive/otheractivities.html'  &>Other Activities</&>
+  
+  
+
+  <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->

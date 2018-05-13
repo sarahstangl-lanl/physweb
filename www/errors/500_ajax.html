@@ -1,0 +1,32 @@
+<%flags>
+inherit=>undef
+</%flags>
+
+<%init>
+
+use PhysAjax;
+
+my $err = $r->pnotes('error');
+$r->content_type("text/javascript");
+$r->status(500);
+
+</%init>
+
+<%perl>
+
+return if ($m->comp('/mason/500.comp'));
+
+my $errorfile = $r->pnotes('errorfile');
+
+if ($r->dir_config('SiteName') ne "htphysics" && $r->dir_config('SiteName') ne "production") {
+    my $err_text;
+    eval { $err_text .= $err->as_text };
+    if ($@) {
+        $err_text .= $err;
+    }
+    print_ajax({ err => $err_text."\nFull error details logged to $errorfile" });
+} else {
+    print_ajax({ err => "An error occurred while processing your request. A ticket was automatically generated." });
+}
+
+</%perl>

@@ -1,0 +1,51 @@
+<%DOC>
+   Component: send_mail.comp
+        Date: 2003.09.12
+      Author: allan
+     Changed: 2003.09.12 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$to
+$from=>'webmaster@physics.umn.edu'
+$subject=>'www.physics.umn.edu mail'
+$text=>''
+$cc=>undef
+$bcc=>undef
+$debug=>0
+</%ARGS>
+
+<%INIT>
+use Mail::Sendmail;
+
+if($debug) {
+    $text .= "\n";
+    $text .= "TO: $to\n";   
+    $text .= "FROM: $from\n";   
+    $text .= "CC: $cc\n";   
+    $text .= "BCC: $bcc\n";   
+    $to = 'sysadm\@physics.umn.edu';
+    $cc = undef;
+    $bcc = 'Alex Schumann <rubin\@physics.umn.edu>';
+    #print "<PRE>DEBUG: $text</PRE>";
+}
+
+my %mail = (To      => $to,
+            From    => $from,
+            Subject => $subject,
+            smtp    => 'smtp.physics.umn.edu',
+            Cc      => $cc,
+            Bcc     => $bcc,
+            Message => $text
+        );
+if (!sendmail(%mail)) {
+  $m->autoflush(1);
+  print('An error occurred while sending your mail: <b>');
+  print($m->interp->apply_escapes("$Mail::Sendmail::error", 'h') . "</b>");
+  return undef;
+}
+
+return $Mail::Sendmail::log;
+</%INIT>

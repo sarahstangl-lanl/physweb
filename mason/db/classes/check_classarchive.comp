@@ -1,0 +1,38 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: check_classarchive.comp
+        Date: 2005.02.08
+      Author: allan
+     Changed: 2005.02.08 by allan
+
+return true if this year/quarter is an archived class
+</%DOC>
+
+<%ARGS>
+    $year
+    $quarter
+</%ARGS>
+
+<%INIT>
+    use Date::Calc::Object;
+    
+    my $archived = 1;
+    
+    eval {
+        my ($start, $end, $archive_days) = $m->comp('/mason/quarter_date.comp', year => $year, quarter => $quarter);
+        my $now = Date::Calc->now();
+        
+        if (!$end->is_valid()) { return 1; } 
+    
+        # We don't archive classes in the future... ignore start date here
+        if ($now <= ($end + $archive_days)) {
+            $archived = undef;
+        }
+    };
+    
+    return $archived;
+</%INIT>
+
+<%filter>
+s/.//gos
+</%filter>

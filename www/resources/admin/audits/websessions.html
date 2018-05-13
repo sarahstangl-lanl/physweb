@@ -1,0 +1,20 @@
+<%method title>Current Web Sessions</%method>
+
+<%init>
+use tablesearch;
+my $fields = [ qw/address physid x500 mod_time/ ];
+my $ts = new Tablesearch(
+    table => 'websession.sessions',
+    field_list => $fields,
+    header_format => 'ucfirst_all',
+    debug => 0,
+    where => 'WHERE address IS NOT NULL AND (physid>"" OR x500>"")',
+);
+#print $ts->sql();
+</%init>
+<%method no_search_box>
+</%method>
+</p>
+<%perl>
+$ts->display;
+</%perl>

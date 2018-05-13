@@ -1,0 +1,110 @@
+<%doc>
+        vim:set syntax=mason:
+</%doc>
+<%perl>
+
+sub fh_choose_value {
+   while(my $val = shift) {
+      if (defined $$val) {
+        return $$val;
+      }
+   }
+}
+
+sub fh_error_block
+{
+    my $display = shift;
+    my $name = shift;
+    return '<span class="errorarrow" id="error_indicator_'.$name.'"style="background: red; color: black;'. ($display ? "display: inline;" : "display: none;") 
+            . '"><img src="/images/a_ar_left_black.gif" border="none">&nbsp;</span>'; 
+}
+
+sub fh_input_generic{
+   my ($name, $dbobject, $attributes, $default) = @_;
+   my %args = $m->request_args;
+   my $dbvalue;
+   if(ref $dbobject) {
+     $dbvalue = $dbobject->get($name);
+   } else { # If its not an object, take it as a literal
+     $dbvalue = "$dbobject";
+   }
+   my $value = fh_choose_value( \$args{"in_$name"}, \$dbvalue, \$default, "");
+   my $attr = "";
+   foreach my $key (keys %$attributes) {
+       $attr .= "$key=\"".$attributes->{$key}."\" ";
+   }
+   my $errblock = fh_error_block($args{'err_key'} eq $name ? 1 : 0, $name);
+   $value = $m->interp->apply_escapes( $value, 'h' );
+   return(($name, $value, $attr, $errblock));
+}
+
+# input_text draws an input text area.
+# input_text(name, value, attributes)
+#   name - html form name, and id is input_$name
+#   value - a list .. the first defined value is used as default value of box.
+#   attributes - {'foo'=>'blah'} becomes foo="blah" in the html element.
+sub fh_input_text{
+   my ($name, $value, $attr, $errblock) = fh_input_generic(@_);
+   return("<input id=\"input_$name\" type=\"text\" name=\"$name\" value=\"$value\" $attr>$errblock");
+}
+
+sub fh_input_textarea{
+   my ($name, $value, $attr, $errblock) = fh_input_generic(@_);
+   return("$errblock<textarea id=\"input_$name\" name=\"$name\" $attr>$value</textarea>");
+}
+
+
+# input_checkbox(name, defaults, attributes)
+#  name - html form name and id is input_$name
+#  defaults - first defined value in this list is used as the current setting
+#  attributes - {'foo'=>'blah'} becomes foo="blah" in the html element.
+sub fh_input_checkbox {
+   my ($name, $value, $attr, $errblock) = fh_input_generic(@_);
+   return "<input id=\"input_$name\" type=\"checkbox\" name=\"$name\" ". (($value) ? "CHECKED" : "")." value=\"1\" $attr>$errblock";
+}
+
+# input_select(name, defaults, options, attributes)
+#   name - html form name, and id is input_$name
+#   defaults - a list .. the first defined value is selected.
+#   options - 
+#       input_select expects as the 3rd argument a ref to an array of either scalar values, or
+#       another ref to an array where 0 is the key and 1 is the printed value. IE:
+#       (['foo'=>'Foo'], ['blah'=>"Blah thing"]) or
+#       ('foo', 'blah')
+#   attributes - {'foo'=>'blah'} becomes foo="blah" in the html element.
+sub fh_input_select{
+   my ($_name, $options, $object, $defaults, $attributes) = @_;
+   my ($name, $value, $attr, $errblock) = fh_input_generic($_name, $object, $attributes, $defaults);
+
+   my $str = "<SELECT name=\"$name\" id=\"input_$name\" $attr>";
+   foreach my $option (@$options) {
+      if(ref($option)) {
+        $str .= "<OPTION ". ($$option[0] eq $value ? "SELECTED" :"") ." value=\"". $$option[0]."\">".$$option[1] ."</OPTION>\n";
+      }
+      else {
+        $str .= "<OPTION ". ($option eq $value ? "SELECTED" : "") . " value=\"$option\">$option</OPTION>\n";
+      }
+   }
+   $str .= "</SELECT>$errblock";
+   return $str;
+}
+</%perl>
+
+<%method redir_error>
+  <%args>
+  $form
+  $err_key
+  $err_message
+  </%args>
+  <%perl>
+    my $args = $m->request_args();
+    # Apply all current page request arguments into equivelent 'in_{name}' get arguments 
+    # to serve as preserved form entry values
+    my @arglist = map {"in_$_=". $m->interp->apply_escapes($args->{$_}, 'u')} (keys %$args);
+    my $argstr = join '&amp;', @arglist;
+
+    $m->redirect($form. "?$argstr&amp;err_key=$err_key&amp;err_message=$err_message");
+    return 1;
+  </%perl>
+</%method>
+

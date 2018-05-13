@@ -1,0 +1,86 @@
+<%doc>
+         vim: set syntax=mason: 
+   Component: edit_story.html
+        Date: 9/9/2002
+      Author: allan
+ Description: update story database
+</%doc>
+
+<%args>
+$eventid=>undef
+$type=>undef
+$frontpage=>'Y'
+$priority=>'medium'
+$year=>''
+$month=>''
+$day=>''
+$hour=>''
+$minute=>''
+$start_year=>''
+$start_month=>''
+$start_day=>''
+$kill_enable=>''
+$kill_year=>''
+$kill_month=>''
+$kill_day=>''
+$publish=>'Y'
+$headline=>''
+$author=>undef
+$summary=>''
+$text=>''
+$url=>''
+$subtype=>''
+</%args>
+
+<%init>
+my $access = $m->comp('/mason/auth/auth_check_events.comp');
+my $date;
+my $sql;
+my $sth;
+
+$m->redirect('edit_story_form.html') unless $type;
+
+my ($event_date, $start_date, $kill_date);
+if($frontpage ne "Y") {
+  $priority = "none";
+}
+</%init>
+
+<%method title>Event Update</%method>
+
+<%perl>
+
+  if (!$access) {$m->comp('/mason/redirect.comp',url=>"index.html");}
+
+
+  $event_date = $year."-".($month+1)."-".$day." ".$hour.":".$minute.":00";
+  $start_date = $start_year."-".($start_month+1)."-".$start_day;
+  if ($kill_enable) {
+    $kill_date  = $kill_year."-".($kill_month+1)."-".$kill_day;
+  } else {
+    $kill_date = undef;
+  }
+
+  if ($eventid) {
+    if ($eventid eq "new") {
+      $sql = "INSERT INTO stories (type, subtype, priority, event_date, post_date, modified_date, start_date, kill_date, publish, headline, author, summary, text, url, eventid ) VALUES (?,?,?,?,now(),now(),?,?,?,?,?,?,?,?,?)";
+    } else {
+      $sql = "UPDATE stories SET type=?, subtype=?, priority=?, event_date=?, modified_date=now(), start_date=?, kill_date=?, publish=?, headline=?, author=?, summary=?, text=?, url=? WHERE eventid=?";
+    }
+    $sth = $dbh->prepare($sql);
+    $sth->execute($type, $subtype, $priority, $event_date, $start_date, $kill_date, $publish, $headline, $author, $summary, $text, $url, $eventid)
+      or die 'Unable to post news story: ' . $sth->errstr;
+  }
+
+  if ($eventid =~ /new/) {
+    # get the event-id
+    $sql = "SELECT eventid FROM stories ORDER BY eventid DESC LIMIT 1";
+    $eventid = $m->comp('/mason/db/getresults.comp',conn=>$dbh,query=>$sql,type=>'scalar');
+  }
+  if($session{'story_edit_referer'}) {
+    $m->comp('/mason/redirect.comp',url=>$session{'story_edit_referer'});
+  } else {
+    $m->comp('/mason/redirect.comp', url=>"/resources/admin/news");
+  }
+
+</%perl>

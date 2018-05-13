@@ -1,0 +1,34 @@
+
+<%DOC>
+   Component: check_hostowner.comp
+        Date: 2003.09.12
+      Author: allan
+     Changed: 2003.09.12 by allan
+
+checks if current user has right to edit a host entry
+</%DOC>
+
+<%ARGS>
+$hostid=>''
+</%ARGS>
+
+<%INIT>
+my ($admin, $dhcp);
+my $row_ref;
+my $result;
+my $user = $session{'x500'};
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+if (!$auth) {
+  my $sql = "SELECT admin, dhcp_flag FROM statichosts WHERE hostid=?";
+  my $sth = $dbh->prepare($sql);
+  my $success = $sth->execute($hostid);
+  if ($success) {
+    $row_ref = $sth->fetchrow_arrayref;
+    if (defined($row_ref)) { ($admin, $dhcp) = @$row_ref;}
+  }
+  $auth = ($admin eq $user);
+}
+</%INIT>
+<%perl>
+return $auth;
+</%perl>

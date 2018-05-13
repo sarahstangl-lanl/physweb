@@ -1,0 +1,49 @@
+<%args>
+$featrow=>undef
+</%args>
+
+<%method title>Graduate Physics</%method>
+
+<& "/mason/db/stories/feature.comp", type=>'feature', subtype=>'gradphysics', style_prefix=>'rf', require_images=>0, featrow=>$featrow &>
+
+<& /mason/image.comp, filename=>'CrowellLab.jpg', caption=>'A student at work in the 
+Spintronics Research group.', alt=>'Crowell Lab', credit=>'photo by Alex Schumann' &>
+<p>
+Our graduate program offers students the opportunity to work at the cutting edge of 
+contemporary research. The program is large enough (about 140 students) to provide varied 
+opportunities for research and networking, yet small enough to keep individual students 
+from feeling lost in the shuffle. Many of our students come straight from 
+undergraduate studies in small colleges.  Students also like Minnesota because of the 
+opportunities provided by both the large, diverse university and the very livable 
+metropolitan area. 
+<p>
+Our graduate program starts with coursework in classical mechanics, electricity 
+and magnetism, quantum physics, and thermal/statistical physics. In addition, some students study mathematical physics 
+or general relativity, while others start an intermediate exploration of a subfield such as 
+elementary particle physics or condensed matter physics. A few students, with thorough 
+preparation, proceed directly to advanced courses at the very beginning of their residence. 
+Others  fill in gaps in their undergraduate programs.
+<p>
+One unique aspect of the graduate program in physics at the University of Minnesota is the 
+ability to get a physics degree with an adviser outside of the School of Physics.  Some 
+faculty in Astronomy, Biophysics, Chemical Engineering and Materials Science, Chemistry, 
+Electrical Engineering and Mechanical Engineering hold graduate faculty appointments in 
+physics and can direct the research of physics graduate students. 
+<p>
+
+
+<h2>More information...</h2>
+
+<ul>
+% my @time = CORE::localtime(time);
+% if ($time[4] >= 9 || $time[4] < 1) {
+<li><b><a href="https://app.applyyourself.com/AYApplicantLogin/fl_ApplicantConnectLogin.asp?id=UMN-GRAD">Apply Now</a> to the Physics Graduate Program</b>
+<br/>
+% }
+<li>Find out more about our <a href="phd.html">Ph.D Degree</a> and our <a href="ms.html">M.S. Degree</a>
+<li>Find out about current classes in the <a href="/classes/">Class Web Pages</a>
+<li>You can find our <a href="http://zzz.physics.umn.edu/graduate_handbook/home">Graduate Handbook</a> in the Physics Wiki.
+</ul>
+
+
+%# vim:set syntax=mason:

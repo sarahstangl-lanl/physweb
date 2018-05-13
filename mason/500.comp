@@ -1,0 +1,53 @@
+<%init>
+    my $err = $r->pnotes('error');
+    my $headers = $r->headers_in;
+
+    # Always log errors
+    my $now = time;
+    my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = gmtime;
+    $year += 1900;
+    $mon++;
+    my $errorfile = sprintf("/tmp/physics-oops-%4d-%02d-%02d.log", $year, $mon, $mday);
+    my $emailfile = "/tmp/last_htphysics_net_email";
+    $r->pnotes( errorfile => $errorfile );
+    my $delta = undef;
+    if (-f $emailfile ) {
+       my $st = stat $emailfile; #file::stat
+       $delta = $now - $st->mtime;
+    }
+    my $errmsg;
+    eval { $errmsg = $err->as_text; };
+    if ($@) {
+        $errmsg = "$err";
+    }
+    my $errorstr =
+"--- Error Report " . sprintf("%4d-%02d-%02d %02d:%02d:%02d", $year, $mon, $mday, $hour, $min, $sec) . " ---\n
+URI:\n" . $r->uri . "\n
+ERROR:\n" . $errmsg . "\n
+HEADERS:\n" . Dumper($headers) . "\n
+ARGS:\n" . Dumper(\%ARGS) . "\n
+Error logged to $errorfile\n";
+    open FH, ">> $errorfile" or confess("Unable to open error file: " . $!);
+    print FH "$errorstr\n";
+    close FH;
+
+    # Skip email and error page for bots and software aborts
+    my $ua = $headers->{'User-Agent'};
+    if ($ua eq '' || $ua =~ /(bot|Slurp|web-search|crawler)/i) {
+        print "Go away robot. You found a bug.";
+        return 500;
+    }
+    elsif($errmsg =~ /(Internal apreq error|Software caused connection abort)/) {
+        return 500;
+    }
+
+    # Send email if not on staging and no delta or delta greater than $seconds_between_emails
+    return if ($r->dir_config('SiteName') ne "htphysics" && $r->dir_config('SiteName') ne "production");
+    my $seconds_between_emails = 60 * 60; #1 hour
+    unless (defined $delta && $delta < $seconds_between_emails) {
+        $m->comp("/mason/send_mail.comp", to => 'net@physics.umn.edu', subject => "Error encountered on production site", text => $errorstr);
+        open FH, ">> $emailfile" or confess("Unable to open last email sent file: " . $!);
+        print FH "" . CORE::localtime() . ": Sent email for " . $r->uri . "\n";
+        close FH;
+    }
+</%init>

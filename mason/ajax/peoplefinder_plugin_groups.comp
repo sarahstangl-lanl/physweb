@@ -1,0 +1,29 @@
+
+<%DOC>
+   Component: peoplefinder_plugin_groups.comp
+        Date: 2009.02.02
+      Author: clayton
+     Changed: 2009.02.02 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $pf_groups_type => 0
+</%ARGS>
+
+<%INIT>
+  my $groupstr;
+  if ($pf_groups_type == 1) {
+    $groupstr = '(physfac)';
+  }
+
+  if ($pf_groups_type == 1) {
+    my %sql = $m->comp('/mason/auth/groupsql.comp', $groupstr);
+    return ($sql{'join'}, $sql{'where'}, []);
+
+  } else {
+    return (undef, undef, []);
+  }
+</%INIT>		
+		

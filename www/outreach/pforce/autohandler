@@ -1,0 +1,16 @@
+<% $m->call_next %>
+<%method title>Physics Force</%method>
+<%method titlemenu_below>
+   <& /mason/titlemenu.comp:begin, type=>"below" &>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/index.html' &>About</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/circus/' &>Demonstrations</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/events.html' &>Schedule</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/k12.html' &>In the News</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/meettheforce.html' &>Meet the Force</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/merchandise.html' &>Merchandise</&>
+   <&| /mason/titlemenu.comp:item, link=>'/outreach/pforce/contact.html' &>Contact Us</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+<!-- vim: set syntax=mason: -->
+
+

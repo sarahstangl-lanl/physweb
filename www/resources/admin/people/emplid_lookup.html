@@ -1,0 +1,59 @@
+
+<%DOC>
+   Component: emplid_lookup.html
+        Date: 2008.11.14
+      Author: nick
+     Changed: 2008.11.14 by nick
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$x500=>undef
+</%ARGS>
+
+<%method title>Employee ID Lookup</%method>
+
+<%method no_search_box></%method>
+
+<%INIT>
+my $directory = $m->comp('/mason/auth/auth_check_directory.comp');
+my $admin = $m->comp('/mason/auth/auth_check_sysadm.comp');
+
+if (!$directory && !$admin) {
+  print "<H2>You do not have permission to view this page</H2>";
+  return;
+}
+
+my ($emplid,$last_name,$first_name);
+if($x500) {
+  my $dw_dbh = $m->comp('/mason/dw_dbh.comp');
+  my $query = $dw_dbh->prepare('SELECT DISTINCT EMPLID, FIRST_NAME, LAST_NAME FROM PS_DWHR_DEMO_ADDR_VW WHERE INTERNET_ID=?');
+  $query->execute($x500);
+  if(my $row = $query->fetchrow_hashref) {
+    $emplid = $row->{'EMPLID'};
+    $last_name = $row->{'LAST_NAME'};
+    $first_name = $row->{'FIRST_NAME'};
+  } else {
+    $query = $dw_dbh->prepare('SELECT DISTINCT EMPLID, FIRST_NAME, LAST_NAME FROM PS_DWSA_DEMO_ADDR WHERE EMAILID_1=?');
+    $query->execute($x500.'@umn.edu');
+    if(my $row = $query->fetchrow_hashref) {
+      $emplid = $row->{'EMPLID'};
+      $last_name = $row->{'LAST_NAME'};
+      $first_name = $row->{'FIRST_NAME'};
+    }
+  }
+}
+</%INIT>
+<p>
+<form action="emplid_lookup.html">
+<table><tr><td>x500</td><td><input size="8" name="x500"></td><td><input type="submit" value="Lookup"></td></tr></table>
+</form>
+<p>
+% if ($emplid) {
+  Employee ID for <% $last_name %>, <% $first_name %>: <% $emplid %>
+  <br/>
+<a href="dw_emplid.html?emplid=<% $emplid %>">Peoplesoft data</a>
+% } else {
+  No match found for <% $x500 %>
+% }

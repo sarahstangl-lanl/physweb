@@ -1,0 +1,20 @@
+<%args>
+    $id
+    $name
+</%args>
+
+<%init>
+    $m->comp('js.comp');
+    $m->comp('jsload.comp', file => 'calendarview.js');
+</%init>
+
+<a href="#" id="<% $id |h %>-popcalendar"><img src="/images/calendar.jpg" alt="Pick Date" border="0" style="margin-bottom:-2px;" /></a>
+
+<script type="text/javascript">
+Calendar.setup(
+  {
+    dateField: '<% $id |h %>',
+    triggerElement: '<% $id |h %>-popcalendar'
+  }
+);
+</script>

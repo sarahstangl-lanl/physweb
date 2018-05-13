@@ -1,0 +1,15 @@
+<%doc>
+</%doc>
+<%method title>
+Physics Forms
+</%method>
+<%init>
+use Data::Dumper;
+$r->content_type('text/html');
+
+my @args = split("/", $m->dhandler_arg);
+my $name = $args[0];
+</%init>
+
+<& /mason/db/form.comp, name=>$name &>
+

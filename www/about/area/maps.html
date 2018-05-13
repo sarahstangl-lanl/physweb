@@ -1,0 +1,61 @@
+
+116 Church Street&nbsp;S.E.<br/>
+University of Minnesota
+<br/>
+Minneapolis
+<br/>
+Minnesota 55455
+<br/>
+U.S.A.
+</b>
+<p class="note">
+Maps and driving directions for all campus locations can be found at <a href="http://onestop.umn.edu/Maps/">http://onestop.umn.edu/Maps/</a>
+<h2>This is where we are on the East Bank of the Minneapolis campus:</h2>
+<p class="ind">
+<img src="smallmap.jpg" width=430 height=522 alt="Tate Lab on campus">
+<p>
+<!--
+Where we fit into the Minneapolis campus in general:
+<p class="ind">
+<img src="deptmap.jpg" alt="Minneapolis campus" width=242 height=203>
+<p>
+A larger view of the Minneapolis campus:
+<p class="ind">
+<img src="bigmap.jpg" width=604 height=470 alt="Location of Campus in Minneapolis">
+<p>
+The Twin Cities and main highways:
+<p class="ind">
+<img src="minn_map.gif" width=588 height=440 alt="Twin Cities Map">
+-->
+<h2>Interactive map of the twin cities:</h2>
+<div id="map" style="width: 100%; height: 500px; border: 1px dashed black;"></div>
+
+<%method meta>
+% my $googlekey = "ABQIAAAATuH6R-wtmIVuQwLrBBN3tBQelrnb7beu1AF5qV0I674-3nYAuhR_N2ebZNSm3Gj8ckur0ct7sO2uKw";
+    <script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=<%$googlekey%>"
+      type="text/javascript"></script>
+    <script type="text/javascript">
+
+    //<![CDATA[
+
+    function load() {
+      if (GBrowserIsCompatible()) {
+        var map = new GMap2(document.getElementById("map"));
+        map.addControl(new GLargeMapControl());
+        map.addControl(new GMapTypeControl());
+        map.setCenter(new GLatLng(44.97521, -93.23491), 14);
+        map.openInfoWindow(map.getCenter(), document.createTextNode("Tate Lab of Physics & Astronomy"));
+
+%#http://maps.google.com/maps?f=q&hl=en&q=116+Church+St+SE,+Minneapolis,+MN+55455&sll=44.974711,-93.231997&sspn=0.010003,0.015256&ie=UTF8&ll=44.97503,-93.234251&spn=0.005002,0.007628&t=h&z=17&om=1
+      }
+    }
+
+    //]]>
+    </script>
+</%method>
+
+<%method body>
+onload="load()" onunload="GUnload()"
+</%method>
+
+%# vim: set syntax=mason:

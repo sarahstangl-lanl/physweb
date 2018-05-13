@@ -1,0 +1,39 @@
+<%doc>
+   Component: auth_check_directory.comp
+        Date: 9/2/2002
+      Author: allan
+ Description: checks if the user has FULL (template) access to edit calendar, returns 0 or 1
+</%doc>
+
+<%args>
+$areatag=>'spa'
+$eventid=>0
+</%args>
+
+<%init>
+    my ($sql, $sth);
+    my $auth = 0;
+    my $uid = $m->comp('/mason/auth/current_uid.comp');
+    if ($eventid) {
+      $sql = 'SELECT full_auth_group FROM calendar_areas JOIN calendar ON (calendar.eventid=? AND calendar.areaid=calendar_areas.areaid) LIMIT 1';
+      $sth = $dbh->prepare($sql);
+      $sth->execute($eventid) or die("SQL error: $sql");
+    } else {
+      $sql = 'SELECT full_auth_group FROM calendar_areas WHERE tag=? LIMIT 1';
+      $sth = $dbh->prepare($sql);
+      $sth->execute($areatag) or die("SQL error: $sql");
+    }
+
+    
+    my (@calendars, $row_ref);
+    if ($row_ref = $sth->fetchrow_arrayref) {
+      my ($type) = @$row_ref;
+      if ($type) {
+        $auth = $m->comp('/mason/auth/auth_check.comp',auth_type=>$type);
+      }
+    }
+</%init>
+
+<%perl>
+return $auth;
+</%perl>

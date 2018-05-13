@@ -1,0 +1,31 @@
+<%DOC>
+Component: moveiface.html
+     Date: 2010.08.06
+   Author: mackey
+      vim: set syntax=mason:
+          
+Description: Form for moving interfaces between hosts
+</%DOC> 
+
+<%ARGS>      
+$id => 0
+$old_host => 0
+$update => 0
+$clear  => 0
+$hostbox => "invalid"
+</%ARGS>
+    
+<%INIT>
+    use physdb;
+
+    if ($clear) {
+        # user clicked cancel
+        $m->redirect("edit_host_form.html?id=$old_host");
+    }
+
+    if ($update) {
+        # user clicked update
+        physdb::query("UPDATE net_interfaces SET host_id=? WHERE id=?", $hostbox, $id) or die "Failed to update!";
+        $m->redirect("hosts.html");
+    }
+</%INIT>

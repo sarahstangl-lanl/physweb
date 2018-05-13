@@ -1,0 +1,57 @@
+<%DOC>
+   vim: set syntax=mason:
+   Component: edit_switchports.html
+        Date: 2008.06.02
+      Author: clayton
+     Changed: 2008.06.02 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  #$new_switch => undef,
+  #$new_port_start => undef,
+  #$new_port_end => undef
+
+  $update_switch => undef
+  $update_switch_port => undef
+  $update_jack => undef
+  $update_location => undef
+  $update_building => "Phys"
+  $search => ''
+</%ARGS>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%INIT>
+use physdb;
+
+  my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+  if(!$auth) {
+    print "Must be admin\n";
+    return;
+  }
+
+#  if ($update_switch) {
+#    if (!$update_port_end) { $update_port_end = $update_port_start; }
+#
+#    for (my $port = $update_port_start; $port <= $update_port_end; $port++) {
+#      physdb::query('INSERT INTO net_ports (switch, port) VALUES (?,?)', $update_switch, $port);
+#    }
+#  }
+
+  if ($update_switch && $update_switch_port) {
+      if($update_location eq '') {
+        $update_location = undef;
+      }
+      physdb::query("INSERT INTO net_ports (switch, port, building, room, jack) VALUES (?, ?, ?, ?, ?) 
+                     ON DUPLICATE KEY UPDATE building=?, room=?, jack=?", 
+                     $update_switch, $update_switch_port, $update_building, $update_location, $update_jack, 
+                     $update_building, $update_location, $update_jack);
+  }
+
+  $m->redirect('switchports.html?search='. $search);
+</%INIT>		
+		

@@ -1,0 +1,79 @@
+
+<%DOC>
+   Component: edit_classtemplate_form.html
+        Date: 2003.07.15
+      Author: allan
+     Changed: 2003.07.15 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$classid=>'new'
+</%ARGS>
+
+<%INIT>
+return if $m->comp('/mason/db/dbcheck.comp');
+
+my $auth = $m->comp('/mason/auth/auth_check_classes.comp',classid=>$classid);
+my ($name, $section, $title, $summary);
+
+# fetch existing values...
+if ($classid ne "new") {
+
+  # Now fetch the entry
+  my $sql = "SELECT name, section, title, summary FROM classlist WHERE classid = ? LIMIT 1";
+  my $sth = $dbh->prepare($sql);
+  $sth->execute($classid);
+
+  my $row_ref = $sth->fetchrow_arrayref;
+  ($name, $section, $title, $summary) = @$row_ref;
+  my $year = 0;
+  my $quarter="fall";
+}
+
+</%INIT>		
+		
+<%method title>Add Class Template</%method>
+
+% if (!$auth) {$m->comp('/mason/redirect.comp',url=>"index.html");}
+
+
+<form method="POST" name="edit" action="edit_classlist.html">
+<input type=hidden name="classid" value="<% $classid %>">
+<input type=hidden name="flags" value="template">
+<input type=hidden name="year" value="0">
+<input type=hidden name="quarter" value="fall">
+<table border=0 width="100%">
+<tr valign="top"><th colspan=2 bgcolor="#eeeeee" align="left">Class Data</th><td>
+
+<tr valign="top"><td>Designator&nbsp;&amp;&nbsp;course&nbsp;no:</td><td><input type=text name="name" value="<% $name %>" size=15>
+Section:&nbsp;<input type=text name="section" value="<% $section %>" size=6>
+</td></tr>
+
+<tr valign="top"><td>Title:</td><td>
+<input type=text name="title" value="<% $title %>" size=50>
+</td></tr>
+<tr valign="top"><td>Course Description:</td><td>
+<textarea name="summary" cols=50 rows=5><% $summary %></textarea>
+</td></tr>
+
+</table>
+<p>
+<input type="submit" value="Update Template">
+<input type="reset" value="Cancel Changes">
+</form>
+
+% if ($classid ne "new") {
+<p><hr>
+<h4>Delete Template</h4>
+<form method="POST" action="delete_classlist.html">
+<b>Warning</b> - this will delete the class and all its contents from the web site!
+<p>
+<input type=hidden name="classid" value="<% $classid %>">
+To remove this class from the database - <input type=submit value="Delete Template">
+<br>
+<input type="checkbox" name="confirm">&nbsp;Check this box to confirm deletion.<br>
+
+</form>
+% }

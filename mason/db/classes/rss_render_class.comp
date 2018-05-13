@@ -1,0 +1,95 @@
+<%DOC>
+   vim: set syntax=mason: 
+   Component: render_class.comp
+        Date: 2005.02.08
+      Author: allan
+     Changed: 2005.02.08 by allan
+
+Description ... 
+</%DOC>
+\
+<%ARGS>
+$classid
+</%ARGS>
+\
+<%INIT>
+$r->content_type("application/xml");
+
+# self caching here
+#return if $m->cache_self(expire_in => '5 min', busy_lock=>'30 sec', key => $classid);
+
+return unless $dbh; #Prevent errors when database down
+
+my $sql = "SELECT name, section, title, year, quarter, location, time, url, flags FROM classlist WHERE classid=? LIMIT 1";
+my ($class, $section, $title, $year, $quarter, $location, $time, $url, $flags);
+my $uri = $r->uri;
+my $sth = $dbh->prepare($sql);
+my $success = $sth->execute($classid);
+if ($success) {
+  if (my $row_ref = $sth->fetchrow_arrayref()) {
+    ($class, $section, $title, $year, $quarter, $location, $time, $url, $flags) = @$row_ref;
+  } # end of test for classlist lookup
+}
+
+#
+# only allow access to historic classes for selected users
+#
+my $archived = $m->comp('/mason/db/classes/check_classarchive.comp', year=>$year, quarter=>$quarter);
+
+if ($archived) {
+  # No RSS for archives
+  return;
+}
+
+my ($description, $date, $classname);
+
+if ($title) {
+$m->out();
+
+$date = ' (' . ucfirst($quarter) . ' ' . $year . ')';
+$classname = $class;
+$classname .= '.' . $section if ($section);
+
+$description = $title;
+
+  my $link = "http://www.physics.umn.edu/classes/" . $m->comp('/mason/db/classes/make_classlink.comp', quarter=>$quarter, class=>$class, name=>$class, year=>$year, section=>$section);
+
+  use XML::Atom::SimpleFeed;
+  my $rss = XML::Atom::SimpleFeed->new(
+     title        => $classname . $date,
+     link         => $link,
+     id           => $link, # this should be unique and NEVER change... luckily class links don't.
+     subtitle  => $description,
+  );
+
+    my $sth = $dbh->prepare('SELECT entryid, item_type, post_date, modified_date FROM classdata WHERE classid=? AND parentid=? AND item_type!=\'ta\' AND item_type!=\'feedback\' ORDER BY modified_date DESC, priority DESC LIMIT 20');
+    $sth->execute($classid, 0)
+      or die 'Unable to fetch entries: ' . $sth->errstr;
+    while (my $row_ref = $sth->fetchrow_arrayref()) {
+      my ($entryid, $type, $post_date, $modified_date) = @$row_ref;
+      if ($entryid) {
+        my %item =
+          (
+            title => '',
+            link => "http://www.physics.umn.edu/classes/" . $m->comp('/mason/db/classes/make_classlink.comp', section=>$section, name=>$class, year=>$year, quarter=>$quarter) . $type . '.html?item=' . $entryid,
+            id => "cid:$classid.eid:$entryid" . (($modified_date ne $post_date) ? ".updated:$modified_date" : ''),
+            author => 'unknown',
+          );
+
+        $description = $m->scomp('/mason/db/classes/rss_render_item.comp', rssitem=>\%item, uri_base=>"/classes/$year/".lc($quarter)."/$class".($section ? ".$section/" : "/"), entryid=>$entryid, enforce_type=>$type, enforce_classid=>$classid);
+        if (! ($description =~ /\s*/ and $item{'title'} eq '')) {
+          $m->comp('/mason/clean_rss.comp', $description);
+          $item{'content'} = $description;
+          if ($modified_date ne $post_date) {
+            $item{'title'} .= ' (Updated)';
+          }
+          $rss->add_entry(%item);
+        }
+      }
+    }
+
+  $rss->print();
+} else {
+  $m->out("<p class=\"error\">Couldn't find that class</p>");
+}
+</%INIT>

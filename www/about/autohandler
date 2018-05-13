@@ -1,0 +1,6 @@
+<% $m->call_next %>
+<%method titlemenu_above>
+   <& /mason/titlemenu.comp:begin, type=>"above" &>
+   <& about_menuitems.comp &>
+   <& /mason/titlemenu.comp:end &>
+</%method>

@@ -1,0 +1,42 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: traffic.comp
+        Date: 2008.04.02
+      Author: rubin
+     Changed: 2008.04.02 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$hwa=>''
+$ip=>''
+</%ARGS>
+
+<%INIT>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+#use lib "/local/site/scripts/";
+#use physdb;
+#physdb::use_dbh($dbh);
+
+</%INIT>		
+	
+<table border=0 cellpadding=0 cellspacing=1>
+<%perl>
+my $rows = physdb::query("SELECT net_accounting.*, INET_NTOA(ip) as ip FROM accounting.net_accounting WHERE /*ip=INET_ATON(?) AND*/ hwa=? ORDER BY timestamp DESC LIMIT 4", $ip, $hwa);
+my $oddeven = 0;
+while(my $row = $rows->fetchrow_hashref()) {
+    $oddeven = $oddeven ? 0 : 1;
+    </%perl>
+    <tr class="<% $oddeven? "odd":"even" %>">
+    <td style="border: 0;"> <% sprintf("%.2f", ($row->{'last_rate'} / 1000)) %> kbps</td>
+    <td style="border: 0;">on <% $row->{'timestamp'} %></td>
+    <!--<tr><td colspan="2"><% $row->{'ip'} %></td></tr>-->
+    </tr>
+    <%perl>
+}
+</%perl>
+</table>
+	

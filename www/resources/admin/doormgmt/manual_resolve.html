@@ -1,0 +1,119 @@
+<%doc>
+This page will attempt to resolve any audits found in $local_door_dir and mark programmed doors programmed
+Copy all files from iPAQ SD card to $local_door_dir and view this page
+</%doc>
+
+<%args>
+$go => undef
+</%args>
+
+<%init>
+use physdb::doorlocks;
+use ToUplink;
+use File::Slurp;
+use File::stat;
+my $local_door_dir = "/local/site/doorlocks";
+</%init>
+
+<p>This page will attempt to resolve any audits found in <% $local_door_dir |h %> and mark doors programmed as found in Capindex.ndx. Click Go! to proceed.</p>
+<form action=""><input type="submit" name="go" value="Go!"/></form>
+<%perl>
+
+return unless ($go);
+
+my @files = read_dir($local_door_dir) or die "Failed to open door dir $local_door_dir: $!";
+
+my %files;
+
+for my $file (@files) {
+    next if (-d "$local_door_dir/$file");
+    next unless ($file =~ /^[0C]/);
+    my $stat = stat("$local_door_dir/$file") or die "Failed to stat $file: $1";
+    $files{$file}{mtime} = $stat->mtime;
+    $files{$file}{data} = read_file("$local_door_dir/$file") or die "Failed to read file $file: $!";
+}
+
+print "Found files:<br/>" . join('<br/>', sort keys %files) . "<br/>";
+
+my @messageLog;
+
+if (defined($files{'Capindex.ndx'})) {
+    my @INDEX = split /(\r|\n)+/, $files{'Capindex.ndx'}{'data'};
+
+    my $line = shift @INDEX;
+    if ($line !~ m/CAP Index File/) {
+        die "ERROR: Bad Capindex.ndx file on iPAQ";
+        return;
+    }
+
+    my $uplink = ToUplink->new;
+
+    # Check for audit files
+    for my $file (keys %files) {
+        if ($file =~ /\.A(\d{2})/) {
+            my $doorlock = Doorlocks->new(door_num => $1);
+            unless ($doorlock->{'loaded'}) {
+                warn "Invalid door number $1";
+                next;
+            }
+            confess "Invalid door number $1" unless ($doorlock->{'loaded'});
+
+            # Resolve door audits
+            if ($uplink->resolve_audits({ door_id => $doorlock->get('door_id'), name => $file, %{$files{$file}} })) {
+                push @messageLog, "Resolved audits for audit file $file";
+            }
+            else {
+                push @messageLog, @{$uplink->{'errors'}};
+            }
+        }
+    }
+
+    # Check for programmed doors
+    foreach my $line (@INDEX) {
+        my ($door_number, $building, $door_name, $door_file, $status) = $line =~ m/\d+;\d+;(\d+);[^;]*;([^;]*);~;([^;]*);([^;]*);([TF])/;
+
+        # Skip unprogrammed doors
+        next unless ($status && $status eq 'T'); # programmed
+
+        push @messageLog, "Found programmed doorlock $door_name";
+        next;
+
+        my $doorlock = Doorlocks->new(door_num => $door_number);
+        confess "Invalid door number $door_number" unless ($doorlock->{'loaded'});
+
+        my $mtime;
+        my $audit_file = "00100100.A".sprintf("%02s",$door_number);
+
+        # Determine programming_date
+        if (defined($files{$audit_file})) {
+            $mtime = $files{$audit_file}{'mtime'};
+        }
+        else {
+            $mtime = $files{'Capindex.ndx'}{'mtime'};
+        }
+
+        # Update programming date
+        $doorlock->set(program_date => \"FROM_UNIXTIME($mtime)");
+
+        # Update door PIN
+        $doorlock->set(pin => $doorlock->get('next_pin')) if ($doorlock->get('generate_pin'));
+
+        # Save changes
+        if ($doorlock->save) {
+            $doorlock->log_changes;
+        }
+        else {
+            push @messageLog, "Failed to save doorlock: " . $doorlock->dumperrors;
+        }
+
+        # Update active PINs
+        $doorlock->update_active_pins;
+    }
+
+}
+
+print "<br/>Update log:<br/>" . join('<br/>', @messageLog);
+
+print "<p><b>If things seemed to go smoothly, you should delete audit/door files from $local_door_dir</b></p>";
+
+</%perl>

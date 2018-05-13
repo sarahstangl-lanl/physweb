@@ -1,0 +1,41 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: edit_network.html
+        Date: 2008.05.20
+      Author: clayton
+     Changed: 2008.05.20 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $id=>undef
+  $description=>undef
+  $net_ip=>undef
+  $subnet=>undef
+  $subnet_ip=>undef
+  $subnet_cidr=>undef
+  $vlan=>undef
+  $vlan_radius_numeric=>undef
+  $dhcp_params=>undef
+  $bigfix_policy=>undef
+  $delete=>undef
+</%ARGS>
+
+<%INIT>
+use physdb;
+
+  my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+  if(!$auth) {
+    print "Must be admin\n";
+    return;
+  }
+
+  if ($delete) {
+    physdb::query('DELETE FROM net_subnets WHERE id=? LIMIT 1', $id);
+  } else {
+    physdb::query('REPLACE INTO net_subnets (id, net, netmask, vlan, description, vlan_radius_numeric, dhcp_params, bigfix_policy) VALUES(?, INET_ATON(?), ' . ($subnet eq 'ip' ? 'INET_ATON(?)' : 'POWER(2, 32) - POWER(2, (32 - ?))') . ', ?, ?, ?, ?, ?)', $id, $net_ip, ($subnet eq 'ip' ? $subnet_ip : $subnet_cidr), $vlan, $description, $vlan_radius_numeric, $dhcp_params, $bigfix_policy || undef);
+  }
+
+  $m->redirect("networks.html");
+</%INIT>

@@ -1,0 +1,98 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: switch.comp
+        Date: 2008.04.02
+      Author: rubin
+     Changed: 2008.04.02 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$hwa=>''
+</%ARGS>
+
+<%INIT>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+#use lib "/local/site/scripts/";
+#use physdb;
+#physdb::use_dbh($dbh);
+
+my $dashed_hwa = uc($hwa);
+$dashed_hwa =~ s/(.{2})/$1-/g;
+$dashed_hwa =~ s/-$//;
+
+$m->comp("/mason/ajax/js.comp");
+my $rows = physdb::query("SELECT AcctStartTime as timestamp, AcctStopTime, NASPortId as port,
+                                 net_dns.hostname, net_hosts.computer_name, net_ports.room, net_ports.building, net_ports.jack,
+                    lower(concat(
+                        substr(accounting.radacct.CallingStationId, 1, 2),
+                        substr(accounting.radacct.CallingStationId, 4, 2),
+                        substr(accounting.radacct.CallingStationId, 7, 2),
+                        substr(accounting.radacct.CallingStationId, 10, 2),
+                        substr(accounting.radacct.CallingStationId, 13, 2),
+                        substr(accounting.radacct.CallingStationId, 16, 2)
+                    )) AS hwa
+                            FROM accounting.radacct
+                            JOIN net_dns ON net_dns.ip = INET_ATON(radacct.NASIPAddress)
+                            JOIN net_interfaces ON net_dns.interface_id=net_interfaces.id
+                            JOIN net_hosts ON net_interfaces.host_id=net_hosts.id
+                            LEFT OUTER JOIN net_ports ON net_ports.switch=net_hosts.computer_name AND net_ports.port=NASPortId
+                            WHERE 
+                            accounting.radacct.CallingStationId = ?
+                            ORDER BY AcctStartTime DESC LIMIT 4", $dashed_hwa);
+</%INIT>
+<%perl>
+if($rows) {
+    </%perl>
+    <script language="javascript">
+        function twizzle(display, twizzleargs) {
+                new Ajax.Request('twizzleport.html', 
+                           {
+                               method: 'get' ,
+                               parameters: {twizzle: twizzleargs},
+                               onSuccess: function(transport) {
+                                   display.innerHTML = transport.responseText;
+                               },
+                               onFailure: function(){ 
+                                   display.innerHTML = "Radius update: Something went wrong with twizzle."
+                               }
+                           });
+         }
+    </script>
+
+    <span id="twizzleblock"></span>
+    <table border=0 cellpadding=0 cellspacing=1>
+    <%perl>
+    my $oddeven = 0;
+    my $first = 1;
+    while(my $row = $rows->fetchrow_hashref()) {
+        $oddeven = $oddeven ? 0 : 1;
+        </%perl>
+        <tr class="<% $oddeven ? "odd" : "even" %>">
+        <td> <% "$row->{hostname}" |h%> port <% "$row->{port}"|h%>
+              <a href="switchports.html?search=<% $row->{'computer_name'} %>">
+              <img src="/images/imgsel_ports.png" alt="Ports" title="Ports" border="0" /></a>
+            <%perl> if($row->{'room'} ne '') { </%perl>
+              (<% $row->{'room'} |h%>-<% $row->{'jack'} %>)
+            <%perl> } else {</%perl>
+               (room?)
+            <%perl> } </%perl>
+            at <% $row->{'timestamp'}|h %> </td>
+        <td><%perl> 
+             if($first) {
+                </%perl><button onclick="twizzle(document.getElementById('twizzleblock'), '<% $row->{'computer_name'} %>:<% $row->{'port'} %>')">Reauth</button></span><%perl>
+             }
+            </%perl> 
+        </td>
+        </tr>
+        <%perl>
+        $first = 0;
+    }
+    </%perl>
+    </table>
+    <%perl>
+}
+</%perl>

@@ -1,0 +1,31 @@
+<%DOC>
+   Component: video.html
+        Date: 2007.07.23
+      Author: clayton
+     Changed: 2007.07.23 by clayton
+
+Description ... 
+
+~~NOSITEMAP~~
+</%DOC>
+
+<%ARGS>
+  $url     => ""
+  $goback  => ""
+  $vidname => ""
+</%ARGS>
+
+<%INIT>
+</%INIT>		
+		
+<%method title>Video Player<% ($m->request_args->{vidname} ? ' - ' . $m->request_args->{vidname} : '') %></%method>
+
+<% $m->comp('/mason/flash_video.comp',url=>$url,autoplay=>1) %>
+
+<%perl>
+if ($goback) {
+</%perl>
+<br/>[<a href="<% $goback %>">&lt;&lt; Go Back</a>]
+<%perl>
+}
+</%perl>

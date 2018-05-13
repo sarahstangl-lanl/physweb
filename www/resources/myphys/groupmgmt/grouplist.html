@@ -1,0 +1,40 @@
+<%INIT>
+  $m->comp('/mason/auth/auth_block.comp');
+</%INIT>
+
+<%method title><& PARENT:title &></%method>
+<%method subtitle>Group managers</%method>
+
+    <p>
+    MyPhys groups may control listings in the School Directory; access to windows file shares; permission to edit or view web or wiki pages; physics mailing list subscriptions; and unix group membership, to give a few examples.
+    </p><p>
+    This page lists many of the groups you may be interested in, along with their assigned managers (to contact if you believe you need membership).
+</p>
+
+<%perl>
+my $uid = $session{'uid'};
+    $m->comp('/mason/db/tablesearch.comp',
+            table => 'groups',
+            field_list => [
+                'name',
+                'export AS unix',
+                'CONCAT(description,". ",purpose) AS about',
+                'GROUP_CONCAT(first_name," ",last_name) AS managers',
+                ],
+            field_params => {
+            managers => {
+                data_format => sub { my $str=shift; $str =~ s/,/<br>/g; return $str;},
+                },
+            },
+            joins => [ 'groupmembers' => 'groupmembers.groupname = groups.name',
+                'directory' => 'groupmembers.uid = directory.uid' ],
+            where => "groups.type IN ('labgroup','web') AND directory.uid = groupmembers.uid AND groupmembers.manager=1 AND directory.inactive=0",
+            group_by => 'GROUP BY name',
+            default_sort_field => 'name',
+            hide_search => 1,
+            hide_header => 1,
+            limit => 100,
+            header_format => 'ucfirst',
+        );
+</%perl>
+%# vim:set syntax=mason: 

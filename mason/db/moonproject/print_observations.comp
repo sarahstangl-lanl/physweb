@@ -1,0 +1,100 @@
+<%args>
+$student
+$ta
+$admin => undef
+$classids => []
+</%args>
+
+<%init>
+    use Moonproject::Student;
+    my $title_text = '';
+    if ($r->uri =~ /admin/) {
+        unless ($admin || $m->comp('/mason/db/moonproject/is_ta.comp', student => $student->{gradesid}, classids => $classids)) {
+            print "You are not allowed to view observations for student " . _h($student->{name}) . ".";
+            return;
+        }
+        $title_text = ' for ' . $student->{name};
+    }
+    $ARGS{sort_field} = 'number' unless (defined $ARGS{sort_field} && $ARGS{sort_field} =~ /^(date|number)$/);
+    delete $ARGS{gradesfilter} unless (defined $ARGS{gradesfilter} && $ARGS{gradesfilter} =~ /^(unreviewed|accepted|needswork|rejected)$/);
+</%init>
+
+% if ($r->uri =~ /admin/ && exists $session{moonproject_sectionfilter} && $session{moonproject_sectionfilter} ne 'all') {
+    <div style="padding: 10px 0 3px 0;">&lt;-- <a href="student_list.html?studentfilter=<% $session{moonproject_sectionfilter} |u %>">Return to Section <% $session{moonproject_sectionfilter} |h %> Student List</a></div>
+% }
+
+    
+% if($ta){
+  <br/>
+  <h2>**The MHD flag refers to the check on the Azimuthal Angle, not the Hour Angle.**</h2>
+  <h2>The students are measuring the Azimuthal Angle, but we are telling them it is the Hour Angle.</h2>
+  <br/>  
+% }
+
+
+<h2>Key for Observation Value Grades</h2>
+<table><tr><th bgcolor='#24FF24' width="60" style="border:1px solid black;">Correct</th><th bgcolor='#920000' width="60" style="border:1px solid black;">Incorrect</th><th bgcolor='#1E6491' width="60" style="border:1px solid black;">No Data</th></tr></table>
+<br/>
+
+<h2>Submitted Observations<% $title_text |h %></h2>
+
+% if ($r->uri =~ /admin/) {
+%   my $student_summary = $m->comp('/mason/db/moonproject/get_student_summary.comp', student => $student->{gradesid});
+
+    <br/>
+    <table>
+    <tr><td style="padding-bottom: 10px;" colspan="2"><& sort_link, %ARGS, field => 'number' &> | <& sort_link, %ARGS, field => 'date' &></td></tr>
+    <tr><td>Filter by type:</td><td>
+    <form><input type="hidden" name="student" value="<% $student->{gradesid} |u %>"/><input type="hidden" name="sort_field" value="<% $ARGS{sort_field} |u %>" />
+        <select onchange="this.form.submit()" name="gradesfilter">
+            <option<% defined $ARGS{gradesfilter} ? '' : " SELECTED" %>>--- No filter ---</option>
+            <& option, %ARGS, value => 'unreviewed', name => 'Unreviewed', summary => $student_summary &>
+            <& option, %ARGS, value => 'accepted', name => 'Accepted', summary => $student_summary &>
+            <& option, %ARGS, value => 'needswork', name => 'Needs Work', summary => $student_summary &>
+            <& option, %ARGS, value => 'rejected', name => 'Rejected', summary => $student_summary &>
+        </select>
+        <input type="submit" name="apply_filter" value="Filter observations"/>
+    </form>
+    </td></tr>
+    </table>
+    <form action="observation_modify.html" method="post">
+    <input type="hidden" name="student" value="<% $student->{gradesid} |u %>"/>
+% }
+
+<table width="100">
+<tr><td>
+<%perl>
+    for my $observation ($student->observation_numbers(sort_field => $ARGS{sort_field}, filter => $ARGS{gradesfilter})) {
+        $m->comp('/mason/db/moonproject/print_observation.comp', %ARGS, number => $observation, student => $student, ta => $ta);
+    }
+</%perl>
+</td></tr>
+
+% if ($r->uri =~ /admin/) {
+    <tr><td align="right">
+        <div style="padding-bottom: 5px;"><input type="submit" name="updateall" value="Update all"/></div>
+        <div style="padding-bottom: 5px;"><input type="submit" name="acceptall" value="Set all unreviewed to Accepted"/></div>
+        <div style="padding-bottom: 5px;"><input type="submit" name="needsworkall" value="Set all unreviewed to Needs Work"/></div>
+        <div style="padding-bottom: 5px;"><input type="submit" name="rejectall" value="Set all unreviewed to Rejected"/></div>
+        <div><input type="submit" name="regradeall" value="Regrade all unreviewed"/></div>
+    </td></tr>
+% }
+</table>
+% if ($r->uri =~ /admin/) {
+    </form>
+% }
+
+<%def sort_link>
+<%args>$field</%args>
+% if ($ARGS{sort_field} ne $field) {
+<a href="?<% _args(%{ $m->request_args || {}}, sort_field => $field) %>">Sort by <% $field eq 'date' ? 'Observation' : 'Submission' %> Date</a>
+% }
+% else {
+<u>Sort by <% $field eq 'date' ? 'Observation' : 'Submission' %> Date</u>
+% }
+</%def>
+
+<%def option>
+% my %args = @_;
+<option value="<% $args{value} |u %>"<% defined $args{gradesfilter} && $args{gradesfilter} eq $args{value} ? ' SELECTED' : '' %>><% $args{name} |h %> (<% $args{summary}->{$args{value}} || 0 |h %>)</option>
+</%def>

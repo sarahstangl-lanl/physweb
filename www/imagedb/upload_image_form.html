@@ -1,0 +1,41 @@
+
+<%DOC>
+   Component: upload_image_form.html
+        Date: 2006.12.12
+      Author: allan
+     Changed: 2006.12.12 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$category
+$parentid
+$indexid=>0
+$text=>'As the image is displayed alongside the associated text, please keep the size to a reasonable limit - we suggest a maximum width of about 250 pixels. Valid image file types are jpeg, png or gif.'
+</%ARGS>
+
+<%INIT>
+my $referer = $r->headers_in->{'Referer'};
+# store the referer as the 'return link', if not the form processor
+if ($referer !~ /upload_image/ ) {
+  $session{'image_upload_return'} = $referer;
+}
+my $returnlink = $session{'image_upload_return'};
+</%INIT>		
+		
+<%method title>Edit or Upload image</%method>
+
+<% $text %>
+<p>
+<small>
+You can also provide alt text, a caption and a photo credit for your image, if desired ("alt text" is what is displayed if someone is browsing with images turned off). The system can perform a simple rescale of large images when they are uploaded, though you will usually get better results if you rescale them yourself using a program like photoshop.
+</small>
+<p>
+% $m->comp('/mason/db/images/insert_image_form.comp', category=>$category, parentid=>$parentid, indexid=>$indexid);
+
+<p>
+% if ($returnlink) {
+<a href="<% $returnlink %>">Return to previous page...</a>
+% }
+

@@ -1,0 +1,94 @@
+<%method title>ShopDb: Job Comment</%method>
+
+<%args>
+    $ajax => undef
+    $job_comment_id => undef
+    $job_id => undef
+    $job_item => undef
+    $delete_comment => undef
+</%args>
+
+<%init>
+    use ShopDb::Schema;
+    use ShopDb::Form::JobComment;
+    use PhysAjax;
+
+    my %result;
+    $result{'result'} = 'error';
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+
+    my $print_error = sub {
+        if ($ajax) {
+            print_ajax({ result => 'error', message => shift @_ });
+        }
+        else {
+            print shift @_;
+        }
+    };
+
+    unless ($job_id || $job_item) {
+        $print_error->("job_id or job_item is required");
+        return;
+    }
+
+    $job_item ||= $schema->resultset('Jobs')->find({ job_id => $job_id });
+
+    unless ($job_item) {
+        $print_error->("Invalid job_id $job_id");
+        return;
+    }
+
+    $job_id = $job_item->job_id;
+
+    my $auth = $m->comp('/mason/db/shopdb/check_job_auth.comp', job_item => $job_item);
+    unless ($auth && ($auth eq 'foreman' || $auth eq 'machinist')) {
+        $print_error->("You are not authorized to modify job comment $job_comment_id on job $job_id");
+        return;
+    }
+
+    my $form = ShopDb::Form::JobComment->new(item_id => $job_comment_id, job_item => $job_item, schema => $schema, auth_args => $session{'shopdb-auth'});
+
+    if ($r->method eq 'POST') {
+        if ($delete_comment) {
+            if ($form->has_auth && $form->item) {
+                $result{'result'} = 'ok';
+
+                $schema->txn_do(sub {
+                    $form->item->delete;
+                });
+            }
+        } else {
+            $form->process(params => \%ARGS);
+
+            if ($form->is_valid) {
+                # Do something with a saved, good form
+                $result{'result'} = 'ok';
+
+                # Get the job_comment_id if this a new entry
+                $job_comment_id = $form->item->job_comment_id;
+
+                if (!$ajax) {
+                    $m->redirect($m->comp('/mason/makeurl.comp',
+                        path => 'job.html',
+                        dargs => { 'job_id' => $job_id }
+                    ));
+                } else {
+                    $result{'update'} = $m->comp('job_comments.html', job_item => $job_item, job_comment_id => $job_comment_id);
+                    $result{'attrs'}{'job_comment_id'} = $job_comment_id;
+                }
+            } else {
+                foreach my $field ($form->error_fields()) {
+                    $result{'errors'}{$field->name} = $field->errors;
+                }
+            }
+        }
+    }
+
+    if ($ajax) {
+        print_ajax(\%result);
+        return;
+    }
+</%init>
+
+% print $form->render();

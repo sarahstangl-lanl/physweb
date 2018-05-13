@@ -1,0 +1,29 @@
+%# vim:set syntax=mason:
+<% $m->call_next %>
+<%method whereamifilter>
+<%args>
+$partsref
+</%args>
+<%perl>
+
+pop @$partsref;
+pop @$partsref;
+return @$partsref;
+</%perl>
+</%method>
+
+<%method title>Group Management</%method>
+<%method titlemenu_below>
+    <%perl>
+        my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+    </%perl>
+    <& /mason/titlemenu.comp:begin, type=>"below" &>
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/groupmgmt/index.html'  &>Search Groups</&>
+% if($auth) {
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/groupmgmt/create_group_form.html'  &>Create Group</&>
+% }
+% if(1) {#TODO: only show if on this page
+    <&| /mason/titlemenu.comp:item,    link=>'/resources/admin/groupmgmt/group_edit.html'  &>View/Edit Group</&>
+% }
+    <& /mason/titlemenu.comp:end, type=>"below" &>
+</%method>

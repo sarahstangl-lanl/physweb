@@ -1,0 +1,4 @@
+<% $m->call_next %>
+<!-- vim: set syntax=mason: -->
+
+

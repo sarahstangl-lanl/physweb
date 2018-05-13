@@ -1,0 +1,210 @@
+
+<%DOC>
+   Component: viewexcel.html
+        Date: 2006.10.06
+      Author: allan
+     Changed: 
+
+Description ... 
+</%DOC>
+<%flags>
+inherit=>undef
+</%flags>
+<%ARGS>
+$sort=>'id'
+$year=>0
+</%ARGS>
+
+<%INIT>
+use Spreadsheet::WriteExcel;
+use File::Temp qw/ tempfile tempdir /;
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) {$m->redirect('index.html');}
+
+my ($appemail, $id, $email, $fname, $mname, $lname, $gender, $homephone, $permphone, $address, $country, $citizen, $degree, $entrydate, $entryyear, $specialization, $degree1, $degree2, $gpa1, $gpa2, $degstart1, $degstart2, $degend1, $degend2, $amgrade, $edgrade, $qmgrade, $tdgrade, $greverb, $grequant, $greanal, $grephys, $toefl, $toefl_type, $personalobj, $personalexp, $personalpub, $personaladd, $recname1, $recemail1, $recpos1, $recinst1, $recname2, $recemail2, $recpos2, $recinst2, $recname3, $recemail3, $recpos3, $recinst3, $rectype1, $rectype2, $rectype3, $updates, $waiver, $confirm, $appdate, $last_modified);
+my $reviews;
+my $text;
+my $rectotal;
+my ($month,$day);
+my ($sth, $sth2, $row_ref, $review_row_ref);
+my $recs;
+my $count = 0;
+my $row = 0;
+my $col = 0;
+my $uri=$r->uri;
+my $abort_code = 503;
+my $file;
+my ($fh,$filename) = tempfile("gradappXXXX", SUFFIX => '.xls', DIR => '/var/tmp' );
+if (!$year) {
+  $year = $m->comp('/mason/db/gradapp/current_app_year.comp');
+}
+</%INIT>
+
+<%perl>
+my $sql = "SELECT id, email, fname, mname, lname, gender, homephone, permphone, address, country, citizen, degree, entrydate, entryyear, specialization, degree1, degree2, gpa1, gpa2, degstart1, degstart2, degend1, degend2, amgrade, edgrade, qmgrade, tdgrade, greverb, grequant, greanal, grephys, toefl, toefl_type, personalobj, personalexp, personalpub, personaladd, recname1, recemail1, recpos1, recinst1, recname2, recemail2, recpos2, recinst2, recname3, recemail3, recpos3, recinst3, rectype1, rectype2, rectype3, updates, waiver, confirm, appdate, last_modified FROM grad.gradapp WHERE entryyear=? ORDER BY ".$sort;
+$sth = $dbh->prepare($sql);
+$sth->execute($year);
+
+my $workbook = Spreadsheet::WriteExcel->new($filename);
+my $worksheet = $workbook->add_worksheet();
+my $fctr = $workbook->add_format();
+$fctr->set_align('center');
+my $fbold = $workbook->add_format();
+$fbold->set_bold();
+my $fcbld = $workbook->add_format();
+$fcbld->set_bold();
+$fcbld->set_align('center');
+
+    $worksheet->write($row, 0, "ID", $fcbld);
+    $worksheet->write($row, 1, "Name",$fbold);
+    $worksheet->write($row, 2, "Email",$fbold);
+    $worksheet->write($row, 3, "Gender",$fcbld);
+    $worksheet->write($row, 4, "Home Phone",$fcbld);
+    $worksheet->write($row, 5, "Perm Phone",$fcbld);
+    $worksheet->write($row, 6, "Address", $fcbld);
+    $worksheet->write($row, 7, "Residence", $fcbld);
+    $worksheet->write($row, 8, "Citizenship", $fcbld);
+    $worksheet->write($row, 9, "Degree Sought", $fcbld);
+    $worksheet->write($row, 10, "Entry Date", $fcbld);
+    $worksheet->write($row, 11, "Specialization", $fcbld);
+    $worksheet->write($row, 12, "School 1", $fcbld);
+    $worksheet->write($row, 13, "GPA 1",$fctr);
+    $worksheet->write($row, 14, "Attendance Dates", $fcbld);
+    $worksheet->write($row, 15, "School 2", $fcbld);
+    $worksheet->write($row, 16, "GPA 2",$fcbld);
+    $worksheet->write($row, 17, "Attendance Dates", $fcbld);
+    $worksheet->write($row, 18, "AM", $fcbld);
+    $worksheet->write($row, 19, "ED", $fcbld);
+    $worksheet->write($row, 20, "QM", $fcbld);
+    $worksheet->write($row, 21, "TD", $fcbld);
+    $worksheet->write($row, 22, "GRE verb", $fcbld);
+    $worksheet->write($row, 23, "GRE quant", $fcbld);
+    $worksheet->write($row, 24, "GRE anal", $fcbld);
+    $worksheet->write($row, 25, "GRE phys", $fcbld);
+    $worksheet->write($row, 26, "TOEFL", $fcbld);
+    $worksheet->write($row, 27, "Referee 1", $fcbld);
+    $worksheet->write($row, 28, "Email 1", $fcbld);
+    $worksheet->write($row, 29, "HaveRec 1", $fcbld);
+    $worksheet->write($row, 30, "Referee 2", $fcbld);
+    $worksheet->write($row, 31, "Email 2", $fcbld);
+    $worksheet->write($row, 32, "HaveRec 2", $fcbld);
+    $worksheet->write($row, 33, "Referee 3", $fcbld);
+    $worksheet->write($row, 34, "Email 3", $fcbld);
+    $worksheet->write($row, 35, "HaveRec 3", $fcbld);
+    $worksheet->write($row, 36, "TotalRec", $fcbld);
+    $worksheet->write($row, 37, "Final?", $fcbld);
+
+    $worksheet->write($row, 38, "Reviewer 1", $fcbld);
+    $worksheet->write($row, 39, "Score 1", $fcbld);
+    $worksheet->write($row, 40, "Reviewer 2", $fcbld);
+    $worksheet->write($row, 41, "Score 2", $fcbld);
+    $worksheet->write($row, 42, "Reviewer 3", $fcbld);
+    $worksheet->write($row, 43, "Score 3", $fcbld);
+
+# freeze the header row
+$worksheet->freeze_panes(1, 0);
+# set column widths to make more legible
+$worksheet->set_column('B:B',20);
+$worksheet->set_column('C:C',30);
+$worksheet->set_column('E:F',15);
+$worksheet->set_column('G:G',40);
+$worksheet->set_column('H:I',15);
+$worksheet->set_column('L:M',30);
+$worksheet->set_column('O:O',20);
+$worksheet->set_column('P:P',30);
+$worksheet->set_column('R:R',20);
+$worksheet->set_column('AB:AC',30);
+$worksheet->set_column('AE:AF',30);
+$worksheet->set_column('AI:AI',30);
+$worksheet->set_column('AL:AL',20);
+$worksheet->set_column('AM:AM',20);
+$worksheet->set_column('AO:AO',20);
+$worksheet->set_column('AQ:AQ',20);
+
+while ($row_ref = $sth->fetchrow_arrayref) {
+  if (defined($row_ref)) {
+    ($id, $email, $fname, $mname, $lname, $gender, $homephone, $permphone, $address, $country, $citizen, $degree, $entrydate, $entryyear, $specialization, $degree1, $degree2, $gpa1, $gpa2, $degstart1, $degstart2, $degend1, $degend2, $amgrade, $edgrade, $qmgrade, $tdgrade, $greverb, $grequant, $greanal, $grephys, $toefl, $toefl_type, $personalobj, $personalexp, $personalpub, $personaladd, $recname1, $recemail1, $recpos1, $recinst1, $recname2, $recemail2, $recpos2, $recinst2, $recname3, $recemail3, $recpos3, $recinst3, $rectype1, $rectype2, $rectype3, $updates, $waiver, $confirm, $appdate, $last_modified) = @$row_ref;
+    if ($lname) {
+    $row +=1;
+    $rectotal=0;
+    $worksheet->write($row, 0, "$id",$fctr);
+    $worksheet->write($row, 1, "$lname, $fname $mname",$fbold);
+    $worksheet->write($row, 2, "$email",$fctr);
+    $worksheet->write($row, 3, "$gender",$fctr);
+    $worksheet->write($row, 4, "$homephone",$fctr);
+    $worksheet->write($row, 5, "$permphone",$fctr);
+    $worksheet->write($row, 6, "$address");
+    $worksheet->write($row, 7, "$country");
+    $worksheet->write($row, 8, "$citizen");
+    $worksheet->write($row, 9, "$degree");
+    $worksheet->write($row, 10, "$entrydate $entryyear");
+    $worksheet->write($row, 11, "$specialization");
+    $worksheet->write($row, 12, "$degree1");
+    if ($degree1) {
+    $worksheet->write($row, 13, "$gpa1",$fctr);
+    $worksheet->write($row, 14, "$degstart1 - $degend1");
+    }
+    if ($degree2) {
+    $worksheet->write($row, 15, "$degree2");
+    $worksheet->write($row, 16, "$gpa2",$fctr);
+    $worksheet->write($row, 17, "$degstart2 - $degend2");
+    }
+    $worksheet->write($row, 18, "$amgrade", $fcbld);
+    $worksheet->write($row, 19, "$edgrade", $fcbld);
+    $worksheet->write($row, 20, "$qmgrade", $fcbld);
+    $worksheet->write($row, 21, "$tdgrade", $fcbld);
+    $worksheet->write($row, 22, "$greverb", $fcbld);
+    $worksheet->write($row, 23, "$grequant", $fcbld);
+    $worksheet->write($row, 24, "$greanal", $fcbld);
+    $worksheet->write($row, 25, "$grephys", $fcbld);
+    $worksheet->write($row, 26, "$toefl", $fcbld);
+    $worksheet->write($row, 27, "$recname1");
+    $worksheet->write($row, 28, "$recemail1");
+    if ($rectype1) {$text="yes"; $rectotal+=1;} else {$text="no";}
+    $worksheet->write($row, 29, "$text");
+    $worksheet->write($row, 30, "$recname2");
+    $worksheet->write($row, 31, "$recemail2");
+    if ($rectype2) {$text="yes"; $rectotal+=1;} else {$text="no";}
+    $worksheet->write($row, 32, "$text");
+    $worksheet->write($row, 33, "$recname3");
+    $worksheet->write($row, 34, "$recemail3");
+    if ($rectype3) {$text="yes"; $rectotal+=1;} else {$text="no";}
+    $worksheet->write($row, 35, "$text");
+    $worksheet->write($row, 36, "$rectotal", $fcbld);
+    if ($confirm) {$confirm=$appdate;} else {$confirm="no";}
+    $worksheet->write($row, 37, "$confirm");
+
+    # also get reviewer info
+    $sql = "SELECT score, reviewer FROM grad.review WHERE appid=?";
+    $sth2 = $dbh->prepare($sql);
+    $sth2->execute($id);
+    $col = 38;
+    while ($review_row_ref = $sth2->fetchrow_arrayref) {
+      if (defined($review_row_ref)) {
+        my ($rs, $rx) = @$review_row_ref;
+        my $rname = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$rx);
+        $worksheet->write($row, $col, "$rname");
+        $col +=1;
+        $worksheet->write($row, $col, "$rs", $fcbld);
+        $col +=1;
+      }
+    }
+
+    }
+  }
+}
+$workbook->close();
+# now send file for download
+    $r->content_type('application/ms-excel');
+    $r->headers_out->unset('Content-Length');
+    $r->headers_out->set('Content-Disposition' => "file; filename=\"gradapp".$year.".xls\"");
+    $r->headers_out->set('Content-Length' => -s $filename );
+
+
+    $m->autoflush(1);
+    $r->sendfile($filename);
+    $m->autoflush(0);
+    return Apache2::Const::OK;
+
+</%perl>
+

@@ -1,0 +1,77 @@
+<%flags>
+inherit=>undef
+</%flags>
+<%args>
+$action=>undef
+$job_id=>undef
+@line_ids=>()
+</%args>
+<%init>
+use ShopDb::Form::LaborLine;
+use ShopDb::Form::MaterialLine;
+use PhysAjax;
+$m->comp('/mason/db/shopdb/build_auth.comp');
+my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+my (%result, $job_item);
+if (!@line_ids) {
+    $result{'message'} = "No lines selected";
+}
+elsif (!$action || $action !~ /^(finalize|unfinalize|active|inactive|move)$/) {
+    $result{'message'} = "Invalid action $action";
+}
+elsif ($action eq 'move' && !$job_id) {
+    $result{'message'} = "No destination job_id provided";
+}
+elsif ($action eq 'move' && !($job_item = $schema->resultset('Jobs')->find($job_id))) {
+    $result{'message'} = "Invalid job_id $job_id";
+}
+elsif (!$session{'shopdb-auth'}->{'foreman'}) {
+    $result{'message'} = "You are not authorized to modify charge lines";
+}
+else {
+    my @forms;
+    for (@line_ids) {
+        my ($type, $id) = split /_/;
+        unless ($type =~ /^(Material|Labor)$/) {
+            $result{'message'} = "Invalid charge line type $type";
+            last;
+        }
+        my $line = $schema->resultset("${type}Lines")->find($id);
+        unless ($line) {
+            $result{'message'} = "Invalid $type line id $id";
+            last;
+        }
+        my $package = "ShopDb::Form::${type}Line";
+        my $form = $package->new(item => $line, job_item => $line->job, schema => $schema, auth_args => $session{'shopdb-auth'});
+        push(@forms, $form);
+    }
+    unless (defined($result{'message'})) {
+        my %updates;
+        if ($action eq 'move') {
+            $updates{'job_id'} = $job_id;
+        }
+        elsif ($action =~ /active/) {
+            $updates{'active'} = ($action eq 'active' ? 1 : 0);
+        }
+        else {
+            $updates{'finalized'} = ($action eq 'finalize' ? 1 : 0);
+        }
+        $schema->txn_do( sub {
+            for my $form (@forms) {
+                warn "Processing form for " . ref($form->item) . " " . $form->item->id;
+                use Data::Dumper;
+                warn Dumper({ %{$form->values}, %updates });
+                unless ($form->process(params => { %{$form->values}, %updates })) {
+                    $result{'message'} = join(' | ', $form->all_form_errors, map { $_->name . ": " . join(', ', $_->all_errors) } $form->error_fields);
+                    $schema->txn_rollback;
+                    last;
+                }
+            }
+        } );
+        unless ($result{'message'}) {
+            $result{'result'} = 'ok';
+        }
+    }
+}
+print $m->comp('/mason/ajax/to_json.comp', \%result);
+</%init>

@@ -1,0 +1,34 @@
+body {
+  background-image: none;
+}
+#leftcol {display:none}
+div#contentblock { 
+  margin: 0; padding: 0;
+  border: 0px;
+}
+
+#footer {
+  border-right: 0px;
+}
+body div#phys {
+  border-bottom: 0px;
+  border-left: 1px solid black;
+  border-right: 1px solid black;
+}
+
+div#footerright {
+   display: none;
+}
+
+div#whereami, div#umnlinks {
+   display: none;
+}
+
+.image_comp {
+   padding: 0.5em 1em 0.5em 1em;
+}
+
+div.rightmenu, div.cal_panel, h1.cal_heading, div.cal_edit, div.cal_readmore {
+    display:none;
+}
+

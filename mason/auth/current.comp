@@ -1,0 +1,14 @@
+<%doc>
+   Component: current.comp
+        Date: 3/30/2008
+      Author: rubin
+ Description: returns directory info of current logged in user
+</%doc>
+<%args>
+</%args>
+<%init>
+  my $info = $m->comp('/mason/db/directory/current_user_full.comp');
+</%init>
+<%perl>
+return $info;
+</%perl>

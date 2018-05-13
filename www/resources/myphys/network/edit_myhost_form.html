@@ -1,0 +1,254 @@
+<%doc>
+   vim: set syntax=mason:
+   Author: Rubin
+</%doc>
+<%method title>Edit Network Registration</%method>
+<%args>
+$id => 'new'
+$iid => 'new'
+$hwa => ''
+</%args>
+<%init>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+use physdb;
+use DateTime;
+use Time::Duration;
+
+# We assume only one interface per computer here. If none is given, we just pick the top one...
+my $hostlist_query =  "SELECT net_hosts.*, 
+                              net_interfaces.hwa, net_interfaces.id as iface_id,
+                              INET_NTOA(net_dns.ip) as ip,
+                              UNIX_TIMESTAMP(last_seen) as last_seen,
+                              security_status,
+                              bigfix_policy,
+                              flag_noncompliant,
+                              UNIX_TIMESTAMP(last_seen_bigfix) as bigfix_time,
+                              IF((
+                                    net_hosts.last_seen IS NOT NULL
+                                    AND (rundate IS NULL
+                                         OR rundate < (DATE_SUB(last_seen, INTERVAL 7 DAY)))
+                                    AND (last_seen_bigfix IS NULL
+                                         OR last_seen_bigfix < (DATE_SUB(last_seen, INTERVAL 7 DAY)))
+                                 ),
+                                 'TRUE',
+                                 'FALSE'
+                                ) as nobigfix
+                         FROM net_hosts 
+                         LEFT OUTER JOIN net_interfaces on net_interfaces.host_id=net_hosts.id 
+                         LEFT OUTER JOIN net_dns ON net_dns.interface_id=net_interfaces.id 
+                         LEFT OUTER JOIN cfengine.runlog ON (net_hosts.id = runlog.host_id AND source = 'bigfix')
+                         LEFT JOIN net_subnets ON net_subnets.vlan = net_interfaces.vlan
+                         WHERE net_hosts.id=? AND (net_interfaces.id=? OR net_interfaces.id IS NULL OR ?=?)
+                      ";
+
+my ($host, $dns);
+if($id ne "new") {
+    $host = physdb::queryfirstrow($hostlist_query, $id, $iid, $iid, 'new');
+    if(!$host) {
+        $m->out("Unable to find host id $id\n");
+        return;
+    }
+    $host->{'people_finder'} = $m->comp('/mason/ajax/uid_to_peoplefinder.comp', uid=>$host->{'admin_uid'});
+    $host->{'accept_policy'} = 1; #already in db so they accepted the policy
+}
+else { #new non-copy entry
+    $host->{'id'} = 'new';
+    $host->{'hwa'} = $hwa;
+    $host->{'type'} = 'unknown';
+    $host->{'os'} = 'unknown';
+}
+
+if(!$host->{'iface_id'}) {
+    $host->{'iface_id'} = 'new';
+}
+
+$m->comp("/mason/network/common.comp");
+
+my $uid = $m->comp("/mason/auth/current_uid.comp");
+
+my $groups = physdb::query("SELECT name, description, type \
+                              FROM groups \
+                              JOIN groupmembers \
+                                ON groupmembers.groupname=groups.name \
+                             WHERE groupmembers.uid=? 
+                               AND groups.type REGEXP '(^rgroup|^labgroup|^machinegroup)'\
+                             ORDER BY type, description",
+                            $uid);
+my @groups;
+while(my $group = $groups->fetchrow_hashref()) {
+    my $description = $group->{description};
+    my $type = $group->{type};
+    my $len = length($description);
+    while($len++ < 30) {
+      $description .= "&nbsp;";
+    }
+    $description .= "&nbsp;($group->{type})";
+    unshift @groups, [$group->{'name'}, $description];
+}
+push(@groups, ['', 'No Group'] );
+
+#If there was more than one choice for group, don't have a default
+if($host->{'id'} eq 'new' && scalar @groups > 1) {
+    $host->{'groupname'} = 'xxxchoosexxx'; #magic string, yay.
+}
+
+#stick a forced choice magic string as the top group
+unshift(@groups, [ 'xxxchoosexxx', 'Choose Group:']);
+
+
+my @oses = split ',', $m->comp("/mason/db/getvalues.comp", table=>"net_hosts", column=>"os");
+my @computer_types = split ',', "unknown,workstation,laptop,server,printer,other";
+
+</%init>
+
+<%perl> if($ARGS{'err_str'}) { </%perl>
+  <div class="errorbox" style="font-size: large; color: red;"><% $ARGS{'err_str'} |h%></div>
+<%perl> } </%perl>
+<div id="edit_host">
+    <%perl> if($host->{'id'} eq 'new') { </%perl>
+        <h2>Entering new network device</h2>
+        <%perl>if ($hwa) {</%perl>
+          <p>
+          We believe your hardware address to be <b><% $hwa %></b> (but we could be wrong!)
+          </p>
+        <%perl> } </%perl>
+    <%perl> } else { </%perl>
+        <h2>Editing device "<% $host->{'computer_name'} %>"</h2>
+    <%perl> } </%perl>
+    
+   <form method="POST" action="edit_myhost.html" style="display: inline;" name="theform">
+
+    <input type="hidden" name="id" value="<% $id %>">
+    <table>
+            <tr><td valign="top"><b>Computer Name:</b></td>          <td><% input_text('computer_name', $host) %><br/>
+                                            <div style="width: 40em; font-size: 0.8em;">For Windows computers, please enter computer name from the System control panel. 
+                                            For Mac OS computers, enter the name from the Sharing preferences window.</div></td></tr>
+            <tr><td valign="top"><b>Hardware&nbsp;Address:</b></td>           <td><% input_text('hwa', $host ) %><br/>
+            <input type="hidden" name="iid" value="<% $host->{'iface_id'} %>">
+              <div style="width: 40em; font-size: 0.8em;">The network hardware address (also called the MAC address) is a unique 12 digit hexadecimal number (0-9, A-F) that identifies the device to the network. <b>See the "Finding your Hardware Address" section in the [<a href="http://www.oit.umn.edu/network/using/setup/index.html" target="_blank">OIT Preferred Setup Guide</a>] , <i>but return here to complete the registration, rather than using their forms</i></b>.</div></td></tr>
+            <tr><td valign="top"><b>Location:</b></td>      <td>Building&nbsp;<% input_text('building', $host, {'size'=>5}, 'PAN') %> Room&nbsp;<% input_text('room', $host, {'size'=>6}) %></td></tr>
+            <tr><td valign="top"><b>OS and Type:</b></td>           <td nowrap>
+            <% input_select('os', $host, \@oses, {'length'=>'8'}, 'windows') %>
+            <% input_select('type', $host, \@computer_types, {'length'=>'8'}, 'workstation') %></td></tr>
+            <tr id="group_form"><td valign="top"><b>Computer&nbsp;Group:</b> </td>         <td><% input_select('groupname', $host, \@groups) %><br/>
+                                              <div style="width: 40em; font-size: 0.8em;">Selecting a group above allows group leaders to make changes to this host, as well as yourself.  Useful for devices which are used by (for example) a research group rather than an individual.</div></td></tr>
+
+            <& "SELF:ipblock", host=>$host, id=>$id, iid=>$iid &>
+    <%perl> if($host->{'id'} ne 'new') { </%perl> 
+            <tr><td>Last Seen</td><td><% $host->{'last_seen'}?(ago(time() - $host->{'last_seen'}, 1)):'Never' |h%></td></tr>
+            <tr><td>Security Status</td>
+                <td>
+                    <%perl>
+                        #Note: if you change this, also change myhosts.html, they should be nearly the same.
+                        if($host->{'flag_noncompliant'}) {
+                            print "<span style=\"color: red;\">Disabled: Host did not comply with security policy. Re-enable by clicking 'save' below, then <a href=\"http://zzz.physics.umn.edu/computing/policies/bigfix/home\">install required patch management software</a>.</span>";
+                        }
+                        elsif(defined $host->{'bigfix_policy'} && $host->{'bigfix_policy'} eq 'exempt') {
+                            print "Exempt";
+                        }
+                        elsif($host->{'security_status'} eq 'unset') {
+                            print "N/A";
+                        }
+                        elsif($host->{'last_seen'} == 0 || (time() - $host->{'last_seen'} > 60*60*24*90)) {
+                            #If we havn't seen them in 90 days dont claim to know bigfix status
+                            print "Unknown";
+                        }
+                        elsif($host->{'security_status'} eq 'required') {
+                            if( $host->{'nobigfix'} eq 'FALSE') {
+                                print 'Compliant: patch management software installed. Seen ' . ago(time() - $host->{'bigfix_time'}, 1) . ".";
+                            }
+                            else {
+                                print "<span style=\"color: red;\">Security software installation required!</span> <a href=\"http://zzz.physics.umn.edu/computing/policies/bigfix/home\">Instructions</a>";
+                            }
+                        }
+                        else {
+                            print "Compliant: ". _h($host->{'security_status'});
+                        }
+                    </%perl>
+                </td></tr>
+    <%perl> } </%perl>
+            <tr><td valign="top">Additional Notes:</td>     <td><textarea name="text" rows="2" style="width: 80%;"><% $host->{'text'} |h %></textarea></td></tr>
+            <tr><td>Disabled</td><td><% input_checkbox("flag_disabled", $host) %> (You can enter the host without letting it be active on the network)</td></tr>
+            <tr><td><b>Required:</b></td><td>
+    <% input_checkbox("accept_policy", $host) %> I have read and agree to follow the School's <a href="http://zzz.physics.umn.edu/computing/policies/network_connection">network security policy</a>.
+            </td></tr>
+    </table>
+   <p> 
+    </p>
+
+    <input type="submit" name="save" value="Save">
+    </form>
+    <form method="GET" action="myhosts.html" style="display: inline;">
+                <input type="submit" value="Cancel">
+		        </form>
+
+        <%perl> if($id ne 'new') { </%perl>
+            <form action="delete_myhost.html" style="display: inline;">
+	        <hr>To delete this device, check to confirm <% input_checkbox("imsure") %> and click 
+            <input type="hidden" name="id" value="<% $id %>">
+            <input type="hidden" name="iid" value="<% $iid %>">
+            <input type="submit" value="Delete">
+            </form>
+        <%perl> } </%perl>
+</div> <!-- edit_host -->
+<br><br>
+
+<%method ipblock>
+<%args>
+$host
+$id
+$iid
+</%args>
+<%perl>
+if($host->{'ip'}) {
+    </%perl>
+    <tr><td valign="top">Network address:</td><td>
+    <% $host->{'ip'} %>
+    </td></tr>
+    <%perl>
+}
+else {
+    </%perl>
+    <tr id="ownership_form">
+      <td valign="top">Network address:</td>
+      <td>
+        <div id="static_req_link">
+          <label><input type="radio" name="static" value="0" CHECKED onclick="toggle_static(); return 0;" />&nbsp;Standard (dynamic address)</label><br/>
+          <label><input id="input_static" type="radio" name="static" value="1" onclick="toggle_static(); return 0;" />&nbsp;This is a server or other device which requires a fixed address</label>
+        </div>
+      </td>
+    </tr>
+    <tr id="static_req_form">
+       <td valign="top">
+         <b>Addressing Details:</b>
+       </td> 
+       <td><textarea style="width: 80%;" rows="2" name="staticrequest">
+Provide details on why a fixed IP address is needed, and let us know your preferred hostname and domain for DNS registration</textarea>
+       </td>
+    </tr>
+    
+    <script language="javascript">
+        var gr_savestyle = '';
+    
+        function toggle_static() {
+            static_req_box = document.getElementById('input_static');
+            static_req_form = document.getElementById('static_req_form');
+            if(!static_req_box.checked) {
+                // hide form
+                savestyle = static_req_form.style.display; // restoring table is hard, just save it
+                static_req_form.style.display = 'none';
+            } else {
+                // Show form
+                //static_req_form.style.display = 'block';
+                static_req_form.style.display = savestyle;
+            }
+        }
+        
+        toggle_static();
+    </script>
+    <%perl>
+}
+</%perl>
+</%method>

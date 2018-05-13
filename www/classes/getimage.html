@@ -1,0 +1,32 @@
+<%doc>
+   Component: getimage.html
+        Date: 7/28/2003
+      Author: allan
+ Description: retrieve an image from the class database
+</%doc>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%args>
+$id => undef
+</%args>
+
+<%init>
+return if $m->comp('/mason/db/dbcheck.comp');
+$m->redirect('/classes') unless ($id);
+
+my $sql = "SELECT attach_mimetype,attach_data FROM classdata WHERE entryid = ?";
+my $sth = $dbh->prepare($sql);
+$sth->execute($id);
+my $image_row = $sth->fetchrow_arrayref;
+my ($mime_type,$image);
+if (defined($image_row)) {
+  ($mime_type,$image) = @$image_row;
+  $r->content_type($mime_type);
+  #$r->header_out('Content-Length' => length($image));
+  $m->clear_buffer;
+  $m->out($image);
+}
+</%init>

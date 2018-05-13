@@ -1,0 +1,123 @@
+<%DOC>
+vim:set syntax=mason:
+Component: index.html
+Date: 2009.02.19
+Author: mackey
+Description: index page for managing visitor accounts
+</%DOC>
+
+<%ARGS>
+$arg_uid => '';
+$arg_name => '';
+$arg_contact => '';
+$arg_days => '';
+</%ARGS>
+
+<%INIT>
+use lib "/var/cfengine/scripts/smbldap-tools";
+use smbldap_tools;
+use Data::Dumper;
+
+use DBI;
+my $mycnf = "/root/.my.cnf";
+my $mycnfgroup = "webdb";
+my $database = "webdb";
+
+my $today=0;
+
+my $auth =$m->comp('/mason/auth/auth_check_sysadm.comp');
+my $dirauth = $m->comp('/mason/auth/auth_check_directory.comp');
+my $visitor_acc_adm = $m->comp('/mason/auth/auth_check_visitor.comp');
+
+if (!($auth || $dirauth || $visitor_acc_adm))
+{
+	$m->out('Access Denied');
+	return;
+}
+</%INIT>
+
+<%method no_search_box></%method>
+
+<%method title>Visitor Accounts</%method>
+
+<p>
+The visitor account system lets you assign temporary accounts to short-term visitors, who need to log in to Physics resources such as linux workstations, or the web site. There is a 14 day limit on each visitor account before it is automatically reset.</p>
+<p>
+If your visitor is 1) staying longer than 1-2 weeks or 2) needs more reliable access/data storage, then you should request an individual account. More information on visitor accounts can be found at <a href="https://zzz.physics.umn.edu/computing/accounts/visitoraccounts">https://zzz.physics.umn.edu/computing/accounts/visitoraccounts</a>
+</p>
+<p>
+<b>Access to this page is restricted to members of the "directory" and "visitor_acc_adm" groups.</b>
+</p>
+
+<%perl>
+	my $query = $dbh->prepare("SELECT uid FROM webdb.visitor_accs WHERE name IS NULL"); # first unused visitor account
+	$query->execute() or die $dbh->errstr;
+	
+	my $account = $query->fetchrow_array(); # account is the uid of the first available visitor	
+	
+	sub	firstdate {
+			#returns the lowest expire date: either reset_date or 14+last_reset_date
+            my $val = shift;
+            my $query = $dbh->prepare("SELECT reset_date, DATE_ADD(last_reset_date, INTERVAL 14 DAY) FROM webdb.visitor_accs WHERE uid=?");
+            $query->execute($val) or die $dbh->errstr;
+            my @dates = $query->fetchrow_array();
+            $query = $dbh->prepare("SELECT DATEDIFF(DATE_ADD(last_reset_date, INTERVAL 14 DAY), reset_date) FROM webdb.visitor_accs WHERE uid=?");                                                        									$query->execute($val) or die $dbh->errstr;
+            my $diff = $query->fetchrow_array();
+            if ($diff > 0) {
+            	return $dates[0];
+            }
+            else {
+            	return $dates[1];
+            }
+     	}
+	
+	
+</%perl>
+
+	<form name="input" action="visitors_edit.html" method="get">
+	<input type="hidden" name="arg_uid" value="<% $account |h %>" />
+	<input type="hidden" name="arg_newuser" value=1 />
+	<br>New Visitor:	</br>
+	<input type="submit" value="Create" />
+	</form> 
+
+<%perl>
+  	$m->comp('/mason/db/tablesearch.comp',
+    		table              => 'webdb.visitor_accs',
+        	field_params       => {
+        							'edit_uid'		=>	{
+        													'name'				=> '',
+        													'data_format'		=> sub 	{
+																							my $val = shift;
+																							return "<a href=\"visitors_edit.html?arg_uid=$val\"><img src=\"/images/imgsel_edit.png\" border=none /></a><a href=\"visitors_view.html?arg_uid=$val\"><img src=\"/images/imgsel_view.png\" border=none /></a>";        													
+    																					}
+        												},
+                                   	'uid'        	=> 	{
+                                                        	'name'           	=> 'Account Name'
+                                                    	},
+                                   	'name'   		=> 	{
+                                                        	'name'         		=> 'Name'
+                                                      	},
+                                   	'contact'     	=> 	{
+                                                        	'name'           	=> 'Visitor Email'
+                                                      	},
+                                   	'reset'			=> 	{
+                                                        	'name' 				=> 'Expire',
+                                                        	'data_format'		=> sub	{	#sub makes sure that the lowest date is displayed
+																							my $val = shift;
+																							return firstdate($val);
+                                                    									}
+                                                      	},
+                                  	'requester'		=>	{
+                                  							'name'				=>	'Requester'
+                                  						}
+                                  },
+            header_format      => 'ucfirst',
+            field_list         => ['uid AS edit_uid','uid','name','contact','uid AS reset','requester'],
+            where              => "WHERE name != CONVERT(_utf8 ' ' USING latin1)",
+            default_sort_field => 'uid',
+            default_sort_dir   => 'asc',
+            hide_search		   => 1,
+            hide_header		   => 1,
+	);
+</%perl>

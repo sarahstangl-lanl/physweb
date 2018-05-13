@@ -1,0 +1,51 @@
+<%args>
+$search => undef;
+$sort => undef;
+$sort_reverse => undef;
+$action => "index.html";
+$last_search => undef;
+</%args>
+<%shared>
+my %args = $m->request_args();
+</%shared>
+<%init>
+use Data::Dumper;
+my $magic = $args{'magic'};
+if($last_search) {
+    $magic = $session{'net_magic'};
+#    $search = $session{'net_search'};
+    $sort = $session{'net_sort'};
+    $sort_reverse = $session{'net_sort_reverse'};
+}
+</%init>
+<div class="adminusersearchbox" style="margin-top: 0.5em">
+<form method="GET" action="<%$action|u%>">
+<table border=0 cellpadding="5" cellspacing="0" width="100%">
+    
+<tr><td colspan=3 nowrap><input type="text" name="magic" value="<% $magic|h%>">
+    <input type="submit" value="Search">
+%#    <input type="reset" value="Reset">
+    <input type="hidden" name="sort" value="<% $sort |h%>">
+    <input type="hidden" name="sort_reverse" value="<% $sort_reverse|h%>">
+    </td><td colspan="6">
+<div class="embedmenu">
+<& SELF:embedmenu, sort=>$sort, sort_reverse=>$sort_reverse &>
+</div></td></tr>
+</table>
+</form>
+</div>
+
+<%method embedmenu>
+<%args>
+$action => "index.html"
+$sort=>undef
+$sort_reverse=>undef
+</%args>
+   <& /mason/menu.comp:begin, level=>5 &>
+    <&| /mason/menu.comp, link=>"/resources/admin/people/$action?magic=&sort=$sort&sort_reverse=$sort_reverse&group=staff", level=>5, selected=>($args{'group'} eq 'staff' ? '1' : '0')  &>Staff</&>
+    <&| /mason/menu.comp, link=>"/resources/admin/people/$action?magic=&sort=$sort&sort_reverse=$sort_reverse&group=astfac", level=>5, selected=>($args{'group'} eq 'astfac' ? '1' : '0')  &>Astro Faculty</&>
+    <&| /mason/menu.comp, link=>"/resources/admin/people/$action?magic=&sort=$sort&sort_reverse=$sort_reverse&group=physfac", level=>5, selected=>($args{'group'} eq 'physfac' ? '1' : '0')  &>Phys Faculty</&>
+    <&| /mason/menu.comp, link=>"/resources/admin/people/$action?magic=&sort=$sort&sort_reverse=$sort_reverse&group=all", level=>5, selected=>($args{'group'} eq 'all' ? '1' : '0')  &>All</&>
+  <& /mason/menu.comp:end &>
+</%method>
+

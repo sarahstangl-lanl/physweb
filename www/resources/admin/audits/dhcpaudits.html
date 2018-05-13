@@ -1,0 +1,44 @@
+<%method title>
+DHCP Lease Audits
+</%method>
+
+<%init>
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+if(!$auth) {
+    print "Must be admin\n";
+    return;
+}
+</%init>
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+            table              => 'accounting.dhcp_accounting',
+            field_params       => {
+                                    'dhcp_server'   => {
+                                                        'name'          => 'DHCP Server'
+                                                       },
+                                    'ip'            => {
+                                                        'header_format' => 'uc'
+                                                       },
+                                    'hwa'           => {
+                                                        'header_format' => 'uc',
+                                                        'url'           => '/resources/admin/network/hosts.html?magic=$row{hwa}'
+                                                       },
+                                    'computer_name' => {
+                                                        'name'          => 'Hostname',
+                                                        'url'           => '/resources/admin/network/host.html?id=$row{id}'
+                                                       },
+                                    'id'            => {
+                                                        'hidden'        => 1
+                                                       }
+                                  },
+            header_format      => 'ucfirst',
+            joins              => [
+                                    'webdb.net_interfaces' => 'webdb.net_interfaces.hwa = accounting.dhcp_accounting.hwa',
+                                    'webdb.net_hosts'      => 'webdb.net_hosts.id = webdb.net_interfaces.host_id'
+                                  ],
+            field_list         => ['webdb.net_hosts.id', 'webdb.net_hosts.computer_name', 'accounting.dhcp_accounting.hwa', 'inet_ntoa(leased_ip) AS ip', 'dhcp_server', 'accounting.dhcp_accounting.timestamp'],
+            where              => "WHERE timestamp > SUBDATE(now(), 7)",
+            default_sort_field => 'timestamp',
+            default_sort_dir   => 'desc',
+        );
+</%perl>

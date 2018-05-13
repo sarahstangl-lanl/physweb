@@ -1,0 +1,75 @@
+<%doc>
+   Component: profiles.comp
+        Date: 8/30/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$group=>''
+$flag=>'physfac || astfac'
+$title=>''
+$type=>'Faculty'
+</%args>
+
+<%init>
+my ($query,$record,$output,$url);
+my ($name, $firstname, $uid, $physid, $flags, $www, $x500, $summary);
+my @result;
+my $search = "($flag)";
+$search .= " && $group" if $group;
+
+my %query = $m->comp('/mason/auth/groupsql.comp', $search);
+$query="SELECT directory.last_name, directory.first_name, directory.uid,
+               directory.physid, directory.www, directory.x500, profiles.summary
+          FROM directory
+
+          LEFT JOIN profiles
+            ON directory.uid = profiles.uid
+
+          LEFT OUTER JOIN groupmembers AS myemeritus
+                       ON myemeritus.groupname='emeritus'
+                          AND myemeritus.uid=directory.uid
+
+         $query{join}
+
+         WHERE  directory.inactive=0 AND
+         $query{where}
+        ";
+$query .= " ORDER BY (myemeritus.groupname IS NOT NULL), last_name";
+@result = $m->comp('/mason/db/getresults.comp', query=>$query, type=>'loh' );
+#print $query;
+
+$output .= "<table>\n";
+
+my $count = 0;
+foreach $record (@result) {
+  $count++;
+  $output .= "<tr valign=\"top\"><td>";
+  $firstname = $record->{first_name};
+  $name = $record->{last_name};
+  $flags = $record->{flags};
+  $physid = $record->{physid};
+  $www = $record->{www};
+  $x500 = $record->{x500};
+  $summary = $record->{summary};
+  if ($physid) {$url = "/people/$physid.html"; } elsif ($x500) {$url = "/people/$x500.html"; }  else { $url = $www;}
+  if ($firstname) { $name = join("&nbsp;",$firstname,$name);}
+  $name =~ s/ /&nbsp;/g;
+  if ($url) {$output .= "<a href=\"$url\">";}
+  $output .= $name;
+  if ($url) { $output .= "</a>";}
+  if ( $flags =~ /emeritus/) {$output .= " (Emeritus)";}
+  if ( $flags =~ /visitor/) {$output .= " (Visiting)";}
+  $output .= "</td><td style=\"padding-left: 10px;\">$summary</td></tr>\n";
+}
+$output .= "</table>\n";
+if (!$title) {$title = $m->comp('/mason/researchgroup.comp',code=>$group);}
+
+</%init>
+
+% if($count) {
+<p>
+<h4><% $title %> <% $type %></h4>
+<% $output %>
+% }

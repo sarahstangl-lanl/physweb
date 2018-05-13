@@ -1,0 +1,62 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: index.html
+        Date: 2006.03.23
+      Author: allan
+     Changed: 2006.03.23 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$list=>'all'
+$sort=>'x500'
+</%ARGS>
+
+<%INIT>
+  my $year;
+  my $grad = $m->comp('/mason/auth/auth_check.comp', auth_type=>'physgrad');
+  my $faculty = $m->comp('/mason/auth/auth_check.comp', auth_type=>'physfac');
+  my $gradfac = $m->comp('/mason/auth/auth_check.comp', auth_type=>'physgrfac');
+  my $staff = $m->comp('/mason/auth/auth_check.comp', auth_type=>'staff');
+
+  if (!($grad||$faculty||$staff||$gradfac)) {
+    return;
+  }
+
+  my $sql = "SELECT record_year FROM gradprogress WHERE uid=? ORDER BY record_year DESC LIMIT 1";
+  my $sth = $dbh->prepare($sql);
+  $sth->execute($session{'uid'})
+    or die 'Unable to grab report: ' . $dbh->errstr;
+  my $last_report = $sth->fetchrow_arrayref;
+  # using Date::Calc...
+  my $this_year = This_Year;
+
+</%INIT>		
+		
+<%method title>Grad Student Progress Reports</%method>
+
+<p>
+If you want to change something in the progress report you have already filed for this year, just update your form, and it will replace your old report.
+</p>
+<p>
+<b>The deadline for completing this report is <i>March&nbsp;29&nbsp;<% This_Year |h %>.</i></b>
+.
+<p>
+<b><a href="progress_form.html">Go to Progress Form</a></b>
+
+
+% if ($last_report) {
+%   ($year) = @$last_report;
+<p>
+You can also <a href="viewreport.html">view your most recent report</a> (<% $year %>).
+% }
+
+
+% if ($faculty||$staff||$gradfac) {
+
+<h4>Submitted progress reports</h4>
+
+Progress report administration has moved to the <a href="/resources/admin/students/index.html">student admin area</a>. 
+
+% }

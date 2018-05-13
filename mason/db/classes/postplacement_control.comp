@@ -1,0 +1,39 @@
+<%DOC>
+   Component: postplacement_control.comp
+        Date: 2008.11.10
+      Author: clayton
+     Changed: 2008.11.10 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $classid
+  $parentid
+  $entryid
+  $item_type
+</%ARGS>
+
+% my $placement_options = [];
+% if ($entryid eq 'new') {
+%   $placement_options = [['top', 'Add to Top'], ['bottom', 'Add to Bottom'], ['before', 'Add Above...'], ['after', 'Add Below...']];
+% } else {
+%   $placement_options = [['none', 'Keep Current'], ['top', 'Move to Top'], ['bottom', 'Move to Bottom'], ['before', 'Move Above...'], ['after', 'Move Below...']];
+% }
+% $m->comp( '/mason/form_selector_ex.comp', name=>'placement', selected=>'none', options=>$placement_options);
+
+<%perl>
+  my $sth = $dbh->prepare('SELECT entryid, headline, attach_name FROM classdata
+          WHERE classid = ? AND ((item_type = ? AND parentid = ?) OR (parentid != 0 AND parentid = ?))
+          ORDER BY priority DESC, post_date DESC');
+  $sth->execute($classid, $item_type, $parentid, $parentid);
+
+  my @relplacement = ();
+
+  while (my $row = $sth->fetchrow_arrayref()) {
+    my ($entryid, $headline, $attach_name) = @{$row};
+    push (@relplacement, [$entryid, (defined($headline) ? $headline : $attach_name)]);
+  }
+</%perl>
+% $m->comp( '/mason/form_selector_ex.comp', name=>'placement_relative', selected=>'none', options=>\@relplacement);		
+		

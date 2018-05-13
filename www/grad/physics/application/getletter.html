@@ -1,0 +1,73 @@
+
+<%DOC>
+   Component: getfile.html
+        Date: 2005.10.03
+      Author: allan
+     Changed: 2005.10.03 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$id => undef
+$recno => undef
+</%ARGS>
+
+<%flags>
+inherit=>undef
+</%flags>
+
+<%INIT>
+if(!defined($id) || !defined($recno)) {
+    print "Cannot call this page directly!";
+    return;
+}
+use File::MMagic;
+my $auth = $m->comp('/mason/auth/auth_check_gradapp.comp');
+if (!$auth) { $m->redirect('index.html'); }
+
+if (($recno == 1) || ($recno == 2) || ($recno == 3)) {
+    my $sql = "SELECT fname,mname,lname,recfname$recno, recdata$recno, rectype$recno FROM grad.gradapp WHERE id = ?";
+    my $sth = $dbh->prepare($sql);
+    $sth->execute($id) or die 'Unable to grab file: ' . $dbh->errstr;
+    
+    my ($fname, $mname, $lname, $recfname, $recdata, $rectype);
+    my $ext = "";
+    if (my $db_row = $sth->fetchrow_arrayref()) {
+        ($fname, $mname, $lname, $recfname, $recdata, $rectype) = @$db_row;
+	# fish for useful file extension
+	my $ext1 = substr($recfname, -4, 4);
+	if (substr($ext1,1) == ".") { $ext=$ext1; }
+	my $ext2 = substr($recfname, -5, 5);
+	if (substr($ext2,1) == ".") { $ext=$ext2; }
+	if (!$ext) {
+          if ($rectype =~ /octet/) {
+            # try to identify with mmagic...
+            my $mm = File::MMagic->new();
+            $rectype = $mm->checktype_contents($recdata);
+          }
+        }
+        if ($rectype =~ /pdf/) { $ext = ".pdf"; }
+        if ($rectype =~ /msword/) { $ext = ".doc"; }
+        if ($rectype =~ /plain/) { $ext = ".txt"; }
+        my $size = length($recdata);
+        $r->content_type($rectype);
+	my $filename = join("_",$fname,$mname,$lname,$recno).$ext;
+        if ($rectype ne "text/html") {
+            $r->headers_out->add('Content-Length' => $size);
+            $r->headers_out->add('Content-Disposition' => "file; filename=\"$filename\"");
+        }
+        
+        $m->clear_buffer();
+        $m->autoflush(1);
+        $m->out($recdata);
+        $m->autoflush(0);
+        
+        $m->abort(Apache2::Const::OK);
+    }
+}
+
+</%INIT>		
+		
+
+Sorry, I can't understand what file you are trying to fetch.

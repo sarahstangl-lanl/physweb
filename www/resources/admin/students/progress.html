@@ -1,0 +1,15 @@
+<%args>
+    $uid=>''
+    %auths=>''
+    $year=>''
+    $semester=>''
+</%args>
+
+<%method title>Progress Report</%method>
+
+<%init>
+    if (!$auths{'advisor'} && !$auths{'progreport'}) { $m->redirect('index.html'); }
+    if (!$uid) { $m->redirect('index.html'); }
+</%init>
+% $year++;
+% $m->comp('/mason/db/students/progress_report.comp', uid => $uid, max_year => $year, max_semester => $semester);

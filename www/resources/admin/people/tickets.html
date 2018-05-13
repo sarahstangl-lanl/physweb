@@ -1,0 +1,113 @@
+<%DOC>
+   vim:set syntax=mason:
+   Component: index.html
+        Date: 2008.08.27
+      Author: rubin
+     Changed: 2008.08.27 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$uid=>''
+$physid=>''
+$x500=>''
+$sort=>'statusupdated'
+$sort_reverse=>0
+</%ARGS>
+
+<%shared>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+use physdb::directory;
+
+my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+my %args = $m->request_args();
+
+
+
+my $uid = $args{'uid'};
+my $x500 = $args{'x500'};
+my $physid = $args{'physid'};
+my $do404 = 0;
+
+my ($directory, $ldap, $umn);
+
+$directory = new Directory( uid => $uid );
+
+my $from;
+if($directory) {
+    $from = $directory->{'first_name'} . " ". $directory->{'last_name'};
+}
+else {
+    $from = "$physid\@physics.umn.edu / $x500\@umn.edu";
+}
+my @addresses; #possible email addresses tickets might show up under
+push @addresses, "$physid\@physics.umn.edu" if($physid);
+push @addresses, "$physid\@astro.umn.edu" if($physid);
+push @addresses, "$x500\@umn.edu" if($x500);
+</%shared>
+<%init>
+if(!$auth) {
+    print "Must be admin\n";
+    return;
+}
+</%init>
+<%perl>
+if($do404) {
+    $m->comp("/mason/404.comp");   
+}
+my $tickets = $m->comp("/mason/db/rt.comp", search=>\@addresses, sort=>$sort, sort_reverse=>$sort_reverse);
+my $oddeven;
+</%perl>
+<h2>RT Tickets</h2>
+<table border=0 cellpadding="5" cellspacing="0" width="100%">
+<tr class="tablehead">
+    <th><&| SELF:sortlink, name=>"subject",     &>Subject</&></th>
+    <th><&| SELF:sortlink, name=>"queue",       &>Queue</&></th>
+    <th><&| SELF:sortlink, name=>"created",     &>Created</&></th>
+    <th><&| SELF:sortlink, name=>"lastupdated", &>Modified</&></th>
+    <th><&| SELF:sortlink, name=>"status",      &>Status</&></th>
+</tr>
+<%perl>
+foreach my $row (@$tickets) {
+  $oddeven = ($oddeven eq "odd") ? "even" : "odd";
+  </%perl>
+  <tr  class="<% $oddeven %>">
+  <td><a href="https://support.physics.umn.edu/rt3/Ticket/Display.html?id=<%$row->{'id'}|u%>" target="_blank">
+     <% ($row->{'Subject'}?$row->{'Subject'}:"NO SUBJECT") |h%></a>
+  </td>
+  <td><% $row->{'Queue'} |h%></td>
+  <td><% $row->{'Created'} |h%></td>
+  <td><% $row->{'LastUpdated'} |h%></td>
+  <td><% $row->{'Status'} |h%></td>
+<%perl>
+}
+</%perl>
+</table>
+
+
+%#TODO: sortlink and all my table creation code should be generalized and turned into a component.
+<%method sortlink>
+<%args>
+$name
+</%args>
+<%perl>
+my %args = $m->request_args();
+my $physid = $args{'physid'};
+my $x500 = $args{'x500'};
+my $uid = $args{'uid'};
+my $sort = $args{'sort'};
+$sort = "statusupdated" unless $sort;
+my $sort_reverse = $args{'sort_reverse'};
+my $sort_order = 0;
+my $sort_img = '';
+if($name eq $sort) {
+  $sort_order = $sort_reverse ? 0 : 1;
+  $sort_img = "<img src=\"/images/". ($sort_reverse ? "s_asc.png" : "s_desc.png")."\" border=\"0\" />";
+}
+</%perl>
+<a href="?uid=<%$uid%>&amp;physid=<%$physid%>&amp;x500=<%$x500%>&amp;sort=<%$name |u%>&amp;sort_reverse=<% $sort_order %>"><% $m->content|h %> <% $sort_img%></a>
+</%method>
+

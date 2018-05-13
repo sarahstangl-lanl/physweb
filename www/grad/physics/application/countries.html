@@ -1,0 +1,41 @@
+<%args>
+$year => '%';
+</%args>
+<%flags>
+inherit=>undef
+</%flags>
+<%init>
+use GD::Graph::hbars;
+use GD::Graph::Data;
+my $query = "select citizen, COUNT(citizen) from grad.gradapp where entryyear like ? group by citizen";
+my $sth = $dbh->prepare($query);
+$sth->execute($year);
+my @row= undef;
+my @labels = ();
+my @values = ();
+
+while (@row = $sth->fetchrow_array())
+    {
+    push @labels, $row[0];
+    push @values, $row[1];
+    }
+my $data = GD::Graph::Data->new([\@labels, \@values,])
+    or die GD::Graph::Data->error;
+my $my_graph = GD::Graph::hbars->new(800,800);
+$my_graph->set(
+    x_label => "citizenship",
+    y_label =>  "applications",
+    title   => "applications / citizenship",
+    bar_spacing => 2,
+    transparent => 0,
+    show_values => 1,
+)
+or warn $my_graph->error;
+
+$my_graph->plot($data);
+my $gd = $my_graph->plot($data) or die $my_graph->error;
+$r->content_type("image/png");
+$r->headers_out->unset('Content-Length');
+$m->clear_buffer;
+$m->out($gd->png);
+</%init>

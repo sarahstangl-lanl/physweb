@@ -1,0 +1,18 @@
+<%ARGS>
+  $account
+</%ARGS>
+
+<%INIT>
+  my $query = $m->comp('account_finder.comp', account => $account);
+  if(!$query) { 
+    return undef;
+  }
+  if (my $row = $query->fetchrow_hashref) {
+    return $row->{'DESCR50'};
+  }
+  return undef;
+</%INIT>
+
+<%filter>
+s/.//gos
+</%filter>

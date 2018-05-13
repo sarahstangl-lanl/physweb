@@ -1,0 +1,33 @@
+<$doc>
+    Assigns temp pin for door_id to uid. Returns new pin on success, 0 on failure.
+</%doc>
+
+<%args>
+    $door_id
+    $uid
+</%args>
+
+<%init>
+    my $sth = $dbh->prepare("
+        UPDATE doorpins AS a
+        JOIN (
+            SELECT MIN(id) as id
+            FROM doorpins
+            WHERE active = 1
+                AND door_id = ?
+                AND uid IS NULL
+            GROUP BY door_id
+             ) AS b
+        ON a.id = b.id
+        SET a.uid = ?, a.created_date = now()");
+    $sth->execute($door_id, $uid) or die "failed to execute: ".$sth->errstr;
+    if($sth->rows) {
+        $sth = $dbh->prepare("SELECT pin FROM doorpins WHERE door_id=? AND uid=? AND active=1 ORDER BY id DESC LIMIT 1");
+        $sth->execute($door_id, $uid) or die "failed to retrieve pin: ".$sth->errstr;
+        while (my @row = $sth->fetchrow_array()) {
+            return $row[0];
+        }
+    } else {
+        return 0;
+    }
+</%init>

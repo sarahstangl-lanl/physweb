@@ -1,0 +1,113 @@
+<%doc>
+   vim: set syntax=mason:
+   Component: edit_paper.html
+        Date: 9/11/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$paperid=>undef
+$priority=>''
+$uid=>undef
+$title=>''
+$authors=>''
+$journal=>''
+$abstract=>''
+$url=>''
+$year=>''
+$month=>''
+$day=>''
+</%args>
+
+<%init>
+return if($m->comp('/mason/db/dbcheck.comp'));
+
+my $pub_date;
+my $sql;
+my $sth;
+my $success;
+my $error;
+
+# figure out access rights...
+if (!$uid) {
+   $m->out("ERROR: uid not passed in");
+   return;
+}
+my $access = $m->comp('/mason/auth/auth_check_profile.comp',uid=>$uid);
+
+# sanitise the input
+$title =~ s/\n//g; # no newlines in title
+$title =~ s/\s+$//; # no trailing spaces
+$title =~ s/^\s+//; # no leading spaces 
+$title =~ s/"//; # no quotes  (stupid vim.. ")
+my $problem;
+</%init>
+
+<%method title>Publication Update</%method>
+
+<%perl>
+
+# just bounce unauthorized users out of here with no clues...
+if (!$access) {
+  $m->comp('/mason/redirect.comp',url=>"/resources/myphys/");
+}
+
+my $req = Apache2::Request->new($r);
+my $upload = $req->upload('filedata');
+my ($mime_type, $filedata, $filename);
+if($upload) {
+    $filename = $upload->filename;
+}
+if ($filename) {
+  $mime_type = $upload->type;
+  my $fh = $upload->fh;
+  if ($mime_type =~ /pdf/ || $filename =~ /.pdf$/i ) {
+    # only accept pdf files for upload...
+    # (we set mimetype here as some browsers are sending "application/save")
+    $mime_type = "application/pdf";
+    $filedata = do { local $/; <$fh> };
+  } else {
+    $error = "Sorry, I only accept PDF file uploads (you sent type $mime_type)";
+  }
+}
+
+$pub_date = $year."-".($month+1)."-01";
+
+if (!$title) {
+  $error = "Can't store a publication without a title!";
+} 
+else {
+
+if ($paperid) {
+
+if ($paperid eq "new") {
+  $sql = "INSERT INTO papers ( priority, uid, pub_date, title, authors, journal, abstract, url, paperid ) VALUES (?,?,?,?,?,?,?,?,?)";
+  } else {
+  $sql = "UPDATE papers SET priority=?, uid=?, pub_date=?, title=?, authors=?, journal=?, abstract=?, url=? WHERE paperid=?";
+}
+$sth = $dbh->prepare($sql);
+$success = $sth->execute($priority, $uid, $pub_date, $title, $authors, $journal, $abstract , $url, $paperid);
+if (!$success) {$error = "Update failed: ".$DBI::errstr;}
+}
+
+if ($success) {
+
+  if ($paperid =~ /new/) {
+    # get the event-id
+    $sql = "SELECT paperid FROM papers ORDER BY paperid DESC LIMIT 1";
+    $paperid = $m->comp('/mason/db/getresults.comp',conn=>$dbh,query=>$sql,type=>'scalar');
+    }
+  if ($filedata) {
+    $sql = "UPDATE papers SET filename=?, mime_type=?, filedata=? WHERE paperid=?";
+    $sth = $dbh->prepare($sql);
+    $success = $sth->execute($filename, $mime_type, $filedata, $paperid);
+    if (!$success) {$error = "Update failed: ".$DBI::errstr;}
+  }
+}
+if (!$error) {$m->comp('/mason/redirect.comp',url=>'index.html?uid='.$uid);}
+
+}
+</%perl>
+
+<% $error %>

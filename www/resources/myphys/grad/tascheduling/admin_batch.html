@@ -1,0 +1,36 @@
+
+<%DOC>
+   Component: admin_batch.html
+        Date: 2007.08.01
+      Author: clayton
+     Changed: 2007.08.01 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $admin_year => ''
+  $admin_semester => ''
+</%ARGS>
+
+<%INIT>
+  use URI::Escape;
+
+  my $auth_admin = $m->comp('/mason/auth/auth_check_ta_admin.comp');
+  if (!$auth_admin) { $m->redirect('not_authorized.html'); }
+</%INIT>
+		
+<%method title>TA Scheduling</%method>
+
+<h3 style="border-bottom: 1px solid black; margin-bottom: 0.25em;">Check Schedule Submission: <% ($admin_semester eq 'spring' ? 'Spring' : 'Fall') |h %> <% $admin_year |h %></h3>
+Check which of following TAs have not submitted schedules. Enter one x500@umn.edu (@umn.edu optional), physid@physics.umn.edu, OR LastName, FirstName per line.
+<form action="admin_x500check.html" method="POST">
+<input type="hidden" name="admin_year" value="<% $admin_year |h %>"><input type="hidden" name="admin_semester" value="<% $admin_semester |h %>">
+<textarea cols="80" rows="5" name="x500s"></textarea><br/>
+<input type="submit" name="action" value="View List">
+</form>
+
+% if (0) {
+<h3 style="border-bottom: 1px solid black; margin-bottom: 0.25em;">Advanced Export to Excel</h3>
+<a href="export_excel.html?year=<% $admin_year |u %>&amp;semester=<% $admin_semester |u %>&amp;">Download</a>
+% }

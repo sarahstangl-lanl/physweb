@@ -1,0 +1,44 @@
+<%doc>
+  vim:set syntax=mason:
+</%doc>
+
+<%init>
+  use Time::Duration;
+
+</%init>
+<%method title>
+DHCP leases
+</%method>
+
+<%perl>
+$m->comp('/mason/db/tablesearch.comp',
+    table              => 'accounting.dhcp_accounting',
+    joins              => [
+                            'webdb.net_interfaces' => 'webdb.net_interfaces.hwa = dhcp_accounting.hwa',
+                          ],
+    where              => "WHERE timestamp>date_sub(now(), interval 14 day)",
+    field_list         => [
+                            'dhcp_accounting.hwa',
+                            'webdb.net_interfaces.host_id AS id',
+                            'INET_NTOA(leased_ip) AS ip',
+                            'timestamp',
+                          ],
+    field_params       => {
+                             'id'      => {
+                                            'hidden' => 1,
+                                          },
+                             'hwa'     => {
+                                            'url' => 'host.html?id=$row{id}',
+                                            'name' => 'Hardware Address',
+                                          }
+    
+                          },
+    excluded_search_fields => [ 'timestamp', 'host_id' ],
+    default_sort_field => 'timestamp',
+    default_sort_dir   => 'desc',
+    header_format      => 'ucfirst',
+    limit              => 50,
+    group_by => "GROUP BY dhcp_accounting.hwa, ip, timestamp",
+    debug => 1,
+);
+</%perl>

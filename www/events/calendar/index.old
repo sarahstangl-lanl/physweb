@@ -1,0 +1,31 @@
+<%doc>
+   Component: index.html
+        Date: 9/9/2002
+      Author: allan
+ Description:
+</%doc>
+
+<%args>
+$item=>''
+$printer=>''
+$view=>''
+$year=>''
+$quarter=>''
+</%args>
+
+<%method title>Physics and Astronomy Calendars</%method>
+
+<b>Categories</b>
+<ul>
+<li><a href="weekly.html">Weekly Calendar</a>
+<%perl>
+my $sql = "SELECT title, sortcode FROM calendar WHERE class='template' ORDER BY title";
+my $sth = $dbh->prepare($sql);
+$sth->execute();
+my $row_ref;
+my $sortcode_list = "none,";
+while ($row_ref = $sth->fetchrow_arrayref) {
+  my ($title, $sortcode) = @$row_ref;
+  $m->out("<li><a href=\"$sortcode.html\">$title</a><br/>");
+}
+</%perl>

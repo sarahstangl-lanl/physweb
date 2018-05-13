@@ -1,0 +1,24 @@
+<%method title>department cameras</%method>
+
+<%PERL>
+    $m->comp('/mason/auth/auth_block.comp', internal=>'yes');
+    $m->call_next ;
+</%PERL>
+<%method titlemenu_below>
+   <& /mason/titlemenu.comp:begin, type=>"below"&>
+   <&| /mason/titlemenu.comp:item, link=>'netcam-pan-70-1'&>netcam-pan-70-1</&>
+   <&| /mason/titlemenu.comp:item, link=>'netcam-pan-70-2'&>netcam-pan-70-2</&>
+   <& /mason/titlemenu.comp:end &>
+</%method>
+
+<%method whereamifilter>
+<%args>
+$partsref
+</%args>
+<%perl>
+
+pop @$partsref;
+pop @$partsref;
+return @$partsref;
+</%perl>
+</%method>

@@ -1,0 +1,447 @@
+<%method title>Events Overview</%method>
+
+<%method eventbox>
+<%args>
+$title
+$image
+$image_xpos
+$image_ypos
+$tagline=>''
+$date=>''
+</%args>
+<%perl>
+my $width=500;
+</%perl>
+    <h3 style="background-color: #DDD; width: <% $width-14%>px; border-radius: 6px 6px 0 0; padding: 7px 7px; margin-top: 0.7em;"><%$title|h%></h3>
+    <div style="background-image: url(<% $image %>); background-position: <% $image_xpos%>px <% $image_ypos%>px; padding-top: 30px; width:<%$width%>px; background-repeat: no-repeat; ">
+        <div style="background-image:url(/images/opaque_84.png); padding: 0 1em 0 1em; padding-top: 0.2em; padding-bottom: 0.5em;">
+            <div style="font-weight: bold; font-style: italic; font-size: 1.1em;"><% $tagline|h%></div>
+            <div style="font-weight: normal;"><% $date|h%></div>
+            <% $m->content %>
+        </div>
+    </div>
+</%method>
+
+<table style="xxwidth: 100%;"> <tr> <td valign="top">
+<div style="width: 500px;">
+<h2>Upcoming Events</h2>
+<div style="padding-left: 1em;">
+   
+
+
+  
+    
+<&|SELF:eventbox, 
+       title=>"Van Vleck Public Lecture", 
+       image=>"McDonaldweb.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-245, 
+       tagline=>'Arthur B. McDonald will deliver the Van Vleck public lecture on the topic of "A Deeper Understanding of the Universe from 1.4 miles Underground"
+       at 7:00 p.m., Thursday, April 20, 2017, <a href="https://cla.umn.edu/music/about/location-facilities/ted-mann-concert-hall/visitor-information">Ted Mann Concert Hall.</a> He will also deliver a special colloquium on the topic of "Neutrino and Dark Matter Experiments
+       at SNOLAB," at 3:35 p.m., Wednesday, April 19, 2017 in Moos 2-650. ' &>
+        <p> <a href="http://www.physics.umn.edu/events/vanvleck/">More information here</a>.
+    </&>
+
+
+   
+
+</div>
+
+<h2>Past Events</h2>
+<&|SELF:eventbox, 
+       title=>"Minnesota Institute for Astrophysics Public Lecture", 
+       image=>"GlesenerProfileFullSize.jpg", 
+       image_xpos=>-100, 
+       image_ypos=>-120, 
+       tagline=>'Exploring the Mysteries of the Sun: Explosions on our Closest Star by Lindsay Glesener, Assistant Professor, University of Minnesota
+       at 7:00 p.m., Tuesday, April 4, 2017, Bell Museum Auditorium. The event is free and open to the public. Registration is requested. ' &>
+        <p> <a href="http://www.astro.umn.edu/seminars/public/spring2017/">More information here</a>.
+    </&>
+
+    
+<&|SELF:eventbox, 
+       title=>"Physics Force Live at Northrop", 
+       image=>"Pforcewide.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-50, 
+       tagline=>'Physics Force will perform a week of shows for elementary schools at Northrop Auditorium on the East Bank Campus of the University of Minnesota
+       from January 9-13, 2017. Tickets are free, but reservations are required. There will also be a free, public show on Thursday, January 12 at 7:00 p.m.' &>
+        <p> <a href="http://www.physics.umn.edu/outreach/pforce/">More information here</a>.
+    </&>
+
+<&|SELF:eventbox, 
+       title=>"The 2016 Edythe and Irving Misel Family Lecture Series", 
+       image=>"Preskill.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-55, 
+       tagline=>'Quantum Computing and the Entanglement Frontier, by John Preskill, California Institute of Technology,
+       Wednesday, October 19, 2016 at 7:00 p.m. Location to be announced' &>
+        <p> <a href="http://www.physics.umn.edu/events/calendar/spa.all/future/calendar.html?item=41571">More information here</a>.
+    </&>
+
+  <&|SELF:eventbox, 
+       title=>"Physics Open House", 
+       image=>"PuchnerEvents.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-65, 
+       tagline=>'Time to apply for a major? Consider Physics! | Physics Open House, Thursday, November 3, 2016.' &>
+        <p> <a href="http://www.physics.umn.edu/events/calendar/spa.all/future/calendar.html?item=44211">More information here</a>.
+    </&>
+
+<&|SELF:eventbox, 
+       title=>"Minnesota Institute for Astrophysics Public Lecture", 
+       image=>"ligo-16.jpg", 
+       image_xpos=>-150, 
+       image_ypos=>-250, 
+       tagline=>'Observing the Universe with Gravitational Waves by Vuk Mandic, 7:00 p.m. Bell mUseum Auditorium' &>
+        <p> <a href="http://www.astro.umn.edu/seminars/public/fall2016/">More information here</a>.
+    </&>
+    
+<&|SELF:eventbox, 
+       title=>"Riess to deliver Kaufmanis Lecture", 
+       image=>"RiesWide.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-100, 
+       tagline=>'Nobel Laureate Adam Riess will deliver the annual Kaufmanis Public Lecture on April 21, 2016 at 7:30 p.m. in the McNamara Alunmni Center. Riess will speak on the topic of
+       "Supernovae Reveal an Accelerating Universe." ' &>
+       <a href=http://www.physics.umn.edu/about/news/general/10021/_Riess_to_deliver_Kaufmanis_Lecture">Abstract</a>
+    </&>
+     
+<&|SELF:eventbox, 
+       title=>"Marx to deliver Henry Erikson Lecture", 
+       image=>"MarxWide.png", 
+       image_xpos=>-20, 
+       image_ypos=>-90, 
+       tagline=>'Dr. Jay Marx, Senior Advisor, LIGO Laboratory, California Institute of Technology will talk about "The Discovery of Gravitational Waves from Merging Black Holes"
+       on May 6 at 4:00 p.m. in 101 Fraser Hall.' &>
+       <a href=http://www.physics.umn.edu/about/news/general/10291/Marx_to_deliver_Erikson_Public_Lecture">Abstract</a>
+    </&>
+    
+  
+   <&|SELF:eventbox, 
+       title=>"School of Physics and Astronomy Open House", 
+       image=>"PhysicsForceFoyer.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'The 2015 Open House will feature a pizza lunch, lab tours, an overview of the School, a performance by the Physics Force and a chance to
+       win a copy of the book The Physics of Superheroes. The Open House will take place on Thursday, November 5, 2015 from
+       11:30 -2:00 p.m. and 6:00 -8:15 p.m. in room 110 of the Physics and Nanotechnology Building.' &>
+        <p> <a href="OpenhouseflyerHS.pdf"> Flyer</a> | </a><a href="http://campusmaps.umn.edu/physics-and-nanotechnology-building">Map</a>
+        | <a href="http://2015physicsopenhouse.eventzilla.net">RSVP</a>
+    </&>
+    
+    <&|SELF:eventbox, 
+       title=>"Physics Force announces January shows", 
+       image=>"Pforcewide.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-50, 
+       tagline=>'The Physics Force will present their annual week of shows for area school children. The performances will be held at
+       Northrop Auditorium on January 11-15, 2016. The Physics Force will also perform a public show on Thursday, January 14 at 7 PM;
+       it is free. The show lasts about an hour. RSVP is required for attendance.  Please follow
+       link below.' &>
+       <a href="http://www.eventbrite.com/e/physics-force-shows-january-2016-tickets-18511256667">RSVP</a>
+    </&>
+<&|SELF:eventbox, 
+       title=>"School Picnic", 
+       image=>"GoldyBBQ.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-30, 
+       tagline=>'Undergrads, Grads, Postdocs, Staff, Faculty and Families of the School of Physics and Astronomy are invited to a picnic to help
+       kick off the new school year.   The event, which will include games and socializing, will be held at  Boom Island Park on Sunday, 
+September 27 from 12:00 to 3:00 PM.' &>
+        <p> <a href="https://goo.gl/maps/7PIaB">Map</a>. | <a href="http://goo.gl/forms/snqoGKWPiF">RSVP</a></p>
+    </&>
+
+<&|SELF:eventbox, 
+       title=>"The 2015 Edythe and Irving Misel Family Lecture Series", 
+       image=>"Polchinskicrop.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'Spacetime Versus the Quantum, by Joseph Polchinski, The Kavli Institute for Theoretical Physics, UCSB.
+       Thursday, September 10, 2015 at 7:00 p.m. in the Memorial Hall, McNamara Alumni Center.' &>
+        <p> <a href="http://www.ftpi.umn.edu/misel/2015.html ">More information here</a>.
+    </&>
+     
+
+  <&|SELF:eventbox, 
+       title=>"MIFA Public Lecture", 
+       image=>"et_phone_home.png", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'To the Stars We Will Go: The Worlds of Exoplanets, by Charles Woodward, Professor of Physics, University of Minnesota.
+       Thursday, September 17, 2015 at 7:00 p.m. at the Bell Museum Auditorium.' &>
+        <p> <a href="http://www.astro.umn.edu/seminars/public/fall2015/">More information here</a>.
+    </&>
+    
+    
+  
+
+ <&|SELF:eventbox, 
+       title=>"Soudan Open House", 
+       image=>"SoudanMinos.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'The Soudan Underground Physics Lab is holding an open house on Saturday, May 2, starting at 8:30 a.m. and continuing throughout the day. Visitors can travel 1/2-mile underground and discover the data collected during the years that the MINOS detector has been operating.' &>
+        <p> <a href="http://www.hometownfocus.us/news/2015-04-17/Business/Open_house_planned_at_Soudan_Underground_Physics_L.html">More information here</a>.
+    </&>
+    
+
+ <&|SELF:eventbox, 
+       title=>"Van Vleck Public Lecture", 
+       image=>"GellerHorizontal.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'Margaret J. Geller, Harvard-Smithsonian Center for Astrophysics, will present the 2015 Van Vleck Lecture.
+       The lecture titled "Click the 3D Universe will take place at 7:00 p.m. on April 23rd in Room 150 of the Tate Laboratory of Physics' &>
+        <p> <a href="http://www.physics.umn.edu/events/vanvleck/">More information here</a>.
+    </&>
+    
+    
+    
+  <&|SELF:eventbox, 
+       title=>"Physics Force Public Show", 
+       image=>"PhysicsForceFoyer.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'The Physics Force will present their annual Physics Circus for area school children. The performances will be held at Northrop Auditorium on January 12-16, 2015. The Physics Force will also perform a public show on Thursday,
+       January 15 at 7 PM for other students and the public; it is free. The show lasts about an hour. Register for the public show at the Physics Force Eventbrite linked below.' &>
+        <p> <a href="http://www.eventbrite.com/e/physics-force-january-2015-tickets-12779346369">More information here</a>.
+    </&>
+
+  <&|SELF:eventbox, 
+       title=>"Erickson Lecture to Feature Expert on Solar Cycles", 
+       image=>"EricksonLecture.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'Dr. Mark Giampapa, National Solar Observatory will speak on Perspectives on the Solar Cycle and Activity in Solar-Type Stars  ',
+       date=>'3:30 p.m., December 5, 2014 in Tate 170 Lab of Physics' &>
+        <p> <a href="https://www.physics.umn.edu/events/calendar/spa.all/thisweek/index/calendar.html?item=31691">More information here</a>.
+    </&>
+    
+  <&|SELF:eventbox, 
+       title=>"2014 AAPT National Summer Meeting", 
+       image=>"QuadEvents.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'"Welcome American Association of Physics Teachers ',
+       date=>'July 26-30, 2014' &>
+        <p> <a href="http://www.physics.umn.edu/events/AAPT.html">More information here</a>.
+    </&>
+    
+
+ <&|SELF:eventbox, 
+       title=>"2013 Van Vleck Lecture", 
+       image=>"Vger.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'"The Epic Journey of Voyager 1 into Interstellar Space ',
+       date=>'6:30 p.m., February 6, 2014' &>
+        <p>Don Gurneett, University of Iowa, will delliver the 2013 Van Vleck Lecture. <a href="http://www.physics.umn.edu/events/calendar/spa.all/future/calendar.html?item=26821">More information here</a>.
+        Lecture will be <a href="http://mediasite.uvs.umn.edu/Mediasite/Viewer/?peid=f5beeab616604de29c6cbfb879be688e">streamed live.</a>  
+    </&>
+
+<&|SELF:eventbox, 
+       title=>"Physics Force at the Convention Center", 
+       image=>"ClaireBeachBall.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'Physics Force to perform before thousands of elementary students',
+       date=>'December 9-13, 2013' &>
+        <p>Shows are free and open to the public but reservations are required.</p>
+        More information at <a href="http://www.physics.umn.edu/events/calendar/pf.all/future/">www.physics.umn.edu/events/calendar/pf.all/future/</a>.
+        Information about <a href="http://www.physics.umn.edu/events/bus.html">bus parking.</a>
+    </&>
+
+<&|SELF:eventbox, 
+       title=>"School of Physics and Astronomy Open House", 
+       image=>"PforceOutreach.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-60, 
+       tagline=>'Physics Force to perform at School Open House',
+       date=>'Thursday, November 7' &>
+        <p>A full day of events is planned, talks on careers in physics, lab tours and a performance from the Physics Force. </p>
+        More information and RSVP <a href="http://2013physicsopenhouse.eventbrite.com/">here</a>
+    </&>
+    
+    <&|SELF:eventbox, 
+       title=>"Special School of Physics and Astronomy Colloquium", 
+       image=>"Muronga.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'Azwindini Muronga to speak on Scientific endeavour in South Africa',
+       date=>'Wednesday, October 31' &>
+        <p>Muronga will deliver the Colloquium on Wednesday, October 31, at 3:35 p.m.. </p>
+        More information <a href="http://www.physics.umn.edu/events/calendar/spa.PAC/future/calendar.html?item=24011">here</a>
+    </&>
+  
+<&|SELF:eventbox, 
+       title=>"Misel Lecture", 
+       image=>"MiselCornell.JPG", 
+       image_xpos=>-10, 
+       image_ypos=>-90, 
+       tagline=>'Nobel Laureate Eric Cornell to deliver Misel Lecture',
+       date=>'Tuesday, September 24' &>
+        <p>Eric Cornell will deliver the Misel Lecture on Wednesday, September 24,2013 at 7:00 p.m. </p>
+        <!--More information at <a href="http://www.ftpi.umn.edu/misel/index.html">http://www.ftpi.umn.edu/misel/index.html</a>-->
+    </&>
+    
+<&|SELF:eventbox, 
+       title=>"Saul Perlmutter", 
+       image=>"Perlmutterevents.jpg", 
+       image_xpos=>0, 
+       image_ypos=>-220, 
+       tagline=>'Nobel Laureate Perlmutter to deliver public lecture',
+       date=>'July 29, 2013' &>
+        <p>Nobel Laureate Saul Perlmutter discusses "Supernovae, Dark Energy, and Our Accelerating Universe" at 8:00 p.m., Monday, July 29, in the Great Hall of Coffman Memorial Union </p>
+        <a href="http://www.physics.umn.edu/events/Perlmutter.html">http://www.physics.umn.edu/events/Perlmutter.html</a>
+    </&>
+   <&|SELF:eventbox, 
+       title=>"Physics Slam on Ice", 
+       image=>"GenericPhysicsGraphicEvent.jpg", 
+       image_xpos=>0, 
+       image_ypos=>-200, 
+       tagline=>'Six Physicists or “contestants” will present their ideas to be judged by the public in a game show style format.',
+       date=>'August 2, 2013' &>
+        <p>Nobel Laureate Saul Perlmutter discusses "Supernovae, Dark Energy, and Our Accelerating Universe" at 8:00 p.m., Friday, August 2 at the Ridder Arena on the U of MN Campus </p>
+        <a href="http://www.hep.umn.edu/physicsslam/">http://www.hep.umn.edu/physicsslam/</a><p></p>
+        See a <a href="http://www.youtube.com/watch?v=b1q46oeuG4Q&feature=youtu.be">video of the whole slam</a> on youtube!
+    </&>
+    
+<&|SELF:eventbox, 
+       title=>"Van Vleck", 
+       image=>"geim.jpg", 
+       image_xpos=>0, 
+       image_ypos=>-80, 
+       tagline=>'Nobel Laureate Andre Geim to deliver Van Vleck Lecture',
+       date=>'May 2, 2013' &>
+        <p>Andre Geim will deliver the 37th Van Vleck Lecture, "A Random Walk to Graphene" at 7:30 p.m., Thursday, May 2, in Room 150 Tate Lab of Physics. </p>
+        <a href="http://www.physics.umn.edu/events/vanvleck/">http://www.physics.umn.edu/events/vanvleck/</a>
+    </&>
+    
+<&|SELF:eventbox, 
+       title=>"Physics Open House", 
+       image=>"PforceOutreach.jpg", 
+       image_xpos=>0, 
+       image_ypos=>-30, 
+       tagline=>'featuring the Physics Force',
+       date=>'Thursday, November 1, 2012' &>
+        <p>You are cordially invited to our open house.  Daytime events (11:30 a.m. - 2:00 p.m.) include pizza lunch, overview of physics program,
+        straight talk about jobs in physics, meeting physics majors and lab tours.  Evening program (6:00 - 8:15 p.m.) includes lab tours,
+        overview of the physics program and the Physics Force show. </p>
+        To RSVP contact Annie Bartels <a href="mailto:bartel@physics.umn.edu">bartel@physics.umn.edu</a> / 612-624-1625
+    </&>
+
+<&|SELF:eventbox, 
+       title=>"Celebration", 
+       image=>"Tate.png", 
+       image_xpos=>0, 
+       image_ypos=>-100, 
+       tagline=>'of the designation of Tate Lab as a site of historical significane for physics',
+       date=>'October 24, 2012' &>
+        <p>This event will include a plaque-unveiling, reception (by invitation only) and colloquium.</p>
+        <a href="http://www.physics.umn.edu/events/celebration.html">http://www.physics.umn.edu/events/celebration.html</a>
+    </&>
+  
+
+    <&|SELF:eventbox, 
+       title=>"Physics Open House", 
+       image=>"PforceOutreach.jpg", 
+       image_xpos=>0, 
+       image_ypos=>-30, 
+       tagline=>'featuring the Physics Force',
+       date=>'Thursday, November 1, 2012' &>
+        <p>You are cordially invited to our open house.  Daytime events (11:30 a.m. - 2:00 p.m.) include pizza lunch, overview of physics program,
+        straight talk about jobs in physics, meeting physics majors and lab tours.  Evening program (6:00 - 8:15 p.m.) includes lab tours,
+        overview of the physics program and the Physics Force show. </p>
+        To RSVP contact Annie Bartels <a href="mailto:bartel@physics.umn.edu">bartel@physics.umn.edu</a> / 612-624-1625
+    </&>
+
+ <&|SELF:eventbox, 
+       title=>"Meeting on Massive Stars", 
+       image=>"massive.jpg", 
+       image_xpos=>0, 
+       image_ypos=>-300, 
+       tagline=>'Minnesota Institute for Astrophysics',
+       date=>'September 30- October 3, 2012' &>
+        <p>This workshop will bring together theoreticians and observers working on the most massive stars and their instabilities with those studying
+        the terminal stages, SNe, GRB's, their progenitors, and possible outcomes, such as gravity waves.</p>
+        <a href="http://www.physics.umn.edu/events/workshops/massive/">http://www.astro.umn.edu/massive/</a>
+    </&>
+
+ <&|SELF:eventbox, 
+       title=>"Misel Family Lecture", 
+       image=>"john_ellis2.jpg", 
+       image_xpos=>00, 
+       image_ypos=>-115, 
+       tagline=>"John Ellis: Topic to be determined",
+       date=>'Sept 18, 2012' &>
+    John Ellis, Kings College London and CERN<br />
+    <br />
+    <a href="http://www.ftpi.umn.edu/misel/">More information</a>
+    </&>
+
+ <&|SELF:eventbox, 
+       title=>"Colloquium on Citizen Science", 
+       image=>"Zooniverseweb.jpg", 
+       image_xpos=>-00, 
+       image_ypos=>-160, 
+       tagline=>'Chris Lintott: ""Bulgeless galaxies, unusual planets and ancient texts: research results from 600,000 citizen scientists"',
+       date=>'May 2, 2012 at 3:35 pm'&>
+        <p>
+        How arm chair scientists can make genuine contributions to research<br />
+        Chris Lintott, Director of Citizen Science, Adler Planetarium; Department of Physics, University of Oxford
+        </p>
+
+        <a href="http://www.physics.umn.edu/events/calendar/spa.all/nextweek/calendar.html?item=17751">Details</a><br />
+        <a href="http://www.physics.umn.edu/events/calendar/spa.all/nextweek/calendar.html?item=17751">Abstract</a>
+    </&>
+    
+    <&|SELF:eventbox, 
+       title=>"Van Vleck Public Talk", 
+       image=>"Carbonweb.jpg", 
+       image_xpos=>-00, 
+       image_ypos=>-160, 
+       tagline=>'Mildred Dresselhaus: "The Promise of Nanomaterials for Theromelectric Applications"',
+       date=>'April 26, 2012 at 5:00pm'&>
+        <p>
+        How nanomaterials may impact the future of energy production <br />
+        Mildred Dresselhaus, Institute Professor of Electrical Engineering and Physics, Massachusetts Institute of Technology
+        </p>
+
+        <a href="https://www.physics.umn.edu/events/vanvleck/index.html?">Details</a><br />
+        <a href="http://www.physics.umn.edu/events/calendar/spa.all/nextweek/calendar.html?item=12641">Abstract</a>
+    </&>
+    
+   
+    
+     <&|SELF:eventbox, 
+       title=>"Kaufmanis Lecture", 
+       image=>"eris.jpg", 
+       image_xpos=>-100, 
+       image_ypos=>-390, 
+       tagline=>'"How I Killed Pluto and Why It Had It Coming"',
+       date=>'Thursday April 12, 2012 at 7:30pm' &>
+            Mike Brown, Professor of Planetary Astronomy,
+            California Institute of Technology
+
+            <a href="http://www.astro.umn.edu/outreach/Kaufmanis2012.html">http://www.astro.umn.edu/outreach/Kaufmanis2012.html</a>
+    </&>
+    <&|SELF:eventbox, 
+       title=>"The Physics of Cooking", 
+       image=>"cooking.jpg", 
+       image_xpos=>-10, 
+       image_ypos=>-70, 
+       tagline=>'Public Lecture, February 9, 2012'&>
+    David Weitz, Harvard University delivered a public lecture on "The Physics of Cooking" to 550 people at the School of Physics and Astronomy. The lecture is <a href="http://mediasite.uvs.umn.edu/Mediasite/Viewer/?peid=2983c9329da44d8ebb95b37c51eab65e">available online</a>. The recipes used in the lecture are also <a href="http://www.physics.umn.edu/outreach/WeitzRecipes.pdf">available to download</a>.
+    </&>
+</div>
+
+</td><td style="xxwidth: 500px;" valign="top">
+
+     <div class="evcalbox" style="max-width: 600px; margin-left: 2em; margin-top: 0em;">
+         <h2>Calendar</h2>
+         <& /mason/db/frontpagecal.comp, limit=>16, details=>1 &>
+     </div>
+
+</td></tr></table>
+

@@ -1,0 +1,51 @@
+<%DOC>
+         vim: set syntax=mason:
+   Component: logins.comp
+        Date: 2008.04.02
+      Author: rubin
+     Changed: 2008.04.02 by rubin
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+$host_id=>''
+</%ARGS>
+
+<%INIT>
+use Data::Dumper;
+use File::Basename;
+use Sort::Naturally;
+
+my $rows = physdb::query("
+            SELECT host_id, rtnum, creation, subject
+            FROM net_host_rt
+            WHERE host_id=?
+
+            ORDER BY CREATION DESC LIMIT 40
+            ", $host_id);
+</%INIT>
+<%perl>
+if($rows) {
+    </%perl>
+    <h3>Tickets</h3>
+    <table border=0 cellpadding=0 cellspacing=1>
+    <%perl>
+    my $oddeven = 0;
+    while(my $row = $rows->fetchrow_hashref()) {
+        $oddeven = $oddeven ? 0 : 1;
+        </%perl>
+        <tr class="<% $oddeven ? "odd" : "even" %>">
+        <td><% $row->{'creation'} %></td>
+        <td>
+        <span style="padding: 0 1em 0 1em;">
+        <a href="https://support.physics.umn.edu/rt3/Ticket/Display.html?id=<% $row->{'rtnum'}|u%>">#<% $row->{'rtnum'}|h%>: 
+        <% $row->{'subject'}|h%></span></td>
+        </tr>
+        <%perl>
+    }
+    </%perl>
+    </table>
+    <%perl>
+}
+</%perl>

@@ -1,0 +1,372 @@
+
+<%DOC>
+   Component: viewreport.html
+        Date: 2006.03.23
+      Author: allan
+     Changed: 2006.03.23 by allan
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+    $uid => $session{'uid'}
+    $force_year => undef
+    $force_semester => undef
+    $max_year => undef
+    $max_semester => undef
+</%ARGS>
+
+<%method map_academic_year>
+    <%args>
+        $force_year => undef
+        $force_semester => undef
+        $max_year => undef
+        $max_semester => undef
+    </%args>
+    <%init>
+        # Spring records are stored under the previous year... update forcing as needed
+        if ($force_year && $force_semester && ($$force_semester eq 'spring')) {
+            $$force_year--;
+        }
+        if ($max_year && $max_semester && ($$max_semester eq 'spring')) {
+            $$max_year--;
+        }
+    </%init>
+</%method>
+
+<%method query_advisor>
+    <%args>
+        $uid
+        $max_year => undef
+        $max_semester => undef
+        $fetch_only_advisor => 0
+    </%args>
+    <%init>
+        if (!defined($uid)) { return undef; }
+
+        $m->comp('SELF:map_academic_year', force_year=>undef, force_semester=>undef, max_year=>\$max_year, max_semester=>\$max_semester);
+
+        my $query = $m->comp('progress_report.comp:query', uid=>$uid, max_year=>$max_year, max_semester=>$max_semester);
+
+        if (my $row = $query->fetchrow_hashref()) {
+            return $row->{'advisor'};
+        } 
+
+        return undef;
+    </%init>
+</%method>
+
+<%method query_by_advisor>
+    <%args>
+        $advisor
+    </%args>
+    <%init>
+        my $query = $dbh->prepare("
+            SELECT gp1.uid FROM gradprogress AS gp1
+            LEFT JOIN directory ON (directory.uid = gp1.uid)
+            WHERE advisor = ? AND
+                  record_year = (SELECT MAX(record_year) FROM gradprogress gp2 WHERE gp2.advisor = gp1.advisor) AND
+                  record_year = (SELECT MAX(record_year) FROM gradprogress gp2 WHERE gp2.uid = gp1.uid) AND
+                  record_year >= YEAR(DATE_SUB(NOW(), INTERVAL 1 YEAR)) AND
+                  inactive = 0 AND
+                  gp1.uid != advisor
+            ORDER BY last_name
+        ");
+        $query->execute($advisor) or die 'Unable to find advisor: ' . $dbh->errstr;
+
+        return $query;
+    </%init>
+</%method>
+
+<%method query>
+    <%args>
+        $uid
+        $force_year => undef
+        $force_semester => undef
+        $fetch_all => 0
+        $max_year => undef
+        $max_semester => undef
+        $fetch_only_advisor => 0
+    </%args>
+    <%init>   
+        # fetch the most recent record for this student
+        my $force;
+        my @args = ($uid);
+        if ($force_year) {
+            $force = ' AND record_year=?';
+            push @args, $force_year;
+        } elsif ($max_year) {
+            $force = ' AND record_year<=?';
+            push @args, $max_year;
+        }
+        my $cols = 'record_year, enter_year, expected_degree, gwe_pass, gwe_text, ms_plan, have_advisor, advisor, advisor_text,
+                  degree_form, degree_form_text, oral_exam, oral_exam_text, thesis_proposal, thesis_proposal_text,
+                  expected_completion_month, expected_completion_year, research_text, ta_support, ta_fall, ra_fall,
+                  ta_spring, ra_spring, ra_text, fellowship, fellowship_text, advisor_comments, advisor_support,
+                  dgs_comments, grad_update_time, advisor_update_time, advisor_update_uid, dgs_update_time';
+        my $sth = $dbh->prepare(
+          'SELECT ' . (!$fetch_only_advisor ? $cols : 'advisor') . '
+           FROM gradprogress
+           WHERE uid=?' . $force . ' ORDER BY record_year DESC' . ($fetch_all ? '' : ' LIMIT 1'));
+        $sth->execute(@args)
+          or die 'Unable to grab record: ' . $dbh->errstr;
+        
+        return $sth;
+    </%init>
+</%method>
+
+<%method appt_info>
+    <%args>
+        $uid => $session{'uid'}
+        $force_year => undef
+        $force_semester => undef
+    </%args>
+    <%init>
+        $m->comp('SELF:map_academic_year', force_year=>\$force_year, force_semester=>\$force_semester, max_year=>undef, max_semester=>undef);
+    
+        my ($record_year, $enter_year, $expected_degree, $gwe_pass, $gwe_text, $ms_plan, $have_advisor, $advisor, $advisor_text, $degree_form, $degree_form_text, $oral_exam, $oral_exam_text, $thesis_proposal, $thesis_proposal_text, $expected_completion_month, $expected_completion_year, $research_text, $ta_support, $ta_fall, $ra_fall, $ta_spring, $ra_spring, $ra_text, $fellowship, $fellowship_text, $advisor_comments, $advisor_support, $dgs_comments, $grad_update_time, $advisor_update_time, $advisor_update_uid, $dgs_update_time);
+        
+        my $row = $m->comp('SELF:query', uid => $uid, force_year => $force_year, force_semester => $force_semester);
+        
+        if ($row = $row->fetchrow_arrayref()) {
+          ($record_year, $enter_year, $expected_degree, $gwe_pass, $gwe_text, $ms_plan, $have_advisor, $advisor, $advisor_text, $degree_form, $degree_form_text, $oral_exam, $oral_exam_text, $thesis_proposal, $thesis_proposal_text, $expected_completion_month, $expected_completion_year, $research_text, $ta_support, $ta_fall, $ra_fall, $ta_spring, $ra_spring, $ra_text, $fellowship, $fellowship_text, $advisor_comments, $advisor_support, $dgs_comments, $grad_update_time, $advisor_update_time, $advisor_update_uid, $dgs_update_time) = @$row;
+        }
+    </%init>
+%   if (!$record_year) {
+        Sorry, no report found under that name.
+%   } else {
+
+        Has research advisor: <b><% $have_advisor %></b>
+        <br>
+%       my $advisor_name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$advisor) || "none";
+        Advisor name: <b><% $advisor_name |h %></b>
+        
+        <p>
+        Plan to need TA support this summer (<% $record_year |h %>)? <b><% $ta_support |h %></b>
+        
+        <p>
+        Support <% $record_year |h %>-<% $record_year+1 |h %>:<br>
+        TA Fall: <b><% $ta_fall |h %></b>
+        TA Spring: <b><% $ta_spring |h %></b><br>
+        RA Fall: <b><% $ra_fall |h %></b>
+        RA Spring: <b><% $ra_spring |h %></b>
+        <p>
+        
+        <& SELF:.display, text=>$ra_text &>
+        <p>
+        Plan to receive outside support such as a fellowship for <% $record_year |h %>-<% $record_year+1 |h %>? <b><% $fellowship |h %></b>
+        <& SELF:.display, text=>$fellowship_text, display_empty => 0 &>
+        
+        <p>Advisor support comments:
+        <& SELF:.display, text=>$advisor_support &>
+        <div style="padding-left: 1em"><& '/mason/db/students/progress_report.comp:comment_history', uid => $uid, support => 1, max_year => $record_year-1 &></div>
+        
+
+%   }
+</%method>
+
+<%method comment_history>
+    <%args>
+        $uid => $session{'uid'}
+        $support => 0
+        $dgs => 0
+        $max_year => undef
+        $max_semester => undef
+    </%args>
+    <%init>
+        $m->comp('SELF:map_academic_year', force_year=>undef, force_semester=>undef, max_year=>\$max_year, max_semester=>\$max_semester);
+        my $results = $m->comp('SELF:query', uid => $uid, fetch_all => 1, max_year => $max_year);
+        my $name = ($dgs ? 'dgs' : 'advisor') . (!$support ? '_comments' : '_support');
+    (my $subtitle = $name) =~ s/_/ /g;
+    </%init>
+%   while (my $row = $results->fetchrow_hashref()) {
+%       # only display if non-whitespace present
+%       if ($row->{$name} =~ /\S/) {
+        <p><b><% ucfirst($subtitle) %>
+%       if ($row->{'advisor_update_time'} !~ /0000/) {
+            entered <% $row->{'advisor_update_time'} |h %>
+%           if ($row->{'advisor_update_uid'}) {
+                by <% $m->comp('/mason/db/directory/uid_to_name.comp', uid => $row->{'advisor_update_uid'}) %>
+%           }
+%       }
+            </b></p>
+        <& SELF:.display, text=>$row->{$name}, display_empty => 0 &>
+%       }
+%   }
+</%method>
+
+<%INIT>
+    my ($record_year, $enter_year, $expected_degree, $gwe_pass, $gwe_text, $ms_plan, $have_advisor, $advisor, $advisor_text, $degree_form, $degree_form_text, $oral_exam, $oral_exam_text, $thesis_proposal, $thesis_proposal_text, $expected_completion_month, $expected_completion_year, $research_text, $ta_support, $ta_fall, $ra_fall, $ta_spring, $ra_spring, $ra_text, $fellowship, $fellowship_text, $advisor_comments, $advisor_support, $dgs_comments, $grad_update_time, $advisor_update_time, $advisor_update_uid, $dgs_update_time);
+    
+    $m->comp('SELF:map_academic_year', force_year=>\$force_year, force_semester=>\$force_semester, max_year=>\$max_year, max_semester=>\$max_semester);
+    
+    my $faculty = $m->comp('/mason/auth/auth_check.comp', auth_type=>'physfac');
+    my $gradfac = $m->comp('/mason/auth/auth_check.comp', auth_type=>'physgrfac');
+    my $staff = $m->comp('/mason/auth/auth_check.comp', auth_type=>'staff');
+    my $gradapp = $m->comp('/mason/auth/auth_check_gradapp.comp');
+    
+    # students can only view their own report...
+    if ((!$faculty)&&(!$staff)&&(!$gradfac)) {
+      $uid = $session{'uid'};
+    }
+    
+    my $row = $m->comp('SELF:query', uid => $uid, force_year => $force_year, force_semester => $force_semester, max_year => $max_year, max_semester => $max_semester);
+    
+    if ($row = $row->fetchrow_arrayref()) {
+      ($record_year, $enter_year, $expected_degree, $gwe_pass, $gwe_text, $ms_plan, $have_advisor, $advisor, $advisor_text, $degree_form, $degree_form_text, $oral_exam, $oral_exam_text, $thesis_proposal, $thesis_proposal_text, $expected_completion_month, $expected_completion_year, $research_text, $ta_support, $ta_fall, $ra_fall, $ta_spring, $ra_spring, $ra_text, $fellowship, $fellowship_text, $advisor_comments, $advisor_support, $dgs_comments, $grad_update_time, $advisor_update_time, $advisor_update_uid, $dgs_update_time) = @$row;
+    }
+    
+    my $name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$uid);
+</%INIT>
+
+<%method title>Grad Progress Report</%method>
+
+% if ($record_year) {
+
+<h4><% $name %> - <% $record_year %> report</h4>
+% if ($grad_update_time !~ /0000/) {
+<small>Last updated <% $grad_update_time |h %></small>
+%   if ($max_year && ($record_year < $max_year)) {
+<div style="background-color: #eeeeee; padding: 0.1em"><b>Warning</b>: Unable to find progress report for academic year ending <% $max_year |h %>. Displaying report for <% $record_year|h %></div>
+%   }
+<p>
+% }
+
+
+Entering Year: <b><% $enter_year |h %></b>
+
+Expected Degree: <b><% $expected_degree |h %></b>
+
+<h4>A. Written Exam</h4>
+
+<p>
+Passed Written Exam (GWE) at this time? <b><% $gwe_pass |h %></b>
+% if ( $gwe_pass !~ /y/i ) {
+<p>
+If in the first year and have not passed, plan to improve GWE score:
+<& SELF:.display, text=>$gwe_text &>
+% }
+<p>
+<b><a name="a1">A-1 Masters Degree</a></b>
+
+<& SELF:.display, text=>$ms_plan &>
+
+<h4><a name="b">B. Research Project and Adviser</a></h4>
+
+Has research advisor: <b><% $have_advisor %></b>
+<br>
+% my $advisor_name = $m->comp('/mason/db/directory/uid_to_name.comp', uid=>$advisor) || "none";
+Advisor name: <b><% $advisor_name |h %></b>
+<p>
+If no research advisor, plan to find one:
+
+<& SELF:.display, text=>$advisor_text &>
+<p>
+Brief description of research:
+
+<& SELF:.display, text=>$research_text &>
+
+<h4><a name="c">C. Degree Program Form</a></h4>
+
+Has filed Degree Program form at this time? <b><% $degree_form |h %></b>
+<p>
+If not, when planning to file this form:
+
+<& SELF:.display, text=>$degree_form_text &>
+
+<h4><a name="d">D. Oral Exam</a></h4>
+
+Has passed the Oral Exam at this time? <b><% $oral_exam |h %></b>
+<p>
+If not, additional info:
+
+<& SELF:.display, text=>$oral_exam_text &>
+
+<h4><a name="e">E. Thesis Proposal</a></h4>
+
+Has filed Thesis Proposal form at this time? <b><% $thesis_proposal |h %></b>
+<p>
+If not, additional info:
+
+<& SELF:.display, text=>$thesis_proposal_text &>
+
+<h4><a name="f">F. Expected Completion</a></h4>
+
+Expect to receive degree? <b><% $expected_completion_month |h %> <% $expected_completion_year |h %></b>
+<p>
+
+<h4><a name="g">G. Plans for TA/RA support</a></h4>
+
+Plan to need TA support this summer (<% $record_year |h %>)? <b><% $ta_support |h %></b>
+
+<p>
+TA support <% $record_year |h %>-<% $record_year+1 |h %>:<br>
+TA Fall: <b><% $ta_fall |h %></b>
+TA Spring: <b><% $ta_spring |h %></b>
+<p>
+RA support <% $record_year |h %>-<% $record_year+1 |h %>:<br>
+RA Fall: <b><% $ra_fall |h %></b>
+RA Spring: <b><% $ra_spring |h %></b>
+<p>
+Any additional info:
+
+<& SELF:.display, text=>$ra_text &>
+<p>
+Plan to receive outside support such as a fellowship for <% $record_year |h %>-<% $record_year+1 |h %>? <b><% $fellowship |h %></b>
+<& SELF:.display, text=>$fellowship_text &>
+
+% # now the advisor part of the report...
+<hr>
+<h4>Advisor comments on students progress</h4>
+
+<div>
+    <& '/mason/db/students/progress_report.comp:comment_history', uid => $uid, max_year => $record_year &>
+</div>
+
+<h4>Advisor support statement</h4>
+
+<div>
+    <& '/mason/db/students/progress_report.comp:comment_history', uid => $uid, support => 1, max_year => $record_year &>
+</div>
+
+% if ($session{'uid'} eq $advisor) {
+<br>
+<form method=post action="progress_comment_form.html?uid=<% $uid %>">
+<input type=submit value="Add or edit Advisor comments">
+</form>
+% }
+
+<hr>
+<h4>DGS comments</h4>
+% if ($dgs_comments =~ /\S/) {
+%   if ($dgs_update_time) {
+        <p><b>Last updated <% $dgs_update_time |h %></b></p>
+%   }
+    <& SELF:.display, text=>$dgs_comments &>
+% }
+% if ($gradapp) {
+<br>
+<form method=post action="progress_comment_form.html?uid=<% $uid %>">
+<input type="hidden" name="dgs" value="1">
+<input type=submit value="Add or edit DGS comments">
+</form>
+% }
+
+
+% # end of test to check for valid record to display
+% } else {
+Sorry, no report found under that name.
+% }
+
+<%method .display>
+<%args>
+$text
+$display_empty => 1
+</%args>
+% if ($display_empty || $text) {
+%my $newtext = $m->comp('/mason/format_text.comp', text=>$text);
+% if (!$text) {$newtext = "<i>nothing entered</i>";}
+<div style="padding-left: 1em;"><% $newtext %></div>
+<!--table border=1 width="100%"><tr><td><% $newtext %></td></tr></table-->
+% }
+</%method>

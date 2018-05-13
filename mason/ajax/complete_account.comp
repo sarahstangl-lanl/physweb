@@ -1,0 +1,148 @@
+
+<%ARGS>
+  $id          => 'account_key'
+  $frequency   => 0.2
+  $dropdown_title => 'Show accounts associated with customer'
+  $account
+  $dropdown_ids   => [ 'customer_uid', 'pi_uid' ]
+  $no_add_button => 0
+  $no_dropdown_button => 0
+</%ARGS>
+
+<%INIT>
+  $m->comp('js.comp');
+  $m->comp('jsload.comp', file => 'input_hint.js');
+  $m->comp('jsload.comp', file => 'editablecompleter.js');
+  $dropdown_ids = [ $dropdown_ids ] unless (ref $dropdown_ids);
+</%INIT>
+<script type="text/javascript">
+/* <![CDATA[ */
+  completerElement = $('<% $id |h %>');
+  completerElement.value = '<% $m->comp('/mason/ajax/account_to_accountfinder.comp', account => $account) %>';
+  completerElement.observe('keypress', function (e) {
+      switch(e.keyCode) {
+          case Event.KEY_TAB:
+          case Event.KEY_RETURN:
+              Event.stop(e);
+          default:
+              this.accountElement.value = '';
+              $A(['fund', 'deptid', 'prgm', 'proj', 'emplid', 'cf1', 'cf2']).each(function (field) {
+                  $(this.id + '_' + field).update('&nbsp;');
+              }.bind(this));
+      }
+  }.bind(completerElement));
+  completerElement.observe('keypress', function (e) {
+  }.bind(completerElement));
+  accountElement = new Element('input', { id: completerElement.id + '_value', type: 'hidden', name: completerElement.name, value: '<% $account |h %>' });
+  completerElement.validateMethod = function() {
+      if (this.value && this.value != this.title) {
+          if (this.hasAttribute('efs_disabled') && this.readAttribute('efs_disabled') != 0) {
+              this.errorMsg = "This account has been marked 'Do not use'. Please choose another account.";
+              return false;
+          }
+          if (!this.accountElement.value) {
+              this.errorMsg = "Invalid account. You must choose an account from the list.";
+              return false;
+          }
+      }
+      return true;
+  };
+  completerElement.accountElement = accountElement;
+  completerElement.name = completerElement.name + '_display';
+  completerElement.parentNode.appendChild(accountElement);
+  ec = new EditableCompleter({
+        textArea: completerElement.id,
+        dropdown: [ <% join(', ', map { "'$_'" } @$dropdown_ids) %> ],
+        dropdownTitle: '<% $dropdown_title %>',
+        url: '/include/complete_account.html',
+        paramName: 'search',
+        ddParamName: 'uid',
+        ddMinWidth: 'auto',
+        noDropdownButton: <% $no_dropdown_button ? 1 : 0 %>,
+        acOptions: {
+             frequency: <% $frequency %>,
+             select: null,
+             updateElement: function(selectedElement) {
+                 completer = this.ec.completer;
+                 this.value = Element.collectTextNodesIgnoreClass(selectedElement, 'informal')
+                 this.focus();
+                 if (completer.options.afterUpdateElement)
+                     completer.options.afterUpdateElement(this, selectedElement);
+             }.bind(completerElement),
+             afterUpdateElement: function(el, li) {
+                 this.accountElement.value = li.id;
+                 this.writeAttribute('efs_disabled', li.readAttribute('efs_disabled'));
+                 $A(['fund', 'deptid', 'prgm', 'proj', 'emplid', 'cf1', 'cf2']).each(function (field) {
+                     $(this.id + '_' + field).update(li.readAttribute('efs_' + field) || '&nbsp;');
+                 }.bind(this));
+                 if (el.clearError)
+                     el.clearError();
+             }.bind(completerElement)
+        }
+  });
+  completerElement.ec = ec;
+% unless ($no_add_button) {
+  completerElement.addFormDiv = new Element('div').setStyle({ padding: '10px', border: '2px solid black', backgroundColor: '#ccc', display: 'none', zIndex: '10' });
+  completerElement.addFormDiv.appendChild(completerElement.addFormDiv.addFormContainer = new Element('div'));
+  addButton = new Element('img', { src: '/images/add.gif', alt: 'Add New Account', title: 'Add New Account' });
+  addLink = new Element('a', { href: '#' }).setStyle({ position: 'relative', top: '1px', left: '1px' });
+  closeButton = new Element('img', { src: "/images/close-icon.png", alt: "Close", title: "Close" }).setStyle({ cursor: 'pointer', position: 'absolute', top: '-15px', right: '-15px' });
+  closeButton.observe('click', function () { this.addFormDiv.hide() }.bind(completerElement));
+  addLink.observe('click', function(e) {
+      new Ajax.Request('account.html', {
+        method: 'get',
+        parameters: { ajax: 1 },
+        onSuccess: function(response) {
+          this.addFormDiv.addFormContainer.update(response.responseText);
+          viewportOffsets = document.viewport.getScrollOffsets();
+          viewportDims = document.viewport.getDimensions();
+          parentOffsets = this.addFormDiv.getOffsetParent().cumulativeOffset();
+          t = viewportOffsets.top + (viewportDims.height / 2) - (this.addFormDiv.getHeight() / 2) - parentOffsets.top + 'px';
+          left = viewportOffsets.left + (viewportDims.width / 2) - (this.addFormDiv.getWidth() / 2) - parentOffsets.left + 'px';
+          this.addFormDiv.setStyle({ position: 'absolute', display: 'inline', top: t, left: left });
+          this.addForm = this.addFormDiv.down('form');
+          this.addForm.observe('submit', this.addFormSubmit);
+        }.bind(this)
+      });
+  }.bind(completerElement));
+  addLink.appendChild(addButton);
+  completerElement.addFormDiv.insert({ top: closeButton });
+  completerElement.up('form').insert({ after: completerElement.addFormDiv });
+  completerElement.up().insert({ bottom: addLink });
+  completerElement.addFormSubmit = function(e) {
+      e.stop();
+      this.addForm.request({
+          parameters: { ajax: 1 },
+          onSuccess: function(response) {
+              try {
+                  json = response.responseText.evalJSON();
+                  new Ajax.Request('/include/complete_account.html', {
+                      method: 'get',
+                      parameters: { search: json.account_key },
+                      onSuccess: this.updateAccount,
+                  });
+              }
+              catch (e) {
+                  this.addForm.stopObserving('submit');
+                  this.addFormDiv.addFormContainer.update(response.responseText);
+                  this.addForm = this.addFormDiv.down('form');
+                  this.addForm.observe('submit', this.addFormSubmit);
+              }
+          }.bind(this)
+      });
+  }.bind(completerElement);
+  completerElement.updateAccount = function(response) {
+      account = new Element('div').update(response.responseText);
+      li = account.down('li');
+      this.value = Element.collectTextNodesIgnoreClass(li, 'informal');
+      this.removeClassName('hinted');
+      this.addFormDiv.hide();
+      this.ec.completer.options.afterUpdateElement(this, li);
+  }.bind(completerElement);
+% }
+  completerElement.ec.onClickRender = function() { this.completer.hasFocus = true; this.completer.onObserverEvent(); }
+  completerElement.observe('click', completerElement.ec.onClickRender.bind(completerElement.ec));
+  completerElement.writeAttribute('title', 'Account fields separated by spaces');
+  hintInput(completerElement.id);
+/* ]]> */
+</script>

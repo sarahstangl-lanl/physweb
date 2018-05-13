@@ -1,0 +1,288 @@
+<%args>
+    $ajax => undef
+    $type => undef
+    $category => undef
+    $header => undef
+    $line_id => undef
+    $estimate_item => undef
+    $job_estimate_id => undef
+    $get_updated_ed_html => 0
+    $get_updated_total => 0
+</%args>
+
+<& '/mason/ajax/js.comp' &>
+
+<%init>
+    use tablesearch;
+    use JSON;
+    use ShopDb::Form::EstimateLaborLine;
+    use ShopDb::Form::EstimateMaterialLine;
+
+    if ($type ne 'material' && $type ne 'labor') {
+        print "Bad charge line type $type";
+        return;
+    }
+
+    my @columns;
+    my $prefix = $type.$category;
+    my $typeupper = ucfirst($type);
+    my $package = "ShopDb::Form::Estimate${typeupper}Line";
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $auth_args = $session{'shopdb-auth'};
+
+    unless ($estimate_item || $job_estimate_id) {
+        print "estimate_item or job_estimate_id is required";
+        return;
+    }
+
+    $estimate_item ||= $schema->resultset('JobEstimates')->find({ job_estimate_id => $job_estimate_id });
+
+    unless ($estimate_item) {
+        print "Invalid job_estimate_id $job_estimate_id";
+        return;
+    }
+
+    my $job_item = $estimate_item->job;
+
+    my $job_auth = $m->comp('/mason/db/shopdb/check_job_auth.comp', job_item => $job_item);
+    unless ($job_auth && ($job_auth eq 'foreman' || $job_auth eq 'machinist')) {
+        print "You are not authorized to view charge lines for job " . $job_item->job_id;
+        return;
+    }
+
+    my %form_params = (
+        id_prefix => ($type eq 'material' ? 'ml_' : 'll_') . $category,
+        field_list => [ '+category' => { default => $category } ],
+    );
+
+    my $form = $package->new(item_id => $line_id, estimate_item => $estimate_item, job_item => $job_item, schema => $schema, auth_args => $auth_args, %form_params);
+
+    # Fetch new editable dropdown html for when a new value is added via ajax
+    if ($get_updated_ed_html) {
+        # Clear out already-generated template output
+        $m->clear_buffer;
+        print $form->field('category_value')->render;
+        # Prevent displaying remainder of template
+        $m->abort;
+        return;
+    }
+
+    my $rs = $m->comp('/mason/db/shopdb/estimate_charge_line_rs.comp',
+        job_estimate_id => $estimate_item->id,
+        type => $type,
+        category => $category,
+        edit_auth => $form->has_auth,
+        line_id => $line_id,
+    );
+
+    if ($type eq 'material') {
+        @columns = (qw|
+            category_value
+            description
+            quantity
+            unit
+            unit_cost
+            extended_cost
+        |);
+    } else { # Labor line
+        @columns = (qw|
+            category_value
+            description
+            charge_hours
+            labor_rate
+            extended_cost
+        |);
+    }
+
+    unshift(@columns, 'edit'); # Edit comes first
+
+    my $ts = new Tablesearch(
+        prefix              => $prefix,
+        resultset           => $rs,
+        columns             => \@columns,
+        field_params        => {
+            'edit'              => {
+                'data_format'       => sub {
+                    my ($text, $format, $row) = @_;
+                    my $class = '';
+                    my @classes;
+                    if ($form->has_auth) {
+                        push @classes, (qw/roweditor_edit roweditor_delete/);
+                    }
+                    $class = join(' ', @classes);
+                    return "<span style=\"display:none\" class=\"$class\"></span>";
+                },
+                'html_class'        => 'roweditor_edit',
+                'width'             => 40,
+                'name'              => '',
+                'nowrap'            => 1,
+                'no_sort'           => 1,
+            },
+            'category_value'    => {
+                'name'              => ($type eq 'labor' ? 'Task' : 'Category'),
+                'width'             => '175',
+            },
+            'quantity'          => {
+                'width'             => 50,
+                'name'              => 'Qty',
+            },
+            'description'       => {
+                'width'             => 200,
+            },
+            'charge_hours'      => {
+                'name'              => ($category eq 'wire' ? 'Charge Minutes' : 'Charge Hours'),
+                'width'             => 50,
+            },
+            'labor_rate'        => {
+                'data_format'       => sub {
+                    my ($text, $format, $row, $ts) = @_;
+                    $ts->currency_formatter($text) . "/hr";
+                },
+                'width'             => 75,
+            },
+            'unit'              => {
+                width               => 50,
+            },
+            'unit_cost'         => {
+                'data_format'       => 'currency',
+                'width'             => 75,
+            },
+            'extended_cost'     => {
+                'data_format'       => 'currency',
+                'width'             => 75,
+            },
+        },
+        header_format       => 'ucfirst_all',
+        extra_url_args      => [ 'job_id' ],
+        row_tagger          => sub {
+            my ($row) = @_;
+            return 'data-line_id="' . $row->{'estimate_'.$type.'_line_id'} . '" data-type="' . $typeupper . '"'; },
+        html_table_id       => "table_${prefix}_lines",
+        hide_search         => 1,
+        hide_header         => 1,
+        no_limit            => 1,
+        no_calc_found_rows  => 1,
+        no_header_wrap      => 1,
+        ajax_url            => 'estimate_charge_lines.html',
+        ajax_parameters     => { job_estimate_id => $estimate_item->id, type => $type, category => $category, ajax => 1 },
+        ajax_pre_callback   => 'pre' . $prefix . 'Submit();',
+        ajax_post_callback  => 'load' . $prefix .'RowEditor();',
+        data_wrapper_form   => 1,
+    );
+
+    if ($get_updated_total) {
+        # Clear out already-generated template output
+        $m->clear_buffer;
+        print $ts->currency_formatter($rs->get_column('extended_cost')->sum || 0);
+        # Prevent displaying remainder of template
+        $m->abort;
+        return;
+    }
+
+    if ($line_id) {
+        my $arr = $ts->dump(undef, escape_format => 'html');
+        # XXX make sure we have a row....?
+        my $row = $arr->{'data'}->[0];
+
+        return $row;
+    }
+
+    if ($ajax) {
+        # Clear out already-generated template output
+        $m->clear_buffer;
+        $ts->display;
+        # Prevent displaying remainder of template
+        $m->abort;
+        return;
+    }
+    else {
+        print '<table width="100%" cellpadding="3" cellspacing="0"><tr><td><span>';
+        $ts->display();
+        print '</span></td></tr>';
+    }
+</%init>
+
+<tr><td><table width="100%" cellpadding="3" cellspacing="0"><tr>
+    <td nowrap valign="middle"><a href="#" id="add_<% $prefix %>_line">Add <% $header %> Line</a></td>
+    <td width="100%" align="right"><span style="font-weight: bold"><% $header || '' |h %> Total: </span><span id="<% $prefix %>_total" style="font-weight: bold"><% $ts->currency_formatter($rs->get_column('extended_cost')->sum || 0) %></span></td>
+</tr></table></td></tr>
+</table>
+
+<& '/mason/ajax/jsload.comp', file=>'RowEditor.js' &>
+
+<script type="text/javascript">
+function pre<% $prefix %>Submit() {
+    $('table_<% $prefix %>_lines').roweditor.cleanup();
+}
+
+function refresh<% $prefix %>Data() {
+    $$('form[name="<% $prefix %>tsform"]').first().submit();
+    parameters = {
+        job_estimate_id: <% $estimate_item->id %>,
+        type: '<% $type %>',
+        category: '<% $category %>'
+    };
+    // Get updated estimate totals
+    new Ajax.Request('estimate.html', {
+        parameters: {
+            get_updated_totals: 1,
+            job_id: <% $estimate_item->job_id %>
+        },
+        onSuccess: function(response) {
+            try {
+            response = response.responseText.evalJSON();
+            Object.keys(response).each(function(key) {
+                if (key == 'show_copy_totals_link') {
+                    if (response[key])
+                        $('copy_totals_line').setStyle({ display: 'table-row' });
+                }
+                else
+                    $(key).update(response[key]);
+            });
+            } catch (e) { console.log(e); }
+        }
+    });
+    // Get updated section total
+    new Ajax.Request('estimate_charge_lines.html', {
+        parameters: Object.extend({ get_updated_total: 1 }, parameters),
+        onSuccess: function(response) {
+            $('<% $prefix %>_total').update(response.responseText);
+        }
+    });
+    // Get updated editable dropdown html
+    new Ajax.Request('estimate_charge_lines.html', {
+        parameters: Object.extend({ get_updated_ed_html: 1 }, parameters),
+        onSuccess: function(response) {
+            $('<% $form->field('category_value')->id %>').up().replace(response.responseText);
+        }
+    });
+}
+
+function load<% $prefix %>RowEditor() {
+$('table_<% $prefix %>_lines').roweditor = new RowEditor(
+    'table_<% $prefix %>_lines',
+    'estimate_charge_line.html',
+    <% to_json(\@columns) %>,
+    {
+        newID: 'add_<% $prefix %>_line',
+        parameters: {
+            ajax: 1,
+            job_estimate_id: <% $estimate_item->id %>,
+            prefix: '<% ($type eq 'material' ? 'ml_' : 'll_') . $category %>',
+            type: '<% $type %>',
+            category: '<% $category %>'
+        },
+        postSuccessCallback: refresh<% $prefix %>Data,
+        useFormDivs: true,
+        skipUpdates: true,
+        tdClassName: 'tableitem',
+        hiddenAttributes: $H({line_id: 'line_id'})
+    }
+);
+}
+
+load<% $prefix %>RowEditor();
+</script>
+
+% print $form->render;

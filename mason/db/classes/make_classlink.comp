@@ -1,0 +1,48 @@
+
+<%DOC>
+   Component: make_classlink.comp
+        Date: 2008.08.15
+      Author: clayton
+     Changed: 2008.08.15 by clayton
+
+Description ... 
+</%DOC>
+
+<%ARGS>
+  $classid=>undef
+  $year=>undef
+  $quarter=>undef
+  $name=>undef
+  $section=>undef
+  $fullurl=>undef
+  $type=>undef
+  $entryid=>undef
+</%ARGS>
+
+<%INIT>
+  if ($classid) {
+    # Lookup class information
+    my $sth = $dbh->prepare('SELECT year, quarter, name, section FROM webdb.classlist WHERE classid=? LIMIT 1');
+    $sth->execute($classid)
+      or die 'Class information lookup failed: ' . $sth->errstr;
+
+    if (my $row = $sth->fetchrow_arrayref()) {
+      ($year, $quarter, $name, $section) = @$row;
+    } else {
+      die "Invalid classid";
+    }
+  }
+
+  if ($section) { $name .= '.'.$section; }
+  my $urlname = $name;
+  $year = $m->interp->apply_escapes($year, 'u');
+  $quarter = $m->interp->apply_escapes($quarter, 'u');
+  $urlname = $m->interp->apply_escapes($urlname, 'u');
+  $type = $m->interp->apply_escapes($type, 'u') if ($type);
+  return ($fullurl ? '/classes/' : '') . "$year/$quarter/$urlname/" . ($type ? $type . '.html' : '') . ($entryid?("#".$entryid):"");
+</%INIT>
+
+<%filter>
+s/.//go
+</%filter>
+		

@@ -1,0 +1,181 @@
+<%args>
+    $job_id => undef
+    $job_item => undef
+    $job_comment_id => undef
+    $ajax => undef
+</%args>
+
+<& '/mason/ajax/js.comp' &>
+
+<%init>
+    use tablesearch;
+    use JSON;
+    use ShopDb::Form::JobComment;
+
+    my @columns;
+
+    my $prefix = 'comments_';
+
+    my $schema = $m->comp('/mason/db/shopdb/schema.comp');
+    my $auth_args = $session{'shopdb-auth'};
+
+    unless ($job_id || $job_item) {
+        print "job_id or job_item is required";
+        return;
+    }
+
+    $job_item ||= $schema->resultset('Jobs')->find($job_id);
+
+    unless ($job_item) {
+        print "Invalid job_id $job_id";
+        return;
+    }
+
+    my $job_auth = $m->comp('/mason/db/shopdb/check_job_auth.comp', job_item => $job_item);
+    unless ($job_auth && ($job_auth eq 'foreman' || $job_auth eq 'machinist')) {
+        print "You are not authorized to view job comments for job " . $job_item->job_id;
+        return;
+    }
+
+    my $form = new ShopDb::Form::JobComment( prefix => $prefix, schema => $schema, auth_args => $auth_args, job_item => $job_item );
+
+    $job_id = $job_item->job_id;
+
+    my $rs = $schema->resultset('JobComments')->with_creator_info->search({ job_id => $job_id });
+
+    if ($auth_args->{foreman} || $auth_args->{machinists}) {
+        $rs = $rs->search({}, {
+            '+select' => (\'\'\' AS edit'),
+            '+as'     => 'edit',
+        });
+    }
+    push(@columns, (qw/comment created_date creator include_on_invoice customer_visible/));
+    unshift(@columns, 'edit'); # Edit comes first
+
+    my $comment_auth = sub {
+        my $row = shift;
+        return ($auth_args->{'foreman'} || $row->{'creator_uid'} eq $auth_args->{'uid'}) ? 1 : 0;
+    };
+
+    my $comment_checkbox = sub {
+        my ($text, $format, $row) = @_;
+        return '<input type="checkbox" class="roweditor-checkbox" enabled="' . $comment_auth->($row) . '" disabled="DISABLED"' . ($text ? ' checked="CHECKED"' : '') . ' />';
+    };
+
+    my $ts = new Tablesearch(
+        prefix              => $prefix,,
+        resultset           => $rs,
+        columns             => [ @columns, 'creator_uid' ],
+        field_params        => {
+            'creator_uid'       => {
+                'hidden'            => 1,
+            },
+            'edit'              => {
+                'data_format'       => sub {
+                    my ($text, $format, $row) = @_;
+                    my $class = '';
+                    if ($comment_auth->($row)) {
+                        $class = "roweditor_edit roweditor_delete";
+                    }
+                    return "<span style=\"display:none\" class=\"$class\"></span>";
+                },
+                'html_class'        => 'roweditor_edit',
+                'width'             => 55,
+                'name'              => '',
+                'nowrap'            => 1,
+                'no_sort'           => 1,
+            },
+            'comment'           => {
+                'width'             => 300,
+            },
+            'creator'           => {
+                'name'              => 'Entered By',
+            },
+            'include_on_invoice'=> {
+                'data_format'       => $comment_checkbox,
+                'width'             => 100,
+            },
+            'customer_visible'  => {
+                'data_format'       => $comment_checkbox,
+                'width'             => 100,
+            },
+        },
+        header_format       => 'ucfirst_all',
+        extra_url_args      => [ 'job_id' ],
+        ajax_url            => 'job_comments.html',
+        ajax_parameters     => { ajax => 1 },
+        ajax_pre_callback   => 'preCommentsSubmit();',
+        ajax_post_callback  => 'loadCommentsRowEditor();',
+        row_tagger          => sub { my ($row) = @_; return 'data-job_comment_id="' . $row->{'job_comment_id'} . '"'; },
+        html_table_id       => "table_job_comments",
+        hide_search         => 1,
+        hide_header         => 1,
+        no_limit            => 1,
+        no_calc_found_rows  => 1,
+        default_sort_field  => "job_comment_id",
+        default_sort_dir    => 'asc',
+        data_wrapper_form   => 1,
+    );
+
+    if ($ajax) {
+        $m->clear_buffer;
+        $ts->display;
+        $m->abort;
+        return;
+    }
+
+    if ($job_comment_id) {
+        my $arr = $ts->dump(undef, escape_format => 'html');
+        # XXX make sure we have a row....?
+        my $row = $arr->{'data'}->[0];
+
+        return $row;
+    }
+</%init>
+
+<span>
+% $ts->display();
+</span>
+
+<table cellpadding="3" cellspacing="0" style="padding-top: 5px"><tr>
+    <td valign="middle"><a href="#" id="add_job_comment">Add Comment</a></td>
+</tr></table>
+
+<& '/mason/ajax/jsload.comp', file=>'RowEditor.js' &>
+
+<script type="text/javascript">
+function preCommentsSubmit() {
+    $('table_job_comments').roweditor.cleanup();
+}
+function loadCommentsRowEditor() {
+    $('table_job_comments').roweditor = new RowEditor(
+        'table_job_comments',
+        'job_comment.html',
+        <% to_json(\@columns) %>,
+        {
+            newID: 'add_job_comment',
+            parameters: {
+                ajax: 1,
+                prefix: '<% $prefix %>',
+                job_id: '<% $job_id %>'
+            },
+            deleteParameters: {
+                ajax: 1,
+                delete_comment: true,
+                job_id: '<% $job_id %>'
+            },
+            postSuccessCallback: job.refreshData.bind(job, $A(['comments', 'audits'])),
+            useFormDivs: true,
+            tdClassName: 'tableitem',
+            hiddenAttributes: $H({
+                job_comment_id: 'job_comment_id'
+            })
+        }
+    );
+}
+loadCommentsRowEditor();
+</script>
+<%perl>
+    print $form->render;
+#}
+</%perl>

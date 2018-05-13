@@ -1,0 +1,129 @@
+<%args>
+$url_args => { }
+</%args>
+<%init>
+    use DateTime;
+    use DateTime::Format::Strptime;
+
+    # Use request args unless overridden
+    my %args = (%{ $m->request_args }, %{ $url_args });
+    # Args used in this component
+    my @comp_arg_names = ( qw/month_start start_date end_date month year date_filter/ );
+    my %comp_args;
+
+    my $today = DateTime->now->truncate( to => 'day' );
+    $comp_args{month_start} = DateTime->now->truncate( to => 'month' );
+    my $strp = DateTime::Format::Strptime->new( pattern => '%F' );
+    if ($args{month_start}) {
+        $comp_args{month_start} = $strp->parse_datetime($args{month_start})->truncate( to => 'month' );
+    }
+    if ($args{start_date}) {
+        $comp_args{start_date} = $strp->parse_datetime($args{start_date});
+    }
+    if ($args{end_date}) {
+        $comp_args{end_date} = $strp->parse_datetime($args{end_date});
+    }
+    if ($args{month} && $args{year}) {
+        $comp_args{start_date} = DateTime->new(year => $args{year}, month => $args{month});
+        $comp_args{end_date} = $comp_args{start_date}->clone->add( months => 1, end_of_month => 'limit' )->subtract( days => 1 );
+    }
+    if ($comp_args{start_date}) {
+        $comp_args{month_start}->set_year($comp_args{start_date}->year);
+        $comp_args{month_start}->add( years => 1 ) if (DateTime->compare($comp_args{month_start}, $comp_args{start_date}) < 0);
+    }
+    $comp_args{start_date} ||= $comp_args{month_start};
+    $comp_args{end_date} ||= $comp_args{month_start}->clone->add( months => 1, end_of_month => 'limit' )->subtract( days => 1 );
+    if (DateTime->compare($today, $comp_args{end_date}) < 0) {
+        $comp_args{end_date} = $today;
+    }
+    my $dt = $comp_args{month_start}->clone->subtract( years => 1 );
+
+    delete $args{date_filter} if ($ARGS{no_clear});
+    my $no_filter = $args{date_filter} && $args{date_filter} eq 'Clear filter' ? 1 : 0;
+
+    # Args to use in URLs
+    my %uargs = (%args);
+    delete @uargs{@comp_arg_names};
+
+    my $return = {
+        %comp_args,
+        url_args => \%args,
+        comp_args => { map { $_ => $args{$_} } grep { exists $args{$_} } @comp_arg_names },
+    };
+
+#    use Data::Dumper;
+#    warn Dumper({
+#        ARGS => \%ARGS,
+#        uargs => \%uargs,
+#        comp_args => \%comp_args,
+#        args => \%args,
+#    });
+
+    return $return if ($ARGS{no_output});
+
+</%init>
+<form>
+% while (my ($key, $val) = each %uargs) {
+    <input type="hidden" name="<% $key |h %>" value="<% defined $val ? $val : '' |h %>"/>
+% }
+<table cellpadding="3" cellspacing="0" width="200">
+    <tr>
+        <td colspan="2" nowrap="nowrap">
+            <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                <th align="left" valign="top">Filter by Date</th>
+                <td nowrap="nowrap" align="middle">
+                    <a href="?<% _args(%uargs, month_start => $dt->ymd) %>">&lt;&nbsp;Prev Year</a>
+                    &nbsp;|&nbsp;
+                    <a href="?<% _args(%uargs, month_start => $today->clone->truncate( to => 'month' )->ymd) %>">Current Year</a>
+                    &nbsp;|&nbsp;
+                    <a href="?<% _args(%uargs, month_start => $comp_args{month_start}->clone->add( years => 1 )->ymd) %>">Next Year&nbsp;&gt;</a>
+                </td>
+            </tr></table>
+        </td>
+    </tr>
+    <tr><td nowrap="nowrap" colspan="2">
+            <table cellpadding="3" cellspacing="0">
+                <tr>
+<%perl>
+for (my $i = 0; $i < 12; $i++) {
+    $dt->add( months => 1, end_of_month => 'limit' );
+    if (($args{year} && $args{month} && $args{year} == $dt->year && $args{month} == $dt->month) || (!$no_filter && !$args{start_date} && !$args{year} && !$args{month} && $dt->month == $comp_args{month_start}->month)) {
+        print '<td><u>' . $dt->month_abbr . ' ' . $dt->year . '</u></td>';
+    }
+    else {
+        print '<td><a href="?' . _args(%uargs, month => $dt->month, year => $dt->year)  . '">' . $dt->month_abbr . ' ' . $dt->year . '</a></td>';
+    }
+    print '<td>|</td>' unless ($i % 6 == 5);
+    print '</tr><tr>' if ($i == 5);
+}
+</%perl>
+                </tr>
+            </table>
+    </td></tr>
+% unless ($ARGS{hide_form}) {
+    <tr>
+        <td nowrap="nowrap">
+            <table cellpadding="3" cellspacing="0">
+                <tr>
+                    <td>Start date</td>
+                    <td><input id="start_date" type="text" name="start_date" value="<% $no_filter ? '' : $comp_args{start_date}->ymd |h %>"/><% $m->comp('/mason/ajax/calendar.comp', id => 'start_date', name => 'start_date') %></td>
+                </tr>
+                <tr>
+                    <td>End date</td>
+                    <td><input id="end_date" type="text" name="end_date" value="<% $no_filter ? '' : $comp_args{end_date}->ymd |h %>"/><% $m->comp('/mason/ajax/calendar.comp', id => 'end_date', name => 'end_date') %></td>
+                </tr>
+            </table>
+        </td>
+        <td width="75%">
+            <input type="submit" name="date_filter" value="Filter"/>
+% unless ($ARGS{no_clear}) {
+            <br/><input type="submit" name="date_filter" value="Clear filter"/>
+% }
+        </td>
+    </tr>
+% }
+</table>
+</form>
+<%perl>
+    return $return;
+</%perl>

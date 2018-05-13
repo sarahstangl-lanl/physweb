@@ -1,0 +1,512 @@
+<%args>
+$form_name => undef
+$save_form => undef # 1 = saving the form
+$form_id => undef #required to save the form or field
+
+$field_id => undef # editing/saving a specific field
+$save_field => undef # saving the field
+$sortswap => undef #Field to trade places with for sorting changes
+
+$delete_field => undef # 1 = delete
+$delete_form => undef # 1 = delete
+
+$confirm => undef # confirm delete operation (either form or field)
+
+$ajax => undef
+
+</%args>
+<%method js></%method>
+<%method meta>
+<style type="text/css">
+[draggable] {
+    -moz-user-select: none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+div#tsfields tr.dragover {
+    border: 1px solid black;
+    background: #999;
+}
+div#tsfields tr.dragsource {
+    background: #a77;
+}
+
+#field_form .comment {
+}
+#field_form .input {
+    padding-right: 10px;
+    float: left;
+}
+
+</style>
+</%method>
+
+<%init>
+use physdb::form;
+use physdb::form_field;
+use tablesearch;
+use ShopDb::TablesearchMethods;
+my $form;
+my $web = $m->comp('/mason/auth/auth_check.comp', auth_type=>'webforms');
+
+if(!$web) {
+    print "<h1>Access Denied</h1>";
+    print "Please ask someone in the physics web group to assist you with editing forms.";
+    return;
+}
+
+#If we are given a field name (and the form has been created already), do field edit operations:
+if($field_id) {
+    my $field = new Form_Field(id => $field_id);
+    if($field->get("form_id")) {
+        $form = new Form(id=>$field->get("form_id"));
+    }
+    else {
+        $form = new Form(id=>$form_id);
+    }
+    if(!$form->{'loaded'}) {
+        print "Cannot find form id ". _h($form_id). "!<BR>";
+        return;
+    }
+    if($save_field) {
+        #save the field, redirect to edit.html
+        foreach my $ff ($field->columns()) {
+            # Lets be lazy and let them update anything in the table except the exceptions here:
+            next if $ff eq 'id';
+            next if $ff eq 'form_id';
+            next if $ff eq 'sort';
+            if(exists $ARGS{"field_$ff"}) {
+                $field->set( $ff => $ARGS{"field_$ff"});
+            }
+            else {
+                $field->set( $ff => '');
+            }
+        }
+        # make sure form_id is set to the parent form
+        $field->set( 'form_id' => $form->get("id"));
+        if($field->save()) {
+            print "Saved!";
+            $m->redirect("edit.html?form_name=". _u($form->get("name")));
+            return;
+        }
+        else {
+            print "Failed to save: <PRE>";
+            print Dumper($field->errors());
+        }
+        return;
+    }
+    elsif($delete_field) {
+        if($confirm) {
+            #do the delete, redirect to edit.html
+            #TODO: delete form_reply_fields
+            $field->delete();
+            $m->redirect("edit.html?form_name=". _u($form->get("name")));
+            return;
+        }
+        else {
+            #drow delete confirm form
+            print "<h2>Are you SURE?</h2>";
+            print "<p>This will delete the '".$field->get("name")."' field from form '".$form->get("name")."'</p>";
+            print "<p>NOTE: All existing responses for this field will be removed and there is no undo.</p><p> Click 'Delete' if you are sure</p>";
+            print '<form method="post" action="edit.html">
+                     <input type="hidden" name="form_id" value="'.$form->get('id').'">
+                     <input type="hidden" name="field_id" value="'.$field->get('id').'">
+                     <input type="hidden" name="delete_field" value="1">
+                     <input type="hidden" name="confirm" value="1">
+                     <input type="submit" value="DELETE">
+                   </form>
+            ';
+            return;
+        }
+    }
+    elsif($sortswap) {
+        my $otherfield = new Form_Field(id=>$sortswap);
+        if(!$otherfield->{'loaded'}) {
+            print "Unable to find otherfield";
+            return;
+        }
+        my $src = $field;
+        my $dst = $otherfield;
+        if($src->get('sort') > $dst->get('sort')) {  #Moving UP
+            physdb::query("UPDATE form_field 
+                              SET sort=sort+1 
+                            WHERE form_id=? 
+                              AND sort >= ?  /* dst */
+                              AND sort < ? /* src */", 
+                 $field->get('form_id'),
+                 $dst->get("sort"),
+                 $src->get("sort")
+            );
+            physdb::query("UPDATE form_field SET sort=? WHERE id=?", 
+                    $dst->get("sort"),
+                    $field->get("id"));
+        }
+        else { #Moving down
+            physdb::query("UPDATE form_field
+                              SET sort=sort-1
+                            WHERE form_id=?
+                              AND sort >= ? /* src */ 
+                              AND sort < ? /* dst */",
+                              $field->get('form_id'),
+                              $src->get('sort'),
+                              $dst->get('sort'));
+            physdb::query("UPDATE form_field SET sort=? WHERE id=?",
+                        $dst->get('sort')-1,
+                        $field->get('id'));
+        }
+        #$m->redirect("edit.html?form_name=". _u($form->get("name")));
+        return;
+    }
+    else { #just view field form
+        if($form->{"loaded"}) {
+            #draw field form here
+            #print "DEBUG: Draw form field form<BR>";
+            $m->comp("SELF:field_form", form=>$form,  field_id=>$field_id);
+            return;
+        }
+        else {
+            #they must save the form before adding fields, print nothing or maybe a message?
+            print "DEBUG: Should never be able to get here, trying to edit a field on a form that doesnt exist<BR>";
+            return;
+            
+        }
+    }
+}
+else { #no field name, just draw form edit page
+    if($save_form) {
+        #set the form items and save it.
+        #redirect to edit.html
+        $form = new Form(id=>$form_id);
+        foreach my $f ($form->columns()) {
+            # Lets be lazy and let them update anything in the table except the exceptions here:
+            next if $f eq 'id';
+            if(exists $ARGS{"form_$f"}) {
+                $form->set( $f => $ARGS{"form_$f"});
+            }
+            else {
+                $form->set( $f => '');
+            }
+        }
+        if($form->save()) {
+            #print "Saved form!<pre>";
+            #print Dumper($form);
+            $m->redirect("edit.html?form_name=". _u($form->get("name")));
+            return;
+        }
+        else {
+            print "Failed to save: <PRE>";
+            print Dumper($form->errors());
+        }
+        return;
+    }
+    else { #Display main page
+        if($form_id) {
+            $form = new Form(id=>$form_id);
+        }
+        elsif($form_name) {
+            #no form to load, lets make a new one
+            $form_name =~ s/\.html$//;
+            $form = new Form(name=>$form_name);
+
+        }
+        else {
+            print "No form specified";
+            return;
+        }
+        #Now we have a $form object to work with 
+
+        #Ok so we really are making a form to edit a form so forgive the formity form formness of the next line...
+        $m->comp("SELF:form_form", form=>$form);
+    }
+}
+</%init>
+
+<%method form_form>
+    <%doc>
+       form_form - draw the main form-edit page for $form argument
+    </%doc>
+    <%args>
+    $form
+    </%args>
+    <%init>
+    my @groups;
+    # used to also JOIN with groupmembers and  WHERE groupmembers.uid=?
+    # but this didn't let us create a form for a group we don't belong in!
+    my $groups = physdb::query("SELECT name, description, type \
+                                  FROM groups \
+                                 WHERE groups.type REGEXP 'auth|flags|rgroup|labgroup|committee|facultytype|workgroup|attributes'
+                                 ORDER BY type, description");
+    while(my $group = $groups->fetchrow_hashref()) {
+        my $description = '('.$group->{type}.') '.$group->{description};
+        my $type = $group->{type};
+        unshift @groups, [$group->{'name'}, $description];
+    }
+    push(@groups, ['', 'No Group'] );
+    #If there was more than one choice for group, don't have a default
+    if($form->{'id'} eq 'new' && scalar @groups > 1) {
+        $form->{'auth'} = 'xxxchoosexxx'; #magic string, yay.
+    }
+    #stick a forced choice magic string as the top group
+    unshift(@groups, [ 'xxxchoosexxx', 'Choose Group:']);
+
+    </%init>
+%#    <PRE><% Dumper($form) %></PRE>
+% if ($form->get("name")) {
+  <b>The public URL for this form is http://www.physics.umn.edu/resources/forms/<% $form->get("name") %>.html</b>
+% }
+
+    <form method="post" action="edit.html">
+    <table>
+    <tr><td>Name:</td><td><input type="text" name="form_name" value="<% $form->get("name") |h%>" style="min-width: 300px;"></td><td>Used for the form URL - must be unique among all forms, and contain only letters, numbers and underscores</td></tr>
+    <tr><td>Title:</td><td><input type="text" name="form_title" value="<% $form->get("title") |h%>" style="min-width: 300px;"></td><td>Shown at the top of your form</td></tr>
+    <tr><td>Email:</td><td><input type="text" name="form_email" value="<% $form->get("email") |h%>" style="min-width: 300px;"></td><td>Email address(es) for form submissions (comma-separated)</td></tr>
+    <tr><td>Introduction:</td><td><input type="text" name="form_text" value="<% $form->get("text") |h%>" style="min-width: 300px;"></td><td>A place for any special instructions or information, to be shown above the form itself.</td></tr>
+    <tr><td>Submit Button:</td><td><input type="text" name="form_submit" value="<% $form->get("submit") |h%>" style="min-width: 300px;"></td><td>Label for the form submit button</td>
+    <tr><td>Form Admin Group:</td><td><select name="form_auth">
+    <%perl>
+    my $value = $form->get("auth");
+    foreach my $option (@groups) {
+        if(ref($option)) {
+            print "<OPTION ". ($$option[0] eq $value ? "SELECTED" :"") ." value=\"". $$option[0]."\">".$$option[1] ."</OPTION>\n";
+        }
+    }
+    </%perl>
+    </select>
+    </td><td>Group which has access to edit this form and view replies online?</td></tr>
+    <tr><td valign="top">Confirmation:</td><td><textarea name="form_confirmation_template" style="width: 85%; min-width: 300px;"><% $form->get("confirmation_template") |h%></textarea></td>
+    <td valign="top">Message to show after a form was submitted successfully</td></tr>
+    </table>
+    <input type="hidden" name="form_method" value="post"> <!-- hard code this for now -->
+
+    <input type="hidden" name="form_id" value="<% $form->get('id')|h%>">
+    <input type="hidden" name="save_form" value="1">
+    <input type="submit" value="Save">
+    </form>
+    <div id="tsfields">
+    <%perl>
+       my $helpers = ShopDb::TablesearchMethods->new();
+       my $ts = new Tablesearch(
+       table => 'form_field',
+       field_list => [
+                "'operation' as `operation`",
+                'id', 'name', 'label', 'type', 'required', 'comment',
+                ],
+       field_params => {
+            'id' => { hidden => 1 },
+            'name' => { name => 'Column Name' },
+            'required' => $helpers->checkbox,
+            'operation' => { 
+                name => '',
+                data_format => sub {
+                    my ($val, $sr, $row, $ts) = @_;
+                    my $str = 
+                       '<a href="edit.html?form_name='. $form->get('name').'&field_id='.$row->{id}.'"><img src="/images/imgsel_edit.png" alt="Edit" title="Edit"></a>'.
+                       '<a href="edit.html?form_name='. $form->get('name').'&form_id='.$form->get("id").'&field_id='.$row->{"id"}.'&delete_field=1"><img src="/images/delete.png" alt="Delete" title="Delete"></a>
+                    ';
+                    return $str;
+                }
+            },
+       },
+       row_tagger => sub {
+          my ($row) = @_;
+          # row_tagger inserts raw stuff into the tr html element. we use it to turn on draggability and to put the field_id in for js to use later
+          return "draggable=\"true\" field_id=". $row->{id};
+       },
+       where => [ 'form_id=?', $form->get('id')],
+       header_format => 'ucfirst_all',
+       no_limit => 1,
+       default_sort_field => 'sort',
+       hide_search => 1,
+       hide_header => 1,
+       no_sort => 1,
+       extra_url_args => [ qw( field_id form_id form_name ) ],
+       ajax_url => 'edit.html',
+       ajax_parameters => { 
+            ajax => 1,
+       },
+    );
+    if($m->request_args->{'ajax'}) {
+        $m->clear_buffer();
+    }
+    $ts->display();
+    </%perl>
+    <script language="javascript">
+        var cols = document.querySelectorAll('div#tsfields table tr');
+
+        // Ripped from http://www.html5rocks.com/en/tutorials/dnd/basics/
+        function handleDragStart(e) {
+            this.classList.add('dragsource');
+            dragSrcEl = this;
+
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', this.innerHTML);
+        }
+        function handleDragOver(e) {
+            if(e.preventDefault) {
+                e.preventDefault(); // Necessary. allows us to drop
+            }
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+        function handleDragEnter(e) {
+            //this / e.target is the current hover target
+            if(typeof lastOver !== 'undefined') {
+               lastOver.classList.remove('dragover');
+            }
+            // We have to do this in 2 steps in drag-enter because of glitches in how firefox
+            // deals with entering and leaving <tr> blocks.
+            this.classList.add('dragover');
+            lastOver = this;
+        }
+        //function handleDragLeave(e) {
+            //this.parentNode.removeChild(this);
+        //}
+        function handleDrop(e) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+            if (dragSrcEl == this) { // ignore drop on self
+               return;
+            }
+            f = document.getElementById("sortswap");
+            sfi = document.getElementById("ss_field_id");
+            sss = document.getElementById("ss_sortswap");
+            sss.value = this.getAttribute('field_id');
+            sfi.value = dragSrcEl.getAttribute('field_id');
+            //console.log("Found a drop, "+ sfi.value + " to "+ sss.value);
+            f.request( {
+                    onSuccess: function(response) { 
+                                   document.tsform.submit();
+                               } 
+                       } );
+            return false;
+        }
+        function handleDragEnd(e) {
+            [].forEach.call(cols, function(col) {
+              col.classList.remove('dragover');
+              col.classList.remove('dragsource');
+            });
+        }
+
+        [].forEach.call(cols, function(col) {
+            col.addEventListener('dragstart', handleDragStart, false);
+            col.addEventListener('dragenter', handleDragEnter, false);
+            //col.addEventListener('dragleave', handleDragLeave, false);
+            col.addEventListener('dragover', handleDragOver, false);
+            col.addEventListener('dragend', handleDragEnd, false);
+            col.addEventListener('drop', handleDrop, false);
+        });
+    </script>
+    <%perl>
+    if($m->request_args->{'ajax'}) {
+        $m->abort();
+        return;
+    }
+    </%perl>
+    </div>
+
+    <!-- hidden form for doing re-ordering-->
+    <form method="post" action="edit.html" id="sortswap">
+    <input id="ss_field_id" type="hidden" name="field_id" value=""> <!-- source id -->
+    <input id="ss_sortswap" type="hidden" name="sortswap" value=""> <!-- dst id -->
+    </form>
+
+    <!-- create a new field button -->
+    <form method="get" action="edit.html">
+    <input type="hidden" name="form_name" value="<% $form->get('name')|h%>">
+    <input type="hidden" name="form_id" value="<% $form->get('id')|h%>">
+    <input type="hidden" name="field_id" value="new">
+    <input type="submit" value="Add New Field">
+    </form>
+
+    <div><b>Hint:</b> You can re-arrange fields by dragging them up and down, above</div>
+</%method>
+
+<%method field_form>
+    <%args>
+    $form
+    $field_id
+    </%args>
+  <%init>
+  my $field = new Form_Field(id => $field_id);
+  </%init>
+  <%perl>if($field_id eq 'new') {</%perl>
+  <H1>Adding field for form '<% $form->get("name")|h%>'</h1>
+  <%perl>} else { </%perl>
+  <H1>Editing field for form '<% $form->get("name")|h%>'</h1>
+  <%perl>}</%perl>
+  <form method="post" action="edit.html">
+  <table id="field_form" border=0>
+  <tr><td colspan="99"><h2>Basic settings</h2></td></tr>
+  <tr><td>Name:</td><td><input type="text" name="field_name" value="<% $field->get("name") |h %>"></td></tr>
+  <tr><td>Label:</td><td><input type="text" name="field_label" value="<% $field->get("label") |h %>" style="min-width: 300px;"></td></tr>
+  <tr>
+        <td valign="top">Type:</td>
+        <td valign="top">
+        <select name="field_type">
+            <%perl>
+            my @options = $field->enum_options('type');
+            unshift @options, '' if($field->get("type") eq ''); #if type is empty push an empty option in
+            foreach my $option (@options) {
+            </%perl>
+            <option value="<% $option|h %>" <% ($field->get("type") eq $option)?"selected":""%>>
+                <% ($option eq '')?'--choose--':$option|h%>
+            </option>
+            <%perl>
+                }
+            </%perl>
+        </select>
+        </td>
+    </tr>
+    <tr>
+        <td valign="top">Options:</td>
+        <td valign="top">
+            If type is set to 'select', 'radio', or 'checkbox'...<br/>- Enter valid choices here (one per line). If you want to specify different displayed vs returned values, separate them using the pipe symbol, eg "returned|Displayed Value"<br/>
+            <textarea name="field_options" style="min-width: 300px;"><% $field->get("options") |h %></textarea>
+            <br/>
+            <input type="checkbox" name="field_other" value="1" <% $field->get('other')?"checked":"" |h%>> Allow 'Other' (special field for unlisted choice)?
+            <br/>
+            If type is set to 'text'...<br/>- Enter width of entry box:
+            <input type="text" name="field_size" value="<% $field->get("size") |h %>" size="3"> (characters)
+        </td>
+  </tr>
+  <tr>
+     <td valign="top">Comment:</td>
+     <td valign="top">
+       <div class="input"><textarea name="field_comment" style="min-width: 300px;"><% $field->get("comment") |h %></textarea></div>
+       <div class="comment">Explanation or special instructions for this field. This text will be printed below the input area.</div>
+     </td>
+  </tr>
+  <tr><td colspan="99"><h2>Validation</h2></td></tr>
+  <tr>
+      <td>Required:</td>
+      <td>
+         <div class="input"><input type="checkbox" name="field_required" value="1" <% $field->get("required")?"checked":"" |h %>></div>
+         <div class="comment">If checked, the form will require this field has something input in it</div>
+      </td>
+  </tr>
+  <tr>
+      <td>Growable:</td>
+      <td>
+         <div class="input"><input type="checkbox" name="field_growable" value="1" <% $field->get("growable")?"checked":"" |h %>></div>
+         <div class="comment">If checked, the form will allow users to enter multiple entries for this field</div>
+      </td>
+  </tr>
+  <tr><td>Validation:</td><td>
+            <div class="input"><input type="text" name="field_validate" value="<% $field->get("validate") |h %>" style="min-width: 300px;"></div>
+            <div class="comment">Validation can be empty for none, or one of: 'NUM', 'INT', 'FLOAT', 'PHONE', 'INTPHONE', 'EMAIL', 'DATE', 'ZIPCODE', 'STATE', or a perl regular expression eg: '<tt>/\w+\s+[0-9]+/</tt>'</div>
+  </td></tr>
+  <tr><td>Error Message:</td><td>
+            <div class="input"><input type="text" name="field_message" value="<% $field->get("message") |h %>" style="min-width: 300px;"></div>
+            <div class="comment">Message to be displayed if validation fails for this field (eg: 'You must enter a valid age.')</div>
+  </td></tr>
+  <tr><td><input type="submit" value="Save"></td></tr>
+  </table>
+  <input type="hidden" name="form_id" value="<% $form->get("id")|h%>">
+  <input type="hidden" name="field_id" value="<% $field_id|h%>">
+  <input type="hidden" name="save_field" value="1">
+  </form>
+</%method>
+

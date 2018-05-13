@@ -1,0 +1,111 @@
+<%doc>
+   vim: set syntax=mason:
+   author: Alex
+   purpose: delete myhost entries from db
+</%doc>
+<%init>
+    use Data::Dumper;
+
+    use physdb::host;
+    use physdb::interface;
+    use physdb::dns;
+
+
+    my $auth = $m->comp('/mason/auth/auth_check_sysadm.comp');
+    my $uid = $m->comp('/mason/auth/current_uid.comp');
+    my $host_deleted = 0;
+</%init>
+<%args>
+$dns_id=>''
+$interface_id=>''
+$host_id=>''
+$ref_host=>''
+</%args>
+
+
+<%perl>
+my %infoblox_clear;
+
+if($dns_id) {
+    my $dns = new Dns( id => $dns_id );
+    #my $ip = physdb::queryone("SELECT INET_NTOA(ip) as ip FROM net_dns WHERE id=?", $dns_id);
+    $infoblox_clear{$dns->get('ip')} = $dns->get('ip');
+    #physdb::query("DELETE FROM net_dns WHERE id=? LIMIT 1", $dns_id);
+    my $parent_host = physdb::queryfirstrow("SELECT net_hosts.id, net_hosts.computer_name from net_hosts JOIN net_interfaces ON net_interfaces.host_id = net_hosts.id JOIN net_dns ON net_dns.interface_id = net_interfaces.id WHERE net_dns.id=?", $dns_id);
+    my $deletedip = $dns->get("ip");
+    $dns->delete();
+    if($parent_host->{'id'}) {
+        $m->comp('/mason/network/auditlog.comp:log', host_id=>$parent_host->{'id'}, text=>"Deleted: dns/ip ".$deletedip." from host ".$parent_host->{'computer_name'});
+    }
+    </%perl><h2>IP/DNS deleted.</h2><%perl>
+}
+elsif($interface_id) {
+    my $interface = new Interface( id => $interface_id );
+    foreach my $dns ($interface->dnses()) {
+        $infoblox_clear{$dns->get('ip')} = $dns->get('ip');
+    }
+    my $parent_host = physdb::queryfirstrow("SELECT net_hosts.id, net_hosts.computer_name from net_hosts JOIN net_interfaces ON net_interfaces.host_id = net_hosts.id WHERE net_interfaces.id=?", $interface_id);
+    my $deletedhwa = $interface->get("hwa");
+    $interface->delete();
+    if($parent_host->{'id'}) {
+        $m->comp('/mason/network/auditlog.comp:log', host_id=>$parent_host->{'id'}, text=>"Deleted: interface ". $deletedhwa." from host ".$parent_host->{'computer_name'});
+    }
+    </%perl><h2>Interface deleted.</h2><%perl>
+}
+elsif($host_id) {
+    my $host = new Host( id => $host_id );
+    foreach my $interface ($host->interfaces()) {
+       foreach my $dns ($interface->dnses()) {
+           $infoblox_clear{$dns->get('ip')} = $dns->get('ip');
+       }
+    }
+    my $deletedcomputer_name = $host->get("computer_name");
+    $host->delete();
+    $m->comp('/mason/network/auditlog.comp:log', host_id=>$host_id, text=>"Deleted: host $deletedcomputer_name");
+    $host_deleted = 1;
+    </%perl><h2>Host deleted.</h2><%perl>
+}
+else {
+    $m->out("Nothing to delete?");
+    return;
+}
+
+</%perl>
+<%method title>Save Host</%method>
+
+<br>
+<div>
+<a href="hosts.html?last_search=true">
+<button>
+<img src="/images/search.png" border="0" alt="Back to Search Results" label="Back to search results" title="Back to search results">
+Return to search
+</button>
+</a>
+<%perl> if(!$host_deleted) { </%perl>
+    <a href="host.html?id=<% $ref_host|u %>">
+    <button>
+    <img src="/images/imgsel_view.png" border="0" alt="View" label="View" title="View this host">
+    View Host
+    </button>
+    </a>
+
+    <a href="edit_host_form.html?id=<% $ref_host|u %>">
+    <button>
+    <img src="/images/imgsel_edit.png" border="0" alt="Edit again" label="Edit again" title="Edit this host again">
+    Edit Again
+    </button>
+    </a>
+<%perl> } </%perl>
+
+<br>
+<br>
+<%perl>
+foreach my $ip (values %infoblox_clear) {
+  my $hostname = $ip;
+  $hostname =~ s/\./-/go;
+  $hostname = "z-$hostname";
+  $m->comp("/mason/network/infoblox_form.comp", ip=>$ip, hostname=>$hostname, domain=>"spa.umn.edu", target=>'iblock', action=>"del");
+}
+
+</%perl>
+<iframe name="iblock" src="about:blank" style="width:100%; height:1500px; border: 0;">You dont support iframes</iframe>
