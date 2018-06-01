@@ -164,7 +164,7 @@ $admin_ts->display;
 <%method data_dump>
 <%perl>
 
-print "<h2>Data Dump</h2><br/>";
+print "<h2>Data Dump Test</h2><br/>";
 my $data_dump_ts = new Tablesearch(
     debug => 0,
     prefix => 'admin',
