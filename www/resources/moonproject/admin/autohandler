@@ -64,7 +64,7 @@ unless (@$classids) {
 % if ($admin) {
     <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /ta_list/ ? 1 : 0), link => 'ta_list.html' &>TA List</&>
     <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /admin_list/ ? 1 : 0), link => 'admin_list.html' &>Admin List</&>
-    <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /data_dump/ ? 1 : 0), link => 'data_dump.html' &>Data Dump</&>
+    <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /data_dump/ ? 1 : 0), link => 'data_dump.html' &>Data Dump Test</&>
 % }
     <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /report/ ? 1 : 0), link => 'report.html' &>Report</&>
     <&| /mason/titlemenu.comp:item, selected => ($r->uri =~ /settings/ ? 1 : 0), link => 'settings.html' &>Settings</&>
