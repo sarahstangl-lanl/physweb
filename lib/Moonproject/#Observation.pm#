@@ -1179,9 +1179,11 @@ sub getNewElongation{
     my $MHA = $self->getHA($date);
     
     my $SunHA = (($hour + $minute/60) - 12) * 15;
+    my ($H, $AZI, $altitude) = $self->getHaAziAlt($date);
 
-    my $elongation = $SunHA - $MHA;
-
+    #my $elongation = $SunHA - $MHA;
+    my $elongation = $AZI;
+    
     if ($elongation < 0){
     	$elongation = $elongation + 360;
     }
