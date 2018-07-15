@@ -207,7 +207,7 @@ sub get_next_elevation {
     my $moon = Astro::Coord::ECI::Moon->new(station => $station);
     # Get next rise/set event
     my ($time, $rise) = $station->next_elevation($moon);
-    warn "get_next_elevation($date): time = " . $self->get_cst_dt_from_epoch($time) . ", rise: $rise";
+    warn "g et_next_elevation($date): time = " . $self->get_cst_dt_from_epoch($time) . ", rise: $rise";
     return ($time, $rise);
 }
 sub get_last_elevation {
