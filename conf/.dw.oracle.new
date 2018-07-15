@@ -12,5 +12,5 @@
     return $dbh;
 },
 user     => 'physdwa',
-password => 'FMSA498A',
+password => 'icvrOuMc9VYGyz4tMRzT',
 dsn      => 'DBI:Proxy:hostname=dbiproxy.spa.umn.edu;port=994;dsn=dbi:Oracle://dm01-scan.oit.umn.edu:1521/dweprd.oit')

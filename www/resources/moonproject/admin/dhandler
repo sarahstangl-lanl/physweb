@@ -9,7 +9,7 @@ my $ta = $m->comp('/mason/db/moonproject/load_ta.comp');
 
 <%init>
 (my $area = $m->dhandler_arg) =~ s/\.html$//;
-$m->redirect('index.html') unless (grep { /^$area$/ } (qw/student_list ta_list admin_list data_dump observations/));
+$m->redirect('index.html') unless (grep { /^$area$/ } (qw/student_list ta_list admin_list data_dump_1 data_dump_2 observations/));
 use tablesearch;
 $m->comp("SELF:$area");
 </%init>
@@ -161,10 +161,10 @@ $admin_ts->display;
 </%perl>
 </%method>
 
-<%method data_dump>
+<%method data_dump_1>
 <%perl>
 
-print "<h2>Data Dump Test</h2><br/>";
+print "<h2>Data Dump</h2><br/>";
 my $data_dump_ts = new Tablesearch(
     debug => 0,
     prefix => 'admin',
@@ -180,6 +180,28 @@ my $data_dump_ts = new Tablesearch(
 );
 
 $data_dump_ts->display;
+
+</%perl>
+</%method>
+<%method data_dump_2>
+<%perl>
+
+print "<h2>Data Dump 2</h2><br/>";
+my $data_dump_ts_2 = new Tablesearch(
+    debug => 0,
+    prefix => 'admin',
+    table => 'moonproject.observation o',
+    field_list => [ 'o.dayNumber', 'o.moonHA', 'o.sunHA', 'o.elongation', 'o.year', 'o.taAccepted' ],
+    where => [ ' o.year = YEAR(NOW()) ' ],
+    header_format => 'ucfirst_all',
+    hide_header => 0,
+    no_limit => 1,
+    default_sort_field => 'elongation',
+    excel_link => 1,
+    extra_url_args => [ grep { $_ !~ /^data/ } keys %{ $m->request_args || {} } ],
+);
+
+$data_dump_ts_2->display;
 
 </%perl>
 </%method>

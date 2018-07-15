@@ -1,5 +1,5 @@
 (
     host_uri => 'ldaps://ldapauth.umn.edu:636',
     bind_dn  => 'cn=Physics and Astronomy DW Access,ou=Organizations,o=University of Minnesota,c=US',
-    password => 'Quantumdw08'
+    password => 'icvrOuMc9VYGyz4tMRzT'
 )

@@ -8,7 +8,7 @@ if ($m->request_args->{'clear-auth'} || (defined $session{'moonproject_x500'} &&
 $session{'moonproject_year'} ||= $m->comp('/mason/this_year.comp');
 $session{'moonproject_term'} ||= $m->comp('/mason/this_quarter.comp');
 
-#use lib "/home/www/docs/staging/4445/lib";
+use lib "/home/www/docs/staging/4445/lib";
 
 use Moonproject;
 use Moonproject::Student;

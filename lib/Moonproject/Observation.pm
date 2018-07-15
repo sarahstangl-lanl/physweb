@@ -166,6 +166,7 @@ sub calculate_values {
     $self->{realEDT} = $self->getNewElongation($self->{dt});
     $self->{realAVE} = $self->compute_average_from_fists($self->{fists}, $self->{fists2}, $self->{fists3});
     $self->{test} = $self->grade_mhd;
+    print "Hello World";
     return $self;
 }
 
@@ -1179,8 +1180,11 @@ sub getNewElongation{
     my $MHA = $self->getHA($date);
     
     my $SunHA = (($hour + $minute/60) - 12) * 15;
+	
+    my $AZI = $self->getAZI($date);
 
     my $elongation = $SunHA - $MHA;
+    # my $elongation = $AZI;
 
     if ($elongation < 0){
     	$elongation = $elongation + 360;
