@@ -74,8 +74,9 @@ else {
         my $observation = Moonproject::Observation->new(%ARGS);
         $observation->calculate_values;
         my $self = $observation->calculate_grades;
-        $observation->commit;
-        $m->redirect('observations.html');
+        <!-- $observation->commit;
+        $m->redirect('observations.html'); -->
+        print $self->{realEDT};
     }
     else {
         print '<h2>Confirm Observation</h2><br/>';
