@@ -460,7 +460,8 @@ sub compute_sunHA_from_CST {
 sub compute_elongation_from_HA {
     my $self = shift;
     my ($sunHA, $moonHA) = @_;
-    my $elong = $sunHA - $moonHA;
+    # my $elong = $sunHA - $moonHA;
+    my $elong = $AZI;
     $elong += 360 if ($elong < 0);
     return $elong;
 }
@@ -1183,8 +1184,8 @@ sub getNewElongation{
 	
     my $AZI = $self->getAZI($date);
 
-    # my $elongation = $SunHA - $MHA;
-    my $elongation = 300;
+    my $elongation = $SunHA - $MHA;
+    # my $elongation = $AZI;
 
     if ($elongation < 0){
     	$elongation = $elongation + 360;
