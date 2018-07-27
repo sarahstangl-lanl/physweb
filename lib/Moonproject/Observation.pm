@@ -1186,7 +1186,7 @@ sub getNewElongation{
 
     # my $elongation = $SunHA - $MHA;
     # my $elongation = $AZI;
-     my $elongation = 50;
+     my $elongation = $self->compute_elongation_from_date($date);
 
     if ($elongation < 0){
     	$elongation = $elongation + 360;
