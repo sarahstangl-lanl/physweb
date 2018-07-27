@@ -166,7 +166,7 @@ sub calculate_values {
     $self->{realEDT} = $self->getNewElongation($self->{dt});
     $self->{realAVE} = $self->compute_average_from_fists($self->{fists}, $self->{fists2}, $self->{fists3});
     $self->{test} = $self->grade_mhd;
-    print "Hello World";
+    # print "Hello World";
     return $self;
 }
 
