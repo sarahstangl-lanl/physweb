@@ -1045,8 +1045,6 @@ sub getRAandDEC{
 
     if($RA < 0){
     	$RA = $RA + 360;
-    } else if ($RA > 360) {
-        $RA = $RA - 360;
     }
 
     #declination
@@ -1094,7 +1092,7 @@ sub getHaAziAlt{
     my $date = shift;
 
     my ($RA, $DEC) = $self->getRAandDEC($date); 
-    # print "RA: $RA";
+
     #mean sidereal time at greenwich in degrees
     my $theta = $self->getMeanSiderealTimeGreenwich($date);
 
@@ -1112,7 +1110,7 @@ sub getHaAziAlt{
     }
 
     else{
-    	$H = $H - 270;
+    	$H = $H -270;
     }
 
 
@@ -1186,9 +1184,9 @@ sub getNewElongation{
 	
     my $AZI = $self->getAZI($date);
 
-     my $elongation = $SunHA - $MHA;
+    # my $elongation = $SunHA - $MHA;
     # my $elongation = $AZI;
-    # my $elongation = 50;
+     my $elongation = 50;
 
     if ($elongation < 0){
     	$elongation = $elongation + 360;
