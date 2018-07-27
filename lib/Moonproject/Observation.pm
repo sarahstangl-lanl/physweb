@@ -1045,6 +1045,8 @@ sub getRAandDEC{
 
     if($RA < 0){
     	$RA = $RA + 360;
+    } else if ($RA > 360) {
+        $RA = $RA - 360;
     }
 
     #declination
