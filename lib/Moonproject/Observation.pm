@@ -1215,7 +1215,7 @@ sub getNewElongation{
 	
     my $AZI = $self->getAZI($date);
 
-    my $elongation = $SunHA - $AZI;
+    my $elongation = $SunHA - $MHA;
     # my $elongation = $AZI;
 
     if ($elongation < 0){
