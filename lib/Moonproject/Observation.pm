@@ -1137,9 +1137,9 @@ sub getHaAziAlt{
     #hour angle of moon this checks out
     my $H = $theta - 93.2650 - $RA;
 
-    if ($H < 0){
-    	$H = $H + 120;
-    }
+    # if ($H < 0){
+    # 	$H = $H + 90;
+    # }
 
     # else{
     # 	$H = $H - 270;
@@ -1223,7 +1223,7 @@ sub getNewElongation{
     	$elongation = $elongation + 360;
     }
 
-    return $MHA;
+    return $elongation;
 }
 
 1;
