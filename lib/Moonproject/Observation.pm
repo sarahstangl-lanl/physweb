@@ -1115,7 +1115,7 @@ sub getMeanSiderealTimeGreenwich{
     else {
     	$angle = ($remainder * 360);
     }
-    return $angle;
+    return $theta;
 }
 
 #input date
@@ -1153,7 +1153,7 @@ sub getHaAziAlt{
     my $altitude =  Astro::Coord::ECI::Utils::rad2deg(asin((sin($lat) * sin(Astro::Coord::ECI::Utils::deg2rad($DEC))) + (cos($lat) * cos(Astro::Coord::ECI::Utils::deg2rad($DEC)) * cos(Astro::Coord::ECI::Utils::deg2rad($H)))));
 
 
-    return ($RA, $AZI, $altitude);
+    return ($H, $AZI, $altitude);
 }
 
 #off by 270 degrees
@@ -1223,7 +1223,7 @@ sub getNewElongation{
     	$elongation = $elongation + 360;
     }
 
-    return $MHA;
+    return $elongation;
 }
 
 1;
