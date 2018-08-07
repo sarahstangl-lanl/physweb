@@ -1212,7 +1212,7 @@ sub getNewElongation{
 
     my $MHA = $self->getHA($date);
     
-    my $SunHA = (($hour + $minute/60) - 12) * 15;
+    my $SunHA = (($hour + $minute/60) - 12) * 15; #141.25
 	
     my $AZI = $self->getAZI($date);
 
@@ -1223,7 +1223,7 @@ sub getNewElongation{
     	$elongation = $elongation + 360;
     }
 
-    return $SunHA;
+    return $MHA;
 }
 
 1;
