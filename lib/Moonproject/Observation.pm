@@ -1110,12 +1110,12 @@ sub getMeanSiderealTimeGreenwich{
     my $angle = 0;
 
     if ($remainder < 0){
-        $angle = 360 + ($remainder * 360);
+        $angle = 360 + ($remainder * 360.0);
     }
     else {
-    	$angle = ($remainder * 360);
+    	$angle = ($remainder * 360.0);
     }
-    return $theta;
+    return $angle;
 }
 
 #input date
