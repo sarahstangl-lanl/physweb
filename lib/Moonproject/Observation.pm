@@ -1153,7 +1153,7 @@ sub getHaAziAlt{
     my $altitude =  Astro::Coord::ECI::Utils::rad2deg(asin((sin($lat) * sin(Astro::Coord::ECI::Utils::deg2rad($DEC))) + (cos($lat) * cos(Astro::Coord::ECI::Utils::deg2rad($DEC)) * cos(Astro::Coord::ECI::Utils::deg2rad($H)))));
 
 
-    return ($H, $AZI, $altitude);
+    return ($RA, $AZI, $altitude);
 }
 
 #off by 270 degrees
@@ -1223,7 +1223,7 @@ sub getNewElongation{
     	$elongation = $elongation + 360;
     }
 
-    return $elongation;
+    return $MHA;
 }
 
 1;
