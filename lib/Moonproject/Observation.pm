@@ -515,6 +515,7 @@ sub grade_ave {
 
 #input date
 #this is the same as in the text
+#https://quasar.as.utexas.edu/BillInfo/JulianDatesG.html
 sub convertToJD{
 	my $self = 0;
 	my $date = 0;
@@ -556,7 +557,7 @@ sub convertToJD{
     $JD = 0;
 
     $A = int($year / 100);
-    $B = 2 - $A + int($A / 4);
+    $B = 2 - $A + int($A / 4);  
     $JD = int(365.25*($year + 4716)) + int(30.6001*($month + 1)) + $day + $B - 1524.5;
 
     return $JD;
@@ -1111,7 +1112,7 @@ sub getMeanSiderealTimeGreenwich{
     if ($remainder < 0){
         $angle = 360 + ($remainder * 360);
     }
-    else{
+    else {
     	$angle = ($remainder * 360);
     }
     return $angle;
@@ -1136,13 +1137,13 @@ sub getHaAziAlt{
     #hour angle of moon this checks out
     my $H = $theta - 93.2650 - $RA;
 
-    if($H < 0){
-    	$H = $H + 90;
-    }
+    # if($H < 0){
+    # 	$H = $H + 90;
+    # }
 
-    else{
-    	$H = $H -270;
-    }
+    # else{
+    # 	$H = $H -270;
+    # }
 
 
     #azimuthal angle
