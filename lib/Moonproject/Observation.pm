@@ -1142,7 +1142,7 @@ sub getHaAziAlt{
     }
 
     else{
-    	$H = $H -270;
+    	$H = $H - 270;
     }
 
 
@@ -1212,7 +1212,7 @@ sub getNewElongation{
 
     my $MHA = $self->getHA($date);
     
-    my $SunHA = (($hour + $minute/60) - 12) * 15;
+    my $SunHA = (12 - ($hour + $minute/60)) * 15;
 	
     my $AZI = $self->getAZI($date);
 
