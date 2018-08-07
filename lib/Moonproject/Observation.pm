@@ -1137,13 +1137,13 @@ sub getHaAziAlt{
     #hour angle of moon this checks out
     my $H = $theta - 93.2650 - $RA;
 
-    if($H < 0){
-    	$H = $H + 90;
-    }
+    # if ($H < 0){
+    # 	$H = $H + 90;
+    # }
 
-    else{
-    	$H = $H - 270;
-    }
+    # else{
+    # 	$H = $H - 270;
+    # }
 
 
     #azimuthal angle
@@ -1212,7 +1212,7 @@ sub getNewElongation{
 
     my $MHA = $self->getHA($date);
     
-    my $SunHA = (12 - ($hour + $minute/60)) * 15;
+    my $SunHA = (($hour + $minute/60) - 12) * 15;
 	
     my $AZI = $self->getAZI($date);
 
