@@ -1223,7 +1223,7 @@ sub getNewElongation{
     	$elongation = $elongation + 360;
     }
 
-    return $elongation;
+    return $SunHA;
 }
 
 1;
