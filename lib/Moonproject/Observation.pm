@@ -1135,7 +1135,7 @@ sub getHaAziAlt{
     my $long = Astro::Coord::ECI::Utils::deg2rad(93.2650);
 
     #hour angle of moon this checks out
-    my $H = 58.93 - 93.2650 - $RA;
+    my $H = 20 - 93.2650 - $RA;
 
     if ($H < 0){
     	$H = $H + 90;
