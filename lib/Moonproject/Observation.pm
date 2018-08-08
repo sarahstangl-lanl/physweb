@@ -1156,6 +1156,7 @@ sub getHaAziAlt{
     return ($H, $AZI, $altitude);
 }
 
+
 #off by 270 degrees
 sub getHA{
     my $self = shift;
@@ -1223,7 +1224,9 @@ sub getNewElongation{
     	$elongation = $elongation + 360;
     }
 
-    return $elongation;
+    #return $elongation;
+    return $self->getMeanSiderealTimeGreenwich($date);
+
 }
 
 1;
