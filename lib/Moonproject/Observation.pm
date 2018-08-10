@@ -1215,7 +1215,7 @@ sub getNewElongation{
 
     my $MHA = $self->getHA($date); #-146.7156
     
-    my $SunHA = (($hour + $minute/60) - 12) * 15; #141.25 
+    my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
 	
     my $AZI = $self->getAZI($date);
 
@@ -1226,7 +1226,7 @@ sub getNewElongation{
     	$elongation = $elongation + 360;
     }
 
-    return $SunHA;
+    return $MHA;
     #return $self->getMeanSiderealTimeGreenwich($date);
 }
 
