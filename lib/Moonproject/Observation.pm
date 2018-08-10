@@ -1115,7 +1115,8 @@ sub getMeanSiderealTimeGreenwich{
     else {
     	$angle = ($remainder * 360.0);
     }
-    return $angle;
+    #return $angle;
+    return $theta;
 }
 
 #input date
@@ -1135,7 +1136,7 @@ sub getHaAziAlt{
     my $long = Astro::Coord::ECI::Utils::deg2rad(93.2650);
 
     #hour angle of moon this checks out
-    my $H = 78.93 - 93.2650 - $RA;
+    my $H = $theta - 93.2650 - $RA;
 
     if ($H < 0){
     	$H = $H + 90;
@@ -1154,6 +1155,7 @@ sub getHaAziAlt{
 
 
     return ($H, $AZI, $altitude);
+    #return ($theta, $AZI, $altitude);
 }
 
 
@@ -1224,8 +1226,8 @@ sub getNewElongation{
     	$elongation = $elongation + 360;
     }
 
-    return $elongation;
-    #return $self->getMeanSiderealTimeGreenwich($date);
+    #return $elongation;
+    return $self->getMeanSiderealTimeGreenwich($date);
 
 }
 
