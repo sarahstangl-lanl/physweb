@@ -1223,10 +1223,10 @@ sub getNewElongation{
     # my $elongation = $AZI;
     my ($RA, $DEC) = $self->getRAandDEC($date); 
     if ($elongation < 0){
-    	$elongation = $elongation + 360;
+    	$elongation = $elongation + 360; 
     }
 
-    return $SunHA;
+    return $elongation;
     #return $self->getMeanSiderealTimeGreenwich($date);
 }
 
