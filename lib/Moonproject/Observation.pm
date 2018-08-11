@@ -1115,7 +1115,7 @@ sub getMeanSiderealTimeGreenwich{
     else {
     	$angle = ($remainder * 360.0);
     }
-    return $angle;
+    return $JD;
     #return $theta;
 }
 
@@ -1136,7 +1136,7 @@ sub getHaAziAlt{
     my $long = Astro::Coord::ECI::Utils::deg2rad(93.2650);
 
     #hour angle of moon this checks out
-    my $H = $theta - 93.2650 - 266.6083;
+    my $H = $theta - 93.2650 - $RA;
 
     if ($H < 0){
     	$H = $H + 90;
@@ -1222,12 +1222,13 @@ sub getNewElongation{
     my $elongation = $SunHA - $MHA; # June 27 2018 0930: -37.5 - (-229.627643735931) = 191.12
     # my $elongation = $AZI;
     my ($RA, $DEC) = $self->getRAandDEC($date); # June 27 2018 0930: RA: 269.270552255631, DEC: -20.3075638354576
+    # real RA is: 266.6083   
     if ($elongation < 0){
     	$elongation = $elongation + 360; 
     }
  
-    return $elongation;
-    #return $self->getMeanSiderealTimeGreenwich($date);
+    #return $DEC;
+    return $self->getMeanSiderealTimeGreenwich($date);
 }
 
 1;
