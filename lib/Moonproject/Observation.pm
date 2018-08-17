@@ -534,7 +534,6 @@ sub convertToJD{
     $date = shift;
     #to get to universal time
     $UTDate = $date->clone->set_time_zone('-0600');
-    $UTDate = $UTDate->add( hours => 6 );
     #my $dateTime = $date->clone->set_time_zone('-0600');
 
 
@@ -1116,7 +1115,7 @@ sub getMeanSiderealTimeGreenwich{
     	$angle = ($remainder * 360.0);
     }
     #return $angle; # 27 June 2018, 0930: 42.9079085197009 
-    return $theta;
+    return $JD;
 }
 
 #input date
