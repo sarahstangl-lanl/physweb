@@ -1227,7 +1227,8 @@ sub getNewElongation{
     }
  
     #return $elongation;
-    return $self->getMeanSiderealTimeGreenwich($date);
+    #return $self->getMeanSiderealTimeGreenwich($date);
+    return $RA;
 }
 
 1;
