@@ -1100,7 +1100,7 @@ sub getMeanSiderealTimeGreenwich{
     my $self = shift;
     my $date = shift;
     my $JD = $self->convertToJD($date); # 27 June 2018, 0930: JD: 2458296.85416667  extJD: 2458296.895833
-    my $T = ($JD - 2451545) / 36525;
+    my $T = ($JD - 2451545.0) / 36525.0;
 
     #equ 12.4 pg 88
     my $theta = 280.46061837 + (360.98564736629 * ($JD - 2451545.0)) + (0.000387933 * $T * $T) - (($T * $T * $T) / 38710000);
