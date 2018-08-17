@@ -1209,26 +1209,28 @@ sub getDEC{
 sub getNewElongation{
     my $self = shift;
     my $date = shift;
-    
-    my $hour = $date->hour;
+    my $UTDate = $date->clone->set_time_zone('-0600');
+    $UTDate = $UTDate->add(hours => 6);
+
+    my $hour = $UTDate->hour;
     my $minute = $date->minute;
 
-    my $MHA = $self->getHA($date); # June 27 2018 0930: -229.627643735931
+    my $MHA = $self->getHA($UTDate); # June 27 2018 0930: -229.627643735931
     
     my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
 	
-    my $AZI = $self->getAZI($date); # June 27 2018 0930: 104.486367178372
+    my $AZI = $self->getAZI($UTDate); # June 27 2018 0930: 104.486367178372
 
     my $elongation = $SunHA - $MHA; # June 27 2018 0930: -37.5 - (-229.627643735931) = 191.12
     # my $elongation = $AZI;
-    my ($RA, $DEC) = $self->getRAandDEC($date); # June 27 2018 0930: RA: 269.270552255631, DEC: -20.3075638354576
+    my ($RA, $DEC) = $self->getRAandDEC($UTDate); # June 27 2018 0930: RA: 269.270552255631, DEC: -20.3075638354576
     # real RA is: 266.6083   
     if ($elongation < 0){
     	$elongation = $elongation + 360; 
     }
  
-    #return $elongation;
-    return $self->getMeanSiderealTimeGreenwich($date);
+    return $elongation;
+    #return $self->getMeanSiderealTimeGreenwich($UTDate);
     #return $RA;
 }
 
