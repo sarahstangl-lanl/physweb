@@ -1115,7 +1115,7 @@ sub getMeanSiderealTimeGreenwich{
     	$angle = ($remainder * 360.0);
     }
     #return $angle; # 27 June 2018, 0930: 42.9079085197009 
-    return $angle;
+    return $theta;
 }
 
 #input date
