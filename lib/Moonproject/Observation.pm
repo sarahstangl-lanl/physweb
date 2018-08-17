@@ -556,7 +556,7 @@ sub convertToJD{
     $JD = 0;
 
     $A = int($year / 100);
-    #$B = 2 - $A + int($A / 4);  
+    $B = 2 - $A + int($A / 4);  
     $JD = int(365.25*($year + 4716)) + int(30.6001*($month + 1)) + $day + $B - 1524.5;
 
     return $JD;
