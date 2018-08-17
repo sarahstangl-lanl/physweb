@@ -1210,7 +1210,7 @@ sub getNewElongation{
     my $self = shift;
     my $date = shift;
     my $UTDate = $date->clone->set_time_zone('-0600');
-    $UTDate = $UTDate->add(hours => 6);
+    # $UTDate = $UTDate->add(hours => 6);
 
     my $hour = $UTDate->hour;
     my $minute = $date->minute;
