@@ -1223,7 +1223,7 @@ sub getNewElongation{
 
     my $elongation = $SunHA - $MHA; # June 27 2018 0930: -37.5 - (-229.627643735931) = 191.12
     # my $elongation = $AZI;
-    my ($RA, $DEC) = $self->getRAandDEC($date); # June 27 2018 0930: RA: 269.270552255631, DEC: -20.3075638354576
+    my ($RA, $DEC) = $self->getRAandDEC($UTDate); # June 27 2018 0930: RA: 269.270552255631, DEC: -20.3075638354576
     # real RA is: 266.6083   
     if ($elongation < 0){
     	$elongation = $elongation + 360; 
