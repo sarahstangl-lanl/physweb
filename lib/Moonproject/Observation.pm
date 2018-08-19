@@ -1215,7 +1215,7 @@ sub getNewElongation{
     my $hour = $UTDate->hour;
     my $minute = $UTDate->minute;
 
-    my $MHA = $self->getHA($date); # June 27 2018 0930: -229.627643735931
+    my $MHA = $self->getHA($UTDate); # June 27 2018 0930: -229.627643735931
     
     my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
 	
