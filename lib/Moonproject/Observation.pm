@@ -534,7 +534,7 @@ sub convertToJD{
     $date = shift;
     #to get to universal time
     $UTDate = $date->clone->set_time_zone('UTC');
-    $UTDate = $UTDate->add(hours => 6);
+    # $UTDate = $UTDate->add(hours => 6);
     #my $dateTime = $date->clone->set_time_zone('-0600');
 
 
