@@ -1232,7 +1232,7 @@ sub getNewElongation{
     }
  
     #return $elongation;
-    return $self->getMeanSiderealTimeGreenwich($date);
+    return $self->getMeanSiderealTimeGreenwich($UTDate);
     #return $RA;
 }
 
