@@ -1117,9 +1117,9 @@ sub getMeanSiderealTimeGreenwich{
     else {
     	$angle = ($remainder * 360.0);
     }
-    return $angle; # 27 June 2018, 0930: 42.9079085197009 
+    #return $angle; # 27 June 2018, 0930: 42.9079085197009 
     #return $theta;
-    #return $JD;
+    return $JD;
 }
 
 #input date
@@ -1231,8 +1231,8 @@ sub getNewElongation{
     	$elongation = $elongation + 360; 
     }
  
-    return $elongation;
-    #return $self->getMeanSiderealTimeGreenwich($date);
+    #return $elongation;
+    return $self->getMeanSiderealTimeGreenwich($date);
     #return $RA;
 }
 
