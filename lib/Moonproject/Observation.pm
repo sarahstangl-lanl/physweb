@@ -1255,7 +1255,7 @@ sub getNewElongation{
     # my $elongation = $AZI;
     # real RA is: 266.6083   
     if ($elongation < 0){
-    	$elongation = $elongation + 360; 
+    	$elongation = -$elongation; 
     }
  
     return $MoonRA;
