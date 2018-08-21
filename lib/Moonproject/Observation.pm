@@ -1037,7 +1037,7 @@ sub getSigmaR{
 sub getRAandDEC{
     my $self = shift;
     my $date = shift;
-    
+    $date->set_time_zone('UTC');
     my ($lambda, $beta, $Delta, $epsilon) = 
     $self->computeLongitudeLatitudeDistanceHorizonParallax($date);
 
