@@ -1037,9 +1037,9 @@ sub getSigmaR{
 sub getRAandDEC{
     my $self = shift;
     my $date = shift;
-    
+    my $UTDate = $date->clone->set_time_zone('UTC');
     my ($lambda, $beta, $Delta, $epsilon) = 
-    $self->computeLongitudeLatitudeDistanceHorizonParallax($date);
+    $self->computeLongitudeLatitudeDistanceHorizonParallax($UTDate);
 
     my $T = $self->getT($date);
 
@@ -1083,7 +1083,7 @@ sub getRAandDEC{
     #declination
     my $DEC = Astro::Coord::ECI::Utils::rad2deg(asin((sin(Astro::Coord::ECI::Utils::deg2rad($beta)) * cos(Astro::Coord::ECI::Utils::deg2rad($epsilon))) + (cos(Astro::Coord::ECI::Utils::deg2rad($beta)) * sin((Astro::Coord::ECI::Utils::deg2rad($epsilon)) * sin(Astro::Coord::ECI::Utils::deg2rad($lambda))))));
 
-    return ($date->hour, $DEC);
+    return ($UTDate->hour, $DEC);
 }
 
 #this matches the text and is working
