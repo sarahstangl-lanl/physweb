@@ -1083,7 +1083,7 @@ sub getRAandDEC{
     #declination
     my $DEC = Astro::Coord::ECI::Utils::rad2deg(asin((sin(Astro::Coord::ECI::Utils::deg2rad($beta)) * cos(Astro::Coord::ECI::Utils::deg2rad($epsilon))) + (cos(Astro::Coord::ECI::Utils::deg2rad($beta)) * sin((Astro::Coord::ECI::Utils::deg2rad($epsilon)) * sin(Astro::Coord::ECI::Utils::deg2rad($lambda))))));
 
-    return ($UTDate->hour, $DEC);
+    return ($RA, $DEC);
 }
 
 #this matches the text and is working
