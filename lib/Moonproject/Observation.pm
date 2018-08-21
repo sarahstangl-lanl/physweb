@@ -1102,7 +1102,7 @@ sub getSunRA {
     my $JD = $self->convertToJD($date);
     my $D = $JD - 2451545.0;
 
-    my $g = 357.529+0.98560028 * $D;
+    my $g = 357.529 + 0.98560028 * $D;
 
     my $gMod360 = $g / 360.0 - int($g / 360);
 
@@ -1116,7 +1116,7 @@ sub getSunRA {
 
     my $SunRA = Astro::Coord::ECI::Utils::rad2deg(atan2(cos(Astro::Coord::ECI::Utils::deg2rad($L)), cos(Astro::Coord::ECI::Utils::deg2rad($e))*sin(Astro::Coord::ECI::Utils::deg2rad($L))));
 
-    return $SunRA;
+    return $JD;
 }
 
 #input date
@@ -1140,9 +1140,9 @@ sub getMeanSiderealTimeGreenwich{
     else {
     	$angle = ($remainder * 360.0);
     }
-    #return $angle; # 27 June 2018, 0930: 42.9079085197009 
+    return $angle; # 27 June 2018, 0930: 42.9079085197009 
     #return $theta;
-    return $JD;
+    #return $JD;
 }
 
 #input date
