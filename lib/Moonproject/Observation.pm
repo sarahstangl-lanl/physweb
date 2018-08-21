@@ -1110,7 +1110,7 @@ sub getSunRA {
 
     my $qMod360 = $q / 360.0 - int($q / 360);
 
-    my $L = $q + 1.915 * sin(Astro::Coord::ECI::Utils::deg2rad($g)) + 0.02 * sin(2 * Astro::Coord::ECI::Utils::deg2rad($g));
+    my $L = $qMod360 + 1.915 * sin(Astro::Coord::ECI::Utils::deg2rad($gMod360)) + 0.02 * sin(2 * Astro::Coord::ECI::Utils::deg2rad($gMod360));
 
     my $e = 23.439 - (0.00000036 * $D);
 
