@@ -577,7 +577,8 @@ sub getJDE{
     my $CTDate = $date->clone->set_time_zone('-0600');
     
     #universal time
-    my $UTDate = $CTDate->add( hours => 6 );
+    #my $UTDate = $CTDate->add( hours => 6 );
+    my $UTDate =$date->clone->set_time_zone('UTC');
 
     my $year1 = $UTDate->year;
     my $littleT = ($year1 - 2000) / 100;
