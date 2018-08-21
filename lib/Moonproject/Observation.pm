@@ -1115,9 +1115,9 @@ sub getSunRA {
 
     my $e = 23.439 - (0.00000036 * $D);
 
-    my $SunRA = Astro::Coord::ECI::Utils::rad2deg(atan2(cos(Astro::Coord::ECI::Utils::deg2rad($L)), cos(Astro::Coord::ECI::Utils::deg2rad($e))*sin(Astro::Coord::ECI::Utils::deg2rad($L))));
+    my $SunRA = Astro::Coord::ECI::Utils::rad2deg(atan2(cos(Astro::Coord::ECI::Utils::deg2rad($L)), cos(Astro::Coord::ECI::Utils::deg2rad($e)) * sin(Astro::Coord::ECI::Utils::deg2rad($L))));
 
-    return $L;
+    return $SunRA;
 }
 
 #input date
