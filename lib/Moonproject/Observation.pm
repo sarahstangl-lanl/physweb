@@ -1096,6 +1096,29 @@ sub getTJD{
     return $T;
 }
 
+sub getSunRA {
+    my $self = shift;
+    my $date = shift;
+    my $JD = $self->convertToJD($date);
+    my $D = $JD - 2451545.0;
+
+    my $g = 357.529+0.98560028 * $D;
+
+    my $gMod360 = $g / 360.0 - int($g / 360);
+
+    my $q = 280.459 + 0.98564736 * $D;
+
+    my $qMod360 = $q / 360.0 - int($q / 360);
+
+    my $L = $q + 1.915 * sin($g) + 0.02 * sin(2 * $g);
+
+    my $e = 23.439 - (0.00000036 * $D);
+
+    my $SunRA = Astro::Coord::ECI::Utils::rad2deg(ATAN2(cos(Astro::Coord::ECI::Utils::deg2rad($L)), cos(Astro::Coord::ECI::Utils::deg2rad($e))*sin(Astro::Coord::ECI::Utils::deg2rad($L))));
+
+    return $SunRA;
+}
+
 #input date
 #this matches the text and is working pg 88
 sub getMeanSiderealTimeGreenwich{
@@ -1221,18 +1244,21 @@ sub getNewElongation{
     
     my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
 	
+    my $SunRA = $self->getSunRA($UTDate);
+
     my $AZI = $self->getAZI($date); # June 27 2018 0930: 104.486367178372
 
-    my $elongation = $SunHA - $MHA; # June 27 2018 0930: -37.5 - (-229.627643735931) = 191.12
+    my ($MoonRA, $DEC) = $self->getRAandDEC($UTDate); # June 27 2018 0930: RA: 269.270552255631, DEC: -20.3075638354576
+
+    my $elongation = $SunRA - $MoonRA; # June 27 2018 0930: -37.5 - (-229.627643735931) = 191.12
     # my $elongation = $AZI;
-    my ($RA, $DEC) = $self->getRAandDEC($UTDate); # June 27 2018 0930: RA: 269.270552255631, DEC: -20.3075638354576
     # real RA is: 266.6083   
     if ($elongation < 0){
     	$elongation = $elongation + 360; 
     }
  
-    #return $elongation;
-    return $self->getMeanSiderealTimeGreenwich($UTDate);
+    return $elongation;
+    #return $self->getMeanSiderealTimeGreenwich($UTDate);
     #return $RA;
 }
 
