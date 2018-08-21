@@ -1110,7 +1110,7 @@ sub getSunRA {
 
     my $qMod360 = $q / 360.0 - int($q / 360);
 
-    my $L = $q + 1.915 * sin($g) + 0.02 * sin(2 * $g);
+    my $L = $q + 1.915 * sin(Astro::Coord::ECI::Utils::deg2rad($g)) + 0.02 * sin(2 * Astro::Coord::ECI::Utils::deg2rad($g));
 
     my $e = 23.439 - (0.00000036 * $D);
 
@@ -1257,7 +1257,7 @@ sub getNewElongation{
     	$elongation = $elongation + 360; 
     }
  
-    return $elongation;
+    return $SunRA;
     #return $self->getMeanSiderealTimeGreenwich($UTDate);
     #return $RA;
 }
