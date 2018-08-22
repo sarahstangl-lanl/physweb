@@ -1150,7 +1150,7 @@ sub getMeanSiderealTimeGreenwich{
 sub getHaAziAlt{
     my $self = shift;
     my $date = shift;
-
+    
     my ($RA, $DEC) = $self->getRAandDEC($date); 
 
     #mean sidereal time at greenwich in degrees
@@ -1261,7 +1261,7 @@ sub getNewElongation{
     	$elongation = -$elongation; 
     }
  
-    return $AZI;
+    return $elongation;
     #return $self->getMeanSiderealTimeGreenwich($UTDate);
     #return $RA;
 }
