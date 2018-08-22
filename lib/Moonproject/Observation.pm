@@ -1178,7 +1178,7 @@ sub getHaAziAlt{
     my $AZI = Astro::Coord::ECI::Utils::rad2deg(
         atan2(
             sin(Astro::Coord::ECI::Utils::deg2rad($H)), 
-            ((cos(Astro::Coord::ECI::Utils::deg2rad($H)) * sin($lat)) - ((sin(Astro::Coord::ECI::Utils::deg2rad($DEC) / cos(Astro::Coord::ECI::Utils::deg2rad($DEC))) * cos($lat))))));
+            ((cos(Astro::Coord::ECI::Utils::deg2rad($H)) * sin(Astro::Coord::ECI::Utils::deg2rad($lat))) - ((sin(Astro::Coord::ECI::Utils::deg2rad($DEC) / cos(Astro::Coord::ECI::Utils::deg2rad($DEC))) * cos(Astro::Coord::ECI::Utils::deg2rad($lat)))))));
     
     #altitude
     my $altitude =  Astro::Coord::ECI::Utils::rad2deg(asin((sin($lat) * sin(Astro::Coord::ECI::Utils::deg2rad($DEC))) + (cos($lat) * cos(Astro::Coord::ECI::Utils::deg2rad($DEC)) * cos(Astro::Coord::ECI::Utils::deg2rad($H)))));
@@ -1206,7 +1206,7 @@ sub getAZI{
     my ($H, $AZI, $altitude) = $self->getHaAziAlt($date);
 
     
-    return $date->hour;
+    return $AZI;
 }
 
 sub getALT{
@@ -1261,7 +1261,7 @@ sub getNewElongation{
     	$elongation = -$elongation; 
     }
  
-    return $elongation;
+    return $AZI;
     #return $self->getMeanSiderealTimeGreenwich($UTDate);
     #return $RA;
 }
