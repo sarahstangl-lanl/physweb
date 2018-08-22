@@ -1165,20 +1165,20 @@ sub getHaAziAlt{
     #hour angle of moon this checks out
     my $H = $theta - 93.2650 - $RA;
 
-    if ($H < 0){
-    	$H = $H + 90;
-    }
+    # if ($H < 0){
+    # 	$H = $H + 90;
+    # }
 
-    else{
-    	$H = $H - 270;
-    }
+    # else{
+    # 	$H = $H - 270;
+    # }
 
 
     #azimuthal angle
     my $AZI = Astro::Coord::ECI::Utils::rad2deg(
         atan2(
             sin(Astro::Coord::ECI::Utils::deg2rad($H)), 
-            ((cos(Astro::Coord::ECI::Utils::deg2rad($H)) * sin(Astro::Coord::ECI::Utils::deg2rad($lat))) - ((sin(Astro::Coord::ECI::Utils::deg2rad($DEC) / cos(Astro::Coord::ECI::Utils::deg2rad($DEC))) * cos(Astro::Coord::ECI::Utils::deg2rad($lat)))))));
+            ((cos(Astro::Coord::ECI::Utils::deg2rad($H)) * sin($lat)) - ((sin(Astro::Coord::ECI::Utils::deg2rad($DEC) / cos(Astro::Coord::ECI::Utils::deg2rad($DEC))) * cos($lat))))));
     
     #altitude
     my $altitude =  Astro::Coord::ECI::Utils::rad2deg(asin((sin($lat) * sin(Astro::Coord::ECI::Utils::deg2rad($DEC))) + (cos($lat) * cos(Astro::Coord::ECI::Utils::deg2rad($DEC)) * cos(Astro::Coord::ECI::Utils::deg2rad($H)))));
