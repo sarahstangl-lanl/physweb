@@ -1250,7 +1250,7 @@ sub getNewElongation{
 	
     my $SunRA = $self->getSunRA($UTDate);
 
-    my $AZI = $self->getAZI($date); # June 27 2018 0930: 104.486367178372
+    my $AZI = $self->getAZI($UTDate); # June 27 2018 0930: 104.486367178372
 
     my ($MoonRA, $DEC) = $self->getRAandDEC($date); # June 27 2018 0930: RA: 269.270552255631, DEC: -20.3075638354576
 
