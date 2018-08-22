@@ -1206,7 +1206,7 @@ sub getAZI{
     my ($H, $AZI, $altitude) = $self->getHaAziAlt($date);
 
     
-    return $AZI;
+    return $date->hour;
 }
 
 sub getALT{
