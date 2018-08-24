@@ -1117,6 +1117,10 @@ sub getSunRA {
 
     my $SunRA = Astro::Coord::ECI::Utils::rad2deg(atan2(cos(Astro::Coord::ECI::Utils::deg2rad($e)) * sin(Astro::Coord::ECI::Utils::deg2rad($L)), cos(Astro::Coord::ECI::Utils::deg2rad($L))));
 
+    if ($SunRA < 0) {
+        $SunRA = $SunRA + 360;
+    }
+    
     return $SunRA;
 }
 
