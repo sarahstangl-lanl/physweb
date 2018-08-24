@@ -1117,10 +1117,10 @@ sub getSunRA {
 
     my $SunRA = Astro::Coord::ECI::Utils::rad2deg(atan2(cos(Astro::Coord::ECI::Utils::deg2rad($e)) * sin(Astro::Coord::ECI::Utils::deg2rad($L)), cos(Astro::Coord::ECI::Utils::deg2rad($L))));
     
-    if ($SunRA < 0) {
-        $SunRA = $SuNRA + 360;
-    }
-    
+    # if ($SunRA < 0) {
+    #     $SunRA = $SuNRA + 360;
+    # }
+
     return $SunRA;
 }
 
@@ -1262,7 +1262,7 @@ sub getNewElongation{
     my $elongation = $SunRA - $MoonRA; # June 27 2018 0930: -37.5 - (-229.627643735931) = 191.12
     # my $elongation = $AZI;
     # real RA is: 266.6083   
-    if ($elongation < 0){
+    if ($elongation < 0) {
     	$elongation = -$elongation; 
     }
  
