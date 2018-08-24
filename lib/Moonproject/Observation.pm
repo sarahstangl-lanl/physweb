@@ -1141,7 +1141,8 @@ sub getMeanSiderealTimeGreenwich{
     else {
     	$angle = ($remainder * 360.0);
     }
-    return $angle; # 27 June 2018, 0930: 42.9079085197009 
+    return $angle; 
+    # 27 June 2018, 0930: 42.9079085197009 
     #return $theta;
     #return $JD;
 }
@@ -1165,13 +1166,13 @@ sub getHaAziAlt{
     #hour angle of moon this checks out
     my $H = $theta - 93.2650 - $RA;
 
-    # if ($H < 0){
-    # 	$H = $H + 90;
-    # }
+    if ($H < 0){
+    	$H = $H + 90;
+    }
 
-    # else{
-    # 	$H = $H - 270;
-    # }
+    else{
+    	$H = $H - 270;
+    }
 
 
     #azimuthal angle
@@ -1261,7 +1262,7 @@ sub getNewElongation{
     	$elongation = -$elongation; 
     }
  
-    return $AZI;
+    return $SunRA;
     #return $self->getMeanSiderealTimeGreenwich($UTDate);
     #return $RA;
 }
