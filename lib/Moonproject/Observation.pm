@@ -1117,6 +1117,10 @@ sub getSunRA {
 
     my $SunRA = Astro::Coord::ECI::Utils::rad2deg(atan2(cos(Astro::Coord::ECI::Utils::deg2rad($e)) * sin(Astro::Coord::ECI::Utils::deg2rad($L)), cos(Astro::Coord::ECI::Utils::deg2rad($L))));
 
+    if ($SunRA < 0) {
+        $SunRA = $SunRA + 360;
+    }
+    
     return $SunRA;
 }
 
@@ -1165,13 +1169,13 @@ sub getHaAziAlt{
     #hour angle of moon this checks out
     my $H = $theta - 93.2650 - $RA;
 
-    # if ($H < 0){
-    # 	$H = $H + 90;
-    # }
+    if ($H < 0){
+    	$H = $H + 90;
+    }
 
-    # else{
-    # 	$H = $H - 270;
-    # }
+    else{
+    	$H = $H - 270;
+    }
 
 
     #azimuthal angle
