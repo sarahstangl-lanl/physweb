@@ -1213,6 +1213,16 @@ sub getAZI{
     return $AZI;
 }
 
+sub getMHD{
+    my $self = shift;
+    my $date = shift;
+
+    my ($H, $AZI, $altitude) = $self->getHaAziAlt($date);
+
+    
+    return $H;
+}
+
 sub getALT{
 	my $self = shift;
     my $date = shift;
