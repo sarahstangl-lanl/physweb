@@ -179,14 +179,18 @@ my $ts = Tablesearch->new(
             <td style="min-width: 150px; white-space: wrap;"><span style="color:' . $grade_color->($row->{gradeSUB}) . '">SUB</span> Submitted ' . $row->{subdiff} . ' hours after observation.</td>
             <td style="min-width: 150px; white-space: wrap;"><span style="color:' . $grade_color->($row->{gradeOBS}) . '">OBS</span> Observed ' . $last_diff . ' hours after previous observation and '  . $next_diff . ' hours before next observation.</td>
             <td>Date is CST.<br/>' . $ta_detail->('CST') . '</td>
-            <td colspan="2">' . $ta_detail->('PHN') . '</td>
+            <td colspan="2">' . $ta_detail->('PHN') . '<br/>' . $ta_detail->('AVE') . '</td>
 
 
-            <td colspan="3" align="center"><table cellpadding="0" cellspacing="0">
+            <td colspan="3" align="center">
+            <table cellpadding="0" cellspacing="0">
 
-            <tr style="border:0"><td align="left">' . $ta_detail->('AVE') . '</td></tr>
+            <tr style="border:0"><td align="left">' . $ta_detail->('MHD') . '</td></tr>
+            <tr style="border:0"><td align="left">' . $ta_detail->('MHF') . '</td></tr>
 
-            <tr style="border:0"><td align="left">' . $ta_detail->('MHD') . '</td></tr><tr style="border:0"><td align="left">' . $ta_detail->('MHF') . '</td></tr></table></td>
+            </table>
+            </td>
+            
             <td>' . $ta_detail->('DAY') . '</td>
             <td>' . $ta_detail->('SHC') . '</td>
             <td>' . $ta_detail->('EHA') . '<br/>' . $ta_detail->('EDT') . '</td>
