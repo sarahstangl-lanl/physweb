@@ -175,6 +175,24 @@ my $ts = Tablesearch->new(
                 return '<span style="white-space: nowrap;"><span style="color:' . $grade_color->($obs->{"grade$name"}) . '">' . _h($name) . '</span> ' . (defined $obs->{"real$name"} ? $obs->{"real$name"} : '-') . ' [' . $tolval . ']</span>';
 
             };
+
+            my $ta_detail_MHD_AZI = sub {
+                my $name = shift;
+                my $obs = $ts->{tmp}->{last_observation};
+                my $tolname = $settings_map->($name);
+                my $obstolval = $obs->{(ref $tolname ? $tolname->[0] : $tolname)};
+                my $tatolval = $ta->{(ref $tolname ? $tolname->[0] : $tolname)};
+                my $tolval = '+/-' . (defined $obstolval ? $obstolval : $tatolval);
+                # Handle MHD which has two tolerance parameters
+                if (ref $tolname) {
+                    $obstolval = $obs->{$tolname->[1]};
+                    $tatolval =  $ta->{$tolname->[1]};
+                    $tolval = '*' . ((defined $obstolval ? $obstolval : $tatolval)/100) . $tolval;
+                }
+                return '<span style="white-space: nowrap;"><span style="color:' . $grade_color->($obs->{"grade$name"}) . '">' . _h($name) . ' (AZI)</span> ' . (defined $obs->{"real$name"} ? $obs->{"real$name"} . ' (' . $obs->{"real$name"} . ') ' : '-') . ' [' . $tolval . ']</span>';
+
+            };
+
             $html .= '<tr class="odd ta_detail">
             <td style="min-width: 150px; white-space: wrap;"><span style="color:' . $grade_color->($row->{gradeSUB}) . '">SUB</span> Submitted ' . $row->{subdiff} . ' hours after observation.</td>
             <td style="min-width: 150px; white-space: wrap;"><span style="color:' . $grade_color->($row->{gradeOBS}) . '">OBS</span> Observed ' . $last_diff . ' hours after previous observation and '  . $next_diff . ' hours before next observation.</td>
@@ -185,7 +203,7 @@ my $ts = Tablesearch->new(
             <td colspan="3" align="center">
             <table cellpadding="0" cellspacing="0">
 
-            <tr style="border:0"><td align="left">' . $ta_detail->('MHD') . '</td></tr>
+            <tr style="border:0"><td align="left">' . $ta_detail_MHD_AZI->('MHD') . '</td></tr>
             <tr style="border:0"><td align="left">' . $ta_detail->('MHF') . '</td></tr>
 
             </table>
