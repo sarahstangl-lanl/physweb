@@ -35,7 +35,7 @@ sub new {
     my $class = shift;
     my $self = { @_ };
     $self->{grades} = [ qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP/ ];
-    $self->{columns} = [ qw/id number date cstTime phaseNumber fists fists2 fists3 aveFist moonHA cloud dayNumber sunHA elongation studentComments taComments student timestamp gradeSUB gradeOBS gradeCST gradeDAY gradePHN gradeAVE gradeMHF gradeMHD gradeSHC gradeEHA gradeEDT gradeUP realCST taAccepted realAVE realMHF realMHD realSHC realDAY realEHA realEDT realPHN term year tolObsToSubmitDiff tolObsToLastDiff tolCST tolDayNumber tolAverageFists tolMoonHAFists tolMoonHADate tolMoonHADatePercent tolSunHACST tolElongHA tolElongDate tolPhaseNumber ta_uid fist_degrees current/ ];
+    $self->{columns} = [ qw/id number date cstTime phaseNumber fists fists2 fists3 aveFist moonHA cloud dayNumber sunHA elongation studentComments taComments student timestamp gradeSUB gradeOBS gradeCST gradeDAY gradePHN gradeAVE gradeMHF gradeMHD gradeSHC gradeEHA gradeEDT gradeUP realCST taAccepted realAVE realMHF realMHD realSHC realDAY realEHA realEDT realPHN term year tolObsToSubmitDiff tolObsToLastDiff tolCST tolDayNumber tolAverageFists tolMoonHAFists tolMoonHADate tolMoonHADatePercent tolSunHACST tolElongHA tolElongDate tolPhaseNumber ta_uid fist_degrees current realAZI/ ];
     bless $self, $class;
     if (ref $self->{student}) {
         $self->{student_obj} = $self->{student};
@@ -161,7 +161,8 @@ sub calculate_values {
     $self->{realDAY} = ($self->{dt}->day_of_year);
     $self->{realPHN} = $self->compute_elongation_from_date($self->{dt}) / 45;
     $self->{realMHF} = $self->compute_moonHA_from_fists($self->{aveFist}, $self->student->{fistdegrees});
-    $self->{realMHD} = $self->getAZI($self->{dt}); #this is actually the azimuthal angle
+    $self->{realMHD} = $self->getMHD($self->{dt}); #this is actually the azimuthal angle
+    $self->{realAZI} = $self->getAZI($self->{dt}); #this is actually the azimuthal angle
     $self->{realSHC} = $self->compute_sunHA_from_CST($self->{cstTime});
     $self->{realEHA} = $self->{sunHA} ne '' ? $self->compute_elongation_from_HA($self->{sunHA}, $self->{moonHA}) : undef;
     $self->{realEDT} = $self->getNewElongation($self->{dt});

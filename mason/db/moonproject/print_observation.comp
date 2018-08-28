@@ -189,7 +189,7 @@ my $ts = Tablesearch->new(
                     $tatolval =  $ta->{$tolname->[1]};
                     $tolval = '*' . ((defined $obstolval ? $obstolval : $tatolval)/100) . $tolval;
                 }
-                return '<span style="white-space: nowrap;"><span style="color:' . $grade_color->($obs->{"grade$name"}) . '">' . _h($name) . ' (AZI)</span> ' . (defined $obs->{"real$name"} ? $obs->{"real$name"} . ' (' . $obs->{"real$name"} . ') ' : '-') . ' [' . $tolval . ']</span>';
+                return '<span style="white-space: nowrap;"><span style="color:' . $grade_color->($obs->{"grade$name"}) . '">' . _h($name) . ' (AZI)</span> ' . (defined $obs->{"real$name"} ? $obs->{"real$name"} . ' (' . $obs->{"realAZI"} . ') ' : '-') . ' [' . $tolval . ']</span>';
 
             };
 
