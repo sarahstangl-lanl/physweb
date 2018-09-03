@@ -35,7 +35,7 @@ sub new {
     my $class = shift;
     my $self = { @_ };
     $self->{grades} = [ qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP/ ];
-    $self->{columns} = [ qw/id number date cstTime phaseNumber fists fists2 fists3 aveFist moonHA cloud dayNumber sunHA elongation studentComments taComments student timestamp gradeSUB gradeOBS gradeCST gradeDAY gradePHN gradeAVE gradeMHF gradeMHD gradeSHC gradeEHA gradeEDT gradeUP realCST taAccepted realAVE realMHF realMHD realSHC realDAY realEHA realEDT realPHN term year tolObsToSubmitDiff tolObsToLastDiff tolCST tolDayNumber tolAverageFists tolMoonHAFists tolMoonHADate tolMoonHADatePercent tolSunHACST tolElongHA tolElongDate tolPhaseNumber ta_uid fist_degrees current realAZI/ ];
+    $self->{columns} = [ qw/id number date cstTime phaseNumber fists fists2 fists3 aveFist moonHA cloud dayNumber sunHA elongation studentComments taComments student timestamp gradeSUB gradeOBS gradeCST gradeDAY gradePHN gradeAVE gradeMHF gradeMHD gradeSHC gradeEHA gradeEDT gradeUP realCST taAccepted realAVE realMHF realMHD realSHC realDAY realEHA realEDT realPHN term year tolObsToSubmitDiff tolObsToLastDiff tolCST tolDayNumber tolAverageFists tolMoonHAFists tolMoonHADate tolMoonHADatePercent tolSunHACST tolElongHA tolElongDate tolPhaseNumber ta_uid fist_degrees current / ];
     bless $self, $class;
     if (ref $self->{student}) {
         $self->{student_obj} = $self->{student};
