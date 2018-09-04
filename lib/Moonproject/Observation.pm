@@ -1182,8 +1182,9 @@ sub getHaAziAlt{
     #azimuthal angle
     my $AZI = Astro::Coord::ECI::Utils::rad2deg(
         atan2(
-            sin(Astro::Coord::ECI::Utils::deg2rad($H)), 
-            ((cos(Astro::Coord::ECI::Utils::deg2rad($H)) * sin($lat)) - ((sin(Astro::Coord::ECI::Utils::deg2rad($DEC) / cos(Astro::Coord::ECI::Utils::deg2rad($DEC))) * cos($lat))))));
+            ((cos(Astro::Coord::ECI::Utils::deg2rad($H)) * sin($lat)) - ((sin(Astro::Coord::ECI::Utils::deg2rad($DEC) / cos(Astro::Coord::ECI::Utils::deg2rad($DEC))) * cos($lat)) ) ),
+            sin(Astro::Coord::ECI::Utils::deg2rad($H)) 
+             ) );
     
     #altitude
     my $altitude =  Astro::Coord::ECI::Utils::rad2deg(asin((sin($lat) * sin(Astro::Coord::ECI::Utils::deg2rad($DEC))) + (cos($lat) * cos(Astro::Coord::ECI::Utils::deg2rad($DEC)) * cos(Astro::Coord::ECI::Utils::deg2rad($H)))));
