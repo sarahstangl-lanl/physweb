@@ -4,7 +4,6 @@ use Test::Simple tests => 1;
 use strict;
 use warnings;
 
-use lib 'C:\Users\Shane\physweb\lib';
 use lib '/home/admin/nick/git/physics/lib';
 use lib '/home/admin/nick/git/sysadm/lib';
 
