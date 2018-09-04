@@ -161,7 +161,8 @@ sub calculate_values {
     $self->{realDAY} = ($self->{dt}->day_of_year);
     $self->{realPHN} = $self->compute_elongation_from_date($self->{dt}) / 45;
     $self->{realMHF} = $self->compute_moonHA_from_fists($self->{aveFist}, $self->student->{fistdegrees});
-    $self->{realMHD} = $self->getMHD($self->{dt}) . " (". $self->getAZI($self->{dt}) . ") "; #this is actually the azimuthal angle
+    #$self->{realMHD} = $self->getMHD($self->{dt}) . " (". $self->getAZI($self->{dt}) . ") "; #this is actually the azimuthal angle
+    $self->{realMHD} = "Hello World"; #this is actually the azimuthal angle
     $self->{realAZI} = $self->getAZI($self->{dt}); #this is actually the azimuthal angle
     $self->{realSHC} = $self->compute_sunHA_from_CST($self->{cstTime});
     $self->{realEHA} = $self->{sunHA} ne '' ? $self->compute_elongation_from_HA($self->{sunHA}, $self->{moonHA}) : undef;
