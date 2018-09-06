@@ -40,7 +40,7 @@ sub new {
         id number date cstTime phaseNumber fists fists2 fists3 aveFist moonHA cloud dayNumber sunHA elongation 
         studentComments taComments student timestamp taAccepted 
         gradeSUB gradeOBS gradeCST gradeDAY gradePHN gradeAVE gradeMHF gradeMHD gradeSHC gradeEHA gradeEDT gradeUP 
-        realCST realAVE realMHF realMHD realSHC realDAY realEHA realEDT realPHN realAZM
+        realCST realAVE realMHF realMHD realSHC realDAY realEHA realEDT realPHN realAZI
         term year tolObsToSubmitDiff tolObsToLastDiff tolCST tolDayNumber 
         tolAverageFists tolMoonHAFists tolMoonHADate tolMoonHADatePercent 
         tolSunHACST tolElongHA tolElongDate tolPhaseNumber ta_uid fist_degrees current 
@@ -171,7 +171,7 @@ sub calculate_values {
     $self->{realPHN} = $self->compute_elongation_from_date($self->{dt}) / 45;
     $self->{realMHF} = $self->compute_moonHA_from_fists($self->{aveFist}, $self->student->{fistdegrees});
     $self->{realMHD} = $self->getAZI($self->{dt}); #TODO: this should use getMHD but right now we are showing and recording the AZIMUTH calculation, as MOON HOUR ANGLE values are unverified and database needs an additional field to accomodate.  
-    $self->{realAZM} = $self->getAZI($self->{dt}); #this is the placeholder variable for AZIMUTH
+    $self->{realAZI} = $self->getAZI($self->{dt}); #this is the placeholder variable for AZIMUTH
     $self->{realSHC} = $self->compute_sunHA_from_CST($self->{cstTime});
     $self->{realEHA} = $self->{sunHA} ne '' ? $self->compute_elongation_from_HA($self->{sunHA}, $self->{moonHA}) : undef;
     $self->{realEDT} = $self->getNewElongation($self->{dt});

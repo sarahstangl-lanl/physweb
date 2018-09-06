@@ -159,6 +159,7 @@ my $ts = Tablesearch->new(
         if ($ta && $ta->{detailedObs} eq 'yes') {
             $diff = Moonproject::Observation->new(id => $row->{id})->ta_tolerance_check if ($row->{current});
             my ($last_diff, $next_diff) = $get_observation_diffs->($row);
+            
             my $ta_detail = sub {
                 my $name = shift;
                 my $obs = $ts->{tmp}->{last_observation};
