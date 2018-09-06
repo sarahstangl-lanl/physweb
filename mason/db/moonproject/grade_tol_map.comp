@@ -1,7 +1,7 @@
 <%init>
 return sub {
     my $grade = shift;
-    my @grades = (qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP/);
+    my @grades = (qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP AZM/);
     die "Unknown grade $grade" unless (grep { $_ eq $grade } @grades);
     my $map = {
         SUB => 'tolObsToSubmitDiff',
