@@ -1203,7 +1203,7 @@ sub getHaAziAlt{
         )
     );
     
-    $AZI = $AZI + 180; 
+    #$AZI = $AZI + 180; 
 
     #altitude
     my $altitude =  Astro::Coord::ECI::Utils::rad2deg(asin((sin($lat) * sin(Astro::Coord::ECI::Utils::deg2rad($DEC))) + (cos($lat) * cos(Astro::Coord::ECI::Utils::deg2rad($DEC)) * cos(Astro::Coord::ECI::Utils::deg2rad($H)))));
