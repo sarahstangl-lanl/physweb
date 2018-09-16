@@ -42,7 +42,7 @@ sub new {
         gradeSUB gradeOBS gradeCST gradeDAY gradePHN gradeAVE gradeMHF gradeMHD gradeSHC gradeEHA gradeEDT gradeUP gradeAZM
         realCST realAVE realMHF realMHD realSHC realDAY realEHA realEDT realPHN realAZM
         term year tolObsToSubmitDiff tolObsToLastDiff tolCST tolDayNumber 
-        tolAverageFists tolMoonHAFists tolMoonHADate tolMoonHADatePercent 
+        tolAverageFists tolMoonHAFists tolMoonHADate tolMoonHADatePercent tolMoonAZMFists
         tolSunHACST tolElongHA tolElongDate tolPhaseNumber ta_uid fist_degrees current 
         / ];
     bless $self, $class;
