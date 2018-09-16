@@ -397,9 +397,9 @@ sub grade_edt {
 
 sub grade_azm {
     my $self = shift;
-    my $tolAzimuth = $self->get_tolerance('tolMoonAZMFists');
+    my $tolMoonAZMFists = $self->get_tolerance('tolMoonAZMFists');
     return 'unknown' unless ($self->{moonHA} ne '');
-    return 'fail' unless (abs($self->{moonHA} - $self->{realAZM}) <= $tolAzimuth || abs(abs($self->{moonHA} - $self->{realAZM}) - 360) <= $tolAzimuth);
+    return 'fail' unless (abs($self->{moonHA} - $self->{realAZM}) <= $tolMoonAZMFists || abs(abs($self->{moonHA} - $self->{realAZM}) - 360) <= $tolMoonAZMFists);
     return 'pass';
 }
 
