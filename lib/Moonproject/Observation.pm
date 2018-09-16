@@ -128,6 +128,7 @@ sub commit {
     physdb::query('UPDATE moonproject.observation SET current = 0 WHERE student = ? AND term = ? AND year = ? AND number = ?', $self->{student}, $self->{term}, $self->{year}, $self->{number});
     # Insert record
     physdb::query('INSERT INTO moonproject.observation (' . join(',', @{ $self->{columns} }) . ') VALUES (' . join(',', map { '?' } @{ $self->{columns} }) . ')', map { $self->{$_} } @{ $self->{columns} });
+    $self->{querystring} = 'INSERT INTO moonproject.observation (' . join(',', @{ $self->{columns} }) . ') VALUES (' . join(',', map { '?' } @{ $self->{columns} }) . ')', map { $self->{$_} } @{ $self->{columns} };
     return $self;
 }
 
@@ -170,7 +171,7 @@ sub calculate_values {
     $self->{realDAY} = ($self->{dt}->day_of_year);
     $self->{realPHN} = $self->compute_elongation_from_date($self->{dt}) / 45;
     $self->{realMHF} = $self->compute_moonHA_from_fists($self->{aveFist}, $self->student->{fistdegrees});
-    $self->{realMHD} = $self->getAZI($self->{dt}); #TODO: this should use getMHD but right now we are showing and recording the AZIMUTH calculation, as MOON HOUR ANGLE values are unverified and database needs an additional field to accomodate.  
+    $self->{realMHD} = $self->getMHD($self->{dt});   
     $self->{realAZM} = $self->getAZI($self->{dt}); #this is the placeholder variable for AZIMUTH
     $self->{realSHC} = $self->compute_sunHA_from_CST($self->{cstTime});
     $self->{realEHA} = $self->{sunHA} ne '' ? $self->compute_elongation_from_HA($self->{sunHA}, $self->{moonHA}) : undef;
