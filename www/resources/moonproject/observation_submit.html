@@ -66,7 +66,6 @@ else {
 
         use lib "/home/www/docs/staging/4445/lib";
 
-        
         use Moonproject::Observation;
 
         $Moonproject::term = $session{moonproject_term};
@@ -76,7 +75,7 @@ else {
         my $self = $observation->calculate_grades;
         $observation->commit;
         #$m->redirect('observations.html'); 
-        print "querystring: $self->{realAZM}";
+        print "querystring: $self->{querystring} --- AZM: $self->{realAZM}";
     }
     else {
         print '<h2>Confirm Observation</h2><br/>';
