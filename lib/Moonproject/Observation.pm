@@ -128,7 +128,7 @@ sub commit {
     physdb::query('UPDATE moonproject.observation SET current = 0 WHERE student = ? AND term = ? AND year = ? AND number = ?', $self->{student}, $self->{term}, $self->{year}, $self->{number});
     # Insert record
     physdb::query('INSERT INTO moonproject.observation (' . join(',', @{ $self->{columns} }) . ') VALUES (' . join(',', map { '?' } @{ $self->{columns} }) . ')', map { $self->{$_} } @{ $self->{columns} });
-    $self->{querystring} = 'INSERT INTO moonproject.observation (' . join(',', @{ $self->{columns} }) . ') VALUES (' . join(',', map { '?' } @{ $self->{columns} }) . ')', map { $self->{$_} } @{ $self->{columns} };
+    $self->{querystring} = 'UPDATE moonproject.observation SET current = 0 WHERE student = ? AND term = ? AND year = ? AND number = ?', $self->{student}, $self->{term}, $self->{year}, $self->{number};
     return $self;
 }
 
