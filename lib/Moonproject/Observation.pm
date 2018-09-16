@@ -1191,10 +1191,12 @@ sub getHaAziAlt{
     #hour angle of moon this checks out
     my $H = $theta - 93.2650 - $RA;
 
-    # if ($H < 0){
-    # 	$H = $H + 90;
-    # }
-
+    if ($H < -360){
+    	$H = $H + 360;
+    }
+    elsif ($H > 360) {
+        $H = $H - 360;
+    }
     # else{
     # 	$H = $H - 270;
     # }
