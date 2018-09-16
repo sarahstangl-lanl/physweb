@@ -34,12 +34,12 @@ use constant PI => atan2 (0, -1);
 sub new {
     my $class = shift;
     my $self = { @_ };
-    $self->{grades} = [ qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP/ ];
+    $self->{grades} = [ qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP AZM/ ];
     $self->{columns} = [ 
         qw/
         id number date cstTime phaseNumber fists fists2 fists3 aveFist moonHA cloud dayNumber sunHA elongation 
         studentComments taComments student timestamp taAccepted 
-        gradeSUB gradeOBS gradeCST gradeDAY gradePHN gradeAVE gradeMHF gradeMHD gradeSHC gradeEHA gradeEDT gradeUP 
+        gradeSUB gradeOBS gradeCST gradeDAY gradePHN gradeAVE gradeMHF gradeMHD gradeSHC gradeEHA gradeEDT gradeUP gradeAZM
         realCST realAVE realMHF realMHD realSHC realDAY realEHA realEDT realPHN realAZM
         term year tolObsToSubmitDiff tolObsToLastDiff tolCST tolDayNumber 
         tolAverageFists tolMoonHAFists tolMoonHADate tolMoonHADatePercent 
@@ -394,6 +394,15 @@ sub grade_edt {
     return 'fail' unless (abs($self->{elongation} - $self->{realEDT}) <= $tolElongDate || abs(abs($self->{elongation} - $self->{realEDT}) - 360) <= $tolElongDate);
     return 'pass';
 }
+
+sub grade_azm {
+    my $self = shift;
+    my $tolAzimuth = $self->get_tolerance('tolAzimuth');
+    return 'unknown' unless ($self->{moonHA} ne '');
+    return 'fail' unless (abs($self->{moonHA} - $self->{realEDT}) <= $tolAzimuth || abs(abs($self->{moonHA} - $self->{realAZM}) - 360) <= $tolAzimuth);
+    return 'pass';
+}
+
 sub grade_up {
     my $self = shift;
     return 'fail' unless ($self->compute_moonUp($self->{dt}));
