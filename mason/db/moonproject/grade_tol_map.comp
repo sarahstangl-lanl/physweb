@@ -16,7 +16,7 @@ return sub {
         EHA => 'tolElongHA',
         EDT => 'tolElongDate',
         UP => '',
-        AZM => [ 'tolMoonHADate', 'tolMoonHADatePercent' ],
+        AZM => 'tolMoonHADate',
     };
     my $tol = $map->{$grade};
     return $tol;
