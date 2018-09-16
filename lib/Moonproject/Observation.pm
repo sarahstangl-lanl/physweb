@@ -408,7 +408,7 @@ sub grade_up {
     return 'fail' unless ($self->compute_moonUp($self->{dt}));
     return 'pass';
 }
-sub get_adjoining_observations {
+sub get_adjoining_observations { 
     my $self = shift;
     die '$Moonproject::term and $Moonproject::year must be set if term and year are not provided'
         unless (($self->{term} && $self->{year}) || ($Moonproject::term && $Moonproject::year));
