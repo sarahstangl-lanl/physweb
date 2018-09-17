@@ -39,7 +39,7 @@ for my $field (keys %$field_params) {
     next if ($field =~ /Comment/);
     $field_params->{$field}->{name} = '<a class="moonproject_help" target="_blank" href="' . ($r->uri =~ /admin/ ? '../' : '') . $field_map->($field) . '_help.html">' . $field_params->{$field}->{name} . '</a>';
 }
-my @grade_columns = ( qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP / );
+my @grade_columns = ( qw/SUB OBS CST DAY PHN AVE MHF AZM MHD SHC EHA EDT UP / );
 #this assigns the background color for the tabs
 my $grade_color = sub {
     my $grade = shift;
