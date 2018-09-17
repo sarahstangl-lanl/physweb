@@ -366,11 +366,11 @@ sub grade_mhd {
     warn Dumper({
             tolMoonHADate => $tolMoonHADate,
             tolMoonHADatePercent => $tolMoonHADatePercent,
-            'abs(moonHA-realMHD)' => abs($self->{moonHA} - $self->{realMHD}),
-            'tolMoonHADate + (tolMoonHADatePercent * abs(realMHD) / 100)' => ($tolMoonHADate + ($tolMoonHADatePercent * abs($self->{realMHD}) / 100)),
+            'abs(moonHA-realMHD)' => abs($self->{moonHA} - $self->{realAZM}),
+            'tolMoonHADate + (tolMoonHADatePercent * abs(realMHD) / 100)' => ($tolMoonHADate + ($tolMoonHADatePercent * abs($self->{realAZM}) / 100)),
     });
     return 'unknown' unless ($self->{moonHA} ne '');
-    return 'fail' unless (abs($self->{moonHA} - $self->{realMHD}) <= ($tolMoonHADate + ($tolMoonHADatePercent * abs($self->{realMHD}) / 100)));
+    return 'fail' unless (abs($self->{moonHA} - $self->{realAZM}) <= ($tolMoonHADate + ($tolMoonHADatePercent * abs($self->{realAZM}) / 100)));
     return 'pass';
 }
 
