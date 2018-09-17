@@ -34,7 +34,7 @@ use constant PI => atan2 (0, -1);
 sub new {
     my $class = shift;
     my $self = { @_ };
-    $self->{grades} = [ qw/SUB OBS CST DAY PHN AVE MHF AZM MHD SHC EHA EDT UP / ];
+    $self->{grades} = [ qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP / ];
     $self->{columns} = [ 
         qw/
         id number date cstTime phaseNumber fists fists2 fists3 aveFist moonHA cloud dayNumber sunHA elongation 
