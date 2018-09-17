@@ -26,7 +26,7 @@ $classids => []
     
 % if($ta){
   <br/>
-  <h2>**The MHD flag refers to the check on the Azimuthal Angle, not the Hour Angle.**</h2>
+  <h2>**The MHD flag refers to the check on the Azimuthal Angle (AZM), not the Hour Angle (MHD).**</h2>
   <h2>The students are measuring the Azimuthal Angle, but we are telling them it is the Hour Angle.</h2>
   <br/>  
 % }
