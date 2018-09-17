@@ -129,6 +129,8 @@ sub commit {
     # Insert record
     physdb::query('INSERT INTO moonproject.observation (' . join(',', @{ $self->{columns} }) . ') VALUES (' . join(',', map { '?' } @{ $self->{columns} }) . ')', map { $self->{$_} } @{ $self->{columns} });
     $self->{querystring} = 'INSERT INTO moonproject.observation (' . join(',', @{ $self->{columns} }) . ') VALUES (' . join(',', map { '?' } @{ $self->{columns} }) . ')'; 
+        $self->{tolMoonAZMFists} = $self->get_tolerance('tolMoonAZMFists');
+
     return $self;
 }
 
@@ -397,7 +399,6 @@ sub grade_edt {
 
 sub grade_azm {
     my $self = shift;
-    $self->{tolMoonAZMFists} = $self->get_tolerance('tolMoonAZMFists');
     my $tolMoonAZMFists = $self->get_tolerance('tolMoonAZMFists');
     return 'unknown' unless ($self->{moonHA} ne '');
     return 'fail' unless (abs($self->{moonHA} - $self->{realAZM}) <= $tolMoonAZMFists || abs(abs($self->{moonHA} - $self->{realAZM}) - 360) <= $tolMoonAZMFists);
