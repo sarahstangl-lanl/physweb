@@ -34,7 +34,7 @@ use constant PI => atan2 (0, -1);
 sub new {
     my $class = shift;
     my $self = { @_ };
-    $self->{grades} = [ qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP AZM/ ];
+    $self->{grades} = [ qw/SUB OBS CST DAY PHN AVE MHF MHD SHC EHA EDT UP / ];
     $self->{columns} = [ 
         qw/
         id number date cstTime phaseNumber fists fists2 fists3 aveFist moonHA cloud dayNumber sunHA elongation 
@@ -396,13 +396,13 @@ sub grade_edt {
     return 'pass';
 }
 
-sub grade_azm {
-    my $self = shift;
-    my $tolMoonAZMFists = $self->get_tolerance('tolMoonAZMFists');
-    return 'unknown' unless ($self->{moonHA} ne '');
-    return 'fail' unless (abs($self->{moonHA} - $self->{realAZM}) <= $tolMoonAZMFists);
-    return 'pass';
-}
+# sub grade_azm {
+#     my $self = shift;
+#     my $tolMoonAZMFists = $self->get_tolerance('tolMoonAZMFists');
+#     return 'unknown' unless ($self->{moonHA} ne '');
+#     return 'fail' unless (abs($self->{moonHA} - $self->{realAZM}) <= $tolMoonAZMFists);
+#     return 'pass';
+# }
 
 sub grade_up {
     my $self = shift;

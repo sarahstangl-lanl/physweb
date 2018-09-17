@@ -24,7 +24,7 @@ sub new {
         forceRegrading => 'no',
         showIntermediateGrades => 'yes',
         sortStudentsBy => 'lastname',
-        tolMoonAZMFists => 10,
+        # tolMoonAZMFists => 10,
         uid => undef,
     };
     if ($self->{uid}) {
