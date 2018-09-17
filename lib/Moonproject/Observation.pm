@@ -129,7 +129,6 @@ sub commit {
     # Insert record
     physdb::query('INSERT INTO moonproject.observation (' . join(',', @{ $self->{columns} }) . ') VALUES (' . join(',', map { '?' } @{ $self->{columns} }) . ')', map { $self->{$_} } @{ $self->{columns} });
     $self->{querystring} = 'INSERT INTO moonproject.observation (' . join(',', @{ $self->{columns} }) . ') VALUES (' . join(',', map { '?' } @{ $self->{columns} }) . ')'; 
-    $self->{tolMoonAZMFists} = $self->get_tolerance('tolMoonAZMFists');
 
     return $self;
 }

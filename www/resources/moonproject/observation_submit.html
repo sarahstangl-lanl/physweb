@@ -74,8 +74,8 @@ else {
         $observation->calculate_values;
         my $self = $observation->calculate_grades;
         $observation->commit;
-        #$m->redirect('observations.html'); 
-        print "querystring: $self->{querystring} --- abs($self->{moonHA} - $self->{realAZM}) >=  $self->{tolMoonAZMFists}";
+        $m->redirect('observations.html'); 
+        #print "querystring: $self->{querystring} --- abs($self->{moonHA} - $self->{realAZM}) >=  $self->{tolMoonAZMFists}";
     }
     else {
         print '<h2>Confirm Observation</h2><br/>';
