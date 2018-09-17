@@ -80,15 +80,6 @@ i.e., abs(CalculatedMoonHA-TrueMoonHA) > (MHD + MHD%*(TrueMoonHA)/100)
 Tolerance is in real numbers.',
         validate => \&check_float,
     },
-//     tolMoonAZMFists => {
-//         name => 'AZM',
-//         type => 'float',
-//         desc => 'Moon\'s Azimuth Angle on that date tolerance',
-//         help => 'How does the student\'s extrapolated Moon\'s Azimuth Angle compare to the real value at that time?
-// <Br>
-Tolerance is in degrees.',
-        validate => \&check_float,
-    },
     tolSunHACST => {
         name => 'SHC',
         type => 'float',
@@ -142,6 +133,16 @@ Tolerance is in degrees.',
 Tolerance is in real numbers.',
         validate => \&check_float,
     },
+
+#     tolMoonAZMFists => {
+#         name => 'AZM',
+#         type => 'float',
+#         desc => 'Moon\'s Azimuth Angle on that date tolerance',
+#         help => 'How does the student\'s extrapolated Moon\'s Azimuth Angle compare to the real value at that time?
+# <Br>
+# Tolerance is in degrees.',
+#         validate => \&check_float,
+#     },
 #    forceRegrading => {
 #        name => 'Force Regrading',
 #        type => 'radio',
