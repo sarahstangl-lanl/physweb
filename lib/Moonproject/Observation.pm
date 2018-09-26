@@ -523,7 +523,7 @@ sub compute_average_from_fists{
     my $self = shift;
     my ($fists, $fists2, $fists3) = @_;
     my $total = $fists + $fists2 + $fists3;
-    my $ave = $total/3;
+    my $ave = $total/3.0;
     return $ave;
 }
 
@@ -1192,12 +1192,12 @@ sub getHaAziAlt{
     #hour angle of moon this checks out
     my $H = $theta - 93.2650 - $RA;
 
-    if ($H < -360){
-    	$H = $H + 360;
-    }
-    elsif ($H > 360) {
-        $H = $H - 360;
-    }
+    # if ($H < -360){
+    # 	$H = $H + 360;
+    # }
+    # elsif ($H > 360) {
+    #     $H = $H - 360;
+    # }
     # else{
     # 	$H = $H - 270;
     # }
