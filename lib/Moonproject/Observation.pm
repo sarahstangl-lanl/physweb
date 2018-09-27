@@ -1287,13 +1287,13 @@ sub getNewElongation{
     my $self = shift;
     my $date = shift;
     
-    my $UTDate = $date->clone->set_time_zone('UTC');
+    my $UTDate = $date->clone;
     my $hour = $UTDate->hour;
     my $minute = $UTDate->minute;
 
     my $MHA = $self->getHA($UTDate); # June 27 2018 0930: -229.627643735931
     
-    my $SunHA = (($date->minute + $date->hour/60) - 12) * 15; # June 27 2018 0930: -37.5
+    my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
 	
     my $SunRA = $self->getSunRA($UTDate);
 
