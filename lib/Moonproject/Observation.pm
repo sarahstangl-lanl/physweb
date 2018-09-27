@@ -1287,13 +1287,18 @@ sub getNewElongation{
     my $self = shift;
     my $date = shift;
 
+
     my $UTDate = $date->clone->set_time_zone( 'America/Chicago' );
     my $hour = $UTDate->hour;
     my $minute = $UTDate->minute;
 
     my $MHA = $self->getHA($UTDate); # June 27 2018 0930: -229.627643735931
-    
-    my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
+    if ($dt->clone->set_time_zone($tz)->is_dst) {
+        my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
+    } else {
+        my $SunHA = (($hour + 1 + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
+
+    }
 	
     my $SunRA = $self->getSunRA($UTDate);
 
@@ -1302,7 +1307,7 @@ sub getNewElongation{
     my ($MoonRA, $DEC) = $self->getRAandDEC($date); # June 27 2018 0930: RA: 269.270552255631, DEC: -20.3075638354576
 
     #my $elongation = $SunRA - $MoonRA; # June 27 2018 0930: -37.5 - (-229.627643735931) = 191.12
-    my $elongation = $SunHA;
+    my $elongation = $SunHA - $MHA;
     # real RA is: 266.6083   
     # if ($elongation < 0){
     # 	$elongation = $elongation + 360; 
