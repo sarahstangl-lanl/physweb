@@ -1304,9 +1304,9 @@ sub getNewElongation{
     my $elongation = $SunRA - $MoonRA; # June 27 2018 0930: -37.5 - (-229.627643735931) = 191.12
     #my $elongation = $SunHA - $MHA;
     # real RA is: 266.6083   
-    if ($elongation < 0){
-    	$elongation = $elongation + 360; 
-    }
+    # if ($elongation < 0){
+    # 	$elongation = $elongation + 360; 
+    # }
  
     return $elongation;
     #return $self->getMeanSiderealTimeGreenwich($UTDate);
