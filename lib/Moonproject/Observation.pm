@@ -1293,7 +1293,7 @@ sub getNewElongation{
     my $minute = $UTDate->minute;
 
     my $MHA = $self->getHA($UTDate); # June 27 2018 0930: -229.627643735931
-    if ($date->clone->set_time_zone('America/Chicago' )->is_dst) {
+    if ($date->clone->set_time_zone('America/Chicago')->is_dst()) {
         my $SunHA = (($hour + 1 + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
     } else {
         my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
@@ -1308,9 +1308,9 @@ sub getNewElongation{
     #my $elongation = $SunRA - $MoonRA; # June 27 2018 0930: -37.5 - (-229.627643735931) = 191.12
     my $elongation = $SunHA - $MHA;
     # real RA is: 266.6083   
-    # if ($elongation < 0){
-    # 	$elongation = $elongation + 360; 
-    # }
+    if ($elongation < 0){
+    	$elongation = $elongation + 360; 
+    }
  
     return $elongation;
     #return $self->getMeanSiderealTimeGreenwich($UTDate);
