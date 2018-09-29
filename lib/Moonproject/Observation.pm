@@ -1298,7 +1298,7 @@ sub getNewElongation{
     if ($date->clone->set_time_zone('America/Chicago')->is_dst()) {
         $SunHA = (($hour - 1 + $minute/60) - 12) * 15; 
     } else {
-        $SunHA = (($hour + 1 +  $minute/60) - 12) * 15;
+        $SunHA = (($hour +  $minute/60) - 12) * 15;
     }
 	
     my $SunRA = $self->getSunRA($UTDate);
@@ -1314,7 +1314,7 @@ sub getNewElongation{
     	$elongation = $elongation + 360; 
     }
  
-    return  $SunHA;
+    return  $elongation;
     #return $self->getMeanSiderealTimeGreenwich($UTDate);
     #return $RA;
 }
