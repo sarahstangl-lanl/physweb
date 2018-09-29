@@ -1293,12 +1293,12 @@ sub getNewElongation{
     my $minute = $UTDate->minute;
 
     my $MHA = $self->getHA($UTDate); # June 27 2018 0930: -229.627643735931
-    if ($date->clone->set_time_zone('America/Chicago')->is_dst()) {
-        my $SunHA = (($hour + 1 + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
-    } else {
-        my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
-    }
-    # my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
+    # if ($date->clone->set_time_zone('America/Chicago')->is_dst()) {
+    #     my $SunHA = (($hour + 1 + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
+    # } else {
+    #     my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
+    # }
+    my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
 	
     my $SunRA = $self->getSunRA($UTDate);
 
