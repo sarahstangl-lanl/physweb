@@ -905,7 +905,7 @@ sub getSigmaLRB{
 sub computeLongitudeLatitudeDistanceHorizonParallax{
     my $self = shift;
     my $date = shift;
-    
+
     my $T = $self->getT($date);
 
     #moon's mean longitude in degrees
@@ -1061,11 +1061,13 @@ sub getRAandDEC{
     my $self = shift;
     my $date = shift;
     my $UTDate = $date->clone->set_time_zone('-0600');
-
+    if ($date->clone->set_time_zone('America/Chicago')->is_dst()) {
+         $UTDate = $date->clone->set_time_zone('-0500');
+    }
     my ($lambda, $beta, $Delta, $epsilon) = 
     $self->computeLongitudeLatitudeDistanceHorizonParallax($UTDate);
 
-    my $T = $self->getT($date);
+    my $T = $self->getT($UTDate);
 
     #right ascension
     my $RA = Astro::Coord::ECI::Utils::rad2deg(
@@ -1232,7 +1234,9 @@ sub getHA{
     my $date = shift;
 
     my ($H, $AZI, $altitude) = $self->getHaAziAlt($date);
-
+    if ($H + 360 - $AZI > 5 ) {
+        $H = $H - 360;
+    } 
     return $H;
 }
 
