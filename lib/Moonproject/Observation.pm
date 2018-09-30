@@ -172,7 +172,7 @@ sub calculate_values {
     $self->{realDAY} = ($self->{dt}->day_of_year);
     $self->{realPHN} = $self->compute_elongation_from_date($self->{dt}) / 45;
     $self->{realMHF} = $self->compute_moonHA_from_fists($self->{aveFist}, $self->student->{fistdegrees});
-    $self->{realMHD} = $self->getMHD($self->{dt});   
+    $self->{realMHD} = $self->getHA($self->{dt});   
     $self->{realAZM} = $self->getAZI($self->{dt}); #this is the placeholder variable for AZIMUTH
     $self->{realSHC} = $self->compute_sunHA_from_CST($self->{cstTime});
     $self->{realEHA} = $self->{sunHA} ne '' ? $self->compute_elongation_from_HA($self->{sunHA}, $self->{moonHA}) : undef;
@@ -1250,15 +1250,7 @@ sub getAZI{
     return $AZI;
 }
 
-sub getMHD{
-    my $self = shift;
-    my $date = shift;
 
-    my ($H, $AZI, $altitude) = $self->getHaAziAlt($date);
-
-    
-    return $H;
-}
 
 sub getALT{
 	my $self = shift;
