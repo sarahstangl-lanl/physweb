@@ -1234,7 +1234,7 @@ sub getHA{
     my $date = shift;
 
     my ($H, $AZI, $altitude) = $self->getHaAziAlt($date);
-    if ($H + 360 - $AZI > 5 ) {
+    if ($H + 360 - $AZI < 5 ) {
         $H = $H - 360;
     } 
     return $H;
