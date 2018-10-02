@@ -531,8 +531,7 @@ sub grade_ave {
     my $self = shift;
     my $tolAverageFists = $self->get_tolerance('tolAverageFists');
     return 'unknown' unless ($self->{aveFist} ne '');  # return unknown if aveFist = ''
-    return 'fail' unless    (   abs( $self->{aveFist} - $self->{realAVE} ) <= $tolAverageFists         #return fail if 'abs of aveFist - realAve' is > tolAverageFists OR "abs of 'abs of aveFist - realAve' - 360" > tolAverageFists
-                            );
+    return 'fail' unless    (abs( $self->{aveFist} - $self->{realAVE} ) <= $tolAverageFists);
     return 'pass';
 }
 
@@ -1234,9 +1233,12 @@ sub getHA{
     my $date = shift;
 
     my ($H, $AZI, $altitude) = $self->getHaAziAlt($date);
-    if ($H + 360 - $AZI < 5 ) {
+    if ($H < -360 ) {
         $H = $H + 360;
     } 
+    if ($H > 360) {
+        $H = $H - 360;
+    }
     return $H;
 }
 
