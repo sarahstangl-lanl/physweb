@@ -1233,10 +1233,10 @@ sub getHA{
     my $date = shift;
 
     my ($H, $AZI, $altitude) = $self->getHaAziAlt($date);
-    if ($H < -360 ) {
+    if ($H < -180 ) {
         $H = $H + 360;
     } 
-    if ($H > 360) {
+    if ($H > 180) {
         $H = $H - 360;
     }
     return $H;
