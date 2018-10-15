@@ -172,7 +172,7 @@ sub calculate_values {
     $self->{realDAY} = ($self->{dt}->day_of_year);
     $self->{realPHN} = $self->compute_elongation_from_date($self->{dt}) / 45;
     $self->{realMHF} = $self->compute_moonHA_from_fists($self->{aveFist}, $self->student->{fistdegrees});
-    $self->{realMHD} = $self->getMHD($self->{dt});   
+    $self->{realMHD} = $self->getHA($self->{dt});   
     $self->{realAZM} = $self->getAZI($self->{dt}); #this is the placeholder variable for AZIMUTH
     $self->{realSHC} = $self->compute_sunHA_from_CST($self->{cstTime});
     $self->{realEHA} = $self->{sunHA} ne '' ? $self->compute_elongation_from_HA($self->{sunHA}, $self->{moonHA}) : undef;
@@ -531,8 +531,7 @@ sub grade_ave {
     my $self = shift;
     my $tolAverageFists = $self->get_tolerance('tolAverageFists');
     return 'unknown' unless ($self->{aveFist} ne '');  # return unknown if aveFist = ''
-    return 'fail' unless    (   abs( $self->{aveFist} - $self->{realAVE} ) <= $tolAverageFists         #return fail if 'abs of aveFist - realAve' is > tolAverageFists OR "abs of 'abs of aveFist - realAve' - 360" > tolAverageFists
-                            );
+    return 'fail' unless    (abs( $self->{aveFist} - $self->{realAVE} ) <= $tolAverageFists);
     return 'pass';
 }
 
@@ -905,7 +904,7 @@ sub getSigmaLRB{
 sub computeLongitudeLatitudeDistanceHorizonParallax{
     my $self = shift;
     my $date = shift;
-    
+
     my $T = $self->getT($date);
 
     #moon's mean longitude in degrees
@@ -1061,11 +1060,13 @@ sub getRAandDEC{
     my $self = shift;
     my $date = shift;
     my $UTDate = $date->clone->set_time_zone('-0600');
-
+    if ($date->clone->set_time_zone('America/Chicago')->is_dst()) {
+         $UTDate = $date->clone->set_time_zone('-0500');
+    }
     my ($lambda, $beta, $Delta, $epsilon) = 
     $self->computeLongitudeLatitudeDistanceHorizonParallax($UTDate);
 
-    my $T = $self->getT($date);
+    my $T = $self->getT($UTDate);
 
     #right ascension
     my $RA = Astro::Coord::ECI::Utils::rad2deg(
@@ -1232,7 +1233,12 @@ sub getHA{
     my $date = shift;
 
     my ($H, $AZI, $altitude) = $self->getHaAziAlt($date);
-
+    if ($H < -180 ) {
+        $H = $H + 360;
+    } 
+    if ($H > 180) {
+        $H = $H - 360;
+    }
     return $H;
 }
 
@@ -1246,15 +1252,7 @@ sub getAZI{
     return $AZI;
 }
 
-sub getMHD{
-    my $self = shift;
-    my $date = shift;
 
-    my ($H, $AZI, $altitude) = $self->getHaAziAlt($date);
-
-    
-    return $H;
-}
 
 sub getALT{
 	my $self = shift;
@@ -1292,28 +1290,29 @@ sub getNewElongation{
     my $hour = $UTDate->hour;
     my $minute = $UTDate->minute;
 
-    my $MHA = $self->getHA($UTDate); # June 27 2018 0930: -229.627643735931
-    # if ($date->clone->set_time_zone('America/Chicago')->is_dst()) {
-    #     my $SunHA = (($hour + 1 + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
-    # } else {
-    #     my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
-    # }
-    my $SunHA = (($hour + $minute/60) - 12) * 15; # June 27 2018 0930: -37.5
+    my $MHA = $self->getHA($UTDate); 
+    my $SunHA = 0; 
+
+    if ($date->clone->set_time_zone('America/Chicago')->is_dst()) {
+        $SunHA = (($hour - 1 + $minute/60) - 12) * 15; 
+    } else {
+        $SunHA = (($hour +  $minute/60) - 12) * 15;
+    }
 	
     my $SunRA = $self->getSunRA($UTDate);
 
-    my $AZI = $self->getAZI($UTDate); # June 27 2018 0930: 104.486367178372
+    my $AZI = $self->getAZI($UTDate); 
 
-    my ($MoonRA, $DEC) = $self->getRAandDEC($date); # June 27 2018 0930: RA: 269.270552255631, DEC: -20.3075638354576
+    my ($MoonRA, $DEC) = $self->getRAandDEC($date); 
 
     #my $elongation = $SunRA - $MoonRA; # June 27 2018 0930: -37.5 - (-229.627643735931) = 191.12
     my $elongation = $SunHA - $MHA;
-    # real RA is: 266.6083   
+
     if ($elongation < 0){
     	$elongation = $elongation + 360; 
     }
  
-    return $elongation;
+    return  $elongation;
     #return $self->getMeanSiderealTimeGreenwich($UTDate);
     #return $RA;
 }
