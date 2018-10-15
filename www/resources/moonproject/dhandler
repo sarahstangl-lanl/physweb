@@ -30,7 +30,7 @@ Write down the day number for the date you took the observation. For example, Ja
 Your day number does not match your observation date.
 <h4>Commonly Made Mistakes:</h4>
 <ol>
-<li>Click <a href="https://nsidc.org/data/tools/doy_calendar.html" target="new">HERE</a> for the list of day numbers.
+<li>Click <a href="https://www.esrl.noaa.gov/gmd/grad/neubrew/Calendar.jsp" target="new">HERE</a> for the list of day numbers.
 <li>30 days hath September, April, June, and November. All the rest have 31. Except for February which has 28 
 (unless it is a leap year, in which case it has 29 days).
 <li>There is no such thing as Day 0. Jan 1st is Day 1.
@@ -229,7 +229,7 @@ You did not calculate your CST correctly from your Clock Time.
 Your day number does not match your observation date.
 <h4>Commonly Made Mistakes:</h4>
 <ol>
-<li>Click <a href="https://nsidc.org/data/tools/doy_calendar.html" target=new>HERE</a> for the list of day numbers.
+<li>Click <a href="https://www.esrl.noaa.gov/gmd/grad/neubrew/Calendar.jsp" target=new>HERE</a> for the list of day numbers.
 <li>30 days hath September, April, June, and November. All the rest have 31. Except for February which has 28 (unless it is a leap year, in which case it has 29 days).
 <li>There is no such thing as Day 0. Jan 1st is Day 1.
 </ol>
