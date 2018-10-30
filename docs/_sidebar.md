@@ -1,29 +1,22 @@
 * [Home](/)
 * Getting started
-
   * [Quick start](quickstart.md)
-  * [Writing more pages](more-pages.md)
-  * [Custom navbar](custom-navbar.md)
-  * [Cover page](cover.md)
+  * [Introduction](introduction.md)
+  * [Astronomy](astronomy.md)
 
-* Customization
+* Architecture
 
-  * [Configuration](configuration.md)
-  * [Themes](themes.md)
-  * [List of Plugins](plugins.md)
-  * [Write a Plugin](write-a-plugin.md)
-  * [Markdown configuration](markdown.md)
-  * [Language highlighting](language-highlight.md)
+  * [Overview](overview.md)
+  * [lib/Moonproject](libmoonproject.md)
+  * [Observation.pm](observation.md)
+  * [mason/db/moonproject](masondb.md)
+  * [www/resources/moonproject](wwwres.md)
+  * [Database](database.md)
 
 * Guide
+  * [Adding New Field in Database](adding-new-field-in-database.md)
+  * [Adding New Features](adding-new-features.md)
+  * [Adding Additional Reports](adding-additional-reports.md)
 
-  * [Deploy](deploy.md)
-  * [Helpers](helpers.md)
-  * [Vue compatibility](vue.md)
-  * [CDN](cdn.md)
-  * [Offline Mode(PWA)](pwa.md)
-  * [Server-Side Rendering(SSR)](ssr.md)
-  * [Embed Files <sup style="color:red">(new)<sup>](embed-files.md)
-
-* [Awesome docsify](awesome.md)
+* [FAQ](faq.md)
 * [Changelog](changelog.md)
